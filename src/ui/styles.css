@@ -1,0 +1,3 @@
+#app { position: fixed; inset: 0; }
+#app canvas { display: block; }
+#ui { position: fixed; inset: 0; pointer-events: none; font: 500 14px/1.3 system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; color: #e8ecf3; }
