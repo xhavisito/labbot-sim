@@ -5,7 +5,7 @@ import { initRapier } from './physics/PhysicsWorld';
 
 async function boot(): Promise<void> {
   await initRapier();
-  const app = new App(document.getElementById('app')!);
+  const app = new App(document.getElementById('app')!, document.getElementById('ui')!);
   (window as unknown as { app: App }).app = app;
   document.getElementById('loading')?.remove();
 }
