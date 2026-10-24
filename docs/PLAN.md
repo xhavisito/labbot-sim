@@ -1,0 +1,80 @@
+# PLAN — LabBot Rescue Sim (propuesta, pendiente de visto bueno)
+
+Simulador 3D web del reto interno **LabBot Rescue 2026**. Reglas: solo `docs/reglas-reto.md`
+(resumen del manual con secciones citadas). Referencia de arquitectura: `rebuilt-sim` (solo lectura).
+
+## 1. Estado de los repos
+
+**labbot-sim**: vacío (sin commits, sin ramas remotas). No hay convenciones previas que respetar,
+así que propongo adoptar las de rebuilt-sim (mismo autor, mismo stack) adaptadas.
+
+**rebuilt-sim** (≈31 k líneas TS, 61 commits): Vite 8 + TypeScript 6 estricto + Three.js 0.186
+(WebGL2) + Rapier3D compat 0.21 (WASM embebido) + Vitest 5 + Playwright; UI en DOM sin framework,
+i18n es-MX/en, PWA con `sw.js` propio, deploy a GitHub Pages con Actions.
+
+| rebuilt-sim | ¿Se toma? | Cómo |
+|---|---|---|
+| Capas `core/` (puro, sin Three/Rapier, con pruebas) · `config/` · `physics/` · `render/` · `input/` · `game/` (sesión que une todo) · `ui/` | **Sí, la idea** | Misma separación; código nuevo. |
+| `core/clock.ts`: fases como tabla de fronteras + `phaseAt(t)` | Sí, idea | AUTO 15 / TELEOP 135 / ENDGAME = últimos 30. Sin SHIFTS ni pausa de 3 s ni gracia de 3 s (son de REBUILT). |
+| `core/match.ts`: máquina de estados que recibe eventos físicos y emite eventos (fase, falta, fin) | Sí, idea | Eventos de LabBot: muestra depositada (nivel), cruce de línea, evaluación final (plataforma, Muestra Crítica, Dominio). |
+| `core/fouls.ts` catálogo de reglas con código y texto · `core/rp.ts` | Sí, idea | Catálogo con §4.5/§4.6 en lugar de G4xx; RP de §4.4. |
+| Coordenadas: origen al centro, Y arriba, simetría 180°, `inch()` con medida original en comentario | Sí | Aquí todo viene en mm/cm: `mm()` y la medida del manual en comentario. |
+| Física: paso fijo 120 Hz + interpolación; robot = cuerpo dinámico con tracción limitada por μ·m·g; modo `tank` ya existente | Sí, idea | Solo tanque (§7.2), sin bumpers; cubos (no pelotas) como cuerpos Rapier caja. |
+| Pool de piezas (cuerpo deshabilitado = pieza guardada, contador lógico) | Sí, idea | Muestras dentro del robot o anotadas = lógicas. |
+| Árbitro automático con umbrales documentados por regla | Sí, idea | Faltas de §4.5/4.6 que se pueden detectar (contacto, pinning, salir de la cancha, Plataforma/Muestra Crítica antes del endgame, zonas rivales). |
+| Input con acciones abstractas (teclado, gamepad, táctil) | Sí, simplificado | Teclado + gamepad en H4; táctil después. |
+| HUD/menús DOM + `t('clave')` | Sí | es-MX por defecto. |
+| Balística, HUB, FUEL, TOWER, SHIFTS, CAD de robots reales, en línea (WebRTC/MQTT), repeticiones, IA en capas, ranking, Supabase, PWA | **No** (por ahora) | No aplican al reto o son extras; se evalúan después del simulador funcional. |
+
+## 2. Stack (sin dependencias pesadas)
+- Runtime: `three`, `@dimforge/rapier3d-compat` (las mismas versiones exactas que rebuilt-sim).
+- Dev: `vite`, `typescript`, `vitest`, `@types/three`; `playwright` solo para capturas/e2e (se puede
+  usar el Chromium preinstalado en la nube).
+- Nada más. Sin framework de UI.
+
+## 3. Árbol propuesto
+```
+index.html · vite.config.ts · tsconfig.json · package.json · README.md · CLAUDE.md
+docs/reglas-reto.md · docs/PLAN.md
+src/
+  main.ts                 carga Rapier y arranca App
+  config/game.ts          TIEMPOS, PUNTOS, FALTAS, RP (cada número con su §)
+  config/field.ts         medidas y posiciones de la cancha (mm del manual en comentario; [fig.] marcadas)
+  config/robot.ts         RobotSpec (65×65 cm, alto ≤100 cm, extensión ≤40 cm, tanque) + presets
+  core/                   PURO + pruebas
+    types.ts  clock.ts  scoring.ts  fouls.ts  rp.ts  match.ts  rng.ts
+  physics/                PhysicsWorld.ts  FieldColliders.ts  Pieces.ts (Muestras/Críticas)  RobotPhysics.ts (tanque)
+  game/                   GameSession.ts  Robot.ts  Mechanisms.ts (intake/elevador/depósito)  HumanPlayer.ts  Sensors.ts (detección de anotación, plataforma, línea)
+  referee/Referee.ts      faltas automáticas
+  render/                 Renderer.ts  FieldView.ts  RobotView.ts  PieceView.ts  CameraRig.ts
+  input/                  actions.ts  InputManager.ts (teclado + gamepad)
+  ui/                     i18n.ts  Hud.ts  Menu.ts  Results.ts  styles.css
+  auto/                   rutinas simples de AUTO (H5)
+tests/                    clock, scoring, fouls/cards, rp, match (casos borde), field (cuadres de medidas)
+```
+
+## 4. Hitos (commits atómicos `feat(hito-N): …`)
+1. **Cancha y piezas** — `config/field.ts` + colisionadores + vista 3D: cancha 9×7 m, Zonas de Inicio,
+   Laboratorio (16 Muestras), Cámaras (3 niveles con aperturas a 200/500/800 mm), Campanas con ranura
+   y barra, Plataforma (rampas 15°, repisa +300 mm). Pruebas de cuadre (1035.28·cos15° = 1000 mm,
+   simetría 180°, todo dentro de 9×7). Cámara libre/superior para revisar.
+2. **Robot** — tanque con tracción limitada, 65×65 cm, mecanismo genérico: intake al piso, almacenamiento
+   (capacidad configurable, el manual no limita), elevador/depósito con altura objetivo N1/N2/N3 y
+   repisa; tomar la Muestra Crítica de la rendija. Colisiones robot–cancha–piezas; subir la rampa.
+3. **Lógica de juego** — reloj y fases, sensores de anotación por nivel con el valor del periodo,
+   línea de autónomo, evaluación final (Plataforma no acumulable, Muestra Crítica, Dominio ≥10),
+   faltas/Tech Fouls/tarjetas (2 Yellow = Red = 0 puntos), RP. Pruebas unitarias con casos borde
+   (empate, Red Card, 1 vs 2 robots en plataforma, muestra al segundo 15.0, etc.).
+4. **UI y controles** — marcador, timer, aviso de ENDGAME, desglose de puntos y RP al final;
+   teclado y gamepad; cámaras (piloto, seguimiento, superior); 1 jugador + 3 robots quietos o
+   controlados por teclas alternas.
+5. **Configuración, pruebas y extras** — pantalla de ajustes (puntos/tiempos editables desde `config`),
+   modo práctica (sin reloj, reiniciar piezas), HP automático, rutinas simples de AUTO, IA básica,
+   registro de eventos del match (log exportable). Repetición/en línea solo si lo pides.
+
+Cada hito: `npm test`, `npm run build` y captura con Playwright; resumen corto al terminar.
+
+## 5. Decisiones que necesito antes del Hito 3
+Las dudas D1–D12 de `docs/reglas-reto.md`. Puedo avanzar H1 y H2 con los supuestos marcados;
+las más urgentes son **D1** (línea de autónomo), **D4** (cuándo cuenta una muestra) y **D5**
+(qué es estar sobre la Plataforma).
