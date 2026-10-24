@@ -32,7 +32,7 @@ Origen en el centro de la cancha, Y hacia arriba, metros.
 |---|---|---|
 | **Zona de Inicio** ×2 por alianza (§3.2.1) | Cinta del color de la alianza "en forma de L", una por robot. Sin medidas. | La cinta roja es un escalón: tramo en X≈3.92 (Z −0.99→0), tramo en Z≈0 (X 3.92→2.91), tramo en X≈2.91 (Z 0→0.99). **SUPUESTO**: dos zonas de ≈1.0 × 1.0 m: A = X[2.91,3.92]×Z[−0.99,0], B = igual con Z[0,0.99]. |
 | **Línea central** (§4.2) | Los robots no pueden cruzarla en AUTO. | X = 0. En la figura es roja de Z −3.5 a −0.75 y azul de 0.75 a 3.5 (interrumpida por la Plataforma). |
-| **Línea de autónomo** (§4.4) | Da puntos "cruzarla". **No se define dónde está.** | Ver duda D1. |
+| **Línea de autónomo** (§4.4) | Da puntos "cruzarla". El manual no la ubica. | **Resuelto (Xhavi, 24-oct)**: es la misma cinta en L de la Zona de Inicio; se cruza al salir por completo de la zona (D1). |
 | **Laboratorio** (§3.2.2) | Zona central; 16 Muestras distribuidas simétricamente sobre marcas en el suelo; ambas alianzas acceden libremente en TeleOp. | Rejilla 4×4: X ∈ {±0.46, ±1.46}, Z ∈ {±1.40, ±2.40} (separación 1.0 m). 8 de cada lado de la línea central. |
 | **Cámara de Seguridad** (§3.2.3) | 3 contenedores abiertos ("botes sin fondo") escalonados sobre MDF, en el área lateral de la mitad propia. Total 2150 × 600 mm, altura máx. 800 mm. | Pegada a la pared lateral +Z: Z[2.90,3.50], X[1.56,3.70]. Nivel 1 junto a la pared de la alianza, Nivel 3 hacia el centro. |
 | ─ Nivel 1 | 789 × 600 mm, apertura a **200 mm** | X ≈ [2.91, 3.70] |
@@ -163,11 +163,11 @@ elegir a Rank 2); PlayOffs todos contra todos entre alianzas y final al 2 de 3 (
 
 | # | Tema | Qué dice el manual | Supuesto provisional del sim |
 |---|---|---|---|
-| **D1** | **¿Dónde está la línea de autónomo?** | Da 5 pts y 1 RP por "cruzarla", pero no la ubica; además prohíbe cruzar la línea central en AUTO. | El robot sale por completo de su Zona de Inicio (cinta en L). |
+| **D1** | **¿Dónde está la línea de autónomo?** | Da 5 pts y 1 RP por "cruzarla", pero no la ubica; además prohíbe cruzar la línea central en AUTO. | **RESUELTO (Xhavi, 24-oct)**: la línea es la cinta de la Zona de Inicio; cruzarla (salir por completo de la zona) da los puntos. |
 | **D2** | Puntos de la línea con un solo robot | La condición dice "ambos robots" pero el valor es "5 c/u". | 5 pts por cada robot que cruza; el RP solo si cruzan los dos. La presentación del kickoff dice "5 pts por robot", lo que apoya este supuesto. |
 | **D3** | Precarga | 1 Muestra por robot; "si no se usa, se coloca en la zona designada de cada equipo". ¿Sale de las 16 del Laboratorio, de las 10 del HP o es extra? ¿Cuál es la "zona designada"? | Extra (hasta 4 más); si no se precarga, va al HP. |
-| **D4** | ¿Cuándo cuenta una Muestra en la Cámara? | "Botes sin fondo"; valor según periodo. ¿Al entrar o al final? ¿Se pueden sacar? ¿Hay capacidad por nivel? | Cuenta al cruzar la apertura, con el valor del periodo en ese momento; no se pueden sacar; sin capacidad máxima. |
-| **D5** | ¿Qué es estar "sobre la Plataforma"? | Solo "sobre la Plataforma de Contención al sonar la bocina". ¿Vale estar en la rampa? ¿Tocando la alfombra? | Sin contacto con la alfombra y apoyado en la estructura (rampa, plataforma o repisa). |
+| **D4** | ¿Cuándo cuenta una Muestra en la Cámara? | "Botes sin fondo"; valor según periodo. ¿Al entrar o al final? ¿Se pueden sacar? ¿Hay capacidad por nivel? | **RESUELTO (Xhavi, 24-oct)**: las Muestras cuentan en todo momento del match, con el valor del periodo en que se depositan. Solo la Muestra Crítica tiene restricción (se toma de la Campana hasta el endgame). Supuesto restante: no se pueden sacar y no hay capacidad máxima. |
+| **D5** | ¿Qué es estar "sobre la Plataforma"? | Solo "sobre la Plataforma de Contención al sonar la bocina". ¿Vale estar en la rampa? ¿Tocando la alfombra? | Sin contacto con la alfombra y apoyado en la estructura (rampa, plataforma o repisa), evaluado al sonar la bocina. *Pendiente de confirmar.* |
 | **D6** | Medidas de la Repisa y ancho de la Plataforma | "~689 mm (344.50 de sobresaliente por cada lado)" no cuadra con la figura (≈0.39 m de fondo y ≈1.49 m de ancho). El ancho de las rampas no está en el texto. | Medidas de la figura; idealmente las tomamos del CAD de §3.3. |
 | **D7** | Cruzar la línea central en AUTO | Prohibido, pero sin falta asignada. | La IA y las rutinas no cruzan (pared virtual); si un jugador cruza, Foul (4). |
 | **D8** | Zonas "de la alianza contraria" | "Marcadas como tales" (§4.3) y Tech Foul por tocar a un robot en ellas; no se dice cuáles son. | Zonas de Inicio rivales + área frente a la Campana rival + huella de la Cámara rival. |
