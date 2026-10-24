@@ -2,6 +2,10 @@
  * Orquestador: renderer, cámara, entrada, sesión, HUD y menús; bucle principal.
  * Estados: menú (la cancha gira de fondo) → jugando ⇄ pausa → resultados.
  */
+import { AUTO_ROUTINES, LEAVE_ZONE } from '../auto/AutoRoutine';
+import { DEFAULT_ROBOT } from '../config/robot';
+import { loadSettings, saveSettings, type Settings } from '../config/settings';
+import { buildMatchLog } from '../core/matchLog';
 import { GameSession } from '../game/GameSession';
 import { InputManager } from '../input/InputManager';
 import { CAMERA_MODES, CameraRig, type CameraMode } from '../render/CameraRig';
@@ -20,6 +24,7 @@ export class App {
   session: GameSession;
   state: State = 'menu';
   private choice: MenuChoice = { mode: 'match', player: 0 };
+  readonly settings: Settings = loadSettings(AUTO_ROUTINES.map((r) => r.id));
   private last = performance.now();
 
   constructor(host: HTMLElement, ui: HTMLElement) {
@@ -28,7 +33,7 @@ export class App {
     this.session = new GameSession();
     this.renderer.scene.add(this.session.root);
     this.hud = new Hud(ui);
-    this.menu = new Menu(ui, (c) => this.start(c));
+    this.menu = new Menu(ui, (c) => this.start(c), this.settings, (s) => saveSettings(s));
     this.toMenu();
     const onResize = () => this.renderer.resize(this.cam.camera);
     window.addEventListener('resize', onResize);
@@ -46,13 +51,40 @@ export class App {
     this.choice = c;
     this.renderer.scene.remove(this.session.root);
     this.session.dispose();
-    this.session = new GameSession({ player: c.player, preload: true });
+    this.session = new GameSession(this.sessionOptions(c.player));
     this.renderer.scene.add(this.session.root);
     if (c.mode === 'match') this.session.startMatch();
     this.menu.hide();
     this.hud.show(true);
     this.state = 'playing';
     this.cam.setMode(c.player < 2 ? 'driverRed' : 'driverBlue');
+  }
+
+  /** Opciones de la sesión según los ajustes: IA, rutinas de AUTO, tu robot y Human Player. */
+  private sessionOptions(player: number): ConstructorParameters<typeof GameSession>[0] {
+    const s = this.settings;
+    const auto = (id: string) => AUTO_ROUTINES.find((r) => r.id === id) ?? LEAVE_ZONE;
+    return {
+      player,
+      preload: true,
+      ai: s.ai,
+      autos: [0, 1, 2, 3].map((i) => auto(i === player ? s.playerAuto : s.botAuto)),
+      specs: [0, 1, 2, 3].map((i) => (i === player ? { ...DEFAULT_ROBOT, maxSpeed: s.maxSpeed, capacity: s.capacity } : DEFAULT_ROBOT)),
+      hp: { enabled: s.hpEnabled, interval: s.hpInterval },
+    };
+  }
+
+  /** Descarga el registro del match terminado como JSON. */
+  downloadLog(): void {
+    const m = this.session.match;
+    if (!m) return;
+    const log = buildMatchLog(m, this.session.log, { player: this.choice.player, settings: { ...this.settings } });
+    const blob = new Blob([JSON.stringify(log, null, 2)], { type: 'application/json' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `labbot-match-${log.createdAt.replace(/[:.]/g, '-')}.json`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
   }
 
   toMenu(): void {
@@ -103,6 +135,7 @@ export class App {
           m,
           () => this.start(this.choice),
           () => this.toMenu(),
+          () => this.downloadLog(),
         );
       }
     } else if (this.state === 'menu') {

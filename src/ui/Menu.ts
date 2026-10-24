@@ -1,8 +1,10 @@
-/** Menú principal, pausa y resultados (DOM). */
+/** Menú principal, ajustes, pausa y resultados (DOM). */
+import { AUTO_ROUTINES } from '../auto/AutoRoutine';
+import { DEFAULT_SETTINGS, SETTINGS_RANGE, type Settings } from '../config/settings';
 import { RULES } from '../core/fouls';
 import type { Match } from '../core/match';
 import { ALLIANCES, type Alliance } from '../core/types';
-import { getLang, setLang, t } from './i18n';
+import { getLang, setLang, t, type Key } from './i18n';
 
 export interface MenuChoice {
   mode: 'match' | 'practice';
@@ -18,6 +20,8 @@ export class Menu {
   constructor(
     host: HTMLElement,
     private onStart: (c: MenuChoice) => void,
+    private settings: Settings,
+    private onSettings: (s: Settings) => void,
   ) {
     this.root = document.createElement('div');
     this.root.className = 'overlay';
@@ -47,6 +51,7 @@ export class Menu {
         <button class="primary" data-act="match">${t('match')}</button>
         <button data-act="practice">${t('practice')}</button>
       </div>
+      <div class="row"><button data-act="settings">${t('settings')}</button></div>
       <details><summary>${t('controls')}</summary><p class="help">${t('help')}</p><p class="help">${t('helpPad')}</p></details>
       <button class="link" data-act="lang">${t('language')}</button>`);
     this.root.querySelectorAll<HTMLButtonElement>('[data-slot]').forEach((b) =>
@@ -57,9 +62,53 @@ export class Menu {
     );
     this.root.querySelector('[data-act="match"]')!.addEventListener('click', () => this.onStart({ mode: 'match', player: this.player }));
     this.root.querySelector('[data-act="practice"]')!.addEventListener('click', () => this.onStart({ mode: 'practice', player: this.player }));
+    this.root.querySelector('[data-act="settings"]')!.addEventListener('click', () => this.settingsPanel());
     this.root.querySelector('[data-act="lang"]')!.addEventListener('click', () => {
       setLang(getLang() === 'es' ? 'en' : 'es');
       location.reload();
+    });
+  }
+
+  /** Ajustes: IA, rutinas de AUTO, tu robot y Human Player. Se guardan al volver. */
+  settingsPanel(): void {
+    const s = this.settings;
+    const autoOpts = (sel: string) => AUTO_ROUTINES.map((r) => `<option value="${r.id}" ${r.id === sel ? 'selected' : ''}>${t(`auto_${r.id}` as Key)}</option>`).join('');
+    const range = (k: keyof typeof SETTINGS_RANGE, unit: string) => {
+      const r = SETTINGS_RANGE[k];
+      return `<input type="range" data-k="${k}" min="${r.min}" max="${r.max}" step="${r.step}" value="${s[k]}"><output data-unit="${unit}">${s[k]} ${unit}</output>`;
+    };
+    this.open(`
+      <h2>${t('settings')}</h2>
+      <div class="form">
+        <label><input type="checkbox" data-k="ai" ${s.ai ? 'checked' : ''}> ${t('setAi')}</label>
+        <label>${t('setPlayerAuto')} <select data-k="playerAuto">${autoOpts(s.playerAuto)}</select></label>
+        <label>${t('setBotAuto')} <select data-k="botAuto">${autoOpts(s.botAuto)}</select></label>
+        <label>${t('setSpeed')} ${range('maxSpeed', 'm/s')}</label>
+        <label>${t('setCapacity')} ${range('capacity', '')}</label>
+        <label><input type="checkbox" data-k="hpEnabled" ${s.hpEnabled ? 'checked' : ''}> ${t('setHp')}</label>
+        <label>${t('setHpInterval')} ${range('hpInterval', 's')}</label>
+      </div>
+      <p class="help">${t('settingsNote')}</p>
+      <div class="row">
+        <button class="primary" data-act="back">${t('save')}</button>
+        <button data-act="defaults">${t('defaults')}</button>
+      </div>`);
+    this.root.querySelectorAll<HTMLInputElement | HTMLSelectElement>('[data-k]').forEach((el) => {
+      const k = el.dataset.k as keyof Settings;
+      el.addEventListener('input', () => {
+        const v = el instanceof HTMLInputElement && el.type === 'checkbox' ? el.checked : el instanceof HTMLInputElement && el.type === 'range' ? Number(el.value) : el.value;
+        (s as unknown as Record<string, unknown>)[k] = v;
+        const out = el.nextElementSibling;
+        if (out instanceof HTMLOutputElement) out.textContent = `${v} ${out.dataset.unit ?? ''}`;
+      });
+    });
+    this.root.querySelector('[data-act="back"]')!.addEventListener('click', () => {
+      this.onSettings(s);
+      this.main();
+    });
+    this.root.querySelector('[data-act="defaults"]')!.addEventListener('click', () => {
+      Object.assign(s, DEFAULT_SETTINGS);
+      this.settingsPanel();
     });
   }
 
@@ -77,7 +126,7 @@ export class Menu {
     this.root.querySelector('[data-act="menu"]')!.addEventListener('click', onMenu);
   }
 
-  results(m: Match, onRestart: () => void, onMenu: () => void): void {
+  results(m: Match, onRestart: () => void, onMenu: () => void, onDownload: () => void): void {
     const b = { red: m.breakdown('red'), blue: m.breakdown('blue') };
     const rp = { red: m.rankingPoints('red'), blue: m.rankingPoints('blue') };
     const row = (label: string, f: (a: Alliance) => string | number) => `<tr><th>${label}</th>${ALLIANCES.map((a) => `<td class="${a}">${f(a)}</td>`).join('')}</tr>`;
@@ -111,8 +160,10 @@ export class Menu {
       <div class="row">
         <button class="primary" data-act="restart">${t('restart')}</button>
         <button data-act="menu">${t('backToMenu')}</button>
+        <button data-act="log">${t('downloadLog')}</button>
       </div>`);
     this.root.querySelector('[data-act="restart"]')!.addEventListener('click', onRestart);
     this.root.querySelector('[data-act="menu"]')!.addEventListener('click', onMenu);
+    this.root.querySelector('[data-act="log"]')!.addEventListener('click', onDownload);
   }
 }

@@ -32,6 +32,12 @@ En el menú eliges tu robot (Rojo 1–2, Azul 1–2) y el modo:
   puntos, RP y faltas.
 - **Práctica libre:** sin reloj ni faltas; el marcador cuenta las Muestras anotadas.
   Backspace reacomoda la cancha.
+- **Ajustes:** IA de los otros 3 robots (encendida por defecto), rutina de AUTO de tu robot y de los
+  demás (salir de la zona, anotar precarga, anotar y recolectar, quedarse quieto), velocidad y
+  capacidad de tu robot, y el Human Player automático. Se guardan en el navegador. Los puntos y
+  tiempos no se cambian aquí: son los del manual, en `src/config/game.ts`.
+- **Registro del match:** en la pantalla de resultados, "Descargar registro (JSON)" baja el desglose,
+  RP, cada Muestra (nivel y periodo), las faltas con su sección del manual y los eventos con su tiempo.
 
 ### Controles
 
@@ -58,16 +64,19 @@ Plataforma y suéltala sobre la Repisa (R).
 ```
 src/
   config/     field.ts (medidas de la cancha, §3), fieldLayout.ts (sólidos para física y render),
-              game.ts (tiempos, puntos, faltas y RP, §4.4–§4.6), robot.ts (límites §7.2)
-  core/       lógica pura y probada: clock.ts, match.ts (puntuación y RP), fouls.ts, types.ts
+              game.ts (tiempos, puntos, faltas y RP, §4.4–§4.6), robot.ts (límites §7.2),
+              settings.ts (ajustes del usuario)
+  core/       lógica pura y probada: clock.ts, match.ts (puntuación y RP), fouls.ts, matchLog.ts, types.ts
   physics/    Rapier: PhysicsWorld, FieldColliders, Pieces (pool de Muestras), RobotPhysics (tanque)
   game/       GameSession (une todo), Robot, Mechanisms, Sensors (anotación), HumanPlayer
   referee/    Referee.ts: faltas automáticas
   auto/       rutinas de AUTO
+  ai/         Bot.ts: IA de los robots (recolectar → anotar → Plataforma en el ENDGAME)
   render/     Three.js: Renderer, FieldView, PieceView, RobotView, CameraRig
   input/      teclado y gamepad
   ui/         i18n (es-MX / en), HUD, menús y resultados
-tests/        field, physics, robot, match (reglas y casos borde), session (match completo)
+tests/        field, physics, robot, match (reglas y casos borde), session (match completo),
+              bot (IA en un match completo, sin faltas de cancha), settings (ajustes y registro)
 ```
 
 Todos los parámetros del juego viven en `src/config/`; si el manual cambia, se ajustan ahí.
@@ -79,7 +88,9 @@ Cada regla en el código cita su sección del manual.
   §3.2 (error ≈ ±30 mm). El CAD oficial de la cancha (§3.3) daría las medidas exactas.
 - Supuestos marcados en `docs/reglas-reto.md`: qué cuenta como "sobre la Plataforma" (D5), zonas de
   color de cada alianza (D8), frecuencia de faltas por contacto (D11, D15), entre otros.
-- Los otros 3 robots no tienen IA: corren su rutina de AUTO y luego se quedan quietos.
+- La IA es sencilla: va por la Muestra libre más cercana, anota en el Nivel 3 (o el nivel libre),
+  y en el ENDGAME sube a la Plataforma. No toma la Muestra Crítica ni defiende, y a veces choca con
+  rivales (Fouls por contacto, §4.5).
 - El Human Player es automático (una Muestra cada 3 s si la ranura está libre).
 - No se simulan las faltas de conducta, seguridad o del Human Player humano (no se pueden detectar).
 - La intake no choca con la cancha (solo captura Muestras); el robot es genérico (sin editor).

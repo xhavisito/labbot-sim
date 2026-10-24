@@ -16,16 +16,26 @@ export interface AutoRoutine {
   id: string;
   name: string;
   steps: AutoStep[];
+  /** La maneja la IA (`ai/Bot`) en lugar de pasos fijos. */
+  bot?: { scoreOnly: boolean };
 }
 
-/** Por defecto: avanzar ~1.1 m y detenerse (sale de la Zona de Inicio = cruza la línea, D1). */
+/** Por defecto: avanzar ~0.9 m y detenerse: sale de la Zona de Inicio (= cruza la línea, D1) sin llegar a la rampa (§4.6). */
 export const LEAVE_ZONE: AutoRoutine = {
   id: 'leave',
   name: 'Salir de la zona',
-  steps: [{ do: 'drive', forward: 0.4, seconds: 1.0 }],
+  steps: [{ do: 'drive', forward: 0.3, seconds: 1.0 }],
 };
 
 export const DO_NOTHING: AutoRoutine = { id: 'none', name: 'Quedarse quieto', steps: [] };
+
+/** La IA lleva la precarga a su Cámara (Nivel 3) sin salir de su mitad (§4.2); al salir de la zona también cruza la línea. */
+export const SCORE_PRELOAD: AutoRoutine = { id: 'preload', name: 'Anotar precarga', steps: [], bot: { scoreOnly: true } };
+
+/** La IA anota la precarga y recolecta Muestras de su mitad. */
+export const COLLECT_HOME: AutoRoutine = { id: 'collect', name: 'Anotar y recolectar', steps: [], bot: { scoreOnly: false } };
+
+export const AUTO_ROUTINES: readonly AutoRoutine[] = [LEAVE_ZONE, SCORE_PRELOAD, COLLECT_HOME, DO_NOTHING];
 
 export interface AutoOutput {
   forward: number;

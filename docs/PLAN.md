@@ -71,6 +71,11 @@ tests/                    clock, scoring, fouls/cards, rp, match (casos borde), 
 5. **Configuración, pruebas y extras** — pantalla de ajustes (puntos/tiempos editables desde `config`),
    modo práctica (sin reloj, reiniciar piezas), HP automático, rutinas simples de AUTO, IA básica,
    registro de eventos del match (log exportable). Repetición/en línea solo si lo pides.
+   *Hecho:* los puntos y tiempos se quedan en `config/game.ts` (son reglas, no ajustes de usuario);
+   la pantalla de Ajustes cambia IA, rutinas de AUTO, velocidad y capacidad de tu robot y el Human
+   Player (`config/settings.ts`). IA en `ai/Bot.ts`; registro en `core/matchLog.ts`.
+6. **Tipos de robot** (pedido después del plan) — Elevador (plataforma que sube y empuja las Muestras
+   por atrás) y Pivote (brazo con garra), elegibles en el menú.
 
 Cada hito: `npm test`, `npm run build` y captura con Playwright; resumen corto al terminar.
 

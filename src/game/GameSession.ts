@@ -6,12 +6,14 @@
  * puntuación, faltas y RP).
  */
 import * as THREE from 'three';
+import { Bot } from '../ai/Bot';
 import { AutoRunner, LEAVE_ZONE, type AutoRoutine } from '../auto/AutoRoutine';
 import * as F from '../config/field';
 import { GAME, type GameConfig } from '../config/game';
 import { DEFAULT_ROBOT, type RobotSpec } from '../config/robot';
 import { isTeleop, robotsEnabled, type Phase } from '../core/clock';
 import { Match, type MatchEvent } from '../core/match';
+import type { TimedEvent } from '../core/matchLog';
 import { ALLIANCES, type Alliance } from '../core/types';
 import type { PlayerInput } from '../input/InputManager';
 import { buildFieldColliders } from '../physics/FieldColliders';
@@ -37,6 +39,10 @@ export interface SessionOptions {
   /** Rutina de AUTO de cada robot (por defecto, salir de la zona). */
   autos?: AutoRoutine[];
   game?: GameConfig;
+  /** La IA maneja los robots que no son del jugador en el TELEOP. */
+  ai?: boolean;
+  /** Human Player automático: encendido y segundos entre Muestras (SUPUESTO, ver HumanPlayer). */
+  hp?: { enabled: boolean; interval: number };
 }
 
 export class GameSession {
@@ -52,11 +58,15 @@ export class GameSession {
   /** Eventos del cuadro (los consume la UI y se vacían en `setInput`). */
   readonly events: MechEvent[] = [];
   readonly matchEvents: MatchEvent[] = [];
+  /** Todos los eventos del match con su tiempo (para el registro exportable). */
+  readonly log: TimedEvent[] = [];
   /** Muestras anotadas en práctica (sin match), por alianza. */
   readonly practiceCount: Record<Alliance, number> = { red: 0, blue: 0 };
   private pieceView: PieceView;
   private robotViews: RobotView[] = [];
   private autos: AutoRunner[] = [];
+  private autoBots: Array<Bot | null> = [];
+  private bots: Array<Bot | null> = [];
   private acc = 0;
   private input: PlayerInput | null = null;
   private stepMechEvents: MechEvent[] = [];
@@ -69,6 +79,10 @@ export class GameSession {
     this.pieces = new Pieces(this.pw);
     this.sensors = new Sensors(this.pieces);
     this.hps = { red: new HumanPlayer('red', this.pieces), blue: new HumanPlayer('blue', this.pieces) };
+    for (const a of ALLIANCES) {
+      this.hps[a].enabled = opts.hp?.enabled ?? true;
+      this.hps[a].interval = opts.hp?.interval ?? this.hps[a].interval;
+    }
     this.root.add(buildFieldView());
     this.pieceView = new PieceView(this.pieces);
     this.root.add(this.pieceView.group);
@@ -120,13 +134,20 @@ export class GameSession {
   startMatch(): void {
     this.resetField();
     this.match = new Match(this.game, F.ROBOTS_PER_ALLIANCE);
+    this.log.length = 0;
     this.autos = this.robots.map((r) => new AutoRunner(this.opts.autos?.[r.index] ?? LEAVE_ZONE));
+    this.autoBots = this.robots.map((r) => {
+      const b = this.autos[r.index].routine.bot;
+      return b ? new Bot(r, this.pieces, this.robots, { scoreOnly: b.scoreOnly, stayHome: true }) : null;
+    });
+    this.bots = this.robots.map((r) => (this.opts.ai && r !== this.player ? new Bot(r, this.pieces, this.robots) : null));
     this.match.start();
   }
 
   /** Vuelve a práctica libre (sin reloj). */
   practice(): void {
     this.match = null;
+    this.bots = [];
     this.resetField();
   }
 
@@ -160,7 +181,15 @@ export class GameSession {
       let forward = 0;
       let turn = 0;
       let slow = false;
-      if (m && phase === 'AUTO') {
+      const bot = m && phase === 'AUTO' ? this.autoBots[r.index] : m && isTeleop(phase) ? this.bots[r.index] : null;
+      if (bot) {
+        const o = bot.step(dt, phase, m ? m.remaining : Infinity);
+        forward = o.forward;
+        turn = o.turn;
+        r.mech.intakeOn = o.intake;
+        r.mech.target = o.elevator;
+        if (o.release) r.mech.release('sample', this.stepMechEvents);
+      } else if (m && phase === 'AUTO') {
         const o = this.autos[r.index].step(dt);
         forward = o.forward;
         turn = o.turn;
@@ -194,17 +223,22 @@ export class GameSession {
     this.stepMechEvents.length = 0;
 
     if (m && !m.finished) {
-      this.matchEvents.push(...m.tick(dt));
+      this.record(m, m.tick(dt));
       // Al sonar la bocina se evalúan Plataforma y Muestra Crítica (§4.3.1)
       if (m.phase === 'DONE') {
         const platform = { red: 0, blue: 0 };
         for (const r of this.robots) if (this.sensors.onPlatform(r)) platform[r.alliance]++;
         m.finish(platform, { red: this.sensors.criticalOnRepisa('red'), blue: this.sensors.criticalOnRepisa('blue') });
-        this.matchEvents.push(...m.tick(0));
+        this.record(m, m.tick(0));
       }
     }
     this.pieceView.capture();
     for (const v of this.robotViews) v.capture();
+  }
+
+  private record(m: Match, evs: MatchEvent[]): void {
+    this.matchEvents.push(...evs);
+    for (const e of evs) this.log.push({ ...e, t: Math.round(m.t * 1000) / 1000 });
   }
 
   /** Avanza `frameDt` segundos reales en pasos fijos (máx. 0.1 s por cuadro) y sincroniza la vista. */
