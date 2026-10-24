@@ -49,8 +49,8 @@ export class CameraRig {
   update(dt: number, target?: { x: number; y: number; z: number; heading: number }): void {
     if (this.mode === 'free') this.orbit.update();
     if (this.mode !== 'follow' || !target) return;
-    const back = 2.2;
-    const want = new THREE.Vector3(target.x - Math.cos(target.heading) * back, target.y + 1.4, target.z + Math.sin(target.heading) * back);
+    const back = 2.8;
+    const want = new THREE.Vector3(target.x - Math.cos(target.heading) * back, target.y + 1.9, target.z + Math.sin(target.heading) * back);
     this.followPos.lerp(want, this.followPos.lengthSq() === 0 ? 1 : 1 - Math.exp(-dt * 6));
     this.camera.position.copy(this.followPos);
     this.camera.lookAt(target.x + Math.cos(target.heading) * 0.8, target.y + 0.3, target.z - Math.sin(target.heading) * 0.8);
