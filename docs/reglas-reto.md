@@ -164,7 +164,7 @@ elegir a Rank 2); PlayOffs todos contra todos entre alianzas y final al 2 de 3 (
 | # | Tema | Qué dice el manual | Supuesto provisional del sim |
 |---|---|---|---|
 | **D1** | **¿Dónde está la línea de autónomo?** | Da 5 pts y 1 RP por "cruzarla", pero no la ubica; además prohíbe cruzar la línea central en AUTO. | El robot sale por completo de su Zona de Inicio (cinta en L). |
-| **D2** | Puntos de la línea con un solo robot | La condición dice "ambos robots" pero el valor es "5 c/u". | 5 pts por cada robot que cruza; el RP solo si cruzan los dos. |
+| **D2** | Puntos de la línea con un solo robot | La condición dice "ambos robots" pero el valor es "5 c/u". | 5 pts por cada robot que cruza; el RP solo si cruzan los dos. La presentación del kickoff dice "5 pts por robot", lo que apoya este supuesto. |
 | **D3** | Precarga | 1 Muestra por robot; "si no se usa, se coloca en la zona designada de cada equipo". ¿Sale de las 16 del Laboratorio, de las 10 del HP o es extra? ¿Cuál es la "zona designada"? | Extra (hasta 4 más); si no se precarga, va al HP. |
 | **D4** | ¿Cuándo cuenta una Muestra en la Cámara? | "Botes sin fondo"; valor según periodo. ¿Al entrar o al final? ¿Se pueden sacar? ¿Hay capacidad por nivel? | Cuenta al cruzar la apertura, con el valor del periodo en ese momento; no se pueden sacar; sin capacidad máxima. |
 | **D5** | ¿Qué es estar "sobre la Plataforma"? | Solo "sobre la Plataforma de Contención al sonar la bocina". ¿Vale estar en la rampa? ¿Tocando la alfombra? | Sin contacto con la alfombra y apoyado en la estructura (rampa, plataforma o repisa). |
@@ -176,6 +176,11 @@ elegir a Rank 2); PlayOffs todos contra todos entre alianzas y final al 2 de 3 (
 | **D11** | Frecuencia de faltas por contacto/pinning | Cualquier contacto con un rival es Foul, pero no hay duración de pinning ni regla de "una por contacto". | Una falta por contacto nuevo (con 1 s de enfriamiento); pinning > 3 s = Foul y otra cada 3 s más. |
 | **D12** | Muestras que entran justo después de la bocina / entre AUTO y TELEOP | No se menciona gracia. | Sin gracia: cuenta el instante en que cruza la apertura. |
 | D13 | Errata menor | Encabezado "Manual_Reto LamBot 2024"; 352 in ≠ 900 cm. | Se ignora. |
+
+**Presentación del kickoff** (`2026 Robotics WinterFest.pdf`, Canva, 38 págs.): repite el manual
+con las mismas figuras y valores; no trae medidas nuevas ni ubica la línea de autónomo. Solo
+difiere en que dice "Un robot sobre la Plataforma **durante el endgame**", mientras el manual
+(§4.4, §4.3.1) dice "al sonar la bocina"; manda el manual.
 
 **Pedido opcional:** el CAD de la cancha (§3.3, enlace de Google Drive) daría las posiciones
 exactas de la Zona de Inicio, Laboratorio, Plataforma y Repisa. Si se exporta a STEP/GLB y se
