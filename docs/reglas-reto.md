@@ -176,6 +176,9 @@ elegir a Rank 2); PlayOffs todos contra todos entre alianzas y final al 2 de 3 (
 | **D11** | Frecuencia de faltas por contacto/pinning | Cualquier contacto con un rival es Foul, pero no hay duración de pinning ni regla de "una por contacto". | Una falta por contacto nuevo (con 1 s de enfriamiento); pinning > 3 s = Foul y otra cada 3 s más. |
 | **D12** | Muestras que entran justo después de la bocina / entre AUTO y TELEOP | No se menciona gracia. | Sin gracia: cuenta el instante en que cruza la apertura. |
 | D13 | Errata menor | Encabezado "Manual_Reto LamBot 2024"; 352 in ≠ 900 cm. | Se ignora. |
+| D14 | Muestra en la Cámara de la alianza contraria | "Depositar en **su** Cámara"; no dice qué pasa si cae en la otra. | Cuenta para la alianza dueña de la Cámara. |
+| D15 | ¿Quién "entra en contacto"? | Foul por "entrar en contacto con los robots de la alianza contraria" (§4.5). | Lo comete el robot que se acerca más rápido al otro (mín. 0.15 m/s); dos robots quietos que se tocan no cometen falta. |
+| D16 | Muestra Crítica "durante el endgame" | Se evalúa "al sonar la bocina" (§4.3.1). | Cuenta si la Crítica propia está sobre la Repisa al sonar la bocina. |
 
 **Presentación del kickoff** (`2026 Robotics WinterFest.pdf`, Canva, 38 págs.): repite el manual
 con las mismas figuras y valores; no trae medidas nuevas ni ubica la línea de autónomo. Solo

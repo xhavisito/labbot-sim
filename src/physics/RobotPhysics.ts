@@ -35,6 +35,8 @@ export class RobotPhysics {
   grounded = 1;
   /** Ruedas que tocan la alfombra (no la Plataforma): para "sobre la Plataforma" (D5). */
   wheelsOnCarpet = 4;
+  /** Ruedas apoyadas en la Plataforma de Contención (rampa, plataforma superior o Repisa). */
+  wheelsOnPlatform = 0;
   lastCmd: DriveCommand = { forward: 0, turn: 0 };
   private wheelLocal: Array<[number, number]> = [];
   private ray = new RAPIER.Ray({ x: 0, y: 0, z: 0 }, { x: 0, y: -1, z: 0 });
@@ -62,7 +64,7 @@ export class RobotPhysics {
     const superMass = spec.massKg * 0.25;
     const chassisMass = spec.massKg - 4 * wheelMass - superMass;
     const add = (desc: RAPIER.ColliderDesc): RAPIER.Collider => {
-      const c = w.createCollider(desc.setCollisionGroups(GROUPS.robot), this.body);
+      const c = w.createCollider(desc.setCollisionGroups(GROUPS.robot).setActiveEvents(RAPIER.ActiveEvents.COLLISION_EVENTS), this.body);
       pw.tag(c, { kind: 'robot', robot: index });
       return c;
     };
@@ -72,8 +74,7 @@ export class RobotPhysics {
         .setTranslation(0, (CHASSIS_Y0 + CHASSIS_Y1) / 2, 0)
         .setMass(chassisMass)
         .setFriction(0.3)
-        .setRestitution(0.05)
-        .setActiveEvents(RAPIER.ActiveEvents.COLLISION_EVENTS),
+        .setRestitution(0.05),
     );
     // Superestructura (un poco adentro del perímetro)
     const top = Math.max(CHASSIS_Y1 + 0.02, spec.baseHeight);
@@ -164,9 +165,10 @@ export class RobotPhysics {
   }
 
   /** Rayos bajo cada rueda: cuántas tienen piso y cuántas pisan la alfombra. */
-  private senseGround(): void {
+  senseGround(): void {
     let n = 0;
     let carpet = 0;
+    let platform = 0;
     for (const [lx, lz] of this.wheelLocal) {
       const o = this.localToWorld(lx, WHEEL_R, lz);
       this.ray.origin = o;
@@ -175,9 +177,11 @@ export class RobotPhysics {
       n++;
       const tag = this.pw.tagOf(hit.collider.handle);
       if (tag?.kind === 'floor') carpet++;
+      else if (tag?.kind === 'field' && (tag.part === 'ramp' || tag.part === 'platform' || tag.part === 'repisa')) platform++;
     }
     this.grounded = n / 4;
     this.wheelsOnCarpet = carpet;
+    this.wheelsOnPlatform = platform;
   }
 
   /** Aplica el mando (llamar antes de cada paso de física). */
