@@ -1,0 +1,192 @@
+/**
+ * Mecanismos del robot según su tipo (`RobotSpec.mechanism`):
+ * - generic: intake al piso, almacenamiento, elevador y depósito al frente, pinza para la Crítica.
+ * - elevator: igual, pero la plataforma del elevador está atrás y empuja las piezas hacia atrás.
+ * - pivot: brazo con garra; agarra una pieza del piso con el brazo abajo y la suelta en la punta.
+ * Las piezas guardadas son lógicas (cuerpo deshabilitado); al soltarlas vuelven a la física en la
+ * punta del mecanismo, así que anotar depende de dónde caen (lo detecta la sesión).
+ */
+import { armAngle, armTip, type ElevatorPos } from '../config/robot';
+import type { Alliance } from '../core/types';
+import type { Piece, Pieces } from '../physics/Pieces';
+import type { RobotPhysics } from '../physics/RobotPhysics';
+
+export type MechEvent =
+  | { type: 'intake'; robot: number; piece: number }
+  | { type: 'grabCritical'; robot: number; piece: number }
+  | { type: 'release'; robot: number; piece: number };
+
+/** Velocidad con la que sale la pieza del depósito, hacia adelante (m/s). SUPUESTO. */
+const EJECT_SPEED = 0.6;
+/** Tiempo mínimo entre dos piezas soltadas (s). SUPUESTO. */
+const EJECT_COOLDOWN = 0.35;
+
+export class Mechanisms {
+  intakeOn = false;
+  readonly stored: Piece[] = [];
+  critical: Piece | null = null;
+  target: ElevatorPos = 0;
+  /** Altura actual del elevador (fondo de la pieza, m sobre la base del robot). */
+  height: number;
+  /** Ángulo del brazo (solo pivote; rad, 0 = horizontal). */
+  angle = 0;
+  private cooldown = 0;
+
+  constructor(
+    private phys: RobotPhysics,
+    private pieces: Pieces,
+    readonly alliance: Alliance,
+  ) {
+    this.height = phys.spec.elevatorHeights[0];
+    this.resetArm();
+  }
+
+  get capacity(): number {
+    return this.phys.spec.capacity;
+  }
+
+  /** +1 si las piezas salen por el frente, −1 si salen por atrás (elevador que empuja por atrás). */
+  get side(): 1 | -1 {
+    return this.phys.spec.mechanism === 'elevator' ? -1 : 1;
+  }
+
+  /** ¿Llegó el elevador (o el brazo) a su posición objetivo? */
+  get atTarget(): boolean {
+    return Math.abs(this.height - this.phys.spec.elevatorHeights[this.target]) < 0.01;
+  }
+
+  /** Posición local (adelante) del centro de una pieza de lado `size` en la punta del mecanismo. */
+  tipX(size: number): number {
+    const s = this.phys.spec;
+    if (s.mechanism === 'pivot' && s.arm) return armTip(s.arm, this.angle).x;
+    return this.side * (this.phys.halfL + s.reach - size / 2);
+  }
+
+  /** Avanza el elevador (o el brazo) y la intake un paso. */
+  step(dt: number, events: MechEvent[]): void {
+    const s = this.phys.spec;
+    const goal = s.elevatorHeights[this.target];
+    if (s.mechanism === 'pivot' && s.arm) {
+      const g = armAngle(s.arm, goal);
+      const d = g - this.angle;
+      const stepA = s.arm.speed * dt;
+      this.angle = Math.abs(d) <= stepA ? g : this.angle + Math.sign(d) * stepA;
+      this.height = Math.abs(d) <= stepA ? goal : armTip(s.arm, this.angle).y;
+    } else {
+      const d = goal - this.height;
+      const stepLen = s.elevatorSpeed * dt;
+      this.height = Math.abs(d) <= stepLen ? goal : this.height + Math.sign(d) * stepLen;
+    }
+    this.cooldown = Math.max(0, this.cooldown - dt);
+    if (this.intakeOn && this.stored.length < this.capacity) {
+      if (s.mechanism === 'pivot') this.runClaw(events);
+      else this.runIntake(events);
+    }
+  }
+
+  private resetArm(): void {
+    const s = this.phys.spec;
+    if (s.arm) this.angle = armAngle(s.arm, s.elevatorHeights[0]);
+  }
+
+  /** Garra del pivote: con el brazo abajo y vacía, agarra la Muestra que queda entre sus dedos. */
+  private runClaw(events: MechEvent[]): void {
+    if (this.critical || this.height > 0.06 || this.cooldown > 0) return;
+    const p = this.phys;
+    const base = p.position().y;
+    const cx = this.tipX(0.15);
+    for (const piece of this.pieces.list) {
+      if (piece.kind !== 'sample' || piece.state.at !== 'field') continue;
+      const t = piece.body.translation();
+      if (t.y - base > 0.2) continue;
+      const { lx, lz } = p.worldToLocalFlat(t.x, t.z);
+      if (Math.abs(lx - cx) > 0.12 || Math.abs(lz) > 0.12) continue;
+      this.pieces.stash(piece, { at: 'robot', robot: p.index });
+      this.stored.push(piece);
+      events.push({ type: 'intake', robot: p.index, piece: piece.index });
+      return;
+    }
+  }
+
+  /** Captura las Muestras en la cancha que toca el rodillo de la intake desplegada. */
+  private runIntake(events: MechEvent[]): void {
+    const p = this.phys;
+    const base = p.position().y;
+    const x0 = p.halfL - 0.02;
+    const x1 = p.halfL + p.spec.intake.extension;
+    const hw = p.spec.intake.width / 2;
+    for (const piece of this.pieces.list) {
+      if (piece.kind !== 'sample' || piece.state.at !== 'field') continue;
+      const t = piece.body.translation();
+      if (t.y - base > 0.25) continue;
+      const { lx, lz } = p.worldToLocalFlat(t.x, t.z);
+      if (lx < x0 || lx > x1 || Math.abs(lz) > hw) continue;
+      this.pieces.stash(piece, { at: 'robot', robot: p.index });
+      this.stored.push(piece);
+      events.push({ type: 'intake', robot: p.index, piece: piece.index });
+      if (this.stored.length >= this.capacity) return;
+    }
+  }
+
+  /** Recibe una pieza directamente (precarga, §4.1). */
+  load(piece: Piece): void {
+    this.pieces.stash(piece, { at: 'robot', robot: this.phys.index });
+    if (piece.kind === 'critical') this.critical = piece;
+    else this.stored.push(piece);
+  }
+
+  /**
+   * Pinza: toma la Muestra Crítica de su alianza si está al alcance del depósito y a la altura
+   * del elevador (en la rendija de la Campana, en el piso o en la Repisa).
+   */
+  grabCritical(events: MechEvent[]): boolean {
+    if (this.critical) return false;
+    // La garra del pivote lleva una sola pieza
+    if (this.phys.spec.mechanism === 'pivot' && this.stored.length > 0) return false;
+    const p = this.phys;
+    const c = this.pieces.critical(this.alliance);
+    if (c.state.at !== 'field') return false;
+    const t = c.body.translation();
+    const { lx, lz } = p.worldToLocalFlat(t.x, t.z);
+    const carriage = p.position().y + this.height;
+    const reachOk =
+      p.spec.mechanism === 'pivot'
+        ? Math.abs(lx - this.tipX(0.2)) < 0.2
+        : this.side * lx > p.halfL - 0.1 && this.side * lx < p.halfL + p.spec.reach + 0.15;
+    const ok = reachOk && Math.abs(lz) < 0.3 && t.y > carriage - 0.2 && t.y < carriage + 0.35;
+    if (!ok) return false;
+    this.pieces.stash(c, { at: 'robot', robot: p.index });
+    this.critical = c;
+    events.push({ type: 'grabCritical', robot: p.index, piece: c.index });
+    return true;
+  }
+
+  /** Suelta una pieza (Muestra o Crítica) en la punta del mecanismo, a su altura, hacia afuera. */
+  release(kind: 'sample' | 'critical', events: MechEvent[]): boolean {
+    if (this.cooldown > 0) return false;
+    const piece = kind === 'critical' ? this.critical : this.stored[this.stored.length - 1];
+    if (!piece) return false;
+    if (kind === 'critical') this.critical = null;
+    else this.stored.pop();
+    const p = this.phys;
+    const size = this.pieces.size(piece);
+    const at = p.localToWorld(this.tipX(size), this.height + size / 2, 0);
+    const h = p.heading();
+    const v = p.body.linvel();
+    const e = this.side * EJECT_SPEED;
+    this.pieces.place(piece, at.x, at.y, at.z, h, { x: v.x + Math.cos(h) * e, y: 0, z: v.z - Math.sin(h) * e });
+    this.cooldown = EJECT_COOLDOWN;
+    events.push({ type: 'release', robot: p.index, piece: piece.index });
+    return true;
+  }
+
+  /** Vacía el robot (reinicio). */
+  clear(): void {
+    this.stored.length = 0;
+    this.critical = null;
+    this.intakeOn = false;
+    this.target = 0;
+    this.height = this.phys.spec.elevatorHeights[0];
+    this.resetArm();
+  }
+}

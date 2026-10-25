@@ -1,0 +1,182 @@
+import { beforeAll, describe, expect, it } from 'vitest';
+import { DO_NOTHING } from '../src/auto/AutoRoutine';
+import * as F from '../src/config/field';
+import { DEFAULT_ROBOT } from '../src/config/robot';
+import { GameSession } from '../src/game/GameSession';
+import { emptyInput, type PlayerInput } from '../src/input/InputManager';
+import { initRapier } from '../src/physics/PhysicsWorld';
+
+beforeAll(async () => {
+  await initRapier();
+});
+
+const still = [DO_NOTHING, DO_NOTHING, DO_NOTHING, DO_NOTHING];
+const session = (autos = still, player = 0) => new GameSession({ player, preload: true, autos });
+const steps = (g: GameSession, s: number, inp: Partial<PlayerInput> = {}) => {
+  for (let i = 0; i < s * 120; i++) {
+    g.setInput({ ...emptyInput(), ...(i === 0 ? inp : { forward: inp.forward ?? 0, turn: inp.turn ?? 0 }) });
+    g.step();
+  }
+};
+/** Salta el reloj del match a `t` sin simular lo de en medio. */
+const skipTo = (g: GameSession, t: number) => {
+  g.match!.t = t;
+  g.match!.tick(0);
+};
+
+describe('match completo en la física', () => {
+  it('AUTO por defecto: los 4 robots salen de su zona → 5 c/u y RP de la línea (§4.4)', () => {
+    const g = new GameSession({ player: 0, preload: true });
+    g.startMatch();
+    steps(g, 15.2);
+    expect(g.match!.phase).toBe('TELEOP');
+    for (const a of ['red', 'blue'] as const) expect(g.match!.breakdown(a).autoLine).toBe(10);
+    // Nadie cruzó la línea central ni hizo faltas
+    expect(g.match!.fouls).toEqual([]);
+    skipTo(g, 149.9);
+    steps(g, 0.2);
+    expect(g.match!.finished).toBe(true);
+    expect(g.match!.rankingPoints('red').autoLine).toBe(true);
+  });
+
+  it('en AUTO el jugador no controla su robot; en TELEOP sí', () => {
+    const g = session();
+    g.startMatch();
+    const x0 = g.player.phys.position().x;
+    steps(g, 1, { forward: 1 });
+    expect(Math.abs(g.player.phys.position().x - x0)).toBeLessThan(0.02);
+    skipTo(g, 16);
+    steps(g, 0.5, { forward: 1 });
+    expect(Math.abs(g.player.phys.position().x - x0)).toBeGreaterThan(0.3);
+  });
+
+  it('una Muestra que cae al Nivel 3 rojo vale 18 en AUTO y 15 en TELEOP (§4.4)', () => {
+    const g = session();
+    g.startMatch();
+    const w = F.camaraWells()[3];
+    const drop = () => {
+      const p = g.pieces.hpStock('blue')[0];
+      g.pieces.place(p, (w.x0 + w.x1) / 2, w.rim + 0.2, (w.z0 + w.z1) / 2);
+      steps(g, 1.5);
+    };
+    drop();
+    expect(g.match!.breakdown('red').samplesAuto).toBe(18);
+    skipTo(g, 30);
+    drop();
+    expect(g.match!.breakdown('red').samplesTeleop).toBe(15);
+    expect(g.match!.samplesIn('red')).toBe(2);
+    expect(g.match!.score('blue')).toBe(0);
+  });
+
+  it('el robot que sube a la Plataforma antes del endgame recibe Tech Foul (8 al contrario, §4.6)', () => {
+    const g = session();
+    g.startMatch();
+    skipTo(g, 30);
+    g.player.phys.teleport(0.6, 0, Math.PI, F.PLATFORM_HEIGHT + 0.01);
+    steps(g, 1);
+    expect(g.match!.fouls.map((f) => f.rule)).toEqual(['PLATFORM_EARLY']);
+    expect(g.match!.breakdown('blue').penalties).toBe(8);
+  });
+
+  it('al sonar la bocina: robot rojo en la Plataforma (10) y Muestra Crítica roja en la Repisa (15 + 1 RP)', () => {
+    const g = session();
+    g.startMatch();
+    skipTo(g, 140);
+    g.player.phys.teleport(0.6, 0, Math.PI, F.PLATFORM_HEIGHT + 0.01);
+    const c = g.pieces.critical('red');
+    g.pieces.place(c, 0, F.REPISA_TOP + F.CRITICAL_SIZE / 2 + 0.01, 0);
+    steps(g, 10.2);
+    const m = g.match!;
+    expect(m.finished).toBe(true);
+    expect(m.breakdown('red').platform).toBe(10);
+    expect(m.breakdown('red').critical).toBe(15);
+    expect(m.rankingPoints('red').critical).toBe(true);
+    expect(m.breakdown('blue').platform).toBe(0);
+    // En el endgame subir a la Plataforma no es falta
+    expect(m.fouls).toEqual([]);
+  });
+
+  it('tomar la Muestra Crítica antes del endgame es Tech Foul (§4.6); en el endgame no', () => {
+    const run = (t: number) => {
+      const g = session();
+      g.startMatch();
+      skipTo(g, t);
+      const c = F.CRITICAL_HOLDER_RED;
+      g.player.phys.teleport(c.x, -F.HALF_W + DEFAULT_ROBOT.length / 2 + 0.05, Math.PI / 2);
+      steps(g, 1, { elevator: 4 });
+      steps(g, 0.1, { grabCritical: true });
+      expect(g.player.mech.critical).not.toBeNull();
+      return g.match!.fouls.map((f) => f.rule);
+    };
+    expect(run(60)).toEqual(['CRITICAL_EARLY']);
+    expect(run(125)).toEqual([]);
+  });
+
+  it('el Human Player solo introduce Muestras en TELEOP y a lo más 10 (§3.2.4, §4.1.1)', () => {
+    const g = session();
+    g.startMatch();
+    steps(g, 14);
+    expect(g.hps.red.introduced).toBe(0);
+    skipTo(g, 16);
+    g.hps.red.interval = 0.2;
+    // Barre lo que va saliendo para que la ranura quede libre
+    for (let i = 0; i < 12 * 120; i++) {
+      g.step();
+      for (const p of g.pieces.list) {
+        const t = p.body.translation();
+        if (p.kind === 'sample' && p.state.at === 'field' && t.x > 2.4 && t.z < -2.5) g.pieces.place(p, 1.0, 0.08, -2.0 + (p.index % 5) * 0.2);
+      }
+    }
+    expect(g.hps.red.introduced).toBe(F.HP_SAMPLES_PER_ALLIANCE);
+    expect(g.pieces.hpStock('red')).toHaveLength(0);
+  });
+
+  it('chocar contra un robot rival es Foul para el que inicia el contacto (§4.5)', () => {
+    const g = session();
+    g.startMatch();
+    skipTo(g, 20);
+    // Robot rojo 0 en (0.5, −2.0) viendo hacia −X; robot azul 2 quieto en (−0.5, −2.0)
+    g.player.phys.teleport(0.6, -1.9, Math.PI);
+    g.robots[2].phys.teleport(-0.6, -1.9, 0);
+    steps(g, 1.0, { forward: 0.5 });
+    const fouls = g.match!.fouls;
+    expect(fouls.length).toBeGreaterThanOrEqual(1);
+    expect(fouls[0].rule).toBe('CONTACT');
+    expect(fouls[0].offender).toBe('red');
+    expect(fouls[0].robot).toBe(0);
+  });
+
+  it('empujar a un rival contra la Cámara más de 3 s es pinning (§4.5)', () => {
+    const g = session();
+    g.startMatch();
+    skipTo(g, 20);
+    // Azul 2 pegado a la Cámara roja; rojo 0 empujándolo hacia +Z
+    const w = F.camaraWells()[2];
+    const x = (w.x0 + w.x1) / 2;
+    g.robots[2].phys.teleport(x, F.CAMARA_Z_RED[0] - 0.34, Math.PI / 2);
+    g.player.phys.teleport(x, F.CAMARA_Z_RED[0] - 0.34 - 0.7, -Math.PI / 2);
+    steps(g, 3.6, { forward: 0.6 });
+    expect(g.match!.fouls.some((f) => f.rule === 'PIN' && f.offender === 'red')).toBe(true);
+  });
+
+  it('salir de los límites de la cancha es Tech Foul, una vez por salida (§4.6)', () => {
+    const g = session();
+    g.startMatch();
+    skipTo(g, 20);
+    g.player.phys.teleport(1.5, -3.0, Math.PI / 2); // viendo hacia −Z, cerca del límite
+    steps(g, 1.5, { forward: 0.4 });
+    expect(g.match!.fouls.filter((f) => f.rule === 'OUT_OF_BOUNDS')).toHaveLength(1);
+  });
+
+  it('D5: con estar arriba de la rampa (sin tocar la alfombra) ya cuenta; con medio robot en la alfombra no', () => {
+    const g = session();
+    g.startMatch();
+    skipTo(g, 149.5);
+    g.robots[0].phys.teleport(1.5, 0.37, Math.PI, 0.16); // a media rampa roja
+    g.robots[1].phys.teleport(2.2, -0.37, Math.PI, 0.05); // ruedas delanteras en la rampa, traseras en la alfombra
+    steps(g, 0.7);
+    expect(g.match!.finished).toBe(true);
+    expect(g.match!.state.red.platformRobots).toBe(1);
+    expect(g.match!.breakdown('red').platform).toBe(10);
+  });
+});
