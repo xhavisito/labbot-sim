@@ -1,8 +1,9 @@
 /**
  * Robot visual: chasis tanque con placa del color de la alianza (no lleva bumpers, §7.2) y el
  * mecanismo de su tipo: elevador con depósito al frente (genérico), plataforma que empuja por atrás
- * (elevador) o brazo con garra (pivote). Intake visible al desplegarse, Muestras guardadas y Muestra
- * Crítica en la pinza o la garra.
+ * (elevador), brazo con garra (pivote) o torre fija con su rampa atrás y la pala de la Crítica al
+ * frente (torre). Intake visible al desplegarse, Muestras guardadas y Muestra Crítica en la pinza, la
+ * garra o la pala.
  */
 import * as THREE from 'three';
 import { CRITICAL_SIZE, SAMPLE_SIZE } from '../config/field';
@@ -65,6 +66,25 @@ export class RobotView {
       this.criticalMesh = add(new THREE.BoxGeometry(c, c, c), critMat, 0, c / 2, 0, claw);
       // La garra queda nivelada aunque el brazo gire (se corrige en sync)
       claw.name = 'claw';
+    } else if (s.mechanism === 'tower') {
+      // Torre fija: dos paredes laterales con la columna de Muestras en medio y la rampa de salida atrás
+      const exit = s.sampleExit ?? s.baseHeight - sz;
+      for (const z of [-1, 1]) add(new THREE.BoxGeometry(L * 0.42, s.baseHeight - 0.23, 0.03), dark, -L * 0.08, (s.baseHeight + 0.23) / 2, z * 0.11);
+      add(new THREE.BoxGeometry(0.03, s.baseHeight - 0.23, 0.25), dark, L * 0.13, (s.baseHeight + 0.23) / 2, 0);
+      add(new THREE.BoxGeometry(L / 2 + s.reach - L * 0.08, 0.02, 0.22), alu, -(L * 0.08 + L / 2 + s.reach) / 2, exit - 0.01, 0);
+      for (let i = 0; i < s.capacity; i++) {
+        const m = add(new THREE.BoxGeometry(sz, sz, sz), sampleMat, -L * 0.08, Math.min(exit, 0.23 + i * (sz + 0.01)) + sz / 2, 0);
+        m.visible = false;
+        this.storedMeshes.push(m);
+      }
+      // Pala de la Crítica al frente (sube con `height`)
+      this.group.add(this.carriage);
+      this.carriage.position.set(L / 2 - 0.05, 0, 0);
+      const reach = (s.critReach ?? 0) + 0.05;
+      add(new THREE.BoxGeometry(reach, 0.02, 0.24), alu, reach / 2, -0.01, 0, this.carriage);
+      add(new THREE.BoxGeometry(0.03, 0.12, 0.24), alu, 0, 0.06, 0, this.carriage);
+      for (const z of [-0.1, 0.1]) add(new THREE.BoxGeometry(0.03, 0.6, 0.03), alu, L / 2 - 0.06, 0.5, z);
+      this.criticalMesh = add(new THREE.BoxGeometry(c, c, c), critMat, reach - c / 2, c / 2, 0, this.carriage);
     } else {
       // Mástil del elevador y carro con la plataforma/depósito: al frente (genérico) o atrás (elevador)
       const side = s.mechanism === 'elevator' ? -1 : 1;
@@ -108,6 +128,8 @@ export class RobotView {
     if (this.intake) this.intake.visible = m.intakeOn;
     this.storedMeshes.forEach((mesh, i) => (mesh.visible = i < m.stored.length));
     this.criticalMesh.visible = m.critical !== null;
+    // Columna de la torre: la última Muestra en entrar queda abajo, junto a la intake
+    if (this.robot.spec.mechanism === 'tower') this.storedMeshes.forEach((mesh, i) => (mesh.visible = i >= this.storedMeshes.length - m.stored.length));
     if (this.clawSample) {
       this.arm.rotation.z = m.angle;
       const claw = this.arm.getObjectByName('claw');

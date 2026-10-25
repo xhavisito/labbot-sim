@@ -83,7 +83,9 @@ export class Hud {
     const phase = m ? t(`phase_${m.phase}` as Key) : t('practiceMode');
     const me = s.player;
     const mech = me.mech;
-    const elev = t('elevatorNames').split('|')[mech.target];
+    const kind = me.spec.mechanism;
+    const elevLabel = t(kind === 'pivot' ? 'arm' : kind === 'tower' ? 'scoop' : 'elevator');
+    const elev = mech.stowed ? t('stowed') : t('elevatorNames').split('|')[mech.target];
     const key = `${redScore}|${blueScore}|${time}|${phase}|${me.index}|${mech.capacity}|${mech.stored.length}|${!!mech.critical}|${elev}|${mech.intakeOn}|${cam}`;
     if (key === this.lastKey) return;
     this.lastKey = key;
@@ -97,7 +99,7 @@ export class Hud {
       `<b>${t('yourRobot')}: ${t(me.alliance)} ${me.station + 1}</b>` +
       `<span>${t('stored')}: ${mech.stored.length}/${mech.capacity}</span>` +
       `<span>${t('critical')}: ${mech.critical ? '■' : '–'}</span>` +
-      `<span>${t('elevator')}: ${elev}</span>` +
+      `<span>${elevLabel}: ${elev}</span>` +
       `<span>${t('intake')}: ${mech.intakeOn ? t('on') : t('off')}</span>`;
     this.cam.textContent = `${t('camera')}: ${t(`cam_${cam}` as Key)} (C)`;
   }

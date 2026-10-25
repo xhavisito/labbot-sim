@@ -3,6 +3,9 @@
  * - generic: intake al piso, almacenamiento, elevador y depósito al frente, pinza para la Crítica.
  * - elevator: igual, pero la plataforma del elevador está atrás y empuja las piezas hacia atrás.
  * - pivot: brazo con garra; agarra una pieza del piso con el brazo abajo y la suelta en la punta.
+ *   Empieza guardado (`ArmSpec.stowAngle`) y sale de ahí al primer mando.
+ * - tower: intake al frente y torre fija: las Muestras salen atrás a `sampleExit`; el elevador solo
+ *   mueve la pala de la Crítica, que está al frente.
  * Las piezas guardadas son lógicas (cuerpo deshabilitado); al soltarlas vuelven a la física en la
  * punta del mecanismo, así que anotar depende de dónde caen (lo detecta la sesión).
  */
@@ -30,6 +33,8 @@ export class Mechanisms {
   height: number;
   /** Ángulo del brazo (solo pivote; rad, 0 = horizontal). */
   angle = 0;
+  /** Brazo del pivote en su posición de guardado del inicio. */
+  stowed = false;
   private cooldown = 0;
 
   constructor(
@@ -45,28 +50,41 @@ export class Mechanisms {
     return this.phys.spec.capacity;
   }
 
-  /** +1 si las piezas salen por el frente, −1 si salen por atrás (elevador que empuja por atrás). */
+  /** +1 si las Muestras salen por el frente, −1 si salen por atrás (elevador o torre). */
   get side(): 1 | -1 {
-    return this.phys.spec.mechanism === 'elevator' ? -1 : 1;
+    const k = this.phys.spec.mechanism;
+    return k === 'elevator' || k === 'tower' ? -1 : 1;
   }
 
-  /** ¿Llegó el elevador (o el brazo) a su posición objetivo? */
+  /** ¿Puede soltar una Muestra ya? (elevador o brazo en su posición; la torre siempre). */
   get atTarget(): boolean {
+    if (this.phys.spec.mechanism === 'tower') return true;
     return Math.abs(this.height - this.phys.spec.elevatorHeights[this.target]) < 0.01;
   }
 
   /** Posición local (adelante) del centro de una pieza de lado `size` en la punta del mecanismo. */
-  tipX(size: number): number {
+  tipX(size: number, kind: 'sample' | 'critical' = 'sample'): number {
     const s = this.phys.spec;
     if (s.mechanism === 'pivot' && s.arm) return armTip(s.arm, this.angle).x;
+    // La pala de la torre está al frente
+    if (s.mechanism === 'tower' && kind === 'critical') return this.phys.halfL + (s.critReach ?? 0) - size / 2;
     return this.side * (this.phys.halfL + s.reach - size / 2);
+  }
+
+  /** Altura (fondo de la pieza, sobre la base) a la que sale una pieza de ese tipo. */
+  exitHeight(kind: 'sample' | 'critical'): number {
+    const s = this.phys.spec;
+    return s.mechanism === 'tower' && kind === 'sample' ? (s.sampleExit ?? this.height) : this.height;
   }
 
   /** Avanza el elevador (o el brazo) y la intake un paso. */
   step(dt: number, events: MechEvent[]): void {
     const s = this.phys.spec;
     const goal = s.elevatorHeights[this.target];
-    if (s.mechanism === 'pivot' && s.arm) {
+    if (this.stowed && (this.target !== 0 || this.intakeOn)) this.stowed = false;
+    if (s.mechanism === 'pivot' && s.arm && this.stowed) {
+      // Guardado: no se mueve
+    } else if (s.mechanism === 'pivot' && s.arm) {
       const g = armAngle(s.arm, goal);
       const d = g - this.angle;
       const stepA = s.arm.speed * dt;
@@ -86,7 +104,10 @@ export class Mechanisms {
 
   private resetArm(): void {
     const s = this.phys.spec;
-    if (s.arm) this.angle = armAngle(s.arm, s.elevatorHeights[0]);
+    if (!s.arm) return;
+    this.stowed = s.arm.stowAngle !== undefined;
+    this.angle = s.arm.stowAngle ?? armAngle(s.arm, s.elevatorHeights[0]);
+    this.height = armTip(s.arm, this.angle).y;
   }
 
   /** Garra del pivote: con el brazo abajo y vacía, agarra la Muestra que queda entre sus dedos. */
@@ -149,10 +170,13 @@ export class Mechanisms {
     const t = c.body.translation();
     const { lx, lz } = p.worldToLocalFlat(t.x, t.z);
     const carriage = p.position().y + this.height;
+    const k = p.spec.mechanism;
     const reachOk =
-      p.spec.mechanism === 'pivot'
+      k === 'pivot'
         ? Math.abs(lx - this.tipX(0.2)) < 0.2
-        : this.side * lx > p.halfL - 0.1 && this.side * lx < p.halfL + p.spec.reach + 0.15;
+        : k === 'tower'
+          ? lx > p.halfL - 0.1 && lx < p.halfL + (p.spec.critReach ?? 0) + 0.15
+          : this.side * lx > p.halfL - 0.1 && this.side * lx < p.halfL + p.spec.reach + 0.15;
     const ok = reachOk && Math.abs(lz) < 0.3 && t.y > carriage - 0.2 && t.y < carriage + 0.35;
     if (!ok) return false;
     this.pieces.stash(c, { at: 'robot', robot: p.index });
@@ -170,10 +194,10 @@ export class Mechanisms {
     else this.stored.pop();
     const p = this.phys;
     const size = this.pieces.size(piece);
-    const at = p.localToWorld(this.tipX(size), this.height + size / 2, 0);
+    const at = p.localToWorld(this.tipX(size, kind), this.exitHeight(kind) + size / 2, 0);
     const h = p.heading();
     const v = p.body.linvel();
-    const e = this.side * EJECT_SPEED;
+    const e = (p.spec.mechanism === 'tower' && kind === 'critical' ? 1 : this.side) * EJECT_SPEED;
     this.pieces.place(piece, at.x, at.y, at.z, h, { x: v.x + Math.cos(h) * e, y: 0, z: v.z - Math.sin(h) * e });
     this.cooldown = EJECT_COOLDOWN;
     events.push({ type: 'release', robot: p.index, piece: piece.index });
