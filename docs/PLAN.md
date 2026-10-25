@@ -78,6 +78,13 @@ tests/                    clock, scoring, fouls/cards, rp, match (casos borde), 
    por atrás) y Pivote (brazo con garra), elegibles en el menú.
    *Hecho:* `RobotSpec.mechanism` + presets en `config/robot.ts`; `Mechanisms` saca las piezas al
    frente, atrás o en la punta del brazo; la IA anota de reversa con el elevador.
+7. **Scouting y estrategia** (pedido después) — registro por equipo y match (simulado o capturado),
+   tabla, calendario de clasificación, selección de alianzas y pronóstico de eliminatorias.
+   *Hecho:* cada Muestra recuerda el robot que la soltó (`Piece.lastRobot`) y el match guarda quién
+   subió a la Plataforma y quién dejó la Crítica; `core/scouting.ts` y `core/tournament.ts` (formato
+   SUPUESTO y configurable: 5 matches por equipo, 4 alianzas de 2, ranking por RP, 1 vs 4 y 2 vs 3);
+   pantalla `ui/Scouting.ts` con datos en localStorage (`game/scoutStore.ts`). Meta con solo robots
+   con mecanismo: `npm run batch -- --set mech`.
 
 Cada hito: `npm test`, `npm run build` y captura con Playwright; resumen corto al terminar.
 

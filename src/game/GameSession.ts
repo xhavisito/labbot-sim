@@ -246,7 +246,7 @@ export class GameSession {
 
     // Sensores → puntuación
     for (const s of this.sensors.newSamples()) {
-      if (m) m.scoreSample(s.alliance, s.level);
+      if (m) m.scoreSample(s.alliance, s.level, s.piece.lastRobot);
       else {
         this.practiceCount[s.alliance]++;
         if (this.opts.solo) this.sink.set(s.piece.index, 0);
@@ -263,8 +263,14 @@ export class GameSession {
       // Al sonar la bocina se evalúan Plataforma y Muestra Crítica (§4.3.1)
       if (m.phase === 'DONE') {
         const platform = { red: 0, blue: 0 };
-        for (const r of this.robots) if (this.sensors.onPlatform(r)) platform[r.alliance]++;
-        m.finish(platform, { red: this.sensors.criticalOnRepisa('red'), blue: this.sensors.criticalOnRepisa('blue') });
+        const onPlatform: number[] = [];
+        for (const r of this.robots)
+          if (this.sensors.onPlatform(r)) {
+            platform[r.alliance]++;
+            onPlatform.push(r.index);
+          }
+        const critBy = (a: Alliance) => (this.sensors.criticalOnRepisa(a) ? this.pieces.critical(a).lastRobot : undefined);
+        m.finish(platform, { red: this.sensors.criticalOnRepisa('red'), blue: this.sensors.criticalOnRepisa('blue') }, { onPlatform, criticalBy: { red: critBy('red'), blue: critBy('blue') } });
         this.record(m, m.tick(0));
       }
     }

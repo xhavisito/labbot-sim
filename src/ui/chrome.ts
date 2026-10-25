@@ -28,6 +28,7 @@ export const ic = {
   expand: svg('<path d="M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5"/>'),
   x: svg('<path d="M6 6l12 12M18 6 6 18"/>'),
   check: svg('<path d="m4.5 12.5 5 5 10-11"/>'),
+  clipboard: svg('<rect x="5" y="4.5" width="14" height="16.5" rx="1.5"/><path d="M9 3h6v3H9zM8.5 11h7M8.5 14.5h7M8.5 18h4"/>'),
 };
 
 /** Barra superior con la marca; `right` = botones a la derecha. */

@@ -20,6 +20,8 @@ export interface SampleRecord {
   level: Level;
   period: 'AUTO' | 'TELEOP';
   time: number;
+  /** Robot que la soltó (para el scouting), si se sabe. */
+  robot?: number;
 }
 
 export interface Breakdown {
@@ -50,6 +52,10 @@ interface AllianceState {
   samples: SampleRecord[];
   platformRobots: number;
   critical: boolean;
+  /** Robots sobre la Plataforma al final (para el scouting). */
+  platformBy: number[];
+  /** Robot que dejó la Muestra Crítica en la Repisa, si se sabe. */
+  criticalBy?: number;
 }
 
 export class Match {
@@ -59,8 +65,8 @@ export class Match {
   readonly fouls: FoulRecord[] = [];
   readonly cards: CardRecord[] = [];
   readonly state: Record<Alliance, AllianceState> = {
-    red: { autoLine: new Set(), samples: [], platformRobots: 0, critical: false },
-    blue: { autoLine: new Set(), samples: [], platformRobots: 0, critical: false },
+    red: { autoLine: new Set(), samples: [], platformRobots: 0, critical: false, platformBy: [] },
+    blue: { autoLine: new Set(), samples: [], platformRobots: 0, critical: false, platformBy: [] },
   };
   /** Puntos en el tiempo (para la gráfica de resultados). */
   readonly history: Array<{ t: number; red: number; blue: number }> = [];
@@ -116,11 +122,11 @@ export class Match {
    * con el valor del periodo en que se deposita (§4.4; D4 resuelto). Fuera del match no cuenta
    * (sin gracia, D12). Devuelve los puntos otorgados.
    */
-  scoreSample(alliance: Alliance, level: Level): number {
+  scoreSample(alliance: Alliance, level: Level, robot?: number): number {
     if (!this.running || this.phase === 'DONE') return 0;
     const auto = this.phase === 'AUTO' || this.phase === 'PAUSE';
     const points = auto ? this.cfg.points.sampleAuto[level] : this.cfg.points.sampleTeleop[level];
-    this.state[alliance].samples.push({ level, period: auto ? 'AUTO' : 'TELEOP', time: this.t });
+    this.state[alliance].samples.push({ level, period: auto ? 'AUTO' : 'TELEOP', time: this.t, ...(robot !== undefined ? { robot } : {}) });
     this.pending.push({ type: 'sample', alliance, level, points });
     return points;
   }
@@ -160,13 +166,21 @@ export class Match {
 
   /**
    * Evaluación al sonar la bocina (§4.3.1): robots sobre la Plataforma y Muestra Crítica en la
-   * Repisa. Termina el match.
+   * Repisa. Termina el match. `who` (opcional) dice qué robots fueron, para el scouting.
    */
-  finish(platformRobots: Record<Alliance, number>, critical: Record<Alliance, boolean>): void {
+  finish(
+    platformRobots: Record<Alliance, number>,
+    critical: Record<Alliance, boolean>,
+    who?: { onPlatform: number[]; criticalBy: Record<Alliance, number | undefined> },
+  ): void {
     if (this.finished) return;
     for (const a of ALLIANCES) {
       this.state[a].platformRobots = platformRobots[a];
       this.state[a].critical = critical[a];
+      if (who) {
+        this.state[a].platformBy = who.onPlatform.filter((i) => (i < this.robotsPerAlliance ? 'red' : 'blue') === a);
+        this.state[a].criticalBy = critical[a] ? who.criticalBy[a] : undefined;
+      }
     }
     this.finished = true;
     this.setPhase('DONE');

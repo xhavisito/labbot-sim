@@ -2,19 +2,22 @@
  * Orquestador: renderer, cámara, entrada, sesión, HUD y menús; bucle principal.
  * Estados: menú (la cancha gira de fondo) → jugando ⇄ pausa → resultados.
  */
-import { AUTO_ROUTINES, LEAVE_ZONE } from '../auto/AutoRoutine';
+import { AUTO_ROUTINES, COLLECT_HOME, LEAVE_ZONE } from '../auto/AutoRoutine';
 import { fixedCapacity, ROBOT_PRESETS } from '../config/robot';
 import { loadSettings, saveSettings, type Settings } from '../config/settings';
 import { formatTimer, timerSeconds } from '../core/clock';
 import { buildMatchLog } from '../core/matchLog';
 import { GameSession, type SessionOptions } from '../game/GameSession';
+import { loadScout } from '../game/scoutStore';
 import { InputManager } from '../input/InputManager';
 import { CAMERA_MODES, CameraRig, type CameraMode } from '../render/CameraRig';
 import { Renderer } from '../render/Renderer';
 import { Hud } from '../ui/Hud';
 import { t, type Key } from '../ui/i18n';
 import { Menu, type MenuChoice } from '../ui/Menu';
+import { saveMatchEntries, ScoutingScreen, type ScoutPlay } from '../ui/Scouting';
 import { isTouchDevice, TouchControls } from '../ui/TouchControls';
+import { allianceRoles } from '../sim/quickSim';
 
 type State = 'menu' | 'playing' | 'paused' | 'results';
 
@@ -30,6 +33,8 @@ export class App {
   readonly settings: Settings = loadSettings(AUTO_ROUTINES.map((r) => r.id));
   private last = performance.now();
   readonly touch: TouchControls;
+  readonly scoutData = loadScout();
+  readonly scouting: ScoutingScreen;
   /** `?touch=1` fuerza los controles touch (para probar en escritorio). */
   private touchForced = new URLSearchParams(location.search).get('touch') === '1';
 
@@ -41,6 +46,8 @@ export class App {
     this.hud = new Hud(ui, { camera: () => this.cycleCamera(), pause: () => this.togglePause(), reset: () => this.resetPractice() });
     this.touch = new TouchControls(ui, this.input);
     this.menu = new Menu(ui, (c) => this.start(c), this.settings, (s) => saveSettings(s), this.input);
+    this.scouting = new ScoutingScreen(this.menu.root, this.scoutData, () => this.toMenu(), (p) => this.start({ mode: 'match', player: p.player, scout: p }));
+    this.menu.onScouting = () => this.scouting.show();
     this.toMenu();
     const onResize = () => this.renderer.resize(this.cam.camera);
     window.addEventListener('resize', onResize);
@@ -57,7 +64,7 @@ export class App {
     this.renderer.scene.remove(this.session.root);
     this.session.dispose();
     // Práctica libre: solo el robot del jugador en la cancha
-    this.session = new GameSession({ ...this.sessionOptions(c.player), solo: c.mode === 'practice' });
+    this.session = new GameSession(c.scout ? this.scoutOptions(c.scout) : { ...this.sessionOptions(c.player), solo: c.mode === 'practice' });
     this.renderer.scene.add(this.session.root);
     if (c.mode === 'match') this.session.startMatch();
     this.menu.hide();
@@ -83,6 +90,24 @@ export class App {
         // La garra del pivote lleva una sola pieza; el chasis, solo la precarga
         return { ...base, maxSpeed: s.maxSpeed, capacity: fixedCapacity(base.mechanism) ?? s.capacity };
       }),
+      hp: { enabled: s.hpEnabled, interval: s.hpInterval },
+    };
+  }
+
+  /**
+   * Match del calendario del Scouting: cada robot es el tipo de su equipo; la IA maneja los otros 3
+   * con los papeles de su alianza (`allianceRoles`) y tu robot usa tu rutina de AUTO.
+   */
+  private scoutOptions(p: ScoutPlay): SessionOptions {
+    const s = this.settings;
+    const auto = AUTO_ROUTINES.find((r) => r.id === s.playerAuto) ?? LEAVE_ZONE;
+    return {
+      player: p.player,
+      preload: true,
+      ai: true,
+      specs: p.kinds.map((k) => ROBOT_PRESETS[k]),
+      autos: p.kinds.map((k, i) => (i === p.player ? auto : k === 'chassis' ? LEAVE_ZONE : COLLECT_HOME)),
+      bots: [...allianceRoles(p.kinds[0], p.kinds[1]), ...allianceRoles(p.kinds[2], p.kinds[3])],
       hp: { enabled: s.hpEnabled, interval: s.hpInterval },
     };
   }
@@ -121,6 +146,12 @@ export class App {
     this.menu.main();
   }
 
+  /** De vuelta al calendario del Scouting (después de jugar uno de sus matches). */
+  toScouting(): void {
+    this.toMenu();
+    this.scouting.show('schedule');
+  }
+
   togglePause(): void {
     if (this.state === 'playing') {
       this.state = 'paused';
@@ -133,7 +164,7 @@ export class App {
         setCamera: (c) => this.setCamera(c),
         onResume: () => this.togglePause(),
         onRestart: () => this.start(this.choice),
-        onMenu: () => this.toMenu(),
+        onMenu: () => (this.choice.scout ? this.toScouting() : this.toMenu()),
       });
     } else if (this.state === 'paused') {
       this.state = 'playing';
@@ -169,12 +200,15 @@ export class App {
       if (m?.finished) {
         this.state = 'results';
         this.updateTouch();
+        const sc = this.choice.scout;
+        if (sc) saveMatchEntries(this.scoutData, m, sc.teams, sc.match);
         this.menu.results(
           m,
           () => this.start(this.choice),
-          () => this.toMenu(),
+          () => (sc ? this.toScouting() : this.toMenu()),
           () => this.downloadLog(),
           this.choice.player,
+          sc ? t('sc_saved', { match: sc.match }) : '',
         );
       }
     } else if (this.state === 'menu') {
@@ -185,8 +219,8 @@ export class App {
     }
     if (this.state !== 'paused') this.session.update(this.state === 'playing' ? 0 : dt);
     const p = this.session.player.phys;
-    const t = p.position();
-    this.cam.update(dt, { x: t.x, y: t.y, z: t.z, heading: p.heading() });
+    const pos = p.position();
+    this.cam.update(dt, { x: pos.x, y: pos.y, z: pos.z, heading: p.heading() });
     this.renderer.render(this.cam.camera);
     requestAnimationFrame(this.loop);
   };
