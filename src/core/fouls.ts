@@ -5,7 +5,7 @@
  */
 export type FoulKind = 'FOUL' | 'TECH';
 
-export type RuleCode = 'CONTACT' | 'PIN' | 'ZONE_CONTACT' | 'OUT_OF_BOUNDS' | 'PLATFORM_EARLY' | 'CRITICAL_EARLY' | 'AUTO_CENTER';
+export type RuleCode = 'CONTACT' | 'PIN' | 'ZONE_CONTACT' | 'OUT_OF_BOUNDS' | 'PLATFORM_EARLY' | 'CRITICAL_EARLY' | 'AUTO_CENTER' | 'OBSTRUCT';
 
 export const RULES: Record<RuleCode, { kind: FoulKind; section: string; es: string; supuesto?: string }> = {
   CONTACT: { kind: 'FOUL', section: '§4.5', es: 'Contacto con un robot de la alianza contraria' },
@@ -15,6 +15,7 @@ export const RULES: Record<RuleCode, { kind: FoulKind; section: string; es: stri
   PLATFORM_EARLY: { kind: 'TECH', section: '§4.6', es: 'Subir a la Plataforma de Contención antes del endgame' },
   CRITICAL_EARLY: { kind: 'TECH', section: '§4.6', es: 'Tomar la Muestra Crítica antes del endgame' },
   AUTO_CENTER: { kind: 'FOUL', section: '§4.2', es: 'Cruzar la línea central en AUTO', supuesto: 'D7: el manual no le asigna falta' },
+  OBSTRUCT: { kind: 'TECH', section: '§4.6, §6.1', es: 'Bloquear u obstruir deliberadamente las zonas del equipo contrario', supuesto: 'D17: más de 3 s frente a la Cámara rival; otra cada 5 s más' },
 };
 
 export interface FoulRecord {

@@ -17,6 +17,8 @@ npm run dev          # servidor de desarrollo en http://localhost:5173
 npm test             # pruebas unitarias y de física (Vitest)
 npm run build        # revisa tipos y genera el sitio estático en dist/
 npm run preview      # sirve dist/
+npm run batch        # matches de solo IA entre estrategias de alianza (sin navegador): tabla de puntos, RP y faltas
+                     #   --plans torre+torre,n3+n3  --vs n3+n3  --seeds 3  --workers 4  --out batch.json
 npm run shots        # capturas con Playwright en shots/ (requiere build; en la nube: CHROMIUM_PATH=/opt/pw-browsers/chromium; --mobile = celular)
 ```
 
@@ -97,7 +99,9 @@ src/
   game/       GameSession (une todo), Robot, Mechanisms, Sensors (anotación), HumanPlayer
   referee/    Referee.ts: faltas automáticas
   auto/       rutinas de AUTO
-  ai/         Bot.ts: IA de los robots (recolectar → anotar → Plataforma en el ENDGAME)
+  ai/         Bot.ts: IA de los robots (recolectar → anotar → Plataforma o Muestra Crítica en el ENDGAME;
+              papeles: anotar, solo chasis, bloquear; fuente: Laboratorio, Human Player o ambos)
+  sim/        batch.ts: estrategias de alianza y matches de solo IA sin render (npm run batch)
   render/     Three.js: Renderer, FieldView, PieceView, RobotView, CameraRig
   input/      teclado, gamepad y touch; bindings.ts (asignación reasignable)
   ui/         i18n (es-MX / en), HUD, menús, resultados, Controles y TouchControls
