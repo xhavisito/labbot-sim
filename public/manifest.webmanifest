@@ -1,0 +1,19 @@
+{
+  "name": "LabBot Rescue Sim",
+  "short_name": "LabBot Sim",
+  "description": "Simulador 3D no oficial del reto interno LabBot Rescue 2026 (Robotics WinterFest, LamBot 3478).",
+  "lang": "es-MX",
+  "start_url": "./",
+  "scope": "./",
+  "display": "fullscreen",
+  "display_override": ["fullscreen", "standalone"],
+  "orientation": "any",
+  "background_color": "#090b0e",
+  "theme_color": "#090b0e",
+  "categories": ["games", "education"],
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "icons/icon.svg", "sizes": "any", "type": "image/svg+xml" }
+  ]
+}

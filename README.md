@@ -26,6 +26,14 @@ El build es estático (`base: './'`), así que funciona en cualquier hosting. **
 <https://xhavisito.github.io/labbot-sim/>. Lo publica `.github/workflows/deploy.yml` cada vez que algo
 entra a `main` (pruebas, build y copia de `dist/` a la rama `gh-pages`).
 
+**Sin conexión / instalable (PWA):** después de la primera visita todo queda en caché (`sw.js`, lo
+genera `vite.config.ts` con la lista del build) y el simulador abre y juega sin internet; el menú
+muestra "Sin conexión" cuando ya está listo. Para instalarlo en el celular: en Android, el botón
+**Instalar** del menú (o "Agregar a la pantalla principal" de Chrome); en iPhone, Safari → Compartir →
+**Agregar a inicio**. Cada build nuevo cambia la versión de la caché: la app se actualiza sola al
+abrirla con conexión (los cambios se ven la siguiente vez que se abre). Íconos: `public/icons/`
+(`node scripts/icons.mjs` los regenera desde `icon.svg`).
+
 ## Cómo se juega
 
 En el menú eliges tu robot (Rojo 1–2, Azul 1–2) y el modo:
@@ -116,6 +124,7 @@ src/
   render/     Three.js: Renderer, FieldView, PieceView, RobotView, CameraRig
   input/      teclado, gamepad y touch; bindings.ts (asignación reasignable)
   ui/         i18n (es-MX / en), HUD, menús, resultados, Controles y TouchControls
+  pwa/        register.ts (service worker, botón Instalar) y sw-template.js (precache del build)
 tests/        field, physics, robot, match (reglas y casos borde), session (match completo),
               bot (IA en un match completo, sin faltas de cancha), settings (ajustes y registro)
 ```

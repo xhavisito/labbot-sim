@@ -82,6 +82,12 @@ input[type='text'] { -webkit-user-select: text; user-select: text; }
 .chipbtn:hover { background: var(--surface-2); border-color: rgba(190, 210, 255, 0.3); }
 .chipbtn.on { background: var(--accent); color: var(--accent-ink); border-color: transparent; }
 .chipbtn.on .ic { color: currentColor; }
+.chipbtn.static { cursor: default; color: var(--ok); }
+.chipbtn.static .ic { color: var(--ok); }
+.chipbtn.static:hover { background: transparent; }
+.pwa-chips { display: contents; }
+.brandbar { position: relative; }
+.pwa-tip { position: absolute; top: 100%; right: 16px; z-index: 5; max-width: 300px; background: var(--surface-2, #161b22); }
 kbd {
   display: inline-flex; align-items: center; justify-content: center; min-width: 22px; height: 21px; padding: 0 6px; margin: 1px;
   border-radius: 5px; border: 1px solid var(--line-2); border-bottom-width: 2px; background: var(--surface-3);

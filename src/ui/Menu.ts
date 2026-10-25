@@ -16,6 +16,7 @@ import { CAMERA_MODES, type CameraMode } from '../render/CameraRig';
 import { padHelp } from './controlsHelp';
 import { backBtn, brandbar, ic, kbds, langChips, robotSilhouette } from './chrome';
 import { getLang, setLang, t, type Key } from './i18n';
+import { isIos, isStandalone, promptInstall, pwa } from '../pwa/register';
 
 export interface MenuChoice {
   mode: 'match' | 'practice';
@@ -102,7 +103,7 @@ export class Menu {
       `<button class="mm-tool" data-go="${go}">${icon.replace('class="ic"', 'class="mi"')}<span class="mt-txt"><b>${t(label)}</b><small>${t(desc)}</small></span></button>`;
     const g = GAME.times;
     this.open(`
-      ${brandbar(`${t('mm_fan')} · ${t('mm_event')}`, `${langChips()}${fs ? `<button class="chipbtn" data-fs title="${t('fullscreen')}">${ic.expand}</button>` : ''}`)}
+      ${brandbar(`${t('mm_fan')} · ${t('mm_event')}`, `<span class="pwa-chips" data-pwa></span>${langChips()}${fs ? `<button class="chipbtn" data-fs title="${t('fullscreen')}">${ic.expand}</button>` : ''}`)}
       <div class="mm">
         <div class="mm-left">
           <h1 class="mm-title">LabBot <span>Rescue 2026</span></h1>
@@ -154,6 +155,7 @@ export class Menu {
         <div>${t('disclaimer')}</div>
       </div>`);
     this.robotInfo();
+    this.pwaChips();
     this.on('[data-slot]', (el) => {
       this.player = Number(el.dataset.slot);
       this.main();
@@ -173,6 +175,23 @@ export class Menu {
       else void document.documentElement.requestFullscreen().catch(() => undefined);
     });
     (this.root.querySelector('[data-act="match"]') as HTMLElement).focus({ preventScroll: true });
+  }
+
+  /**
+   * Chips de la PWA en la barra del menú: "Sin conexión" cuando todo quedó en caché y "Instalar"
+   * (diálogo del navegador; en iPhone, cómo agregarlo a inicio). Se actualizan con `pwa.onChange`.
+   */
+  pwaChips(): void {
+    const box = this.root.querySelector<HTMLElement>('[data-pwa]');
+    if (!box) return;
+    const canInstall = !isStandalone() && (pwa.installEvent || isIos());
+    box.innerHTML = `${pwa.offlineReady ? `<span class="chipbtn static" title="${t('pwa_offlineTitle')}">${ic.offline}<span>${t('pwa_offline')}</span></span>` : ''}${
+      canInstall ? `<button class="chipbtn" data-install title="${t('pwa_installTitle')}">${ic.phone}<span>${t('pwa_install')}</span></button>` : ''
+    }`;
+    box.querySelector('[data-install]')?.addEventListener('click', () => {
+      if (pwa.installEvent) void promptInstall();
+      else if (!box.querySelector('.pwa-tip')) box.insertAdjacentHTML('beforeend', `<div class="pwa-tip msg">${t('pwa_ios')}</div>`);
+    });
   }
 
   /** Placa del robot elegido: nombre, descripción, barras y flechas para cambiar de tipo. */
