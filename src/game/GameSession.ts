@@ -23,6 +23,7 @@ import { Referee } from '../referee/Referee';
 import { buildFieldView } from '../render/FieldView';
 import { PieceView } from '../render/PieceView';
 import { RobotView } from '../render/RobotView';
+import { SinkView } from '../render/SinkView';
 import { HumanPlayer } from './HumanPlayer';
 import type { MechEvent } from './Mechanisms';
 import { Robot } from './Robot';
@@ -43,7 +44,11 @@ export interface SessionOptions {
   ai?: boolean;
   /** Human Player automático: encendido y segundos entre Muestras (SUPUESTO, ver HumanPlayer). */
   hp?: { enabled: boolean; interval: number };
-  /** Práctica libre: solo se crea el robot del jugador (sin aliado ni rivales). */
+  /**
+   * Práctica libre: solo se crea el robot del jugador (sin aliado ni rivales), su Human Player
+   * mete Muestras sin límite y las Cámaras tienen un "vacío" que se traga lo anotado (nunca se
+   * llenan). Nada de esto aplica al match (§4.1.1: 10 Muestras por HP).
+   */
   solo?: boolean;
   /** Estrategia de la IA de cada robot (nivel, de dónde junta, papel, ENDGAME). */
   bots?: Array<Partial<BotOptions> | undefined>;
@@ -66,6 +71,9 @@ export class GameSession {
   readonly log: TimedEvent[] = [];
   /** Muestras anotadas en práctica (sin match), por alianza. */
   readonly practiceCount: Record<Alliance, number> = { red: 0, blue: 0 };
+  /** Práctica libre: Muestras anotadas esperando a que el vacío de la Cámara se las trague (índice → s). */
+  private sink = new Map<number, number>();
+  private sinkView: SinkView | null = null;
   private pieceView: PieceView;
   private robotViews: RobotView[] = [];
   private autos: AutoRunner[] = [];
@@ -88,6 +96,10 @@ export class GameSession {
       this.hps[a].interval = opts.hp?.interval ?? this.hps[a].interval;
     }
     this.root.add(buildFieldView());
+    if (opts.solo) {
+      this.sinkView = new SinkView();
+      this.root.add(this.sinkView.group);
+    }
     this.pieceView = new PieceView(this.pieces);
     this.root.add(this.pieceView.group);
     for (let i = 0; i < 2 * F.ROBOTS_PER_ALLIANCE; i++) {
@@ -111,6 +123,9 @@ export class GameSession {
     return this.match?.phase ?? 'PRE';
   }
 
+  /** Segundos que una Muestra anotada se queda a la vista antes de que el vacío la regrese al HP. */
+  static readonly SINK_DELAY = 1;
+
   /** Acomodo inicial (§4.1): piezas en su lugar, robots en su Zona de Inicio con su precarga. */
   resetField(): void {
     this.pieces.reset();
@@ -127,6 +142,9 @@ export class GameSession {
         if (s) r.mech.load(s);
       }
     }
+    // Práctica libre: toda la reserva (la del otro HP y las precargas sin robot) es del HP del jugador
+    this.sink.clear();
+    if (this.opts.solo) for (const p of this.pieces.list) if (p.kind === 'sample' && p.state.at === 'hp') p.state = { at: 'hp', alliance: this.player.alliance };
     this.pieceView.capture();
     this.pieceView.capture();
     for (const v of this.robotViews) {
@@ -217,6 +235,7 @@ export class GameSession {
     }
     // Human Player: Muestras por la ranura durante todo el TeleOp (§3.2.4)
     if (m && isTeleop(phase)) for (const a of ALLIANCES) this.hps[a].step(dt);
+    else if (!m && this.opts.solo) this.hps[this.player.alliance].step(dt);
     this.pw.step();
     this.time += dt;
     this.referee.drainCollisions();
@@ -224,8 +243,12 @@ export class GameSession {
     // Sensores → puntuación
     for (const s of this.sensors.newSamples()) {
       if (m) m.scoreSample(s.alliance, s.level);
-      else this.practiceCount[s.alliance]++;
+      else {
+        this.practiceCount[s.alliance]++;
+        if (this.opts.solo) this.sink.set(s.piece.index, 0);
+      }
     }
+    this.drainSink(dt);
     if (m && phase === 'AUTO') for (const r of this.robots) if (this.sensors.outOfStartZone(r)) m.crossAutoLine(r.alliance, r.index);
     this.referee.step(dt, phase, this.stepMechEvents);
     this.events.push(...this.stepMechEvents);
@@ -245,6 +268,21 @@ export class GameSession {
     for (const v of this.robotViews) v.capture();
   }
 
+  /** El vacío de la Cámara: las Muestras anotadas en práctica regresan a la reserva del HP. */
+  private drainSink(dt: number): void {
+    for (const [i, t] of this.sink) {
+      if (t + dt < GameSession.SINK_DELAY) {
+        this.sink.set(i, t + dt);
+        continue;
+      }
+      this.sink.delete(i);
+      const p = this.pieces.list[i];
+      if (p.state.at !== 'field') continue;
+      this.pieces.stash(p, { at: 'hp', alliance: this.player.alliance });
+      this.sensors.scored.delete(i);
+    }
+  }
+
   private record(m: Match, evs: MatchEvent[]): void {
     this.matchEvents.push(...evs);
     for (const e of evs) this.log.push({ ...e, t: Math.round(m.t * 1000) / 1000 });
@@ -260,6 +298,7 @@ export class GameSession {
     const alpha = this.acc / this.pw.dt;
     this.pieceView.sync(alpha);
     for (const v of this.robotViews) v.sync(alpha);
+    this.sinkView?.update(this.time);
   }
 
   dispose(): void {

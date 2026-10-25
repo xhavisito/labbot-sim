@@ -404,6 +404,7 @@ input[type='range'] { width: 100%; accent-color: var(--accent); }
 .practice-pill .pp-mode::before { content: ''; width: 0.6em; height: 0.6em; background: currentColor; }
 .practice-pill .pp-count { display: flex; align-items: baseline; gap: 0.5em; padding: 0.55em 1.1em; white-space: nowrap; }
 .practice-pill .pp-count b { font: 700 1.7em/1 var(--display); color: var(--accent); }
+.practice-pill .pp-hp { margin-left: 0.6em; padding-left: 0.9em; border-left: 1px solid var(--line-2); color: #c5b3ff !important; }
 .practice-pill .pp-count span { font: 800 0.66em/1 var(--font); letter-spacing: 0.16em; text-transform: uppercase; color: var(--muted); }
 /* panel del robot propio */
 .player {

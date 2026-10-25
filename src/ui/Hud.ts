@@ -172,7 +172,8 @@ export class Hud {
       this.timer.classList.toggle('low', m.running && (m.phase === 'ENDGAME' || m.phase === 'AUTO') && sec <= 10);
       this.phase.textContent = t(`phase_${m.phase}` as Key);
       this.prog.style.transform = `scaleX(${Math.min(1, Math.max(0, m.t / bounds(s.game).teleopEnd))})`;
-    } else this.pillCount.innerHTML = `<b>${score[me.alliance]}</b><span>${t('practiceScored')}</span>`;
+    } else
+      this.pillCount.innerHTML = `<b>${score[me.alliance]}</b><span>${t('practiceScored')}</span>${s.hps[me.alliance].enabled ? `<span class="pp-hp">HP ∞</span>` : ''}`;
 
     const full = mech.stored.length >= mech.capacity;
     this.player.className = `player ${me.alliance} ${full ? 'full' : ''}`;
