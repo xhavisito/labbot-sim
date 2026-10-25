@@ -201,6 +201,7 @@ export class Mechanisms {
     const v = p.body.linvel();
     const e = (p.spec.mechanism === 'tower' && kind === 'critical' ? 1 : this.side) * EJECT_SPEED;
     this.pieces.place(piece, at.x, at.y, at.z, h, { x: v.x + Math.cos(h) * e, y: 0, z: v.z - Math.sin(h) * e });
+    piece.lastRobot = p.index;
     this.cooldown = EJECT_COOLDOWN;
     events.push({ type: 'release', robot: p.index, piece: piece.index });
     return true;
