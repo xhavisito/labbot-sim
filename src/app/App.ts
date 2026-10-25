@@ -10,7 +10,9 @@ import { buildMatchLog } from '../core/matchLog';
 import { GameSession, type SessionOptions } from '../game/GameSession';
 import { InputManager } from '../input/InputManager';
 import { CAMERA_MODES, CameraRig, type CameraMode } from '../render/CameraRig';
-import { Renderer } from '../render/Renderer';
+import { Arena } from '../render/Arena';
+import { Effects } from '../render/Effects';
+import { guessQuality, QUALITIES, Renderer, type Quality } from '../render/Renderer';
 import { Hud } from '../ui/Hud';
 import { t, type Key } from '../ui/i18n';
 import { Menu, type MenuChoice } from '../ui/Menu';
@@ -20,6 +22,11 @@ type State = 'menu' | 'playing' | 'paused' | 'results';
 
 export class App {
   readonly renderer: Renderer;
+  readonly arena = new Arena();
+  readonly effects = new Effects();
+  /** Calidad elegida por "Automática" (baja un nivel si los FPS caen). */
+  private autoQuality: Quality = guessQuality();
+  private fps = { frames: 0, time: 0, drops: 0 };
   readonly cam: CameraRig;
   readonly input = new InputManager();
   readonly hud: Hud;
@@ -37,10 +44,18 @@ export class App {
     this.renderer = new Renderer(host);
     this.cam = new CameraRig(this.renderer.renderer.domElement);
     this.session = new GameSession();
-    this.renderer.scene.add(this.session.root);
+    this.renderer.scene.add(this.session.root, this.arena.group, this.effects.points);
+    this.renderer.onQuality.push((p) => {
+      this.arena.setDensity(p.crowd);
+      this.effects.amount = p.particles;
+    });
+    this.applyQuality();
     this.hud = new Hud(ui, { camera: () => this.cycleCamera(), pause: () => this.togglePause(), reset: () => this.resetPractice() });
     this.touch = new TouchControls(ui, this.input);
-    this.menu = new Menu(ui, (c) => this.start(c), this.settings, (s) => saveSettings(s), this.input);
+    this.menu = new Menu(ui, (c) => this.start(c), this.settings, (s) => {
+      saveSettings(s);
+      this.applyQuality();
+    }, this.input);
     this.toMenu();
     const onResize = () => this.renderer.resize(this.cam.camera);
     window.addEventListener('resize', onResize);
@@ -85,6 +100,32 @@ export class App {
       }),
       hp: { enabled: s.hpEnabled, interval: s.hpInterval },
     };
+  }
+
+  /** Calidad gráfica: `?quality=` manda; si no, el ajuste (o la automática). */
+  applyQuality(): void {
+    const forced = new URLSearchParams(location.search).get('quality') as Quality | null;
+    const q = forced && QUALITIES.includes(forced) ? forced : this.settings.quality === 'auto' ? this.autoQuality : this.settings.quality;
+    if (q !== this.renderer.quality || !this.qualityApplied) this.renderer.setQuality(q, this.cam.camera);
+    this.qualityApplied = true;
+  }
+
+  private qualityApplied = false;
+
+  /** "Automática": si el promedio de 4 s baja de 40 FPS jugando, un nivel menos (hasta 2 veces). */
+  private watchFps(dt: number): void {
+    if (this.settings.quality !== 'auto' || this.state !== 'playing' || this.fps.drops >= 2) return;
+    this.fps.frames++;
+    this.fps.time += dt;
+    if (this.fps.time < 4) return;
+    const avg = this.fps.frames / this.fps.time;
+    this.fps.frames = this.fps.time = 0;
+    const i = QUALITIES.indexOf(this.autoQuality);
+    if (avg < 40 && i > 0) {
+      this.autoQuality = QUALITIES[i - 1];
+      this.fps.drops++;
+      this.applyQuality();
+    }
   }
 
   /** Reacomoda la cancha en práctica (Backspace o el botón del HUD). */
@@ -165,8 +206,13 @@ export class App {
       this.hud.events(this.session.matchEvents);
       this.hud.update(this.session, this.cam.mode);
       this.touch.setIntake(this.session.player.mech.intakeOn);
+      for (const f of this.session.scoreFx) {
+        this.effects.burst(f.x, f.y, f.z, f.alliance);
+        this.arena.cheer(0.3);
+      }
       const m = this.session.match;
       if (m?.finished) {
+        this.arena.cheer(1);
         this.state = 'results';
         this.updateTouch();
         this.menu.results(
@@ -184,9 +230,15 @@ export class App {
       this.cam.orbit.target.set(0, 0, 0);
     }
     if (this.state !== 'paused') this.session.update(this.state === 'playing' ? 0 : dt);
+    this.watchFps(dt);
+    this.effects.update(this.state === 'paused' ? 0 : dt);
+    this.arena.update(dt, now / 1000, this.cam.camera.position.y);
+    const sm = this.session.match;
+    if (sm) this.arena.setScreen(formatTimer(timerSeconds(sm.t, this.session.game)), String(sm.score('red')), String(sm.score('blue')));
+    else this.arena.setScreen(this.state === 'menu' ? 'LABBOT RESCUE' : t('practiceMode').toUpperCase(), '', '');
     const p = this.session.player.phys;
-    const t = p.position();
-    this.cam.update(dt, { x: t.x, y: t.y, z: t.z, heading: p.heading() });
+    const pt = p.position();
+    this.cam.update(dt, { x: pt.x, y: pt.y, z: pt.z, heading: p.heading() });
     this.renderer.render(this.cam.camera);
     requestAnimationFrame(this.loop);
   };

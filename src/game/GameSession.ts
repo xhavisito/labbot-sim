@@ -71,6 +71,8 @@ export class GameSession {
   readonly log: TimedEvent[] = [];
   /** Muestras anotadas en práctica (sin match), por alianza. */
   readonly practiceCount: Record<Alliance, number> = { red: 0, blue: 0 };
+  /** Dónde se anotó cada Muestra en los pasos del último `update` (partículas y público). */
+  readonly scoreFx: Array<{ x: number; y: number; z: number; alliance: Alliance }> = [];
   /** Práctica libre: Muestras anotadas esperando a que el vacío de la Cámara se las trague (índice → s). */
   private sink = new Map<number, number>();
   private sinkView: SinkView | null = null;
@@ -246,6 +248,8 @@ export class GameSession {
 
     // Sensores → puntuación
     for (const s of this.sensors.newSamples()) {
+      const at = s.piece.body.translation();
+      this.scoreFx.push({ x: at.x, y: at.y, z: at.z, alliance: s.alliance });
       if (m) m.scoreSample(s.alliance, s.level);
       else {
         this.practiceCount[s.alliance]++;
@@ -294,6 +298,7 @@ export class GameSession {
 
   /** Avanza `frameDt` segundos reales en pasos fijos (máx. 0.1 s por cuadro) y sincroniza la vista. */
   update(frameDt: number): void {
+    this.scoreFx.length = 0;
     this.acc += Math.min(frameDt, 0.1);
     while (this.acc >= this.pw.dt) {
       this.step();

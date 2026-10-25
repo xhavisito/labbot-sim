@@ -23,6 +23,8 @@ export interface Settings {
   hpInterval: number;
   /** Controles touch en pantalla: según el equipo, siempre o nunca. */
   touch: 'auto' | 'on' | 'off';
+  /** Calidad gráfica (`render/Renderer.ts`): automática según el equipo y los FPS, o fija. */
+  quality: 'auto' | 'low' | 'medium' | 'high';
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -36,6 +38,7 @@ export const DEFAULT_SETTINGS: Settings = {
   hpEnabled: true,
   hpInterval: 3,
   touch: 'auto',
+  quality: 'auto',
 };
 
 export const SETTINGS_RANGE = {
@@ -66,6 +69,7 @@ export function sanitizeSettings(raw: unknown, autoIds: readonly string[]): Sett
     hpEnabled: typeof o.hpEnabled === 'boolean' ? o.hpEnabled : d.hpEnabled,
     hpInterval: num(o.hpInterval, d.hpInterval, SETTINGS_RANGE.hpInterval),
     touch: o.touch === 'on' || o.touch === 'off' ? o.touch : d.touch,
+    quality: o.quality === 'low' || o.quality === 'medium' || o.quality === 'high' ? o.quality : d.quality,
   };
 }
 

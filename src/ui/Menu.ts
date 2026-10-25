@@ -220,6 +220,9 @@ export class Menu {
           <p class="full sub" data-desc>${t(`type_${s.robotType}_desc` as Key)}</p>
           <label>${t('setSpeed')}</label>${range('maxSpeed', 'm/s')}
           <label>${t('setCapacity')}</label>${range('capacity', '')}
+          <h3>${t('sec_graphics')}</h3>
+          <label>${t('setQuality')}</label><div class="seg" data-qseg>${(['auto', 'low', 'medium', 'high'] as const).map((q) => `<button class="${q === s.quality ? 'on' : ''}" data-v="${q}">${t(`quality_${q}`)}</button>`).join('')}</div>
+          <p class="full sub">${t('qualityNote')}</p>
         </div></div>
       </div>
       <div class="actionbar">${backBtn('data-act="cancel"')}<div class="grow"></div>
@@ -252,6 +255,12 @@ export class Menu {
         }),
       ),
     );
+    this.root.querySelectorAll<HTMLElement>('[data-qseg] button').forEach((b) =>
+      b.addEventListener('click', () => {
+        s.quality = b.dataset.v as Settings['quality'];
+        b.parentElement!.querySelectorAll('button').forEach((x) => x.classList.toggle('on', x === b));
+      }),
+    );
     this.on('[data-act="save"]', () => {
       Object.assign(this.settings, s);
       this.onSettings(this.settings);
@@ -259,7 +268,7 @@ export class Menu {
     });
     this.on('[data-act="cancel"]', () => this.main());
     this.on('[data-act="defaults"]', () => {
-      Object.assign(this.settings, { ...DEFAULT_SETTINGS, touch: this.settings.touch });
+      Object.assign(this.settings, { ...DEFAULT_SETTINGS, touch: this.settings.touch, quality: this.settings.quality });
       this.onSettings(this.settings);
       this.settingsPanel();
     });
