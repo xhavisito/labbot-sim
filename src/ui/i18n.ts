@@ -5,6 +5,11 @@
 const ES = {
   title: 'LabBot Rescue',
   subtitle: 'Simulador del reto interno · Robotics WinterFest 2026 · LamBot 3478',
+  pwa_install: 'Instalar',
+  pwa_installTitle: 'Instalar el simulador en este equipo (abre sin conexión)',
+  pwa_ios: 'En iPhone: toca Compartir y luego "Agregar a inicio". Después abre sin conexión.',
+  pwa_offline: 'Sin conexión',
+  pwa_offlineTitle: 'Todo quedó guardado: el simulador abre y juega sin internet',
   match: 'Jugar match',
   practice: 'Práctica libre',
   yourRobot: 'Tu robot',
@@ -225,6 +230,11 @@ export type Key = keyof typeof ES;
 const EN: Record<Key, string> = {
   title: 'LabBot Rescue',
   subtitle: 'Internal challenge simulator · Robotics WinterFest 2026 · LamBot 3478',
+  pwa_install: 'Install',
+  pwa_installTitle: 'Install the simulator on this device (works offline)',
+  pwa_ios: 'On iPhone: tap Share, then "Add to Home Screen". It then opens offline.',
+  pwa_offline: 'Offline',
+  pwa_offlineTitle: 'Everything is cached: the simulator opens and plays without internet',
   match: 'Play match',
   practice: 'Free practice',
   yourRobot: 'Your robot',

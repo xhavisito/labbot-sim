@@ -28,6 +28,8 @@ export const ic = {
   expand: svg('<path d="M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5"/>'),
   x: svg('<path d="M6 6l12 12M18 6 6 18"/>'),
   check: svg('<path d="m4.5 12.5 5 5 10-11"/>'),
+  phone: svg('<rect x="6.5" y="2.5" width="11" height="19" rx="2"/><path d="M12 7v7M9 11l3 3 3-3"/>'),
+  offline: svg('<path d="M7 18.5h10a4.5 4.5 0 0 0 .6-9 6 6 0 0 0-11.5 1.5A3.8 3.8 0 0 0 7 18.5z"/><path d="m9.5 13.5 2 2 3.5-4"/>'),
 };
 
 /** Barra superior con la marca; `right` = botones a la derecha. */
