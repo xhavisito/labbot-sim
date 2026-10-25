@@ -17,7 +17,7 @@ npm run dev          # servidor de desarrollo en http://localhost:5173
 npm test             # pruebas unitarias y de física (Vitest)
 npm run build        # revisa tipos y genera el sitio estático en dist/
 npm run preview      # sirve dist/
-npm run shots        # capturas con Playwright en shots/ (requiere build; en la nube: CHROMIUM_PATH=/opt/pw-browsers/chromium)
+npm run shots        # capturas con Playwright en shots/ (requiere build; en la nube: CHROMIUM_PATH=/opt/pw-browsers/chromium; --mobile = celular)
 ```
 
 El build es estático (`base: './'`), así que funciona en cualquier hosting, por ejemplo GitHub Pages.
@@ -48,18 +48,30 @@ En el menú eliges tu robot (Rojo 1–2, Azul 1–2) y el modo:
 
 ### Controles
 
-| Acción | Teclado | Gamepad |
+Teclado, control (mapeo estándar del navegador: Xbox, PlayStation y la mayoría por USB o Bluetooth)
+y touch. **Menú → Controles** (o en la pausa) reasigna cada acción: toca la casilla y presiona la
+tecla o el botón. Cada tecla o botón hace una sola cosa (si ya estaba en otra acción, se mueve), hay
+hasta 2 por acción y se guarda en el navegador. Ahí también eliges manejar con un stick o con los dos
+(izquierdo avanza, derecho gira), invertir el avance y cuándo mostrar los controles touch.
+
+Asignación por defecto:
+
+| Acción | Teclado | Control |
 |---|---|---|
 | Avanzar / retroceder | W / S (o flechas) | Stick izquierdo ↕ |
 | Girar | A / D (o flechas) | Stick izquierdo ↔ (o derecho) |
-| Modo lento | Shift | — |
+| Modo lento | Shift | LT |
 | Intake (encender/apagar) | Espacio | A |
-| Elevador: abajo, N1, N2, N3, Repisa | 0, 1, 2, 3, 4 | LB / RB (o cruceta ↕) |
+| Elevador: abajo, N1, N2, N3, Repisa | 0, 1, 2, 3, 4 | — |
+| Subir / bajar elevador | — | RB / LB (o cruceta ↕) |
 | Soltar Muestra | E | B |
 | Tomar Muestra Crítica | F | X |
 | Soltar Muestra Crítica | R | Y |
 | Cambiar cámara | C | Back |
 | Pausa | Esc | Start |
+
+**Touch:** en celular o tableta aparecen un joystick (izquierda) y botones (derecha): intake, soltar,
+subir/bajar elevador y la Crítica, más cámara y pausa arriba. `?touch=1` los fuerza en escritorio.
 
 **Para anotar:** acércate de frente a la pared de tu Cámara de Seguridad, sube el elevador al nivel y
 suelta la Muestra; cuenta cuando cae dentro del nivel. **Para la Muestra Crítica**, en el ENDGAME
@@ -80,8 +92,8 @@ src/
   auto/       rutinas de AUTO
   ai/         Bot.ts: IA de los robots (recolectar → anotar → Plataforma en el ENDGAME)
   render/     Three.js: Renderer, FieldView, PieceView, RobotView, CameraRig
-  input/      teclado y gamepad
-  ui/         i18n (es-MX / en), HUD, menús y resultados
+  input/      teclado, gamepad y touch; bindings.ts (asignación reasignable)
+  ui/         i18n (es-MX / en), HUD, menús, resultados, Controles y TouchControls
 tests/        field, physics, robot, match (reglas y casos borde), session (match completo),
               bot (IA en un match completo, sin faltas de cancha), settings (ajustes y registro)
 ```

@@ -11,7 +11,9 @@ import { InputManager } from '../input/InputManager';
 import { CAMERA_MODES, CameraRig, type CameraMode } from '../render/CameraRig';
 import { Renderer } from '../render/Renderer';
 import { Hud } from '../ui/Hud';
+import { keyboardHelp, padHelp } from '../ui/controlsHelp';
 import { Menu, type MenuChoice } from '../ui/Menu';
+import { isTouchDevice, TouchControls } from '../ui/TouchControls';
 
 type State = 'menu' | 'playing' | 'paused' | 'results';
 
@@ -26,6 +28,9 @@ export class App {
   private choice: MenuChoice = { mode: 'match', player: 0 };
   readonly settings: Settings = loadSettings(AUTO_ROUTINES.map((r) => r.id));
   private last = performance.now();
+  readonly touch: TouchControls;
+  /** `?touch=1` fuerza los controles touch (para probar en escritorio). */
+  private touchForced = new URLSearchParams(location.search).get('touch') === '1';
 
   constructor(host: HTMLElement, ui: HTMLElement) {
     this.renderer = new Renderer(host);
@@ -33,14 +38,13 @@ export class App {
     this.session = new GameSession();
     this.renderer.scene.add(this.session.root);
     this.hud = new Hud(ui);
-    this.menu = new Menu(ui, (c) => this.start(c), this.settings, (s) => saveSettings(s));
+    this.menu = new Menu(ui, (c) => this.start(c), this.settings, (s) => saveSettings(s), this.input);
+    this.touch = new TouchControls(ui, this.input, () => this.cycleCamera(), () => this.togglePause());
     this.toMenu();
     const onResize = () => this.renderer.resize(this.cam.camera);
     window.addEventListener('resize', onResize);
     window.addEventListener('keydown', (e) => {
-      if (e.code === 'KeyC' && this.state === 'playing') this.cycleCamera();
-      if (e.code === 'Escape') this.togglePause();
-      if (e.code === 'Backspace' && this.state === 'playing' && !this.session.match) this.session.resetField();
+      if (e.code === 'Backspace' && this.state === 'playing' && !this.session.match && !this.input.capturing) this.session.resetField();
     });
     onResize();
     requestAnimationFrame(this.loop);
@@ -56,7 +60,9 @@ export class App {
     if (c.mode === 'match') this.session.startMatch();
     this.menu.hide();
     this.hud.show(true);
+    this.hud.setHelp(keyboardHelp(this.input.bindings), padHelp(this.input.bindings));
     this.state = 'playing';
+    this.updateTouch();
     this.cam.setMode(c.player < 2 ? 'driverRed' : 'driverBlue');
   }
 
@@ -92,8 +98,17 @@ export class App {
     setTimeout(() => URL.revokeObjectURL(a.href), 1000);
   }
 
+  /** Muestra los controles touch solo jugando (y según el ajuste). */
+  private updateTouch(): void {
+    const s = this.settings.touch;
+    const want = this.touchForced || s === 'on' || (s === 'auto' && isTouchDevice());
+    document.body.classList.toggle('touch-on', want);
+    this.touch.show(want && this.state === 'playing');
+  }
+
   toMenu(): void {
     this.state = 'menu';
+    this.touch.show(false);
     this.hud.show(false);
     this.cam.setMode('free');
     this.menu.main();
@@ -110,7 +125,10 @@ export class App {
     } else if (this.state === 'paused') {
       this.state = 'playing';
       this.menu.hide();
+      // Al volver de la pausa la asignación pudo cambiar (Controles)
+      this.hud.setHelp(keyboardHelp(this.input.bindings), padHelp(this.input.bindings));
     }
+    this.updateTouch();
   }
 
   cycleCamera(): void {
@@ -126,9 +144,9 @@ export class App {
     const dt = Math.min(0.1, (now - this.last) / 1000);
     this.last = now;
     const inp = this.input.poll();
-    if (this.input.padPause) this.togglePause();
+    if (this.input.pause) this.togglePause();
     if (this.state === 'playing') {
-      if (this.input.padCamera) this.cycleCamera();
+      if (this.input.camera) this.cycleCamera();
       this.session.setInput(inp);
       this.session.update(dt);
       this.hud.events(this.session.matchEvents);
@@ -136,6 +154,7 @@ export class App {
       const m = this.session.match;
       if (m?.finished) {
         this.state = 'results';
+        this.updateTouch();
         this.menu.results(
           m,
           () => this.start(this.choice),

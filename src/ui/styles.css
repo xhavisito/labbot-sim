@@ -69,3 +69,26 @@ ul.fouls { margin: 0; padding-left: 18px; color: var(--muted); font-size: 13px; 
 .panel .form input[type="range"] { flex: 1; min-width: 140px; }
 .panel .form output { min-width: 64px; color: var(--muted); font-variant-numeric: tabular-nums; }
 .panel { max-height: calc(100vh - 32px); overflow-y: auto; }
+/* Controles touch */
+.touch { position: absolute; inset: 0; pointer-events: none; user-select: none; -webkit-user-select: none; touch-action: none; }
+.touch .stick, .touch .tbtn { pointer-events: auto; touch-action: none; }
+.touch .stick { position: absolute; left: max(18px, env(safe-area-inset-left)); bottom: 18px; width: 150px; height: 150px; border-radius: 50%; background: rgba(255,255,255,.08); border: 2px solid rgba(255,255,255,.18); display: grid; place-items: center; }
+.touch .knob { width: 64px; height: 64px; border-radius: 50%; background: rgba(255,255,255,.35); box-shadow: 0 4px 14px rgba(0,0,0,.4); }
+.touch .pad { position: absolute; right: max(14px, env(safe-area-inset-right)); bottom: 14px; display: grid; grid-template-columns: repeat(3, 66px); gap: 8px; }
+.touch .tbtn { height: 58px; border-radius: 14px; border: 1px solid rgba(255,255,255,.2); background: rgba(16,19,25,.72); color: var(--text); font: 700 12px/1.1 system-ui, sans-serif; padding: 2px; }
+.touch .tbtn.on { background: var(--accent); color: #111; }
+.touch .b-intake { background: rgba(242,182,50,.28); }
+.touch .b-up, .touch .b-down { font-size: 20px; }
+.touch .sys { position: absolute; right: max(12px, env(safe-area-inset-right)); top: 60px; display: flex; gap: 8px; }
+.touch .tbtn.small { width: 46px; height: 40px; font-size: 15px; }
+body.touch-on .hud .help, body.touch-on .hud .cam-label { display: none; }
+body.touch-on .hud .robot-status { left: auto; right: 12px; top: 108px; bottom: auto; min-width: 0; font-size: 12px; padding: 6px 8px; }
+@media (max-height: 430px) { .touch .stick { width: 124px; height: 124px; } .touch .tbtn { height: 48px; } .touch .pad { grid-template-columns: repeat(3, 58px); } .hud .board { top: 6px; } .hud .score { font-size: 26px; min-width: 64px; } .hud .timer { font-size: 24px; } }
+/* Controles: tabla de asignación */
+.panel table.binds { width: 100%; border-collapse: collapse; font-size: 13px; }
+.panel table.binds th { text-align: left; color: var(--muted); font-weight: 500; padding: 4px 6px; }
+.panel table.binds td { padding: 3px 4px; }
+.panel .bind { width: 100%; min-height: 32px; text-align: left; font: inherit; border-radius: 8px; border: 1px solid var(--line); background: #11161d; color: inherit; padding: 4px 8px; cursor: pointer; }
+.panel .bind.wait { border-color: var(--accent); color: var(--accent); }
+.panel .bind .chip { display: inline-block; background: rgba(255,255,255,.1); border-radius: 5px; padding: 1px 6px; margin-right: 4px; }
+.panel .x { border: none; background: none; color: var(--muted); cursor: pointer; font-size: 15px; }
