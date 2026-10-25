@@ -3,6 +3,7 @@
 //
 // Uso: node scripts/screenshot.mjs [--query "a=1"] [--wait 3000] [--cams free,top,driverBlue]
 //        [--keys "KeyW:1500,KeyD:500"] [--eval "app.algo()"] [--name prefijo]
+//        [--mobile]  (844×390 horizontal, táctil)
 // En la nube: CHROMIUM_PATH=/opt/pw-browsers/chromium
 import { chromium } from 'playwright';
 import { spawn } from 'node:child_process';
@@ -39,7 +40,10 @@ const browser = await chromium.launch({
   executablePath: process.env.CHROMIUM_PATH || undefined,
   args: ['--ignore-gpu-blocklist', '--enable-unsafe-swiftshader'],
 });
-const page = await browser.newPage({ viewport: { width: 1600, height: 900 } });
+const mobile = args.includes('--mobile');
+const page = await browser.newPage(
+  mobile ? { viewport: { width: 844, height: 390 }, hasTouch: true, isMobile: true, deviceScaleFactor: 2 } : { viewport: { width: 1600, height: 900 } },
+);
 const errors = [];
 page.on('console', (m) => m.type() === 'error' && errors.push(m.text()));
 page.on('pageerror', (e) => errors.push(String(e)));

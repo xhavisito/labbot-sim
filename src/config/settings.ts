@@ -21,6 +21,8 @@ export interface Settings {
   /** Human Player automático (§3.2.4) y cada cuántos segundos mete una Muestra (SUPUESTO). */
   hpEnabled: boolean;
   hpInterval: number;
+  /** Controles touch en pantalla: según el equipo, siempre o nunca. */
+  touch: 'auto' | 'on' | 'off';
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -33,6 +35,7 @@ export const DEFAULT_SETTINGS: Settings = {
   capacity: DEFAULT_ROBOT.capacity,
   hpEnabled: true,
   hpInterval: 3,
+  touch: 'auto',
 };
 
 export const SETTINGS_RANGE = {
@@ -62,6 +65,7 @@ export function sanitizeSettings(raw: unknown, autoIds: readonly string[]): Sett
     capacity: Math.round(num(o.capacity, d.capacity, SETTINGS_RANGE.capacity)),
     hpEnabled: typeof o.hpEnabled === 'boolean' ? o.hpEnabled : d.hpEnabled,
     hpInterval: num(o.hpInterval, d.hpInterval, SETTINGS_RANGE.hpInterval),
+    touch: o.touch === 'on' || o.touch === 'off' ? o.touch : d.touch,
   };
 }
 

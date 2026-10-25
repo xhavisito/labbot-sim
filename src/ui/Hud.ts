@@ -40,7 +40,11 @@ export class Hud {
     this.toasts = el('div', 'toasts', this.root);
     this.cam = el('div', 'cam-label', this.root);
     this.help = el('div', 'help', this.root);
-    this.help.innerHTML = `${t('help')}<br>${t('helpPad')}`;
+  }
+
+  /** Ayuda de controles con la asignación actual. */
+  setHelp(keyboard: string, pad: string): void {
+    this.help.innerHTML = `${keyboard}<br>${pad}`;
   }
 
   show(v: boolean): void {

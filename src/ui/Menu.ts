@@ -3,6 +3,9 @@ import { AUTO_ROUTINES } from '../auto/AutoRoutine';
 import { MECHANISM_KINDS } from '../config/robot';
 import { DEFAULT_SETTINGS, SETTINGS_RANGE, type Settings } from '../config/settings';
 import { RULES } from '../core/fouls';
+import { ACTIONS, assign, clearAction, cloneBindings, DEFAULT_BINDINGS, keyLabel, padLabel, saveBindings, type Action } from '../input/bindings';
+import type { InputManager } from '../input/InputManager';
+import { keyboardHelp, padHelp } from './controlsHelp';
 import type { Match } from '../core/match';
 import { ALLIANCES, type Alliance } from '../core/types';
 import { getLang, setLang, t, type Key } from './i18n';
@@ -23,6 +26,7 @@ export class Menu {
     private onStart: (c: MenuChoice) => void,
     private settings: Settings,
     private onSettings: (s: Settings) => void,
+    private input: InputManager,
   ) {
     this.root = document.createElement('div');
     this.root.className = 'overlay';
@@ -55,8 +59,7 @@ export class Menu {
         <button class="primary" data-act="match">${t('match')}</button>
         <button data-act="practice">${t('practice')}</button>
       </div>
-      <div class="row"><button data-act="settings">${t('settings')}</button></div>
-      <details><summary>${t('controls')}</summary><p class="help">${t('help')}</p><p class="help">${t('helpPad')}</p></details>
+      <div class="row"><button data-act="settings">${t('settings')}</button><button data-act="controls">${t('controlsTitle')}</button></div>
       <button class="link" data-act="lang">${t('language')}</button>`);
     this.root.querySelectorAll<HTMLButtonElement>('[data-slot]').forEach((b) =>
       b.addEventListener('click', () => {
@@ -74,6 +77,7 @@ export class Menu {
     this.root.querySelector('[data-act="match"]')!.addEventListener('click', () => this.onStart({ mode: 'match', player: this.player }));
     this.root.querySelector('[data-act="practice"]')!.addEventListener('click', () => this.onStart({ mode: 'practice', player: this.player }));
     this.root.querySelector('[data-act="settings"]')!.addEventListener('click', () => this.settingsPanel());
+    this.root.querySelector('[data-act="controls"]')!.addEventListener('click', () => this.controlsPanel(() => this.main()));
     this.root.querySelector('[data-act="lang"]')!.addEventListener('click', () => {
       setLang(getLang() === 'es' ? 'en' : 'es');
       location.reload();
@@ -124,15 +128,89 @@ export class Menu {
     });
   }
 
+  /**
+   * Controles: reasignar cada acción en teclado y control (toca la casilla y presiona), manejo con
+   * el control y controles touch. Se guarda al momento.
+   */
+  controlsPanel(onBack: () => void): void {
+    const inp = this.input;
+    const b = inp.bindings;
+    const pad = [...(navigator.getGamepads?.() ?? [])].find((p) => p && p.connected);
+    const cell = (dev: 'keys' | 'pad', a: Action) => {
+      const list = dev === 'keys' ? b.keys[a].map(keyLabel) : b.pad[a].map(padLabel);
+      return `<td><button class="bind" data-dev="${dev}" data-a="${a}">${list.map((x) => `<span class="chip">${x}</span>`).join('') || '–'}</button></td>
+        <td><button class="x" title="${t('clear')}" data-clear="${dev}" data-a="${a}">×</button></td>`;
+    };
+    const opt = (v: string, cur: string, label: string) => `<option value="${v}" ${v === cur ? 'selected' : ''}>${label}</option>`;
+    this.open(`
+      <h2>${t('controlsTitle')}</h2>
+      <p class="help">${t('controlsNote')}</p>
+      <p class="help">${pad ? t('padConnected', { name: pad.id.split('(')[0].trim() }) : t('padNone')}</p>
+      <table class="binds">
+        <tr><th></th><th>${t('keyboard')}</th><th></th><th>${t('gamepad')}</th><th></th></tr>
+        ${ACTIONS.map((a) => `<tr><th>${t(`act_${a}` as Key)}</th>${cell('keys', a)}${cell('pad', a)}</tr>`).join('')}
+      </table>
+      <div class="form">
+        <label>${t('padDriveLabel')} <select data-k="padDrive">${opt('left', b.padDrive, t('padDriveLeft'))}${opt('split', b.padDrive, t('padDriveSplit'))}</select></label>
+        <label><input type="checkbox" data-k="invert" ${b.invertForward ? 'checked' : ''}> ${t('invertForward')}</label>
+        <label>${t('touchControls')} <select data-k="touch">${opt('auto', this.settings.touch, t('touchAuto'))}${opt('on', this.settings.touch, t('touchOn'))}${opt('off', this.settings.touch, t('touchOff'))}</select></label>
+      </div>
+      <div class="row">
+        <button class="primary" data-act="back">${t('back')}</button>
+        <button data-act="defaults">${t('defaults')}</button>
+      </div>`);
+    const apply = (nb: typeof b) => {
+      inp.bindings = nb;
+      saveBindings(nb);
+      this.controlsPanel(onBack);
+    };
+    this.root.querySelectorAll<HTMLButtonElement>('.bind').forEach((btn) =>
+      btn.addEventListener('click', () => {
+        this.root.querySelectorAll('.bind.wait').forEach((x) => x.classList.remove('wait'));
+        btn.classList.add('wait');
+        btn.textContent = t('pressKey');
+        const a = btn.dataset.a as Action;
+        inp.captureNext((c) => {
+          if (!c) return this.controlsPanel(onBack);
+          apply(c.device === 'keys' ? assign(inp.bindings, 'keys', a, c.code) : assign(inp.bindings, 'pad', a, c.button));
+        });
+      }),
+    );
+    this.root.querySelectorAll<HTMLButtonElement>('[data-clear]').forEach((btn) =>
+      btn.addEventListener('click', () => apply(clearAction(inp.bindings, btn.dataset.clear as 'keys' | 'pad', btn.dataset.a as Action))),
+    );
+    this.root.querySelector<HTMLSelectElement>('[data-k="padDrive"]')!.addEventListener('change', (e) =>
+      apply({ ...cloneBindings(inp.bindings), padDrive: (e.target as HTMLSelectElement).value === 'split' ? 'split' : 'left' }),
+    );
+    this.root.querySelector<HTMLInputElement>('[data-k="invert"]')!.addEventListener('change', (e) =>
+      apply({ ...cloneBindings(inp.bindings), invertForward: (e.target as HTMLInputElement).checked }),
+    );
+    this.root.querySelector<HTMLSelectElement>('[data-k="touch"]')!.addEventListener('change', (e) => {
+      this.settings.touch = (e.target as HTMLSelectElement).value as Settings['touch'];
+      this.onSettings(this.settings);
+    });
+    this.root.querySelector('[data-act="back"]')!.addEventListener('click', () => {
+      inp.cancelCapture();
+      onBack();
+    });
+    this.root.querySelector('[data-act="defaults"]')!.addEventListener('click', () => {
+      inp.cancelCapture();
+      apply(cloneBindings(DEFAULT_BINDINGS));
+    });
+  }
+
   pause(onResume: () => void, onRestart: () => void, onMenu: () => void): void {
     this.open(`
       <h2>${t('paused')}</h2>
       <div class="col">
         <button class="primary" data-act="resume">${t('resume')}</button>
         <button data-act="restart">${t('restart')}</button>
+        <button data-act="controls">${t('controlsTitle')}</button>
         <button data-act="menu">${t('backToMenu')}</button>
       </div>
-      <p class="help">${t('help')}</p>`);
+      <p class="help">${keyboardHelp(this.input.bindings)}</p>
+      <p class="help">${padHelp(this.input.bindings)}</p>`);
+    this.root.querySelector('[data-act="controls"]')!.addEventListener('click', () => this.controlsPanel(() => this.pause(onResume, onRestart, onMenu)));
     this.root.querySelector('[data-act="resume"]')!.addEventListener('click', onResume);
     this.root.querySelector('[data-act="restart"]')!.addEventListener('click', onRestart);
     this.root.querySelector('[data-act="menu"]')!.addEventListener('click', onMenu);
