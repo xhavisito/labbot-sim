@@ -32,6 +32,13 @@ En el menú eliges tu robot (Rojo 1–2, Azul 1–2) y el modo:
   puntos, RP y faltas.
 - **Práctica libre:** sin reloj ni faltas; el marcador cuenta las Muestras anotadas.
   Backspace reacomoda la cancha.
+- **Tipo de robot** (en el menú, y el de los demás robots en Ajustes):
+  - *Genérico:* intake al frente, tolva de 5 y elevador con depósito que suelta al frente.
+  - *Elevador:* intake al frente, tolva de 5 y una plataforma que sube y empuja las Muestras por
+    atrás (30 cm detrás del chasis). Se anota de reversa: espalda contra la pared de la Cámara.
+  - *Pivote:* brazo con garra; con el brazo en el piso (tecla 0) y la intake encendida agarra una
+    Muestra; la suelta al frente en N1–N3. Lleva una sola pieza (Muestra o Crítica).
+  Los tres cumplen §7.2 (65×65 cm, ≤40 cm fuera del chasis, ≤100 cm de alto); lo revisa `validateRobot`.
 - **Ajustes:** IA de los otros 3 robots (encendida por defecto), rutina de AUTO de tu robot y de los
   demás (salir de la zona, anotar precarga, anotar y recolectar, quedarse quieto), velocidad y
   capacidad de tu robot, y el Human Player automático. Se guardan en el navegador. Los puntos y
@@ -93,4 +100,7 @@ Cada regla en el código cita su sección del manual.
   rivales (Fouls por contacto, §4.5).
 - El Human Player es automático (una Muestra cada 3 s si la ranura está libre).
 - No se simulan las faltas de conducta, seguridad o del Human Player humano (no se pueden detectar).
-- La intake no choca con la cancha (solo captura Muestras); el robot es genérico (sin editor).
+- La intake, el brazo y la plataforma no chocan con la cancha (solo mueven piezas); no hay editor de
+  robots: los tres tipos son presets en `src/config/robot.ts` con medidas SUPUESTAS.
+- El brazo del pivote empieza abajo (en el piso), un poco fuera del chasis; el manual pide nada fuera
+  del perímetro al inicio (§4.1), pero la simulación no lo cobra.

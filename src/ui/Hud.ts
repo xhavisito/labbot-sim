@@ -80,7 +80,7 @@ export class Hud {
     const me = s.player;
     const mech = me.mech;
     const elev = t('elevatorNames').split('|')[mech.target];
-    const key = `${redScore}|${blueScore}|${time}|${phase}|${mech.stored.length}|${!!mech.critical}|${elev}|${mech.intakeOn}|${cam}`;
+    const key = `${redScore}|${blueScore}|${time}|${phase}|${me.index}|${mech.capacity}|${mech.stored.length}|${!!mech.critical}|${elev}|${mech.intakeOn}|${cam}`;
     if (key === this.lastKey) return;
     this.lastKey = key;
     this.red.textContent = String(redScore);

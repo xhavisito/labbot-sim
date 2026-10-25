@@ -111,13 +111,16 @@ export class Bot {
       if (!piece) return out;
       this.drive(piece, out, false, phase);
     } else if (this.mode === 'score') {
-      // Se coloca 0.7 m antes de la pared, se alinea de frente, avanza hasta la pared y suelta
+      // Se coloca 0.7 m antes de la pared, se alinea (de frente, o de espaldas si su mecanismo saca
+      // las piezas por atrás), se arrima a la pared y suelta
       const level = this.freeLevel();
       const pose = this.scoringPose(level);
+      const dir = m.side; // +1 avanza hacia la pared, −1 retrocede hacia ella
+      const want = dir > 0 ? pose.heading : wrap(pose.heading + Math.PI);
       const away = this.robot.alliance === 'red' ? -1 : 1; // hacia la cancha (lejos de la Cámara)
       const stage = { x: pose.x, z: pose.z + away * 0.7 };
       const pos = r.phys.position();
-      const err = wrap(pose.heading - r.phys.heading());
+      const err = wrap(want - r.phys.heading());
       const lateral = Math.abs(pos.x - pose.x);
       const depth = (pos.z - pose.z) * away; // > 0: todavía lejos de la pared
       out.elevator = depth < 1.2 && lateral < 0.5 ? level : 0;
@@ -127,11 +130,10 @@ export class Bot {
       } else if (Math.abs(err) > 0.06) {
         out.turn = Math.max(-1, Math.min(1, err * 2));
       } else if (depth > 0.02) {
-        out.forward = Math.min(0.35, depth * 1.5 + 0.08);
+        out.forward = dir * Math.min(0.35, depth * 1.5 + 0.08);
         out.turn = Math.max(-1, Math.min(1, err * 2));
       } else {
-        const ready = Math.abs(m.height - r.spec.elevatorHeights[level]) < 0.01;
-        out.release = ready;
+        out.release = m.atTarget;
       }
     } else if (this.mode === 'climb') {
       // Rampa propia: pie en |x| = 2.0; sube a su carril de la plataforma superior (caben 2 robots)

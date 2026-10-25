@@ -1,5 +1,6 @@
 /** Menú principal, ajustes, pausa y resultados (DOM). */
 import { AUTO_ROUTINES } from '../auto/AutoRoutine';
+import { MECHANISM_KINDS } from '../config/robot';
 import { DEFAULT_SETTINGS, SETTINGS_RANGE, type Settings } from '../config/settings';
 import { RULES } from '../core/fouls';
 import type { Match } from '../core/match';
@@ -43,10 +44,13 @@ export class Menu {
       const a: Alliance = i < 2 ? 'red' : 'blue';
       return `<button class="slot ${a} ${i === this.player ? 'sel' : ''}" data-slot="${i}">${t(a)} ${(i % 2) + 1}</button>`;
     }).join('');
+    const types = MECHANISM_KINDS.map((k) => `<button class="slot ${k === this.settings.robotType ? 'sel' : ''}" data-type="${k}">${t(`type_${k}` as Key)}</button>`).join('');
     this.open(`
       <h1>${t('title')}</h1>
       <p class="sub">${t('subtitle')}</p>
       <div class="row"><span class="lbl">${t('yourRobot')}</span>${robots}</div>
+      <div class="row"><span class="lbl">${t('robotType')}</span>${types}</div>
+      <p class="help">${t(`type_${this.settings.robotType}_desc` as Key)}</p>
       <div class="row">
         <button class="primary" data-act="match">${t('match')}</button>
         <button data-act="practice">${t('practice')}</button>
@@ -57,6 +61,13 @@ export class Menu {
     this.root.querySelectorAll<HTMLButtonElement>('[data-slot]').forEach((b) =>
       b.addEventListener('click', () => {
         this.player = Number(b.dataset.slot);
+        this.main();
+      }),
+    );
+    this.root.querySelectorAll<HTMLButtonElement>('[data-type]').forEach((b) =>
+      b.addEventListener('click', () => {
+        this.settings.robotType = b.dataset.type as Settings['robotType'];
+        this.onSettings(this.settings);
         this.main();
       }),
     );
@@ -83,6 +94,7 @@ export class Menu {
         <label><input type="checkbox" data-k="ai" ${s.ai ? 'checked' : ''}> ${t('setAi')}</label>
         <label>${t('setPlayerAuto')} <select data-k="playerAuto">${autoOpts(s.playerAuto)}</select></label>
         <label>${t('setBotAuto')} <select data-k="botAuto">${autoOpts(s.botAuto)}</select></label>
+        <label>${t('setBotType')} <select data-k="botRobotType">${MECHANISM_KINDS.map((k) => `<option value="${k}" ${k === s.botRobotType ? 'selected' : ''}>${t(`type_${k}` as Key)}</option>`).join('')}</select></label>
         <label>${t('setSpeed')} ${range('maxSpeed', 'm/s')}</label>
         <label>${t('setCapacity')} ${range('capacity', '')}</label>
         <label><input type="checkbox" data-k="hpEnabled" ${s.hpEnabled ? 'checked' : ''}> ${t('setHp')}</label>

@@ -3,7 +3,7 @@
  * los puntos y tiempos viven en `game.ts`. Todo pasa por `sanitizeSettings`, que recorta a rangos
  * válidos (un valor raro guardado en el navegador no rompe el juego).
  */
-import { DEFAULT_ROBOT } from './robot';
+import { DEFAULT_ROBOT, MECHANISM_KINDS, type MechanismKind } from './robot';
 
 export interface Settings {
   /** La IA maneja los otros 3 robots en el TELEOP. */
@@ -12,7 +12,10 @@ export interface Settings {
   playerAuto: string;
   /** Rutina de AUTO de los otros robots. */
   botAuto: string;
-  /** Tu robot: velocidad máxima (m/s) y Muestras que guarda. */
+  /** Tipo de tu robot y el de los demás (`config/robot.ts`). */
+  robotType: MechanismKind;
+  botRobotType: MechanismKind;
+  /** Tu robot: velocidad máxima (m/s) y Muestras que guarda (el pivote siempre lleva 1). */
   maxSpeed: number;
   capacity: number;
   /** Human Player automático (§3.2.4) y cada cuántos segundos mete una Muestra (SUPUESTO). */
@@ -24,6 +27,8 @@ export const DEFAULT_SETTINGS: Settings = {
   ai: true,
   playerAuto: 'leave',
   botAuto: 'preload',
+  robotType: 'generic',
+  botRobotType: 'generic',
   maxSpeed: DEFAULT_ROBOT.maxSpeed,
   capacity: DEFAULT_ROBOT.capacity,
   hpEnabled: true,
@@ -46,10 +51,13 @@ export function sanitizeSettings(raw: unknown, autoIds: readonly string[]): Sett
   const o = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
   const d = DEFAULT_SETTINGS;
   const auto = (v: unknown, def: string) => (typeof v === 'string' && autoIds.includes(v) ? v : def);
+  const kind = (v: unknown, def: MechanismKind) => (MECHANISM_KINDS.find((k) => k === v) ?? def);
   return {
     ai: typeof o.ai === 'boolean' ? o.ai : d.ai,
     playerAuto: auto(o.playerAuto, d.playerAuto),
     botAuto: auto(o.botAuto, d.botAuto),
+    robotType: kind(o.robotType, d.robotType),
+    botRobotType: kind(o.botRobotType, d.botRobotType),
     maxSpeed: num(o.maxSpeed, d.maxSpeed, SETTINGS_RANGE.maxSpeed),
     capacity: Math.round(num(o.capacity, d.capacity, SETTINGS_RANGE.capacity)),
     hpEnabled: typeof o.hpEnabled === 'boolean' ? o.hpEnabled : d.hpEnabled,

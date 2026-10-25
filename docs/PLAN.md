@@ -76,6 +76,8 @@ tests/                    clock, scoring, fouls/cards, rp, match (casos borde), 
    Player (`config/settings.ts`). IA en `ai/Bot.ts`; registro en `core/matchLog.ts`.
 6. **Tipos de robot** (pedido después del plan) — Elevador (plataforma que sube y empuja las Muestras
    por atrás) y Pivote (brazo con garra), elegibles en el menú.
+   *Hecho:* `RobotSpec.mechanism` + presets en `config/robot.ts`; `Mechanisms` saca las piezas al
+   frente, atrás o en la punta del brazo; la IA anota de reversa con el elevador.
 
 Cada hito: `npm test`, `npm run build` y captura con Playwright; resumen corto al terminar.
 

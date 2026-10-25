@@ -81,6 +81,14 @@ const ES = {
   auto_preload: 'Anotar precarga (Nivel 3)',
   auto_collect: 'Anotar y recolectar',
   auto_none: 'Quedarse quieto',
+  robotType: 'Tipo',
+  setBotType: 'Tipo de los otros robots',
+  type_generic: 'Genérico',
+  type_elevator: 'Elevador',
+  type_pivot: 'Pivote',
+  type_generic_desc: 'Intake al frente, tolva de 5 y elevador con depósito que suelta al frente.',
+  type_elevator_desc: 'Intake al frente, tolva de 5 y una plataforma que sube y empuja las Muestras por atrás: se anota de reversa.',
+  type_pivot_desc: 'Brazo con garra: baja al piso (0) para agarrar una Muestra a la vez y la suelta al frente en N1–N3 o la Repisa.',
 } as const;
 
 export type Key = keyof typeof ES;
@@ -164,6 +172,14 @@ const EN: Record<Key, string> = {
   auto_preload: 'Score preload (Level 3)',
   auto_collect: 'Score and collect',
   auto_none: 'Stay still',
+  robotType: 'Type',
+  setBotType: 'Other robots type',
+  type_generic: 'Generic',
+  type_elevator: 'Elevator',
+  type_pivot: 'Pivot',
+  type_generic_desc: 'Front intake, 5-Sample hopper and an elevator with a tray that drops in front.',
+  type_elevator_desc: 'Front intake, 5-Sample hopper and a platform that lifts and pushes Samples out the back: score in reverse.',
+  type_pivot_desc: 'Arm with a claw: lower it to the floor (0) to grab one Sample at a time and drop it in front at L1–L3 or the Repisa.',
 };
 
 let lang: 'es' | 'en' = 'es';
