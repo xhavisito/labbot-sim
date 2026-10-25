@@ -60,7 +60,7 @@ for (const d of only) {
     await page.waitForFunction(() => !document.querySelector('[data-prog]') || document.querySelector('[data-prog]').hidden, null, { timeout: 120000 });
     await click('[data-sim="Q2"]');
   }
-  await page.waitForFunction(() => !document.querySelector('[data-prog]') || document.querySelector('[data-prog]').hidden, null, { timeout: 300000 });
+  await page.waitForFunction(() => !document.querySelector('[data-prog]') || document.querySelector('[data-prog]').hidden, null, { timeout: 900000 });
   await page.waitForTimeout(300);
   await shot('4c-scout-schedule');
   await click('[data-tab="table"]');

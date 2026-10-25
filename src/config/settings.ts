@@ -3,7 +3,8 @@
  * los puntos y tiempos viven en `game.ts`. Todo pasa por `sanitizeSettings`, que recorta a rangos
  * válidos (un valor raro guardado en el navegador no rompe el juego).
  */
-import { DEFAULT_ROBOT, MECHANISM_KINDS, type MechanismKind } from './robot';
+import { ROBOT_IDS, type RobotId } from './firstRobots';
+import { DEFAULT_ROBOT } from './robot';
 
 export interface Settings {
   /** La IA maneja los otros 3 robots en el TELEOP. */
@@ -12,9 +13,9 @@ export interface Settings {
   playerAuto: string;
   /** Rutina de AUTO de los otros robots. */
   botAuto: string;
-  /** Tipo de tu robot y el de los demás (`config/robot.ts`). */
-  robotType: MechanismKind;
-  botRobotType: MechanismKind;
+  /** Tu robot y el de los demás: un tipo (`config/robot.ts`) o un robot de FIRST (`config/firstRobots.ts`). */
+  robotType: RobotId;
+  botRobotType: RobotId;
   /** Tu robot: velocidad máxima (m/s) y Muestras que guarda (el pivote siempre lleva 1). */
   maxSpeed: number;
   capacity: number;
@@ -23,6 +24,8 @@ export interface Settings {
   hpInterval: number;
   /** Controles touch en pantalla: según el equipo, siempre o nunca. */
   touch: 'auto' | 'on' | 'off';
+  /** Calidad gráfica (`render/Renderer.ts`): automática según el equipo y los FPS, o fija. */
+  quality: 'auto' | 'low' | 'medium' | 'high';
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -36,10 +39,12 @@ export const DEFAULT_SETTINGS: Settings = {
   hpEnabled: true,
   hpInterval: 3,
   touch: 'auto',
+  quality: 'auto',
 };
 
 export const SETTINGS_RANGE = {
-  maxSpeed: { min: 1, max: 4.5, step: 0.25 },
+  /** Hasta 6.5 m/s: Skyfire (254, 2012) pasaba de 20 ft/s. */
+  maxSpeed: { min: 1, max: 6.5, step: 0.25 },
   capacity: { min: 1, max: 10, step: 1 },
   hpInterval: { min: 1, max: 10, step: 0.5 },
 } as const;
@@ -54,7 +59,7 @@ export function sanitizeSettings(raw: unknown, autoIds: readonly string[]): Sett
   const o = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
   const d = DEFAULT_SETTINGS;
   const auto = (v: unknown, def: string) => (typeof v === 'string' && autoIds.includes(v) ? v : def);
-  const kind = (v: unknown, def: MechanismKind) => (MECHANISM_KINDS.find((k) => k === v) ?? def);
+  const kind = (v: unknown, def: RobotId) => ROBOT_IDS.find((k) => k === v) ?? def;
   return {
     ai: typeof o.ai === 'boolean' ? o.ai : d.ai,
     playerAuto: auto(o.playerAuto, d.playerAuto),
@@ -66,6 +71,7 @@ export function sanitizeSettings(raw: unknown, autoIds: readonly string[]): Sett
     hpEnabled: typeof o.hpEnabled === 'boolean' ? o.hpEnabled : d.hpEnabled,
     hpInterval: num(o.hpInterval, d.hpInterval, SETTINGS_RANGE.hpInterval),
     touch: o.touch === 'on' || o.touch === 'off' ? o.touch : d.touch,
+    quality: o.quality === 'low' || o.quality === 'medium' || o.quality === 'high' ? o.quality : d.quality,
   };
 }
 

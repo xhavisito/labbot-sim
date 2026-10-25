@@ -178,7 +178,7 @@ export class Hud {
     const full = mech.stored.length >= mech.capacity;
     this.player.className = `player ${me.alliance} ${full ? 'full' : ''}`;
     this.player.innerHTML = `
-      <div class="p-head"><span class="p-num">${t(me.alliance).slice(0, 1)}${me.station + 1}</span><span class="p-name">${t(`type_${kind}` as Key)}</span><span class="p-tag">${t('you')}</span></div>
+      <div class="p-head"><span class="p-num">${t(me.alliance).slice(0, 1)}${me.station + 1}</span><span class="p-name">${me.spec.label ?? t(`type_${kind}` as Key)}</span><span class="p-tag">${t('you')}</span></div>
       <div class="p-hopper"><div class="p-fuel"><b>${mech.stored.length}</b><small>/${mech.capacity}</small><span>${t('stored')}</span></div>
         <div class="hbar">${Array.from({ length: mech.capacity }, (_, i) => `<i class="${i < mech.stored.length ? 'on' : ''}"></i>`).join('')}</div></div>
       <div class="chips">${

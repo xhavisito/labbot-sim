@@ -23,6 +23,11 @@ describe('ajustes', () => {
     expect(s.playerAuto).toBe('collect');
   });
 
+  it('calidad gráfica: solo valores conocidos', () => {
+    expect(sanitizeSettings({ quality: 'low' }, ids).quality).toBe('low');
+    expect(sanitizeSettings({ quality: 'ultra' }, ids).quality).toBe('auto');
+  });
+
   it('las rutinas por defecto existen', () => {
     expect(ids).toContain(DEFAULT_SETTINGS.playerAuto);
     expect(ids).toContain(DEFAULT_SETTINGS.botAuto);

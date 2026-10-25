@@ -1,7 +1,25 @@
 /** Mallas de las piezas: una por cuerpo del pool; se ocultan cuando la pieza no está en la cancha. */
 import * as THREE from 'three';
+import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
 import type { Pieces } from '../physics/Pieces';
+import type { Alliance } from '../core/types';
 import { ALLIANCE_COLOR } from './FieldView';
+import { foamTexture } from './textures';
+
+let sample: THREE.MeshStandardMaterial | null = null;
+const critical: Partial<Record<Alliance, THREE.MeshPhysicalMaterial>> = {};
+
+/** Muestra de hule espuma (con poros si hay DOM); compartida por la cancha y los robots. */
+export function sampleMaterial(): THREE.MeshStandardMaterial {
+  if (sample) return sample;
+  const foam = foamTexture();
+  return (sample = new THREE.MeshStandardMaterial({ color: foam ? 0xffffff : 0xd9c9a8, map: foam?.map ?? null, bumpMap: foam?.bump ?? null, bumpScale: 1.4, roughness: 0.96 }));
+}
+
+/** Muestra Crítica: plástico brillante del color de la alianza con un leve resplandor. */
+export function criticalMaterial(a: Alliance): THREE.MeshPhysicalMaterial {
+  return (critical[a] ??= new THREE.MeshPhysicalMaterial({ color: ALLIANCE_COLOR[a], roughness: 0.3, clearcoat: 0.8, clearcoatRoughness: 0.2, emissive: ALLIANCE_COLOR[a], emissiveIntensity: 0.25 }));
+}
 
 export class PieceView {
   readonly group = new THREE.Group();
@@ -10,11 +28,12 @@ export class PieceView {
   private cur: Array<{ p: THREE.Vector3; q: THREE.Quaternion }> = [];
 
   constructor(private pieces: Pieces) {
-    const sampleMat = new THREE.MeshStandardMaterial({ color: 0xd9c9a8, roughness: 0.95 });
+    const sampleMat = sampleMaterial();
     for (const p of pieces.list) {
       const s = pieces.size(p);
-      const mat = p.kind === 'critical' ? new THREE.MeshStandardMaterial({ color: ALLIANCE_COLOR[p.owner!], roughness: 0.9 }) : sampleMat;
-      const m = new THREE.Mesh(new THREE.BoxGeometry(s, s, s), mat);
+      const mat = p.kind === 'critical' ? criticalMaterial(p.owner!) : sampleMat;
+      // Cubos con orillas redondeadas (el hule espuma no tiene aristas filosas)
+      const m = new THREE.Mesh(new RoundedBoxGeometry(s, s, s, 2, s * 0.12), mat);
       m.castShadow = true;
       m.receiveShadow = true;
       this.meshes.push(m);

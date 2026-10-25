@@ -89,6 +89,9 @@ export class Bot {
       if (this.opts.role === 'score') this.opts.role = 'park';
       if (this.opts.endgame === 'critical') this.opts.endgame = 'platform';
     }
+    // Un robot que no llega a N3 (p. ej. el Everybot) anota en su nivel más alto
+    const max = robot.spec.maxLevel ?? 3;
+    if (this.opts.level > max) this.opts.level = max;
     this.scoreLevel = this.opts.level;
   }
 
@@ -366,7 +369,8 @@ export class Bot {
 
   /** El nivel preferido, o el siguiente que valga más si otro robot está en su lugar de anotación. */
   private freeLevel(): Level {
-    const order: Level[] = [this.opts.level, ...([3, 2, 1] as Level[]).filter((l) => l !== this.opts.level)];
+    const max = this.robot.spec.maxLevel ?? 3;
+    const order: Level[] = [this.opts.level, ...([3, 2, 1] as Level[]).filter((l) => l !== this.opts.level && l <= max)];
     const busy = (l: Level): boolean => {
       const p = this.scoringPose(l);
       return this.others.some((o) => o !== this.robot && Math.hypot(o.phys.position().x - p.x, o.phys.position().z - p.z) < 0.6);

@@ -43,7 +43,8 @@ export class ScoutingScreen {
   tab: ScoutTab = 'schedule';
   /** Equipo del que se ven los mejores compañeros. */
   private focus = '';
-  private busy = false;
+  /** Simulando matches (App deja de dibujar la cancha mientras tanto para no robarle tiempo). */
+  busy = false;
   /** Formulario de captura (se conserva al cambiar de pestaña). */
   private draft: ScoutEntry | null = null;
 
