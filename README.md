@@ -93,8 +93,7 @@ Cada regla en el código cita su sección del manual.
 
 - Varias posiciones (Zonas de Inicio, Laboratorio, Plataforma, Repisa) se midieron sobre la figura de
   §3.2 (error ≈ ±30 mm). El CAD oficial de la cancha (§3.3) daría las medidas exactas.
-- Supuestos marcados en `docs/reglas-reto.md`: qué cuenta como "sobre la Plataforma" (D5), zonas de
-  color de cada alianza (D8), frecuencia de faltas por contacto (D11, D15), entre otros.
+- Supuestos marcados en `docs/reglas-reto.md`: zonas de color de cada alianza (D8), frecuencia de faltas por contacto (D11, D15), entre otros.
 - La IA es sencilla: va por la Muestra libre más cercana, anota en el Nivel 3 (o el nivel libre),
   y en el ENDGAME sube a la Plataforma. No toma la Muestra Crítica ni defiende, y a veces choca con
   rivales (Fouls por contacto, §4.5).

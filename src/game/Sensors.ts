@@ -47,7 +47,7 @@ export class Sensors {
     return r.phys.footprint().every((c) => !F.inRect(zone, c.x, c.z));
   }
 
-  /** Sobre la Plataforma (D5, SUPUESTO): apoyado en la estructura y sin tocar la alfombra. */
+  /** Sobre la Plataforma (D5, resuelto): basta con estar en la rampa, apoyado en la estructura y sin tocar la alfombra. */
   onPlatform(r: Robot): boolean {
     r.phys.senseGround();
     return r.phys.wheelsOnPlatform > 0 && r.phys.wheelsOnCarpet === 0;

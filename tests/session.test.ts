@@ -167,4 +167,16 @@ describe('match completo en la física', () => {
     steps(g, 1.5, { forward: 0.4 });
     expect(g.match!.fouls.filter((f) => f.rule === 'OUT_OF_BOUNDS')).toHaveLength(1);
   });
+
+  it('D5: con estar arriba de la rampa (sin tocar la alfombra) ya cuenta; con medio robot en la alfombra no', () => {
+    const g = session();
+    g.startMatch();
+    skipTo(g, 149.5);
+    g.robots[0].phys.teleport(1.5, 0.37, Math.PI, 0.16); // a media rampa roja
+    g.robots[1].phys.teleport(2.2, -0.37, Math.PI, 0.05); // ruedas delanteras en la rampa, traseras en la alfombra
+    steps(g, 0.7);
+    expect(g.match!.finished).toBe(true);
+    expect(g.match!.state.red.platformRobots).toBe(1);
+    expect(g.match!.breakdown('red').platform).toBe(10);
+  });
 });
