@@ -20,7 +20,9 @@ npm run preview      # sirve dist/
 npm run shots        # capturas con Playwright en shots/ (requiere build; en la nube: CHROMIUM_PATH=/opt/pw-browsers/chromium; --mobile = celular)
 ```
 
-El build es estático (`base: './'`), así que funciona en cualquier hosting, por ejemplo GitHub Pages.
+El build es estático (`base: './'`), así que funciona en cualquier hosting. **En línea:**
+<https://xhavisito.github.io/labbot-sim/>. Lo publica `.github/workflows/deploy.yml` cada vez que algo
+entra a `main` (pruebas, build y copia de `dist/` a la rama `gh-pages`).
 
 ## Cómo se juega
 
