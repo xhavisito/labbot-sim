@@ -29,6 +29,8 @@ export const ic = {
   x: svg('<path d="M6 6l12 12M18 6 6 18"/>'),
   check: svg('<path d="m4.5 12.5 5 5 10-11"/>'),
   clipboard: svg('<rect x="5" y="4.5" width="14" height="16.5" rx="1.5"/><path d="M9 3h6v3H9zM8.5 11h7M8.5 14.5h7M8.5 18h4"/>'),
+  phone: svg('<rect x="6.5" y="2.5" width="11" height="19" rx="2"/><path d="M12 7v7M9 11l3 3 3-3"/>'),
+  offline: svg('<path d="M7 18.5h10a4.5 4.5 0 0 0 .6-9 6 6 0 0 0-11.5 1.5A3.8 3.8 0 0 0 7 18.5z"/><path d="m9.5 13.5 2 2 3.5-4"/>'),
 };
 
 /** Barra superior con la marca; `right` = botones a la derecha. */

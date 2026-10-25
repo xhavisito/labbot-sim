@@ -15,6 +15,7 @@ import { CAMERA_MODES, CameraRig, type CameraMode } from '../render/CameraRig';
 import { Arena } from '../render/Arena';
 import { Effects } from '../render/Effects';
 import { guessQuality, QUALITIES, Renderer, type Quality } from '../render/Renderer';
+import { pwa } from '../pwa/register';
 import { Hud } from '../ui/Hud';
 import { t, type Key } from '../ui/i18n';
 import { Menu, type MenuChoice } from '../ui/Menu';
@@ -64,6 +65,9 @@ export class App {
     }, this.input);
     this.scouting = new ScoutingScreen(this.menu.root, this.scoutData, () => this.toMenu(), (p) => this.start({ mode: 'match', player: p.player, scout: p }));
     this.menu.onScouting = () => this.scouting.show();
+    pwa.onChange = () => {
+      if (this.state === 'menu') this.menu.pwaChips();
+    };
     this.toMenu();
     const onResize = () => this.renderer.resize(this.cam.camera);
     window.addEventListener('resize', onResize);

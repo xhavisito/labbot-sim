@@ -4,6 +4,8 @@
  * negro hasta terminar de bajar todo (el evento `load` espera a los scripts del <head>), y con
  * datos móviles son muchos segundos.
  */
+import { registerServiceWorker } from './pwa/register';
+
 const loadingText = (): HTMLElement | null => document.getElementById('loading-text');
 
 function fail(e: unknown): void {
@@ -21,6 +23,9 @@ function go(): void {
   if (el) el.textContent = 'Descargando el simulador (~2 MB)…';
   import('./boot').then((m) => m.start()).catch(fail);
 }
+
+// Antes de bajar el simulador: el navegador puede ofrecer la instalación desde el principio
+registerServiceWorker();
 
 if (document.readyState === 'complete') go();
 else window.addEventListener('load', go, { once: true });
