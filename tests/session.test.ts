@@ -202,3 +202,48 @@ describe('práctica libre en solitario', () => {
     expect(() => g.startMatch()).toThrow();
   });
 });
+
+describe('práctica libre: Muestras sin límite y Cámaras con vacío', () => {
+  const dropInWell = (g: GameSession, level: 1 | 2 | 3) => {
+    const w = F.rectFor(g.player.alliance, F.camaraWells()[level]);
+    const p = g.pieces.list.find((x) => x.kind === 'sample' && x.state.at === 'hp')!;
+    g.pieces.place(p, (w.x0 + w.x1) / 2, F.SAMPLE_SIZE / 2 + 0.02, (w.z0 + w.z1) / 2);
+    return p;
+  };
+
+  it('la Muestra anotada cuenta y el vacío la regresa a la reserva del HP', () => {
+    const g = new GameSession({ player: 0, preload: true, solo: true, hp: { enabled: false, interval: 3 } });
+    const stock0 = g.pieces.hpStock('red').length;
+    const p = dropInWell(g, 1);
+    steps(g, 0.3);
+    expect(g.practiceCount.red).toBe(1);
+    expect(p.state.at).toBe('field');
+    steps(g, GameSession.SINK_DELAY);
+    expect(p.state).toEqual({ at: 'hp', alliance: 'red' });
+    expect(g.pieces.hpStock('red').length).toBe(stock0);
+    // La misma pieza puede volver a anotarse
+    dropInWell(g, 2);
+    steps(g, 0.3);
+    expect(g.practiceCount.red).toBe(2);
+  });
+
+  it('toda la reserva es del HP del jugador y nunca se acaba', () => {
+    const g = new GameSession({ player: 2, preload: true, solo: true, hp: { enabled: true, interval: 1 } });
+    expect(g.pieces.hpStock('red').length).toBe(0);
+    const total = g.pieces.hpStock('blue').length;
+    expect(total).toBeGreaterThan(F.HP_SAMPLES_PER_ALLIANCE);
+    // Más Muestras que la reserva: cada una que entra a la Cámara regresa a la reserva
+    for (let i = 0; i < total + 5; i++) {
+      dropInWell(g, 3);
+      steps(g, GameSession.SINK_DELAY + 0.3);
+    }
+    expect(g.practiceCount.blue).toBe(total + 5);
+    expect(g.pieces.hpStock('blue').length).toBeGreaterThan(0);
+  });
+
+  it('en práctica el Human Player mete Muestras sin reloj', () => {
+    const g = new GameSession({ player: 0, preload: true, solo: true, hp: { enabled: true, interval: 1 } });
+    steps(g, 1.2);
+    expect(g.hps.red.introduced).toBe(1);
+  });
+});
