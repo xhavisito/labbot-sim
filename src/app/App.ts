@@ -3,7 +3,8 @@
  * Estados: menú (la cancha gira de fondo) → jugando ⇄ pausa → resultados.
  */
 import { AUTO_ROUTINES, LEAVE_ZONE } from '../auto/AutoRoutine';
-import { fixedCapacity, ROBOT_PRESETS } from '../config/robot';
+import { firstRobot, robotSpec } from '../config/firstRobots';
+import { fixedCapacity } from '../config/robot';
 import { loadSettings, saveSettings, type Settings } from '../config/settings';
 import { formatTimer, timerSeconds } from '../core/clock';
 import { buildMatchLog } from '../core/matchLog';
@@ -93,11 +94,13 @@ export class App {
       ai: s.ai,
       autos: [0, 1, 2, 3].map((i) => auto(i === player ? s.playerAuto : s.botAuto)),
       specs: [0, 1, 2, 3].map((i) => {
-        if (i !== player) return ROBOT_PRESETS[s.botRobotType];
-        const base = ROBOT_PRESETS[s.robotType];
+        if (i !== player) return robotSpec(s.botRobotType);
+        const base = robotSpec(s.robotType);
         // La garra del pivote lleva una sola pieza; el chasis, solo la precarga
         return { ...base, maxSpeed: s.maxSpeed, capacity: fixedCapacity(base.mechanism) ?? s.capacity };
       }),
+      // Los robots de FIRST juegan con la estrategia que les funcionó (nivel, de dónde juntan, ENDGAME)
+      bots: [0, 1, 2, 3].map((i) => firstRobot(i === player ? s.robotType : s.botRobotType)?.strategy),
       hp: { enabled: s.hpEnabled, interval: s.hpInterval },
     };
   }
