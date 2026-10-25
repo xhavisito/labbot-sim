@@ -48,7 +48,7 @@ const errors = [];
 page.on('console', (m) => m.type() === 'error' && errors.push(m.text()));
 page.on('pageerror', (e) => errors.push(String(e)));
 await page.goto(`http://localhost:${port}/?${query}`);
-await page.waitForFunction(() => 'app' in window, null, { timeout: 30000 });
+await page.waitForFunction(() => !!(window.app && window.app.start), null, { timeout: 30000 });
 if (evalJs) await page.evaluate(evalJs);
 await page.waitForTimeout(wait);
 for (const k of keys ? keys.split(',') : []) {
