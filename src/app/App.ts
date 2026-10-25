@@ -3,7 +3,7 @@
  * Estados: menú (la cancha gira de fondo) → jugando ⇄ pausa → resultados.
  */
 import { AUTO_ROUTINES, LEAVE_ZONE } from '../auto/AutoRoutine';
-import { ROBOT_PRESETS } from '../config/robot';
+import { fixedCapacity, ROBOT_PRESETS } from '../config/robot';
 import { loadSettings, saveSettings, type Settings } from '../config/settings';
 import { formatTimer, timerSeconds } from '../core/clock';
 import { buildMatchLog } from '../core/matchLog';
@@ -80,8 +80,8 @@ export class App {
       specs: [0, 1, 2, 3].map((i) => {
         if (i !== player) return ROBOT_PRESETS[s.botRobotType];
         const base = ROBOT_PRESETS[s.robotType];
-        // La garra del pivote lleva una sola pieza
-        return { ...base, maxSpeed: s.maxSpeed, capacity: base.mechanism === 'pivot' ? 1 : s.capacity };
+        // La garra del pivote lleva una sola pieza; el chasis, solo la precarga
+        return { ...base, maxSpeed: s.maxSpeed, capacity: fixedCapacity(base.mechanism) ?? s.capacity };
       }),
       hp: { enabled: s.hpEnabled, interval: s.hpInterval },
     };

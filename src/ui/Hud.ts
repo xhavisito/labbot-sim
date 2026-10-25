@@ -181,9 +181,13 @@ export class Hud {
       <div class="p-head"><span class="p-num">${t(me.alliance).slice(0, 1)}${me.station + 1}</span><span class="p-name">${t(`type_${kind}` as Key)}</span><span class="p-tag">${t('you')}</span></div>
       <div class="p-hopper"><div class="p-fuel"><b>${mech.stored.length}</b><small>/${mech.capacity}</small><span>${t('stored')}</span></div>
         <div class="hbar">${Array.from({ length: mech.capacity }, (_, i) => `<i class="${i < mech.stored.length ? 'on' : ''}"></i>`).join('')}</div></div>
-      <div class="chips"><span class="${mech.intakeOn ? 'on' : 'off'}">${t('intake')} ${mech.intakeOn ? t('on') : t('off')}</span>
+      <div class="chips">${
+        kind === 'chassis'
+          ? `<span class="off">${t('noMechanism')}</span>`
+          : `<span class="${mech.intakeOn ? 'on' : 'off'}">${t('intake')} ${mech.intakeOn ? t('on') : t('off')}</span>
         <span class="${mech.critical ? 'on' : 'off'}">${t('critical')} ${mech.critical ? '■' : '–'}</span>
-        <span>${elevLabel}: ${elev}</span></div>`;
+        <span>${elevLabel}: ${elev}</span>`
+      }</div>`;
     this.camLabel.querySelector('span')!.textContent = t(`cam_${cam}` as Key);
   }
 }

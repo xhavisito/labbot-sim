@@ -7,7 +7,7 @@
  */
 import * as THREE from 'three';
 import { Bot, type BotOptions } from '../ai/Bot';
-import { AutoRunner, LEAVE_ZONE, type AutoRoutine } from '../auto/AutoRoutine';
+import { AUTO_REF_SPEED, AutoRunner, LEAVE_ZONE, type AutoRoutine } from '../auto/AutoRoutine';
 import * as F from '../config/field';
 import { GAME, type GameConfig } from '../config/game';
 import { DEFAULT_ROBOT, type RobotSpec } from '../config/robot';
@@ -159,7 +159,11 @@ export class GameSession {
     this.resetField();
     this.match = new Match(this.game, F.ROBOTS_PER_ALLIANCE);
     this.log.length = 0;
-    this.autos = this.robots.map((r) => new AutoRunner(this.opts.autos?.[r.index] ?? LEAVE_ZONE));
+    // El chasis no anota: una rutina de IA (anotar la precarga) se cambia por salir de la zona
+    this.autos = this.robots.map((r) => {
+      const a = this.opts.autos?.[r.index] ?? LEAVE_ZONE;
+      return new AutoRunner(a.bot && r.spec.mechanism === 'chassis' ? LEAVE_ZONE : a);
+    });
     this.autoBots = this.robots.map((r) => {
       const b = this.autos[r.index].routine.bot;
       const level = this.opts.bots?.[r.index]?.level;
@@ -218,7 +222,7 @@ export class GameSession {
         if (o.releaseCritical) r.mech.release('critical', this.stepMechEvents);
       } else if (m && phase === 'AUTO') {
         const o = this.autos[r.index].step(dt);
-        forward = o.forward;
+        forward = Math.max(-1, Math.min(1, (o.forward * AUTO_REF_SPEED) / r.spec.maxSpeed));
         turn = o.turn;
         if (o.elevator !== undefined) r.mech.target = o.elevator;
         if (o.intake !== undefined) r.mech.intakeOn = o.intake;

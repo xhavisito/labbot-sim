@@ -21,11 +21,13 @@ export const ROBOT_LIMITS = {
  * - pivot: brazo con garra en un pivote; toma una pieza a la vez del piso y la suelta al frente.
  * - tower: torre fija de ruedas (sin carro que suba): sube varias Muestras a una salida fija atrás,
  *   a la altura del Nivel 3, y lleva una pala al frente para la Muestra Crítica.
- * Pivote y torre siguen las sugerencias de CAD en MDF de 5.5 mm (§7.1); el elevador se descartó
- * para construir en MDF, pero se queda aquí para comparar.
+ * - chassis: la base común de las sugerencias, sin mecanismo para anotar (mínimo viable): lleva la
+ *   precarga sin soltarla, cruza la línea y sube a la Plataforma.
+ * Pivote, torre y chasis siguen las sugerencias de CAD en MDF de 5.5 mm (§7.1); el elevador se
+ * descartó para construir en MDF, pero se queda aquí para comparar.
  */
-export type MechanismKind = 'generic' | 'elevator' | 'pivot' | 'tower';
-export const MECHANISM_KINDS: readonly MechanismKind[] = ['generic', 'elevator', 'pivot', 'tower'];
+export type MechanismKind = 'generic' | 'elevator' | 'pivot' | 'tower' | 'chassis';
+export const MECHANISM_KINDS: readonly MechanismKind[] = ['generic', 'elevator', 'pivot', 'tower', 'chassis'];
 
 /** Brazo del pivote (local: x adelante desde el centro del robot, y sobre la base). */
 export interface ArmSpec {
@@ -156,7 +158,39 @@ export const TOWER_ROBOT: RobotSpec = {
   elevatorHeights: [mm(100), mm(260), mm(560), mm(600), mm(600)],
 };
 
-export const ROBOT_PRESETS: Record<MechanismKind, RobotSpec> = { generic: DEFAULT_ROBOT, elevator: ELEVATOR_ROBOT, pivot: PIVOT_ROBOT, tower: TOWER_ROBOT };
+/**
+ * Chasis tanque de la base común (sugerencia de CAD en MDF, mínimo viable): 600 × 600 mm, 6 ruedas de
+ * 6 in con la central baja y 4 CIM a ~12.75:1 (~2.7 m/s reales). Sin mecanismo para anotar: lleva
+ * la precarga (§4.1) sin soltarla y da 5 por la línea en AUTO y 10/20 por la Plataforma (§4.4).
+ * SUPUESTOS: ~30 kg (el documento estima 25–35 kg) y 30 cm de alto (batería y main breaker arriba, §7.1).
+ */
+export const CHASSIS_ROBOT: RobotSpec = {
+  ...DEFAULT_ROBOT,
+  name: 'Chasis',
+  mechanism: 'chassis',
+  length: mm(600),
+  width: mm(600),
+  baseHeight: mm(300),
+  massKg: 30,
+  maxSpeed: 2.7,
+  capacity: 1,
+  intake: { extension: 0, width: 0 },
+  reach: 0,
+  elevatorHeights: [mm(100), mm(100), mm(100), mm(100), mm(100)],
+};
+
+export const ROBOT_PRESETS: Record<MechanismKind, RobotSpec> = {
+  generic: DEFAULT_ROBOT,
+  elevator: ELEVATOR_ROBOT,
+  pivot: PIVOT_ROBOT,
+  tower: TOWER_ROBOT,
+  chassis: CHASSIS_ROBOT,
+};
+
+/** Capacidad fija del tipo (la garra del pivote lleva una pieza; el chasis solo la precarga), o null si es ajustable. */
+export function fixedCapacity(kind: MechanismKind): number | null {
+  return kind === 'pivot' || kind === 'chassis' ? 1 : null;
+}
 
 /** Ángulo del brazo (rad, 0 = horizontal hacia adelante) para que la punta quede a la altura `h`. */
 export function armAngle(arm: ArmSpec, h: number): number {

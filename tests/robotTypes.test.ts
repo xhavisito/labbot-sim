@@ -1,7 +1,7 @@
 import { beforeAll, describe, expect, it } from 'vitest';
-import { SCORE_PRELOAD } from '../src/auto/AutoRoutine';
+import { COLLECT_HOME, SCORE_PRELOAD } from '../src/auto/AutoRoutine';
 import * as F from '../src/config/field';
-import { armAngle, armTip, ELEVATOR_ROBOT, PIVOT_ROBOT, ROBOT_PRESETS, TOWER_ROBOT, validateRobot, type RobotSpec } from '../src/config/robot';
+import { armAngle, armTip, CHASSIS_ROBOT, ELEVATOR_ROBOT, PIVOT_ROBOT, ROBOT_PRESETS, TOWER_ROBOT, validateRobot, type RobotSpec } from '../src/config/robot';
 import { GameSession } from '../src/game/GameSession';
 import { emptyInput, type PlayerInput } from '../src/input/InputManager';
 import { initRapier } from '../src/physics/PhysicsWorld';
@@ -137,5 +137,38 @@ describe('tipos de robot (§7.2)', () => {
     const m = g.match!;
     for (const a of ['red', 'blue'] as const) expect(m.breakdown(a).samplesAuto + m.breakdown(a).samplesTeleop).toBeGreaterThan(18);
     expect(m.fouls.filter((f) => f.rule === 'PLATFORM_EARLY' || f.rule === 'OUT_OF_BOUNDS' || f.rule === 'AUTO_CENTER')).toEqual([]);
+  }, 120_000);
+
+  it('Chasis: lleva la precarga y no toma ni suelta piezas', () => {
+    const g = session(CHASSIS_ROBOT, true);
+    const m = g.player.mech;
+    expect(m.stored).toHaveLength(1);
+    run(g, 0.5, { releaseSample: true });
+    expect(m.stored).toHaveLength(1);
+    const spot = F.labSpots()[0];
+    g.player.phys.teleport(spot.x + 0.75, spot.z, Math.PI);
+    run(g, 1.5, { toggleIntake: true, forward: 0.3 });
+    expect(m.stored).toHaveLength(1);
+    const c = F.CRITICAL_HOLDER_RED;
+    g.player.phys.teleport(c.x, -F.HALF_W + CHASSIS_ROBOT.length / 2 + 0.05, Math.PI / 2);
+    run(g, 0.2, { grabCritical: true });
+    expect(m.critical).toBeNull();
+  });
+
+  it('IA con chasis: cruzan la línea en AUTO y suben los dos a la Plataforma (§4.4)', () => {
+    const specs = [CHASSIS_ROBOT, CHASSIS_ROBOT, TOWER_ROBOT, PIVOT_ROBOT];
+    // Aunque les toque una rutina de IA, el chasis sale de la zona
+    const g = new GameSession({ player: 3, preload: true, ai: true, specs, autos: [COLLECT_HOME, SCORE_PRELOAD, COLLECT_HOME, COLLECT_HOME] });
+    g.startMatch();
+    for (let i = 0; i < 151 * 120 && !g.match!.finished; i++) {
+      g.setInput(emptyInput());
+      g.step();
+    }
+    const m = g.match!;
+    const red = m.breakdown('red');
+    expect(red.autoLine).toBe(10);
+    expect(red.platform).toBe(20);
+    expect(red.samplesAuto + red.samplesTeleop).toBe(0);
+    expect(m.fouls.filter((f) => f.offender === 'red')).toEqual([]);
   }, 120_000);
 });
