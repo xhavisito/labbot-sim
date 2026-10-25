@@ -8,6 +8,7 @@
  */
 import type { BotOptions } from '../ai/Bot';
 import { COLLECT_HOME, LEAVE_ZONE, SCORE_PRELOAD, type AutoRoutine } from '../auto/AutoRoutine';
+import { FIRST_ROBOTS, type FirstRobot } from '../config/firstRobots';
 import { CHASSIS_ROBOT, DEFAULT_ROBOT, PIVOT_ROBOT, TOWER_ROBOT, type RobotSpec } from '../config/robot';
 import { ALLIANCES, type Alliance } from '../core/types';
 import { GameSession } from '../game/GameSession';
@@ -47,6 +48,9 @@ export const ROBOT_PLANS = {
   bloqueo: { id: 'bloqueo', name: 'Chasis que bloquea la Cámara rival', spec: CHASSIS, auto: LEAVE_ZONE, bot: { role: 'block' } },
 } satisfies Record<string, RobotPlan>;
 
+/** Plan de un robot de FIRST: recolecta en AUTO y juega con la estrategia que le funcionó en su juego. */
+export const firstPlan = (r: FirstRobot): RobotPlan => ({ id: r.id, name: r.spec.label ?? r.spec.name, spec: r.spec, auto: COLLECT_HOME, bot: r.strategy });
+
 type PlanId = keyof typeof ROBOT_PLANS;
 const pair = (id: string, name: string, a: PlanId, b: PlanId): AlliancePlan => ({ id, name, robots: [ROBOT_PLANS[a], ROBOT_PLANS[b]] });
 
@@ -73,6 +77,8 @@ export const ALLIANCE_PLANS: AlliancePlan[] = [
   pair('torre+pivcrit', 'Torre + pivote con Crítica', 'torre', 'pivcrit'),
   pair('torre+bloqueo', 'Torre + bloqueo', 'torre', 'bloqueo'),
   pair('n3+bloqueo', 'N3 + bloqueo', 'n3', 'bloqueo'),
+  // Robots de referencia de FIRST (`config/firstRobots.ts`), en pareja consigo mismos
+  ...FIRST_ROBOTS.map((r): AlliancePlan => ({ id: `${r.id}+${r.id}`, name: `Dos ${r.spec.label}`, robots: [firstPlan(r), firstPlan(r)] })),
 ];
 
 export interface AllianceResult {

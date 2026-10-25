@@ -51,6 +51,14 @@ En el menú eliges tu robot (Rojo 1–2, Azul 1–2) y el modo:
     (10 o 20). Con IA espera junto a su rampa y sube en el ENDGAME.
   Todos cumplen §7.2 (65×65 cm, ≤40 cm fuera del chasis, ≤100 cm de alto) y el pivote cabe guardado
   al inicio (§4.1); lo revisa `validateRobot`. El elevador se descartó para construir en MDF.
+  - *Inspirados en FIRST* (`src/config/firstRobots.ts`): 8 robots de referencia de los juegos más
+    parecidos, con todas sus variables (medidas, masa, velocidad, intake, capacidad, brazo o
+    elevador, nivel máximo) y la estrategia de IA que les funcionó: 118 Everybot 2018 y 2023,
+    254 Lockdown (2018), 5940 Baguette (2018), 254 Breakdown (2023), 401 (2023), 2713 Rainbow Dash
+    (2023) y 254 Skyfire (2012). Están **adaptados** a LabBot (tanque, 65×65 cm, 40 cm, 100 cm,
+    §7.2); lo que no viene de la fuente del equipo está marcado SUPUESTO. Se eligen en el menú o en
+    Ajustes; al elegir uno, la velocidad y la capacidad toman las suyas. `npm run batch -- --plans
+    lockdown254+lockdown254 --vs n3+n3` los pone a jugar.
 - **Ajustes:** IA de los otros 3 robots (encendida por defecto), rutina de AUTO de tu robot y de los
   demás (salir de la zona, anotar precarga, anotar y recolectar, quedarse quieto), velocidad y
   capacidad de tu robot, y el Human Player automático. Se guardan en el navegador. Los puntos y
