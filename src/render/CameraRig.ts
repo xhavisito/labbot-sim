@@ -14,6 +14,8 @@ export class CameraRig {
   readonly orbit: OrbitControls;
   mode: CameraMode = 'free';
   private followPos = new THREE.Vector3();
+  private look = new THREE.Vector3();
+  private lookSet = false;
 
   constructor(dom: HTMLElement) {
     this.orbit = new OrbitControls(this.camera, dom);
@@ -24,6 +26,7 @@ export class CameraRig {
 
   setMode(m: CameraMode): void {
     this.mode = m;
+    this.lookSet = false;
     this.orbit.enabled = m === 'free';
     const c = this.camera;
     if (m === 'free') {
@@ -48,7 +51,16 @@ export class CameraRig {
   /** Actualiza la cámara de seguimiento (detrás del robot). */
   update(dt: number, target?: { x: number; y: number; z: number; heading: number }): void {
     if (this.mode === 'free') this.orbit.update();
-    if (this.mode !== 'follow' || !target) return;
+    if (!target) return;
+    if (this.mode === 'driverRed' || this.mode === 'driverBlue') {
+      // Vista del driver: la cámara se queda en la Driver Station y gira para seguir al robot propio.
+      const want = new THREE.Vector3(target.x, target.y + 0.3, target.z);
+      if (this.lookSet) this.look.lerp(want, 1 - Math.exp(-dt * 8));
+      else { this.look.copy(want); this.lookSet = true; }
+      this.camera.lookAt(this.look);
+      return;
+    }
+    if (this.mode !== 'follow') return;
     const back = 2.8;
     const want = new THREE.Vector3(target.x - Math.cos(target.heading) * back, target.y + 1.9, target.z + Math.sin(target.heading) * back);
     this.followPos.lerp(want, this.followPos.lengthSq() === 0 ? 1 : 1 - Math.exp(-dt * 6));
