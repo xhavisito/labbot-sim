@@ -38,9 +38,14 @@ En el menú eliges tu robot (Rojo 1–2, Azul 1–2) y el modo:
   - *Genérico:* intake al frente, tolva de 5 y elevador con depósito que suelta al frente.
   - *Elevador:* intake al frente, tolva de 5 y una plataforma que sube y empuja las Muestras por
     atrás (30 cm detrás del chasis). Se anota de reversa: espalda contra la pared de la Cámara.
-  - *Pivote:* brazo con garra; con el brazo en el piso (tecla 0) y la intake encendida agarra una
-    Muestra; la suelta al frente en N1–N3. Lleva una sola pieza (Muestra o Crítica).
-  Los tres cumplen §7.2 (65×65 cm, ≤40 cm fuera del chasis, ≤100 cm de alto); lo revisa `validateRobot`.
+  - *Pivote* (sugerencia de CAD en MDF): chasis 60×60 cm, brazo de 50 cm con pivote a 44 cm.
+    Empieza guardado con la precarga; con el brazo en el piso (tecla 0) y la intake encendida agarra
+    una Muestra y la suelta al frente en N1–N3. Lleva una sola pieza (Muestra o Crítica).
+  - *Torre* (sugerencia de CAD en MDF): torre fija de ruedas, sin carro que suba. Guarda hasta 5
+    Muestras y las saca atrás a 83 cm (altura del N3), de reversa como el Elevador; la Crítica va en
+    una pala al frente (teclas 0–4 la mueven).
+  Todos cumplen §7.2 (65×65 cm, ≤40 cm fuera del chasis, ≤100 cm de alto) y el pivote cabe guardado
+  al inicio (§4.1); lo revisa `validateRobot`. El elevador se descartó para construir en MDF.
 - **Ajustes:** IA de los otros 3 robots (encendida por defecto), rutina de AUTO de tu robot y de los
   demás (salir de la zona, anotar precarga, anotar y recolectar, quedarse quieto), velocidad y
   capacidad de tu robot, y el Human Player automático. Se guardan en el navegador. Los puntos y
@@ -114,6 +119,6 @@ Cada regla en el código cita su sección del manual.
 - El Human Player es automático (una Muestra cada 3 s si la ranura está libre).
 - No se simulan las faltas de conducta, seguridad o del Human Player humano (no se pueden detectar).
 - La intake, el brazo y la plataforma no chocan con la cancha (solo mueven piezas); no hay editor de
-  robots: los tres tipos son presets en `src/config/robot.ts` con medidas SUPUESTAS.
-- El brazo del pivote empieza abajo (en el piso), un poco fuera del chasis; el manual pide nada fuera
-  del perímetro al inicio (§4.1), pero la simulación no lo cobra.
+  robots: los cuatro tipos son presets en `src/config/robot.ts` con medidas SUPUESTAS.
+- Al pasar por la vertical, el brazo del pivote con una Muestra llega a ~109 cm; el manual no aclara
+  si los 100 cm aplican con mecanismos en movimiento (§7.2) y la simulación no lo cobra.

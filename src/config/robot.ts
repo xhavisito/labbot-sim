@@ -19,9 +19,13 @@ export const ROBOT_LIMITS = {
  * - generic: elevador al frente con depósito que sale hacia adelante.
  * - elevator: intake al frente, tolva y una plataforma que sube y empuja las Muestras por atrás.
  * - pivot: brazo con garra en un pivote; toma una pieza a la vez del piso y la suelta al frente.
+ * - tower: torre fija de ruedas (sin carro que suba): sube varias Muestras a una salida fija atrás,
+ *   a la altura del Nivel 3, y lleva una pala al frente para la Muestra Crítica.
+ * Pivote y torre siguen las sugerencias de CAD en MDF de 5.5 mm (§7.1); el elevador se descartó
+ * para construir en MDF, pero se queda aquí para comparar.
  */
-export type MechanismKind = 'generic' | 'elevator' | 'pivot';
-export const MECHANISM_KINDS: readonly MechanismKind[] = ['generic', 'elevator', 'pivot'];
+export type MechanismKind = 'generic' | 'elevator' | 'pivot' | 'tower';
+export const MECHANISM_KINDS: readonly MechanismKind[] = ['generic', 'elevator', 'pivot', 'tower'];
 
 /** Brazo del pivote (local: x adelante desde el centro del robot, y sobre la base). */
 export interface ArmSpec {
@@ -31,6 +35,11 @@ export interface ArmSpec {
   length: number;
   /** Velocidad angular (rad/s). */
   speed: number;
+  /**
+   * Ángulo de guardado al inicio (rad): todo dentro del perímetro y bajo 100 cm (§4.1, §7.2). Sale
+   * de ahí la primera vez que se le pide otra posición o se enciende la garra.
+   */
+  stowAngle?: number;
 }
 
 export interface RobotSpec {
@@ -60,13 +69,18 @@ export interface RobotSpec {
   reach: number;
   /** Solo `pivot`. */
   arm?: ArmSpec;
-  /** Velocidad del elevador (m/s). */
+  /** Solo `tower`: altura fija (fondo de la pieza, m sobre la base) de la salida de las Muestras, atrás. */
+  sampleExit?: number;
+  /** Solo `tower`: alcance de la pala de la Crítica más allá del frente del chasis (≤ 0.40 m). */
+  critReach?: number;
+  /** Velocidad del elevador (m/s); en `tower`, de la pala de la Crítica. */
   elevatorSpeed: number;
   /**
    * Alturas (m, sobre la base del robot) del fondo de la pieza al soltarla, por posición.
    * 0 = guardado; 1–3 = niveles de la Cámara (aperturas a 200/500/800 mm, §3.2.3);
    * 4 = Repisa / rendija de la Campana (≈568 mm sobre el piso desde la plataforma; 610 mm).
    * En `pivot` es la altura de la punta de la garra, y la posición 0 es el piso (para agarrar).
+   * En `tower` solo mueven la pala de la Crítica (las Muestras salen siempre por `sampleExit`).
    */
   elevatorHeights: [number, number, number, number, number];
 }
@@ -101,22 +115,48 @@ export const ELEVATOR_ROBOT: RobotSpec = {
 };
 
 /**
- * Pivote con garra: una pieza a la vez (la garra es el almacenamiento). SUPUESTOS de diseño: pivote
- * 5 cm detrás del centro a 45 cm de la base, brazo de 68 cm, 4 rad/s. Con eso la garra alcanza el piso
- * y el Nivel 3 sin salir más de 40 cm del chasis ni pasar de 100 cm (lo revisa `validateRobot`).
+ * Pivote con garra (sugerencia de CAD en MDF): chasis 600 × 600 mm, pivote 110 mm adelante del centro
+ * a 440 mm de la base, brazo de 500 mm (del eje al centro de la base de la pieza), guardado a 127°
+ * con la precarga. Así llega al piso, a N1–N3 y a la Repisa sin salir más de 40 cm, y al inicio
+ * cabe en el perímetro y bajo 100 cm (lo revisa `validateRobot`). La posición 4 (0.60 m) sirve para
+ * la rendija de la Campana y para soltar sobre la Repisa desde la Plataforma. Una sola pieza a la vez.
  */
 export const PIVOT_ROBOT: RobotSpec = {
   ...DEFAULT_ROBOT,
   name: 'Pivote',
   mechanism: 'pivot',
+  length: mm(600),
+  width: mm(600),
   capacity: 1,
   reach: 0,
   intake: { extension: 0, width: mm(300) },
-  arm: { pivotX: -mm(50), pivotY: mm(450), length: mm(680), speed: 4 },
-  elevatorHeights: [0, mm(260), mm(560), mm(850), mm(640)],
+  arm: { pivotX: mm(110), pivotY: mm(440), length: mm(500), speed: 4, stowAngle: (127 * Math.PI) / 180 },
+  elevatorHeights: [0, mm(260), mm(560), mm(830), mm(600)],
 };
 
-export const ROBOT_PRESETS: Record<MechanismKind, RobotSpec> = { generic: DEFAULT_ROBOT, elevator: ELEVATOR_ROBOT, pivot: PIVOT_ROBOT };
+/**
+ * Torre fija a Nivel 3 (sugerencia de CAD en MDF): chasis 600 × 600 mm, intake al frente, columna de
+ * ruedas que guarda hasta 5 Muestras (el manual no limita la posesión: SUPUESTO) y las saca atrás a
+ * 830 mm por una rampa de 30 cm; se anota de reversa. La Crítica (200 mm) no cabe en la columna: la
+ * lleva una pala al frente que sube a la rendija o a la Repisa.
+ */
+export const TOWER_ROBOT: RobotSpec = {
+  ...DEFAULT_ROBOT,
+  name: 'Torre',
+  mechanism: 'tower',
+  length: mm(600),
+  width: mm(600),
+  baseHeight: mm(950),
+  capacity: 5,
+  intake: { extension: mm(250), width: mm(450) },
+  reach: mm(300),
+  sampleExit: mm(830),
+  critReach: mm(250),
+  elevatorSpeed: 1.0,
+  elevatorHeights: [mm(100), mm(260), mm(560), mm(600), mm(600)],
+};
+
+export const ROBOT_PRESETS: Record<MechanismKind, RobotSpec> = { generic: DEFAULT_ROBOT, elevator: ELEVATOR_ROBOT, pivot: PIVOT_ROBOT, tower: TOWER_ROBOT };
 
 /** Ángulo del brazo (rad, 0 = horizontal hacia adelante) para que la punta quede a la altura `h`. */
 export function armAngle(arm: ArmSpec, h: number): number {
@@ -141,7 +181,7 @@ export function validateRobot(s: RobotSpec, pieceSize = mm(200)): string[] {
   if (s.capacity < 1) out.push('capacidad mínima 1 (precarga, §4.1)');
   if (s.mechanism === 'pivot') {
     if (!s.arm) out.push('pivote sin brazo');
-    else
+    else {
       for (const h of s.elevatorHeights) {
         const tip = armTip(s.arm, armAngle(s.arm, h));
         // La pieza agarrada (hasta la Crítica, 200 mm) cuenta como parte del robot
@@ -150,6 +190,17 @@ export function validateRobot(s: RobotSpec, pieceSize = mm(200)): string[] {
           break;
         }
       }
+      // Guardado al inicio con la precarga (150 mm): dentro del perímetro y bajo 100 cm (§4.1, §7.2)
+      const st = armTip(s.arm, s.arm.stowAngle ?? armAngle(s.arm, s.elevatorHeights[0]));
+      const half = mm(150) / 2;
+      if (st.x + half > s.length / 2 + 1e-9 || st.x - half < -s.length / 2 - 1e-9 || st.y + mm(150) > ROBOT_LIMITS.maxHeight + 1e-9)
+        out.push('el brazo guardado no cabe en el perímetro al inicio (§4.1)');
+    }
+  }
+  if (s.mechanism === 'tower') {
+    const exit = s.sampleExit ?? 0;
+    if (exit + mm(150) > ROBOT_LIMITS.maxHeight + 1e-9) out.push('salida de la torre + Muestra pasa de 100 cm (§7.2)');
+    if ((s.critReach ?? 0) > ROBOT_LIMITS.maxExtension + 1e-9) out.push('pala sale más de 40 cm (§7.2)');
   }
   return out;
 }

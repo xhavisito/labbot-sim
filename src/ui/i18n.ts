@@ -28,6 +28,9 @@ const ES = {
   stored: 'Muestras',
   critical: 'Crítica',
   elevator: 'Elevador',
+  arm: 'Brazo',
+  scoop: 'Pala',
+  stowed: 'Guardado',
   intake: 'Intake',
   on: 'ON',
   off: 'off',
@@ -127,9 +130,11 @@ const ES = {
   type_generic: 'Genérico',
   type_elevator: 'Elevador',
   type_pivot: 'Pivote',
+  type_tower: 'Torre',
   type_generic_desc: 'Intake al frente, tolva de 5 y elevador con depósito que suelta al frente.',
   type_elevator_desc: 'Intake al frente, tolva de 5 y una plataforma que sube y empuja las Muestras por atrás: se anota de reversa.',
-  type_pivot_desc: 'Brazo con garra: baja al piso (0) para agarrar una Muestra a la vez y la suelta al frente en N1–N3 o la Repisa.',
+  type_pivot_desc: 'Brazo de 50 cm con garra (sugerencia en MDF): empieza guardado, baja al piso (0) para agarrar una Muestra a la vez y la suelta al frente en N1–N3 o la Repisa.',
+  type_tower_desc: 'Torre fija de ruedas (sugerencia en MDF): guarda hasta 5 Muestras y las saca atrás a la altura del N3, de reversa. La Crítica va en una pala al frente.',
 } as const;
 
 export type Key = keyof typeof ES;
@@ -160,6 +165,9 @@ const EN: Record<Key, string> = {
   stored: 'Samples',
   critical: 'Critical',
   elevator: 'Elevator',
+  arm: 'Arm',
+  scoop: 'Scoop',
+  stowed: 'Stowed',
   intake: 'Intake',
   on: 'ON',
   off: 'off',
@@ -259,9 +267,11 @@ const EN: Record<Key, string> = {
   type_generic: 'Generic',
   type_elevator: 'Elevator',
   type_pivot: 'Pivot',
+  type_tower: 'Tower',
   type_generic_desc: 'Front intake, 5-Sample hopper and an elevator with a tray that drops in front.',
   type_elevator_desc: 'Front intake, 5-Sample hopper and a platform that lifts and pushes Samples out the back: score in reverse.',
-  type_pivot_desc: 'Arm with a claw: lower it to the floor (0) to grab one Sample at a time and drop it in front at L1–L3 or the Repisa.',
+  type_pivot_desc: 'MDF suggestion: 50 cm arm with a claw. Starts stowed; lower it to the floor (0) to grab one Sample at a time and drop it in front at L1–L3 or the Repisa.',
+  type_tower_desc: 'MDF suggestion: fixed wheel tower that holds up to 5 Samples and pushes them out the back at L3 height, in reverse. The Critical goes on a front scoop.',
 };
 
 let lang: 'es' | 'en' = 'es';
