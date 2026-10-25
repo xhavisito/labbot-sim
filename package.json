@@ -12,7 +12,8 @@
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
     "shots": "node scripts/screenshot.mjs",
-    "ui-shots": "node scripts/ui-shots.mjs"
+    "ui-shots": "node scripts/ui-shots.mjs",
+    "batch": "node scripts/batch.mjs"
   },
   "dependencies": {
     "@dimforge/rapier3d-compat": "0.21.0",

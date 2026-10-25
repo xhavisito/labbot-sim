@@ -6,7 +6,7 @@
  * robot del jugador) y 'match' (150 s con puntuación, faltas y RP).
  */
 import * as THREE from 'three';
-import { Bot } from '../ai/Bot';
+import { Bot, type BotOptions } from '../ai/Bot';
 import { AutoRunner, LEAVE_ZONE, type AutoRoutine } from '../auto/AutoRoutine';
 import * as F from '../config/field';
 import { GAME, type GameConfig } from '../config/game';
@@ -45,6 +45,8 @@ export interface SessionOptions {
   hp?: { enabled: boolean; interval: number };
   /** Práctica libre: solo se crea el robot del jugador (sin aliado ni rivales). */
   solo?: boolean;
+  /** Estrategia de la IA de cada robot (nivel, de dónde junta, papel, ENDGAME). */
+  bots?: Array<Partial<BotOptions> | undefined>;
 }
 
 export class GameSession {
@@ -142,9 +144,10 @@ export class GameSession {
     this.autos = this.robots.map((r) => new AutoRunner(this.opts.autos?.[r.index] ?? LEAVE_ZONE));
     this.autoBots = this.robots.map((r) => {
       const b = this.autos[r.index].routine.bot;
-      return b ? new Bot(r, this.pieces, this.robots, { scoreOnly: b.scoreOnly, stayHome: true }) : null;
+      const level = this.opts.bots?.[r.index]?.level;
+      return b ? new Bot(r, this.pieces, this.robots, { ...(level ? { level } : {}), scoreOnly: b.scoreOnly, stayHome: true }) : null;
     });
-    this.bots = this.robots.map((r) => (this.opts.ai && r !== this.player ? new Bot(r, this.pieces, this.robots) : null));
+    this.bots = this.robots.map((r) => (this.opts.ai && r.index !== this.opts.player ? new Bot(r, this.pieces, this.robots, this.opts.bots?.[r.index]) : null));
     this.match.start();
   }
 
@@ -193,6 +196,8 @@ export class GameSession {
         r.mech.intakeOn = o.intake;
         r.mech.target = o.elevator;
         if (o.release) r.mech.release('sample', this.stepMechEvents);
+        if (o.grabCritical) r.mech.grabCritical(this.stepMechEvents);
+        if (o.releaseCritical) r.mech.release('critical', this.stepMechEvents);
       } else if (m && phase === 'AUTO') {
         const o = this.autos[r.index].step(dt);
         forward = o.forward;

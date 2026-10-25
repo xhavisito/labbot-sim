@@ -18,6 +18,14 @@ export const CONTACT_COOLDOWN = 2;
 export const CONTACT_MIN_SPEED = 0.15;
 /** Pinning: más de 3 s; otra falta cada 3 s más (D11). */
 export const PIN_SECONDS = 3;
+/** Obstruir (D17, SUPUESTO): más de 3 s seguidos frente a la Cámara rival; otra falta cada 5 s más. */
+export const OBSTRUCT_SECONDS = 3;
+export const OBSTRUCT_REPEAT = 5;
+
+/** Frente de la Cámara de cada alianza (D17, SUPUESTO): el largo de la Cámara y 1 m hacia la cancha. */
+export function camaraFront(a: Alliance): F.Rect {
+  return F.rectFor(a, { x0: F.CAMARA_X_END_RED - F.CAMARA_LENGTH, x1: F.CAMARA_X_END_RED, z0: F.CAMARA_Z_RED[0] - 1.0, z1: F.CAMARA_Z_RED[0] });
+}
 
 /** Zonas del color de cada alianza (D8, SUPUESTO): sus 2 Zonas de Inicio y el frente de su Campana. */
 export function allianceZones(a: Alliance): F.Rect[] {
@@ -38,6 +46,7 @@ export class Referee {
   private contacts = new Map<string, number>();
   private flags = new Map<string, boolean>();
   private platformClear = new Map<number, number>();
+  private obstruct = new Map<number, { t: number; charged: number }>();
 
   constructor(
     private pw: PhysicsWorld,
@@ -50,6 +59,7 @@ export class Referee {
     this.contacts.clear();
     this.flags.clear();
     this.platformClear.clear();
+    this.obstruct.clear();
   }
 
   /** Lee los eventos de colisión del último paso (llamar después de `world.step`). */
@@ -96,6 +106,23 @@ export class Referee {
         this.flags.set(key, true);
       }
       if (clear >= 1) this.flags.set(key, false);
+      // §4.6 (y §6.1 "no hay defensa"): quedarse frente a la Cámara rival en el TELEOP
+      const p = r.phys.position();
+      const front = camaraFront(r.alliance === 'red' ? 'blue' : 'red');
+      const ob = this.obstruct.get(r.index) ?? { t: 0, charged: 0 };
+      if (isTeleop(phase) && F.inRect(front, p.x, p.z)) ob.t += dt;
+      else {
+        ob.t = 0;
+        ob.charged = 0;
+      }
+      if (ob.t > OBSTRUCT_SECONDS) {
+        const due = 1 + Math.floor((ob.t - OBSTRUCT_SECONDS) / OBSTRUCT_REPEAT);
+        if (due > ob.charged) {
+          ob.charged = due;
+          this.charge('OBSTRUCT', r);
+        }
+      }
+      this.obstruct.set(r.index, ob);
       // §4.2: no cruzar la línea central en AUTO (D7: el manual no da la falta; SUPUESTO Foul)
       if (phase === 'AUTO') {
         const s = r.alliance === 'red' ? 1 : -1;

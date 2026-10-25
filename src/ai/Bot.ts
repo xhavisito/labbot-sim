@@ -10,9 +10,9 @@
  * a la Plataforma antes de tiempo.
  */
 import * as F from '../config/field';
-import type { ElevatorPos } from '../config/robot';
+import { armAngle, armTip, type ElevatorPos } from '../config/robot';
 import type { Phase } from '../core/clock';
-import type { Level } from '../core/types';
+import { opponent, type Level } from '../core/types';
 import type { Robot } from '../game/Robot';
 import type { Pieces } from '../physics/Pieces';
 
@@ -22,9 +22,25 @@ export interface BotOutput {
   intake: boolean;
   elevator: ElevatorPos;
   release: boolean;
+  /** Toma la Muestra Crítica (solo la pide en el ENDGAME, §4.6). */
+  grabCritical?: boolean;
+  releaseCritical?: boolean;
 }
 
-type Mode = 'collect' | 'score' | 'climb' | 'idle';
+type Mode = 'collect' | 'score' | 'climb' | 'critical' | 'block' | 'idle';
+
+/** De dónde junta Muestras: cualquiera, solo el Laboratorio, o solo las que mete su Human Player. */
+export type SampleSource = 'any' | 'lab' | 'hp';
+/**
+ * Papel del robot en el TELEOP:
+ * - score: junta y anota.
+ * - park: no anota (chasis sin mecanismo); espera junto a su rampa.
+ * - block: se estaciona frente al Nivel 3 de la Cámara rival. OJO: §6.1 dice "no hay defensa" y
+ *   §4.6 cobra Tech Foul por obstruir las zonas del contrario; existe para medir cuánto cuesta.
+ */
+export type BotRole = 'score' | 'park' | 'block';
+/** Qué hace en el ENDGAME (§4.3.1): subir a la Plataforma, además llevar la Muestra Crítica a la Repisa, o seguir anotando. */
+export type EndgamePlan = 'platform' | 'critical' | 'none';
 
 const wrap = (a: number): number => Math.atan2(Math.sin(a), Math.cos(a));
 /** Margen alrededor de la Plataforma que la IA no pisa antes del endgame. */
@@ -41,6 +57,11 @@ export interface BotOptions {
   scoreOnly: boolean;
   /** No cruza la línea central (AUTO, §4.2). */
   stayHome: boolean;
+  source: SampleSource;
+  role: BotRole;
+  endgame: EndgamePlan;
+  /** Segundos antes del final en que deja de anotar para ir a su rampa (o por la Crítica). */
+  climbAt: number;
 }
 
 export class Bot {
@@ -62,7 +83,7 @@ export class Bot {
     private others: Robot[],
     opts: Partial<BotOptions> = {},
   ) {
-    this.opts = { level: 3, batch: 3, scoreOnly: false, stayHome: false, ...opts };
+    this.opts = { level: 3, batch: 3, scoreOnly: false, stayHome: false, source: 'any', role: 'score', endgame: 'platform', climbAt: 40, ...opts };
     this.scoreLevel = this.opts.level;
   }
 
@@ -90,11 +111,16 @@ export class Bot {
     const m = r.mech;
     const out: BotOutput = { forward: 0, turn: 0, intake: false, elevator: 0, release: false };
     const endgame = phase === 'ENDGAME';
-    // Con ~40 s por delante se acerca a su rampa (sube hasta que empiece el endgame, §4.6)
-    if ((endgame || timeLeft < 40) && this.mode !== 'climb' && !this.opts.stayHome && (m.stored.length === 0 || this.mode === 'collect' || timeLeft < 34)) this.mode = 'climb';
+    const o = this.opts;
+    const late = o.endgame !== 'none' && !o.stayHome && (endgame || timeLeft < o.climbAt);
+    if (o.role === 'park' && !o.stayHome && this.mode !== 'climb') this.mode = late ? 'climb' : 'idle';
+    if (o.role === 'block' && !o.stayHome && this.mode !== 'climb') this.mode = late ? 'climb' : 'block';
+    // Con ~40 s por delante se acerca a su rampa o a la Campana (sube o toma la Crítica hasta que empiece el endgame, §4.6)
+    const ready = m.stored.length === 0 || this.mode === 'collect' || timeLeft < o.climbAt - 6;
+    if (late && this.mode !== 'climb' && this.mode !== 'critical' && ready) this.mode = o.endgame === 'critical' && !this.criticalDone ? 'critical' : 'climb';
     if (this.mode === 'collect' && (m.stored.length >= Math.min(this.opts.batch, m.capacity) || (this.opts.scoreOnly && m.stored.length > 0))) this.mode = 'score';
     if (this.mode === 'collect' && this.opts.scoreOnly) this.mode = 'idle';
-    if (this.mode === 'score' && m.stored.length === 0) this.mode = this.opts.scoreOnly ? 'idle' : endgame ? 'climb' : 'collect';
+    if (this.mode === 'score' && m.stored.length === 0) this.mode = this.opts.scoreOnly ? 'idle' : late ? 'climb' : 'collect';
 
     for (const [i, left] of this.ignore) if (left - dt <= 0) this.ignore.delete(i);
     else this.ignore.set(i, left - dt);
@@ -135,6 +161,14 @@ export class Bot {
       } else {
         out.release = m.atTarget;
       }
+    } else if (this.mode === 'critical') {
+      this.critical(out, phase);
+    } else if (this.mode === 'block') {
+      // Frente al Nivel 3 rival, a la distancia de su punto de anotación, viendo a lo largo de la pared
+      const p = this.blockPose();
+      const pos = r.phys.position();
+      if (Math.hypot(p.x - pos.x, p.z - pos.z) > 0.15) this.drive(p, out, true, phase);
+      else out.turn = Math.max(-1, Math.min(1, wrap(0 - r.phys.heading()) * 2));
     } else if (this.mode === 'climb') {
       // Rampa propia: pie en |x| = 2.0; sube a su carril de la plataforma superior (caben 2 robots)
       const pos = r.phys.position();
@@ -148,6 +182,92 @@ export class Bot {
       else out.turn = Math.max(-1, Math.min(1, wrap((this.side > 0 ? Math.PI : 0) - r.phys.heading()) * 2));
     }
     return out;
+  }
+
+  /** Ya dejó (o intentó dejar) la Crítica: sigue como si fuera a la Plataforma. */
+  private criticalDone = false;
+
+  /** Distancia (centro del robot → pieza) a la que su pinza, pala o garra alcanza la Crítica. */
+  private critDistance(): number {
+    const s = this.robot.spec;
+    const hl = this.robot.phys.halfL;
+    if (s.mechanism === 'pivot' && s.arm) return armTip(s.arm, armAngle(s.arm, s.elevatorHeights[4])).x - 0.05;
+    const reach = s.mechanism === 'tower' ? (s.critReach ?? 0) : s.reach;
+    return Math.max(hl + 0.05, hl + reach - 0.2);
+  }
+
+  /** ENDGAME con la Crítica: tomarla de la rendija de la Campana (§3.2.4) y dejarla en la Repisa desde la plataforma superior (§4.3.1). */
+  private critical(out: BotOutput, phase: Phase): void {
+    const r = this.robot;
+    const m = r.mech;
+    const pos = r.phys.position();
+    const endgame = phase === 'ENDGAME';
+    const crit = this.pieces.critical(r.alliance);
+    if (!m.critical) {
+      if (crit.state.at !== 'field' || (endgame && this.critTries > 8)) {
+        this.criticalDone = true;
+        this.mode = 'climb';
+        return;
+      }
+      // El pivote lleva una sola pieza: si trae una Muestra, la suelta
+      if (r.spec.mechanism === 'pivot' && m.stored.length > 0) {
+        out.release = true;
+        return;
+      }
+      const h = F.CRITICAL_HOLDER_RED;
+      const away = r.alliance === 'red' ? 1 : -1; // de la Campana hacia la cancha
+      const pose = F.forAlliance(r.alliance, { x: h.x, z: h.z + this.critDistance() });
+      const heading = r.alliance === 'red' ? Math.PI / 2 : -Math.PI / 2;
+      const stage = { x: pose.x, z: pose.z + away * 0.6 };
+      const err = wrap(heading - r.phys.heading());
+      const lateral = Math.abs(pos.x - pose.x);
+      const depth = (pos.z - pose.z) * away;
+      out.elevator = depth < 1 && lateral < 0.4 ? 4 : 0;
+      if (lateral > 0.1 || depth > 0.8 || depth < -0.08) {
+        if (Math.hypot(stage.x - pos.x, stage.z - pos.z) > 0.1) this.drive(stage, out, true, phase);
+        else out.turn = Math.max(-1, Math.min(1, err * 2));
+      } else if (Math.abs(err) > 0.06) {
+        out.turn = Math.max(-1, Math.min(1, err * 2));
+      } else if (endgame) {
+        // Se arrima mientras intenta tomarla (la pinza la toma en cuanto queda a su alcance); la
+        // intake se traga las Muestras que el Human Player dejó frente a la Campana
+        if (depth > 0.02) out.forward = Math.min(0.3, depth * 1.5 + 0.06);
+        out.turn = Math.max(-1, Math.min(1, err * 2));
+        out.intake = r.spec.mechanism !== 'pivot';
+        if (m.atTarget) {
+          out.grabCritical = true;
+          this.critTries += 1 / 120;
+        }
+      }
+      return;
+    }
+    // Con la Crítica: a su rampa y arriba hasta que la punta quede sobre la Repisa
+    const lane = F.forAlliance(r.alliance, { x: 0, z: r.station === 0 ? -0.37 : 0.37 }).z;
+    const onTop = r.phys.wheelsOnPlatform > 0 && r.phys.wheelsOnCarpet === 0 && this.side * pos.x < 1.0;
+    const foot = { x: this.side * 2.75, z: lane };
+    const atFoot = Math.abs(pos.z - lane) < 0.25 && this.side * pos.x < 2.95 && this.side * pos.x > 0.4;
+    const stop = F.REPISA_DEPTH / 2 + this.critDistance() - 0.1;
+    if (!onTop && !atFoot) {
+      this.drive(foot, out, true, phase);
+      return;
+    }
+    out.elevator = 4;
+    if (this.side * pos.x > stop + 0.02) this.drive({ x: this.side * (stop - 0.05), z: lane }, out, true, phase, true);
+    if (onTop && this.side * pos.x <= stop + 0.06) {
+      out.forward = 0;
+      if (m.atTarget) {
+        out.releaseCritical = true;
+        this.criticalDone = true;
+        this.mode = 'climb';
+      }
+    }
+  }
+  private critTries = 0;
+
+  /** Frente al Nivel 3 de la Cámara rival (papel 'block'). */
+  private blockPose(): { x: number; z: number } {
+    const w = F.camaraWells()[3];
+    return F.forAlliance(opponent(this.robot.alliance), { x: (w.x0 + w.x1) / 2, z: F.CAMARA_Z_RED[0] - this.robot.phys.halfL - 0.25 });
   }
 
   /** La Muestra libre más cercana (en AUTO, solo de su mitad). */
@@ -164,9 +284,17 @@ export class Bot {
       const t = p.body.translation();
       if (t.y > 0.2) continue; // dentro de una Cámara o en el aire
       // Pegadas a un borde o junto a una Cámara: la intake no llega sin sacar una esquina
-      if (Math.abs(t.x) > F.HALF_L - 0.35 || Math.abs(t.z) > F.HALF_W - 0.5) continue;
+      // (salvo frente a la Campana: ahí deja el Human Player las suyas y se llega de frente a la pared)
+      const atCampana = Math.abs(t.x) > F.HALF_L - F.CAMPANA_LENGTH + 0.3 && Math.abs(t.x) < F.HALF_L - 0.35 && Math.sign(t.x) * t.z < 0;
+      if (Math.abs(t.x) > F.HALF_L - 0.35 || Math.abs(t.z) > F.HALF_W - (atCampana ? 0.27 : 0.5)) continue;
       if (Math.abs(t.x) < F.PLATFORM_LENGTH / 2 + 0.1 && Math.abs(t.z) < F.PLATFORM_WIDTH / 2 + 0.1) continue;
       if (this.opts.stayHome && this.side * t.x < 0.5) continue;
+      // Las que mete su Human Player quedan frente a su Campana (lado −Z del rojo, |x| > 2)
+      const nearHp = this.side * t.x > 2.0 && this.side * t.z < -1.5;
+      if (this.opts.source === 'hp' && !nearHp) continue;
+      if (this.opts.source === 'lab' && nearHp) continue;
+      // Las del Human Player rival: quedan detrás de su barrera, en una zona de su color (D8)
+      if (this.side * t.x < -2.0 && this.side * t.z > 1.5) continue;
       const d = Math.hypot(t.x - pos.x, t.z - pos.z);
       if (!best || d < best.d) best = { i: p.index, d };
     }
