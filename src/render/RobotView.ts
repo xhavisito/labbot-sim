@@ -85,6 +85,14 @@ export class RobotView {
       add(new THREE.BoxGeometry(0.03, 0.12, 0.24), alu, 0, 0.06, 0, this.carriage);
       for (const z of [-0.1, 0.1]) add(new THREE.BoxGeometry(0.03, 0.6, 0.03), alu, L / 2 - 0.06, 0.5, z);
       this.criticalMesh = add(new THREE.BoxGeometry(c, c, c), critMat, reach - c / 2, c / 2, 0, this.carriage);
+    } else if (s.mechanism === 'chassis') {
+      // Base común sin mecanismo: caja de la batería al centro, main breaker arriba (§7.1) y la precarga encima
+      add(new THREE.BoxGeometry(L * 0.35, s.baseHeight - 0.23, W * 0.45), dark, -L * 0.15, (s.baseHeight + 0.23) / 2, 0);
+      add(new THREE.BoxGeometry(0.05, 0.03, 0.05), new THREE.MeshStandardMaterial({ color: 0xd02020, roughness: 0.6 }), -L * 0.15, s.baseHeight + 0.015, W * 0.15);
+      const m = add(new THREE.BoxGeometry(sz, sz, sz), sampleMat, L * 0.2, 0.23 + sz / 2, 0);
+      m.visible = false;
+      this.storedMeshes.push(m);
+      this.criticalMesh = add(new THREE.BoxGeometry(c, c, c), critMat, 0, 0, 0);
     } else {
       // Mástil del elevador y carro con la plataforma/depósito: al frente (genérico) o atrás (elevador)
       const side = s.mechanism === 'elevator' ? -1 : 1;

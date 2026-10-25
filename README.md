@@ -46,6 +46,9 @@ En el menú eliges tu robot (Rojo 1–2, Azul 1–2) y el modo:
   - *Torre* (sugerencia de CAD en MDF): torre fija de ruedas, sin carro que suba. Guarda hasta 5
     Muestras y las saca atrás a 83 cm (altura del N3), de reversa como el Elevador; la Crítica va en
     una pala al frente (teclas 0–4 la mueven).
+  - *Chasis* (base común de las sugerencias en MDF, mínimo viable): tanque de 60×60 cm sin mecanismo
+    para anotar. Lleva la precarga sin soltarla, cruza la línea en AUTO (5) y sube a la Plataforma
+    (10 o 20). Con IA espera junto a su rampa y sube en el ENDGAME.
   Todos cumplen §7.2 (65×65 cm, ≤40 cm fuera del chasis, ≤100 cm de alto) y el pivote cabe guardado
   al inicio (§4.1); lo revisa `validateRobot`. El elevador se descartó para construir en MDF.
 - **Ajustes:** IA de los otros 3 robots (encendida por defecto), rutina de AUTO de tu robot y de los

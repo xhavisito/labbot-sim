@@ -5,6 +5,12 @@
  */
 import type { ElevatorPos } from '../config/robot';
 
+/**
+ * Velocidad de referencia de las rutinas (m/s): `forward` de un paso 'drive' es fracción de esto, no
+ * de la velocidad máxima del robot, para que la rutina recorra lo mismo con cualquier robot.
+ */
+export const AUTO_REF_SPEED = 3.0;
+
 export type AutoStep =
   | { do: 'drive'; forward: number; turn?: number; seconds: number }
   | { do: 'wait'; seconds: number }

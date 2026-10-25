@@ -54,7 +54,7 @@ export const kbds = (labels: string[]): string => labels.map((l) => `<kbd>${l}</
  */
 export function robotSilhouette(kind: MechanismKind): string {
   const base = `<rect x="40" y="96" width="130" height="26" rx="3"/><circle cx="62" cy="126" r="11"/><circle cx="148" cy="126" r="11"/>
-    <path class="intake" d="M170 112h14l8 10"/>`;
+    ${kind === 'chassis' ? '' : '<path class="intake" d="M170 112h14l8 10"/>'}`;
   const mech: Record<MechanismKind, string> = {
     // Elevador con depósito que suelta al frente
     generic: `<path d="M130 96V30M146 96V30"/><path class="hot" d="M126 52h44l8-8"/><rect class="soft" x="60" y="72" width="56" height="24"/>`,
@@ -64,6 +64,8 @@ export function robotSilhouette(kind: MechanismKind): string {
     pivot: `<path d="M100 96V70"/><circle cx="100" cy="66" r="6"/><path class="hot" d="M100 66 178 34"/><path class="hot" d="M178 34l10 2M178 34l4 10"/>`,
     // Torre fija de ruedas (saca por atrás a N3) y pala al frente
     tower: `<rect x="48" y="22" width="40" height="74"/><circle cx="68" cy="40" r="7"/><circle cx="68" cy="62" r="7"/><path class="hot" d="M48 30H32"/><path class="soft" d="M170 96l14-16h12"/>`,
+    // Chasis solo (base común): caja de la batería con la precarga encima y la rueda central baja
+    chassis: `<rect class="soft" x="76" y="78" width="40" height="18"/><rect class="hot" x="122" y="72" width="24" height="24"/><circle cx="105" cy="128" r="11"/>`,
   };
   return `<svg class="silhouette" viewBox="0 0 220 150" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
     <path class="floor" d="M10 137h200"/>${base}${mech[kind]}</svg>`;

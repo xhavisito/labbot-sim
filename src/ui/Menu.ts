@@ -3,7 +3,7 @@
  * controles (reasignar), reglas, pausa y resultados.
  */
 import { AUTO_ROUTINES } from '../auto/AutoRoutine';
-import { MECHANISM_KINDS, ROBOT_PRESETS, type MechanismKind } from '../config/robot';
+import { fixedCapacity, MECHANISM_KINDS, ROBOT_PRESETS, type MechanismKind } from '../config/robot';
 import { GAME } from '../config/game';
 import { DEFAULT_SETTINGS, SETTINGS_RANGE, type Settings } from '../config/settings';
 import { RULES } from '../core/fouls';
@@ -35,7 +35,10 @@ export interface PauseInfo {
 
 const ROBOTS = [0, 1, 2, 3];
 /** ¿El tipo saca las Muestras por atrás? (se anota de reversa; ver `type_*_desc`). */
-const SCORES_BACK: Record<MechanismKind, boolean> = { generic: false, elevator: true, pivot: false, tower: true };
+const SCORES_BACK: Record<MechanismKind, boolean> = { generic: false, elevator: true, pivot: false, tower: true, chassis: false };
+
+/** Medidas del chasis del tipo (cm), para la vitrina del menú. */
+const chassisSize = (k: MechanismKind): string => `${Math.round(ROBOT_PRESETS[k].length * 100)} × ${Math.round(ROBOT_PRESETS[k].width * 100)} cm`;
 
 const stationLabel = (i: number): string => `${t(i < 2 ? 'red' : 'blue')} ${(i % 2) + 1}`;
 
@@ -118,7 +121,7 @@ export class Menu {
             <div class="bay-head"><span class="bay-label">${t('station')}</span></div>
             <div class="stations">${ROBOTS.map((i) => `<button class="${i < 2 ? 'red' : 'blue'} ${i === this.player ? 'on' : ''}" data-slot="${i}"><i></i>${stationLabel(i)}</button>`).join('')}</div>
             <div class="bay-head"><span class="bay-label">${t('yourRobot')}</span></div>
-            <div class="showcase">${robotSilhouette(s.robotType)}<span class="dim">65 × 65 cm · ${t('robotType').toUpperCase()}</span></div>
+            <div class="showcase">${robotSilhouette(s.robotType)}<span class="dim">${chassisSize(s.robotType)} · ${t('robotType').toUpperCase()}</span></div>
             <div class="robotinfo" data-robotinfo></div>
           </div>
         </div>
@@ -160,7 +163,7 @@ export class Menu {
     const k = s.robotType;
     const i = MECHANISM_KINDS.indexOf(k);
     const n = MECHANISM_KINDS.length;
-    const cap = ROBOT_PRESETS[k].mechanism === 'pivot' ? 1 : s.capacity;
+    const cap = fixedCapacity(k) ?? s.capacity;
     const bar = (label: string, v: number, txt: string) =>
       `<div class="sbar"><span>${label}</span><div><i style="width:${Math.round(Math.min(1, Math.max(0.04, v)) * 100)}%"></i></div><b>${txt}</b></div>`;
     const info = this.root.querySelector<HTMLElement>('[data-robotinfo]')!;
@@ -169,7 +172,7 @@ export class Menu {
       <div class="ri-stats">
         ${bar(t('statSpeed'), s.maxSpeed / SETTINGS_RANGE.maxSpeed.max, `${s.maxSpeed.toFixed(2).replace(/0$/, '')} m/s`)}
         ${bar(t('statCapacity'), cap / SETTINGS_RANGE.capacity.max, String(cap))}
-        <div class="ri-flags"><span>${t(SCORES_BACK[k] ? 'scoresBack' : 'scoresFront')}</span><span>N1 · N2 · N3</span></div>
+        <div class="ri-flags">${k === 'chassis' ? `<span>${t('scoresNone')}</span><span>${t('lineAndPlatform')}</span>` : `<span>${t(SCORES_BACK[k] ? 'scoresBack' : 'scoresFront')}</span><span>N1 · N2 · N3</span>`}</div>
       </div>
       <div class="nav"><button class="arrowbtn" data-step="-1" aria-label="‹">‹</button>
         <div class="track"><i style="width:${100 / n}%;margin-left:${(100 * i) / n}%"></i></div>
@@ -178,7 +181,7 @@ export class Menu {
       b.addEventListener('click', () => {
         s.robotType = MECHANISM_KINDS[(i + Number(b.dataset.step) + n) % n];
         this.onSettings(s);
-        this.root.querySelector('.showcase')!.innerHTML = `${robotSilhouette(s.robotType)}<span class="dim">65 × 65 cm · ${t('robotType').toUpperCase()}</span>`;
+        this.root.querySelector('.showcase')!.innerHTML = `${robotSilhouette(s.robotType)}<span class="dim">${chassisSize(s.robotType)} · ${t('robotType').toUpperCase()}</span>`;
         this.robotInfo();
       }),
     );

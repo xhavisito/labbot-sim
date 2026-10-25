@@ -84,6 +84,11 @@ export class Bot {
     opts: Partial<BotOptions> = {},
   ) {
     this.opts = { level: 3, batch: 3, scoreOnly: false, stayHome: false, source: 'any', role: 'score', endgame: 'platform', climbAt: 40, ...opts };
+    // El chasis sin mecanismo no anota ni toma la Crítica: espera y sube a la Plataforma
+    if (robot.spec.mechanism === 'chassis') {
+      if (this.opts.role === 'score') this.opts.role = 'park';
+      if (this.opts.endgame === 'critical') this.opts.endgame = 'platform';
+    }
     this.scoreLevel = this.opts.level;
   }
 

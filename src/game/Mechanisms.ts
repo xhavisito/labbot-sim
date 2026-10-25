@@ -6,6 +6,7 @@
  *   Empieza guardado (`ArmSpec.stowAngle`) y sale de ahí al primer mando.
  * - tower: intake al frente y torre fija: las Muestras salen atrás a `sampleExit`; el elevador solo
  *   mueve la pala de la Crítica, que está al frente.
+ * - chassis: sin mecanismo: no toma ni suelta piezas; solo lleva la precarga.
  * Las piezas guardadas son lógicas (cuerpo deshabilitado); al soltarlas vuelven a la física en la
  * punta del mecanismo, así que anotar depende de dónde caen (lo detecta la sesión).
  */
@@ -58,7 +59,8 @@ export class Mechanisms {
 
   /** ¿Puede soltar una Muestra ya? (elevador o brazo en su posición; la torre siempre). */
   get atTarget(): boolean {
-    if (this.phys.spec.mechanism === 'tower') return true;
+    const k = this.phys.spec.mechanism;
+    if (k === 'tower' || k === 'chassis') return true;
     return Math.abs(this.height - this.phys.spec.elevatorHeights[this.target]) < 0.01;
   }
 
@@ -96,7 +98,7 @@ export class Mechanisms {
       this.height = Math.abs(d) <= stepLen ? goal : this.height + Math.sign(d) * stepLen;
     }
     this.cooldown = Math.max(0, this.cooldown - dt);
-    if (this.intakeOn && this.stored.length < this.capacity) {
+    if (this.intakeOn && this.stored.length < this.capacity && s.mechanism !== 'chassis') {
       if (s.mechanism === 'pivot') this.runClaw(events);
       else this.runIntake(events);
     }
@@ -161,7 +163,7 @@ export class Mechanisms {
    * del elevador (en la rendija de la Campana, en el piso o en la Repisa).
    */
   grabCritical(events: MechEvent[]): boolean {
-    if (this.critical) return false;
+    if (this.critical || this.phys.spec.mechanism === 'chassis') return false;
     // La garra del pivote lleva una sola pieza
     if (this.phys.spec.mechanism === 'pivot' && this.stored.length > 0) return false;
     const p = this.phys;
@@ -187,7 +189,7 @@ export class Mechanisms {
 
   /** Suelta una pieza (Muestra o Crítica) en la punta del mecanismo, a su altura, hacia afuera. */
   release(kind: 'sample' | 'critical', events: MechEvent[]): boolean {
-    if (this.cooldown > 0) return false;
+    if (this.cooldown > 0 || this.phys.spec.mechanism === 'chassis') return false;
     const piece = kind === 'critical' ? this.critical : this.stored[this.stored.length - 1];
     if (!piece) return false;
     if (kind === 'critical') this.critical = null;

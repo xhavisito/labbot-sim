@@ -8,7 +8,7 @@
  */
 import type { BotOptions } from '../ai/Bot';
 import { COLLECT_HOME, LEAVE_ZONE, SCORE_PRELOAD, type AutoRoutine } from '../auto/AutoRoutine';
-import { DEFAULT_ROBOT, PIVOT_ROBOT, TOWER_ROBOT, type RobotSpec } from '../config/robot';
+import { CHASSIS_ROBOT, DEFAULT_ROBOT, PIVOT_ROBOT, TOWER_ROBOT, type RobotSpec } from '../config/robot';
 import { ALLIANCES, type Alliance } from '../core/types';
 import { GameSession } from '../game/GameSession';
 
@@ -26,8 +26,8 @@ export interface AlliancePlan {
   robots: [RobotPlan, RobotPlan];
 }
 
-/** Chasis tanque sin mecanismo: solo cruza la línea y sube a la Plataforma. */
-const CHASSIS: RobotSpec = { ...DEFAULT_ROBOT, name: 'Chasis', capacity: 1 };
+/** Chasis tanque sin mecanismo (base común de las sugerencias en MDF): solo cruza la línea y sube a la Plataforma. */
+const CHASSIS: RobotSpec = CHASSIS_ROBOT;
 
 export const ROBOT_PLANS = {
   chasis: { id: 'chasis', name: 'Chasis (línea + Plataforma)', spec: CHASSIS, auto: LEAVE_ZONE, bot: { role: 'park' } },
