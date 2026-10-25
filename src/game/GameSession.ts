@@ -2,8 +2,8 @@
  * Sesión de juego: une física (cancha, piezas, robots), lógica del match, árbitro, Human Players,
  * AUTO y render. Paso fijo con interpolación.
  *
- * Modos: 'practice' (sin reloj; los sensores igual detectan anotaciones) y 'match' (150 s con
- * puntuación, faltas y RP).
+ * Modos: 'practice' (sin reloj; los sensores igual detectan anotaciones; con `solo` solo existe el
+ * robot del jugador) y 'match' (150 s con puntuación, faltas y RP).
  */
 import * as THREE from 'three';
 import { Bot } from '../ai/Bot';
@@ -43,6 +43,8 @@ export interface SessionOptions {
   ai?: boolean;
   /** Human Player automático: encendido y segundos entre Muestras (SUPUESTO, ver HumanPlayer). */
   hp?: { enabled: boolean; interval: number };
+  /** Práctica libre: solo se crea el robot del jugador (sin aliado ni rivales). */
+  solo?: boolean;
 }
 
 export class GameSession {
@@ -87,6 +89,7 @@ export class GameSession {
     this.pieceView = new PieceView(this.pieces);
     this.root.add(this.pieceView.group);
     for (let i = 0; i < 2 * F.ROBOTS_PER_ALLIANCE; i++) {
+      if (opts.solo && i !== opts.player) continue;
       const r = new Robot(this.pw, this.pieces, i, i < 2 ? 'red' : 'blue', (i % 2) as 0 | 1, opts.specs?.[i] ?? DEFAULT_ROBOT);
       this.robots.push(r);
       const v = new RobotView(r);
@@ -98,7 +101,7 @@ export class GameSession {
   }
 
   get player(): Robot {
-    return this.robots[this.opts.player];
+    return this.robots.find((r) => r.index === this.opts.player) ?? this.robots[0];
   }
 
   /** Fase actual ('PRE' en práctica, sin match). */
@@ -132,6 +135,7 @@ export class GameSession {
 
   /** Empieza un match nuevo de 150 s desde el acomodo inicial. */
   startMatch(): void {
+    if (this.opts.solo) throw new Error('una sesión solo es de práctica: el match necesita los 4 robots');
     this.resetField();
     this.match = new Match(this.game, F.ROBOTS_PER_ALLIANCE);
     this.log.length = 0;
