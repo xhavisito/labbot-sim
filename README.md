@@ -36,6 +36,14 @@ abrirla con conexión (los cambios se ven la siguiente vez que se abre). Íconos
 
 ## Cómo se juega
 
+**Repeticiones y estadísticas:** cada match terminado se graba (15 cuadros por segundo) y se guarda
+en el navegador (las últimas 12; las de ★ se conservan). En los resultados, o en el menú →
+**Repeticiones**, puedes verlo otra vez (play/pausa, 0.25×–4×, saltar con la línea de tiempo o ←/→,
+cámara siguiendo a cualquier robot) y abrir sus **Estadísticas**: mapa de calor de cada robot,
+Muestras anotadas por robot y nivel con sus puntos (§4.4), tiempos de ciclo (definición del sim:
+Muestras a menos de 2.5 s son un ciclo; solo TELEOP), distancia y velocidad. Se descargan como
+`.lbreplay` (≈ 80 KB) para abrirlas en otro equipo.
+
 En el menú eliges tu robot (Rojo 1–2, Azul 1–2) y el modo:
 
 - **Jugar match:** 150 s con reloj. En el AUTO (15 s) los robots corren su rutina preprogramada
@@ -124,6 +132,9 @@ src/
   render/     Three.js: Renderer, FieldView, PieceView, RobotView, CameraRig
   input/      teclado, gamepad y touch; bindings.ts (asignación reasignable)
   ui/         i18n (es-MX / en), HUD, menús, resultados, Controles y TouchControls
+  replay/     format.ts (repetición en binario compacto), Recorder.ts (graba cada match, cuelga de
+              GameSession.tap), ReplayPlayer.ts (sesión "títere" que pone las poses grabadas),
+              stats.ts (mapa de calor, Muestras por robot y tiempos de ciclo) y store.ts (IndexedDB, .lbreplay)
   pwa/        register.ts (service worker, botón Instalar) y sw-template.js (precache del build)
 tests/        field, physics, robot, match (reglas y casos borde), session (match completo),
               bot (IA en un match completo, sin faltas de cancha), settings (ajustes y registro)

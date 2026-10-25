@@ -4,7 +4,7 @@
  */
 import { AUTO_ROUTINES, LEAVE_ZONE } from '../auto/AutoRoutine';
 import { firstRobot, robotSpec } from '../config/firstRobots';
-import { fixedCapacity } from '../config/robot';
+import { fixedCapacity, type RobotSpec } from '../config/robot';
 import { loadSettings, saveSettings, type Settings } from '../config/settings';
 import { formatTimer, timerSeconds } from '../core/clock';
 import { buildMatchLog } from '../core/matchLog';
@@ -15,12 +15,23 @@ import { Arena } from '../render/Arena';
 import { Effects } from '../render/Effects';
 import { guessQuality, QUALITIES, Renderer, type Quality } from '../render/Renderer';
 import { pwa } from '../pwa/register';
+import type { Replay } from '../replay/format';
+import { Recorder } from '../replay/Recorder';
+import { ReplayPlayer } from '../replay/ReplayPlayer';
+import { storeReplay } from '../replay/store';
+import { ReplayBar } from '../ui/ReplayBar';
+import { ReplaysScreen } from '../ui/ReplaysScreen';
+import { StatsPanel } from '../ui/StatsPanel';
 import { Hud } from '../ui/Hud';
 import { t, type Key } from '../ui/i18n';
+import { ic } from '../ui/chrome';
 import { Menu, type MenuChoice } from '../ui/Menu';
 import { isTouchDevice, TouchControls } from '../ui/TouchControls';
 
-type State = 'menu' | 'playing' | 'paused' | 'results';
+type State = 'menu' | 'playing' | 'paused' | 'results' | 'replay';
+
+/** Nombre del robot para la repetición y las estadísticas (robot de FIRST o tipo). */
+const robotLabel = (s: RobotSpec): string => s.label ?? t(`type_${s.mechanism}` as Key);
 
 export class App {
   readonly renderer: Renderer;
@@ -39,6 +50,13 @@ export class App {
   readonly settings: Settings = loadSettings(AUTO_ROUTINES.map((r) => r.id));
   private last = performance.now();
   readonly touch: TouchControls;
+  /** Repetición: grabadora del match en curso, la del último match y el reproductor abierto. */
+  private recorder: Recorder | null = null;
+  lastReplay: Replay | null = null;
+  replay: ReplayPlayer | null = null;
+  private replayBack: () => void = () => this.toMenu();
+  readonly replayBar: ReplayBar;
+  readonly replays: ReplaysScreen;
   /** `?touch=1` fuerza los controles touch (para probar en escritorio). */
   private touchForced = new URLSearchParams(location.search).get('touch') === '1';
 
@@ -58,6 +76,13 @@ export class App {
       saveSettings(s);
       this.applyQuality();
     }, this.input);
+    this.replayBar = new ReplayBar(ui, { camera: () => this.cycleCamera(), stats: () => this.replayStats(), exit: () => this.exitReplay() });
+    this.replays = new ReplaysScreen(this.menu.root, {
+      back: () => this.toMenu(),
+      watch: (r) => this.watchReplay(r, () => this.openReplays()),
+      stats: (r) => this.showStats(r, () => this.openReplays(), () => this.watchReplay(r, () => this.openReplays())),
+    });
+    this.menu.onReplays = () => this.openReplays();
     pwa.onChange = () => {
       if (this.state === 'menu') this.menu.pwaChips();
     };
@@ -80,6 +105,9 @@ export class App {
     this.session = new GameSession({ ...this.sessionOptions(c.player), solo: c.mode === 'practice' });
     this.renderer.scene.add(this.session.root);
     if (c.mode === 'match') this.session.startMatch();
+    // Cada match se graba para la repetición y las estadísticas
+    this.recorder = c.mode === 'match' ? new Recorder(this.session, this.session.robots.map((r) => robotLabel(r.spec))) : null;
+    this.session.tap = this.recorder;
     this.menu.hide();
     this.hud.show(true);
     this.hud.setHelp(this.input.bindings);
@@ -161,6 +189,81 @@ export class App {
     this.touch.show(want && this.state === 'playing');
   }
 
+  /** Resultados del match terminado, con botones para la repetición y las estadísticas. */
+  private showResults(): void {
+    const m = this.session.match;
+    if (!m) return this.toMenu();
+    this.state = 'results';
+    this.menu.results(
+      m,
+      () => this.start(this.choice),
+      () => this.toMenu(),
+      () => this.downloadLog(),
+      this.choice.player,
+    );
+    const rep = this.lastReplay;
+    const bar = this.menu.root.querySelector('.results .actions');
+    if (!rep || !bar) return;
+    bar.insertAdjacentHTML('afterbegin', `<button class="btn" data-act="replay">${ic.play}<span>${t('rp_watch')}</span></button><button class="btn" data-act="stats">${ic.chart}<span>${t('st_title')}</span></button>`);
+    const back = () => this.showResults();
+    bar.querySelector('[data-act="replay"]')!.addEventListener('click', () => this.watchReplay(rep, back));
+    bar.querySelector('[data-act="stats"]')!.addEventListener('click', () => this.showStats(rep, back, () => this.watchReplay(rep, back)));
+  }
+
+  /** Pantalla de estadísticas de una repetición. */
+  showStats(r: Replay, back: () => void, watch: (() => void) | null): void {
+    this.hud.show(false);
+    this.touch.show(false);
+    new StatsPanel(this.menu.root, r, back, watch).show();
+  }
+
+  openReplays(): void {
+    this.toMenu();
+    void this.replays.show();
+  }
+
+  /** Abre el reproductor (la sesión en vivo se queda guardada detrás). `back` = adónde volver al salir. */
+  watchReplay(r: Replay, back: () => void): void {
+    this.closeReplay();
+    this.menu.hide();
+    this.hud.show(false);
+    this.touch.show(false);
+    this.replay = new ReplayPlayer(r);
+    this.renderer.scene.remove(this.session.root);
+    this.renderer.scene.add(this.replay.session.root);
+    this.replayBack = back;
+    this.state = 'replay';
+    this.replayBar.show(this.replay);
+    const focus = r.header.robots[this.replay.focus];
+    this.cam.setMode(focus?.alliance === 'blue' ? 'driverBlue' : 'driverRed');
+  }
+
+  private closeReplay(): void {
+    if (!this.replay) return;
+    this.renderer.scene.remove(this.replay.session.root);
+    this.replay.dispose();
+    this.replay = null;
+    this.renderer.scene.add(this.session.root);
+    this.replayBar.show(null);
+  }
+
+  exitReplay(): void {
+    this.closeReplay();
+    this.replayBack();
+  }
+
+  /** Estadísticas desde la barra de la repetición (pausa; al volver sigue la repetición). */
+  private replayStats(): void {
+    const p = this.replay;
+    if (!p) return;
+    p.playing = false;
+    this.replayBar.show(null);
+    this.showStats(p.replay, () => {
+      this.menu.hide();
+      this.replayBar.show(p);
+    }, null);
+  }
+
   toMenu(): void {
     this.state = 'menu';
     this.touch.show(false);
@@ -205,7 +308,10 @@ export class App {
     const dt = Math.min(0.1, (now - this.last) / 1000);
     this.last = now;
     const inp = this.input.poll();
-    if (this.input.pause) this.togglePause();
+    if (this.input.pause) {
+      if (this.state === 'replay') this.exitReplay();
+      else this.togglePause();
+    }
     if (this.state === 'playing') {
       if (this.input.camera) this.cycleCamera();
       this.session.setInput(inp);
@@ -222,30 +328,32 @@ export class App {
         this.arena.cheer(1);
         this.state = 'results';
         this.updateTouch();
-        this.menu.results(
-          m,
-          () => this.start(this.choice),
-          () => this.toMenu(),
-          () => this.downloadLog(),
-          this.choice.player,
-        );
+        this.lastReplay = this.recorder?.build(this.session) ?? null;
+        if (this.lastReplay) void storeReplay(this.lastReplay);
+        this.showResults();
       }
+    } else if (this.state === 'replay' && this.replay) {
+      if (this.input.camera) this.cycleCamera();
+      if (this.replayBar.root.style.display !== 'none') this.replay.update(dt);
+      this.replayBar.update();
     } else if (this.state === 'menu') {
       // Vista de fondo: la cámara libre gira despacio alrededor de la cancha
       const a = now / 1000 / 20;
       this.cam.camera.position.set(Math.cos(a) * 9, 6.5, Math.sin(a) * 7.5);
       this.cam.orbit.target.set(0, 0, 0);
     }
-    if (this.state !== 'paused') this.session.update(this.state === 'playing' ? 0 : dt);
+    if (this.state !== 'paused' && this.state !== 'replay') this.session.update(this.state === 'playing' ? 0 : dt);
     this.watchFps(dt);
     this.effects.update(this.state === 'paused' ? 0 : dt);
     this.arena.update(dt, now / 1000, this.cam.camera.position.y);
     const sm = this.session.match;
-    if (sm) this.arena.setScreen(formatTimer(timerSeconds(sm.t, this.session.game)), String(sm.score('red')), String(sm.score('blue')));
+    const sb = this.replay?.scoreboard;
+    if (sb) this.arena.setScreen(sb.timer, String(sb.red), String(sb.blue));
+    else if (sm) this.arena.setScreen(formatTimer(timerSeconds(sm.t, this.session.game)), String(sm.score('red')), String(sm.score('blue')));
     else this.arena.setScreen(this.state === 'menu' ? 'LABBOT RESCUE' : t('practiceMode').toUpperCase(), '', '');
     const p = this.session.player.phys;
     const pt = p.position();
-    this.cam.update(dt, { x: pt.x, y: pt.y, z: pt.z, heading: p.heading() });
+    this.cam.update(dt, this.replay?.focusPose ?? { x: pt.x, y: pt.y, z: pt.z, heading: p.heading() });
     this.renderer.render(this.cam.camera);
     requestAnimationFrame(this.loop);
   };

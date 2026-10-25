@@ -62,6 +62,8 @@ function adoptRobot(s: Settings, id: RobotId): void {
 const stationLabel = (i: number): string => `${t(i < 2 ? 'red' : 'blue')} ${(i % 2) + 1}`;
 
 export class Menu {
+  /** Abre la pantalla de Repeticiones (la conecta App). */
+  onReplays: () => void = () => undefined;
   readonly root: HTMLElement;
   player = 0;
 
@@ -122,6 +124,7 @@ export class Menu {
           </button>
           <div class="mm-eyebrow late"><span>02</span>${t('mm_workshop')}</div>
           <div class="mm-tools late">
+            ${tool('replays', ic.film, 'replays', 'replaysDesc')}
             ${tool('settings', ic.sliders, 'settings', 'settingsDesc')}
             ${tool('controls', ic.gamepad, 'controlsTitle', 'controlsDesc')}
             ${tool('rules', ic.book, 'rules', 'rulesDesc')}
@@ -162,6 +165,7 @@ export class Menu {
     });
     this.on('[data-act="match"]', () => this.onStart({ mode: 'match', player: this.player }));
     this.on('[data-act="practice"]', () => this.onStart({ mode: 'practice', player: this.player }));
+    this.on('[data-go="replays"]', () => this.onReplays());
     this.on('[data-go="settings"]', () => this.settingsPanel());
     this.on('[data-go="controls"]', () => this.controlsPanel(() => this.main()));
     this.on('[data-go="rules"]', () => this.rulesPanel());
