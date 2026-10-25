@@ -5,13 +5,14 @@
 import { AUTO_ROUTINES, LEAVE_ZONE } from '../auto/AutoRoutine';
 import { ROBOT_PRESETS } from '../config/robot';
 import { loadSettings, saveSettings, type Settings } from '../config/settings';
+import { formatTimer, timerSeconds } from '../core/clock';
 import { buildMatchLog } from '../core/matchLog';
-import { GameSession } from '../game/GameSession';
+import { GameSession, type SessionOptions } from '../game/GameSession';
 import { InputManager } from '../input/InputManager';
 import { CAMERA_MODES, CameraRig, type CameraMode } from '../render/CameraRig';
 import { Renderer } from '../render/Renderer';
 import { Hud } from '../ui/Hud';
-import { keyboardHelp, padHelp } from '../ui/controlsHelp';
+import { t, type Key } from '../ui/i18n';
 import { Menu, type MenuChoice } from '../ui/Menu';
 import { isTouchDevice, TouchControls } from '../ui/TouchControls';
 
@@ -37,14 +38,14 @@ export class App {
     this.cam = new CameraRig(this.renderer.renderer.domElement);
     this.session = new GameSession();
     this.renderer.scene.add(this.session.root);
-    this.hud = new Hud(ui);
+    this.hud = new Hud(ui, { camera: () => this.cycleCamera(), pause: () => this.togglePause(), reset: () => this.resetPractice() });
+    this.touch = new TouchControls(ui, this.input);
     this.menu = new Menu(ui, (c) => this.start(c), this.settings, (s) => saveSettings(s), this.input);
-    this.touch = new TouchControls(ui, this.input, () => this.cycleCamera(), () => this.togglePause());
     this.toMenu();
     const onResize = () => this.renderer.resize(this.cam.camera);
     window.addEventListener('resize', onResize);
     window.addEventListener('keydown', (e) => {
-      if (e.code === 'Backspace' && this.state === 'playing' && !this.session.match && !this.input.capturing) this.session.resetField();
+      if (e.code === 'Backspace' && !this.input.capturing) this.resetPractice();
     });
     onResize();
     requestAnimationFrame(this.loop);
@@ -55,19 +56,20 @@ export class App {
     this.choice = c;
     this.renderer.scene.remove(this.session.root);
     this.session.dispose();
-    this.session = new GameSession(this.sessionOptions(c.player));
+    // Práctica libre: solo el robot del jugador en la cancha
+    this.session = new GameSession({ ...this.sessionOptions(c.player), solo: c.mode === 'practice' });
     this.renderer.scene.add(this.session.root);
     if (c.mode === 'match') this.session.startMatch();
     this.menu.hide();
     this.hud.show(true);
-    this.hud.setHelp(keyboardHelp(this.input.bindings), padHelp(this.input.bindings));
+    this.hud.setHelp(this.input.bindings);
     this.state = 'playing';
     this.updateTouch();
     this.cam.setMode(c.player < 2 ? 'driverRed' : 'driverBlue');
   }
 
   /** Opciones de la sesión según los ajustes: IA, rutinas de AUTO, tu robot y Human Player. */
-  private sessionOptions(player: number): ConstructorParameters<typeof GameSession>[0] {
+  private sessionOptions(player: number): SessionOptions {
     const s = this.settings;
     const auto = (id: string) => AUTO_ROUTINES.find((r) => r.id === id) ?? LEAVE_ZONE;
     return {
@@ -83,6 +85,11 @@ export class App {
       }),
       hp: { enabled: s.hpEnabled, interval: s.hpInterval },
     };
+  }
+
+  /** Reacomoda la cancha en práctica (Backspace o el botón del HUD). */
+  resetPractice(): void {
+    if (this.state === 'playing' && !this.session.match) this.session.resetField();
   }
 
   /** Descarga el registro del match terminado como JSON. */
@@ -117,16 +124,22 @@ export class App {
   togglePause(): void {
     if (this.state === 'playing') {
       this.state = 'paused';
-      this.menu.pause(
-        () => this.togglePause(),
-        () => this.start(this.choice),
-        () => this.toMenu(),
-      );
+      const m = this.session.match;
+      this.menu.pause({
+        match: m,
+        timer: m ? formatTimer(timerSeconds(m.t, this.session.game)) : '',
+        phase: m ? t(`phase_${m.phase}` as Key) : '',
+        camera: this.cam.mode,
+        setCamera: (c) => this.setCamera(c),
+        onResume: () => this.togglePause(),
+        onRestart: () => this.start(this.choice),
+        onMenu: () => this.toMenu(),
+      });
     } else if (this.state === 'paused') {
       this.state = 'playing';
       this.menu.hide();
       // Al volver de la pausa la asignación pudo cambiar (Controles)
-      this.hud.setHelp(keyboardHelp(this.input.bindings), padHelp(this.input.bindings));
+      this.hud.setHelp(this.input.bindings);
     }
     this.updateTouch();
   }
@@ -151,6 +164,7 @@ export class App {
       this.session.update(dt);
       this.hud.events(this.session.matchEvents);
       this.hud.update(this.session, this.cam.mode);
+      this.touch.setIntake(this.session.player.mech.intakeOn);
       const m = this.session.match;
       if (m?.finished) {
         this.state = 'results';
@@ -160,6 +174,7 @@ export class App {
           () => this.start(this.choice),
           () => this.toMenu(),
           () => this.downloadLog(),
+          this.choice.player,
         );
       }
     } else if (this.state === 'menu') {

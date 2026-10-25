@@ -180,3 +180,25 @@ describe('match completo en la física', () => {
     expect(g.match!.breakdown('red').platform).toBe(10);
   });
 });
+
+describe('práctica libre en solitario', () => {
+  it('solo existe el robot del jugador y se maneja sin reloj', () => {
+    const g = new GameSession({ player: 2, preload: true, solo: true });
+    expect(g.robots.map((r) => r.index)).toEqual([2]);
+    expect(g.player.index).toBe(2);
+    expect(g.player.alliance).toBe('blue');
+    expect(g.match).toBeNull();
+    expect(g.playerEnabled()).toBe(true);
+    const x0 = g.player.phys.position().x;
+    steps(g, 1, { forward: 1 });
+    // El azul empieza en −X y avanza hacia +X
+    expect(g.player.phys.position().x).toBeGreaterThan(x0 + 0.5);
+    g.resetField();
+    expect(g.player.mech.stored.length).toBe(1);
+  });
+
+  it('una sesión solo no puede empezar un match', () => {
+    const g = new GameSession({ player: 0, preload: true, solo: true });
+    expect(() => g.startMatch()).toThrow();
+  });
+});

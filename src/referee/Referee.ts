@@ -104,7 +104,10 @@ export class Referee {
     }
 
     // §4.6: tomar la Muestra Crítica antes del endgame
-    for (const e of mechEvents) if (e.type === 'grabCritical' && phase !== 'ENDGAME') this.charge('CRITICAL_EARLY', this.robots[e.robot]);
+    for (const e of mechEvents) {
+      const r = e.type === 'grabCritical' && phase !== 'ENDGAME' ? this.robots.find((x) => x.index === e.robot) : undefined;
+      if (r) this.charge('CRITICAL_EARLY', r);
+    }
 
     // §4.5 contacto y pinning; §4.6 contacto en zonas del color contrario
     for (let i = 0; i < this.robots.length; i++)

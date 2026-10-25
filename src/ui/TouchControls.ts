@@ -1,7 +1,7 @@
 /**
  * Controles touch en pantalla: joystick virtual a la izquierda (avanzar/girar, como el stick del
- * control) y botones a la derecha. Escriben en `InputManager.touch`; el resto del juego no sabe de
- * dónde vino la entrada.
+ * control) y botones redondos a la derecha (estilo rebuilt-sim). Escriben en `InputManager.touch`;
+ * el resto del juego no sabe de dónde vino la entrada. Cámara y pausa son los botones del HUD.
  */
 import type { Action } from '../input/bindings';
 import type { InputManager } from '../input/InputManager';
@@ -28,18 +28,17 @@ export class TouchControls {
   private center = { x: 0, y: 0 };
   private radius = 60;
 
+  private intake: HTMLElement;
+
   constructor(
     host: HTMLElement,
     private input: InputManager,
-    onCamera: () => void,
-    onPause: () => void,
   ) {
     this.root = document.createElement('div');
     this.root.className = 'touch';
     this.root.innerHTML = `
-      <div class="stick"><div class="knob"></div></div>
-      <div class="pad">${BUTTONS.map((b) => `<button class="tbtn ${b.cls}" data-a="${b.action}">${b.label.length <= 2 ? b.label : t(b.label as Key)}</button>`).join('')}</div>
-      <div class="sys"><button class="tbtn small" data-sys="cam">🎥</button><button class="tbtn small" data-sys="pause">❚❚</button></div>`;
+      <div class="stick"><div class="knob"></div><span>${t('help_drive')}</span></div>
+      <div class="pad">${BUTTONS.map((b) => `<button class="tbtn ${b.cls}" data-a="${b.action}">${b.label.length <= 2 ? b.label : t(b.label as Key)}</button>`).join('')}</div>`;
     host.appendChild(this.root);
     this.stick = this.root.querySelector('.stick')!;
     this.knob = this.root.querySelector('.knob')!;
@@ -54,15 +53,13 @@ export class TouchControls {
         setTimeout(() => b.classList.remove('on'), 150);
       }),
     );
-    this.root.querySelector('[data-sys="cam"]')!.addEventListener('pointerdown', (e) => {
-      e.preventDefault();
-      onCamera();
-    });
-    this.root.querySelector('[data-sys="pause"]')!.addEventListener('pointerdown', (e) => {
-      e.preventDefault();
-      onPause();
-    });
+    this.intake = this.root.querySelector('.b-intake')!;
     this.show(false);
+  }
+
+  /** Marca el botón del intake mientras está encendido. */
+  setIntake(on: boolean): void {
+    this.intake.classList.toggle('active', on);
   }
 
   show(v: boolean): void {

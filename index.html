@@ -6,31 +6,47 @@
     <title>LabBot Rescue Sim</title>
     <meta name="description" content="Simulador 3D del reto interno LabBot Rescue 2026 (Robotics WinterFest, LamBot 3478)." />
     <meta name="color-scheme" content="dark" />
-    <meta name="theme-color" content="#14171c" />
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 16 16%22%3E%3Crect width=%2216%22 height=%2216%22 rx=%223%22 fill=%22%23c0262d%22/%3E%3Crect x=%224%22 y=%224%22 width=%228%22 height=%228%22 fill=%22%23d9c9a8%22/%3E%3C/svg%3E" />
+    <meta name="theme-color" content="#090b0e" />
     <style>
-      html, body { margin: 0; height: 100%; background: #14171c; color: #e8ecf3; overflow: hidden; }
-      #loading { position: fixed; inset: 0; display: grid; place-content: center; gap: 12px; text-align: center;
-        font: 600 15px/1.3 system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; background: #14171c; z-index: 100; }
-      #loading h1 { margin: 0; font-size: clamp(32px, 7vw, 64px); letter-spacing: .02em; }
-      #loading-text { color: #c9ced8; }
-      #loading p { margin: 0 auto; max-width: 34em; padding: 0 24px; color: #8b8e96; font-weight: 500; }
-      #loading-spinner { width: 34px; height: 34px; margin: 4px auto 0; border-radius: 50%; border: 4px solid #2a303a; border-top-color: #f2b632; animation: spin 0.9s linear infinite; }
-      @keyframes spin { to { transform: rotate(360deg); } }
+      html, body { margin: 0; height: 100%; background: #090b0e; color: #e9ecf1; overflow: hidden; }
+      /* Pantalla de carga: se pinta antes de bajar el simulador (letra del sistema; la del sim llega después) */
+      #loading { position: fixed; inset: 0; z-index: 100; display: flex; flex-direction: column; justify-content: center; gap: 18px;
+        padding: 24px max(24px, env(safe-area-inset-right)) 24px max(24px, env(safe-area-inset-left));
+        font: 500 14px/1.45 system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+        background: radial-gradient(ellipse 70% 55% at 78% 30%, rgba(255, 199, 44, 0.07), transparent 70%),
+          linear-gradient(rgba(150, 175, 220, 0.035) 1px, transparent 1px) 0 0 / 44px 44px,
+          linear-gradient(90deg, rgba(150, 175, 220, 0.035) 1px, transparent 1px) 0 0 / 44px 44px, #090b0e; }
+      #loading .ld { width: min(560px, 100%); margin: 0 auto; display: flex; flex-direction: column; gap: 16px; }
+      #loading .brand { display: flex; align-items: center; gap: 10px; font: 700 13px/1 ui-monospace, Menlo, monospace; letter-spacing: .16em; color: #8a93a3; text-transform: uppercase; }
+      #loading .logo { position: relative; width: 22px; height: 22px; background: #262c36; box-shadow: inset 0 0 0 2px #ffc72c;
+        clip-path: polygon(0 0, calc(100% - 6px) 0, 100% 6px, 100% 100%, 6px 100%, 0 calc(100% - 6px)); }
+      #loading .logo::after { content: ''; position: absolute; inset: 6px; background: #ffc72c; }
+      #loading h1 { margin: 0; font: 800 clamp(44px, 11vw, 88px)/.92 'Bahnschrift', 'Arial Narrow', system-ui, sans-serif; letter-spacing: .01em; text-transform: uppercase; }
+      #loading h1 span { display: block; color: #ffc72c; }
+      #loading-bar { position: relative; height: 4px; background: #262c36; overflow: hidden; }
+      #loading-bar::after { content: ''; position: absolute; top: 0; bottom: 0; width: 38%; background: #ffc72c; animation: ld 1.3s ease-in-out infinite; }
+      @keyframes ld { from { left: -38%; } to { left: 100%; } }
+      #loading-text { font: 700 12px/1.3 ui-monospace, Menlo, monospace; letter-spacing: .1em; text-transform: uppercase; color: #ffc72c; }
+      #loading p { margin: 0; color: #8a93a3; font-size: 13px; }
+      #loading.failed #loading-bar::after { animation: none; width: 100%; left: 0; background: #e5413a; }
+      #loading.failed #loading-text { color: #ff8a83; }
     </style>
   </head>
   <body>
     <div id="loading" role="status" aria-live="polite">
-      <h1>LabBot Rescue</h1>
-      <div id="loading-spinner"></div>
-      <div id="loading-text">Cargando…</div>
-      <p>
-        Simulador 3D no oficial del reto interno LabBot Rescue 2026 (Robotics WinterFest, LamBot 3478).
-        La primera vez descarga unos 2 MB, así que con datos móviles puede tardar unos segundos; las
-        siguientes veces abre más rápido. Si ves un error aquí, mándanos una captura. Funciona mejor
-        con el celular en horizontal.
-      </p>
-      <noscript><p>Este simulador necesita JavaScript activado.</p></noscript>
+      <div class="ld">
+        <div class="brand"><i class="logo"></i>Robotics WinterFest 2026 · LamBot 3478</div>
+        <h1>LabBot<span>Rescue</span></h1>
+        <div id="loading-bar"></div>
+        <div id="loading-text">Cargando…</div>
+        <p>
+          Simulador 3D no oficial del reto interno LabBot Rescue 2026. La primera vez descarga unos 2 MB,
+          así que con datos móviles puede tardar unos segundos; las siguientes veces abre más rápido. Si ves
+          un error aquí, mándanos una captura. Funciona en el celular en vertical y en horizontal.
+        </p>
+        <noscript><p>Este simulador necesita JavaScript activado.</p></noscript>
+      </div>
     </div>
     <div id="app"></div>
     <div id="ui"></div>
