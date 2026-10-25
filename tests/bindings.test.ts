@@ -57,7 +57,7 @@ describe('asignación de controles', () => {
 
   it('la ayuda refleja la asignación', () => {
     const b = assign(DEFAULT_BINDINGS, 'keys', 'toggleIntake', 'KeyQ');
-    expect(keyboardHelp(b)).toContain('Q');
+    expect(keyboardHelp(b).flatMap((i) => i.keys)).toContain('Q');
     expect(padHelp(DEFAULT_BINDINGS)).toContain('RB');
   });
 });

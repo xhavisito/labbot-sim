@@ -9,7 +9,7 @@ const loadingText = (): HTMLElement | null => document.getElementById('loading-t
 function fail(e: unknown): void {
   const el = loadingText();
   if (el) el.textContent = `No se pudo iniciar: ${e instanceof Error ? e.message : String(e)}`;
-  document.getElementById('loading-spinner')?.remove();
+  document.getElementById('loading')?.classList.add('failed');
   console.error(e);
 }
 
