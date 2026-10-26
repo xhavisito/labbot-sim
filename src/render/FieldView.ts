@@ -1,12 +1,13 @@
 /**
  * Vista 3D de la cancha: alfombra, cintas (Zonas de Inicio, línea central, límite), estructuras
- * de `fieldSolids()` y mesas de las Driver Stations (decorativas).
+ * de `fieldSolids()`, mesas de las Driver Stations y una aficionada en silla de ruedas (decorativas).
  */
 import * as THREE from 'three';
 import { ConvexGeometry } from 'three/examples/jsm/geometries/ConvexGeometry.js';
 import * as F from '../config/field';
 import { fieldSolids, startTape, type FieldMaterial } from '../config/fieldLayout';
 import { ALLIANCES, type Alliance } from '../core/types';
+import { placeWheelchairFan } from './WheelchairFan';
 import { boxUV, carpetTexture, mdfTexture, textTexture } from './textures';
 
 export const ALLIANCE_COLOR: Record<Alliance, number> = { red: 0xc0262d, blue: 0x1d4fd6 };
@@ -145,5 +146,8 @@ export function buildFieldView(): THREE.Group {
       g.add(base, screen);
     }
   }
+
+  // Aficionada en silla de ruedas junto a la cancha (decorativa)
+  g.add(placeWheelchairFan());
   return g;
 }
