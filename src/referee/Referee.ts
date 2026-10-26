@@ -1,15 +1,17 @@
 /**
  * Árbitro automático: revisa cada paso de física las faltas que se pueden ver en la simulación
  * (catálogo en `core/fouls.ts`). Cada umbral está documentado junto a su regla; los que el manual
- * no fija son SUPUESTOS listados en docs/reglas-reto.md (D7, D8, D11).
+ * no fija son SUPUESTOS listados en docs/reglas-reto.md (D7, D8, D11, D17, D21).
  */
 import * as F from '../config/field';
 import { isTeleop, type Phase } from '../core/clock';
 import type { RuleCode } from '../core/fouls';
 import type { Match } from '../core/match';
-import type { Alliance } from '../core/types';
+import { ALLIANCES, type Alliance } from '../core/types';
 import type { MechEvent } from '../game/Mechanisms';
 import type { Robot } from '../game/Robot';
+import type { Sensors } from '../game/Sensors';
+import type { Pieces } from '../physics/Pieces';
 import type { PhysicsWorld } from '../physics/PhysicsWorld';
 
 /** Segundos mínimos entre dos faltas por contacto del mismo par (una por "instancia", D11). */
@@ -21,6 +23,11 @@ export const PIN_SECONDS = 3;
 /** Obstruir (D17, SUPUESTO): más de 3 s seguidos frente a la Cámara rival; otra falta cada 5 s más. */
 export const OBSTRUCT_SECONDS = 3;
 export const OBSTRUCT_REPEAT = 5;
+/**
+ * Tirar la Muestra Crítica rival de la Repisa (§4.6 dice "intencionalmente"; D21, SUPUESTO): Tech
+ * Foul si un robot rival la tocaba, o la dejó de tocar hace menos de esto (s), cuando sale de la Repisa.
+ */
+export const KNOCK_WINDOW = 1;
 
 /** Frente de la Cámara de cada alianza (D17, SUPUESTO): el largo de la Cámara y 1 m hacia la cancha. */
 export function camaraFront(a: Alliance): F.Rect {
@@ -47,11 +54,16 @@ export class Referee {
   private flags = new Map<string, boolean>();
   private platformClear = new Map<number, number>();
   private obstruct = new Map<number, { t: number; charged: number }>();
+  /** Contactos robot–Muestra Crítica: "pieza-robot" → nº de pares de colisionadores y último cambio (s). */
+  private critTouch = new Map<string, { n: number; t: number }>();
+  private critOnRepisa = new Map<Alliance, boolean>();
 
   constructor(
     private pw: PhysicsWorld,
     private robots: Robot[],
     private match: () => Match | null,
+    /** Para la Muestra Crítica en la Repisa (§4.6); sin ellos no se revisa. */
+    private field?: { pieces: Pieces; sensors: Sensors },
   ) {}
 
   reset(): void {
@@ -60,6 +72,8 @@ export class Referee {
     this.flags.clear();
     this.platformClear.clear();
     this.obstruct.clear();
+    this.critTouch.clear();
+    this.critOnRepisa.clear();
   }
 
   /** Lee los eventos de colisión del último paso (llamar después de `world.step`). */
@@ -67,6 +81,14 @@ export class Referee {
     this.pw.events.drainCollisionEvents((h1, h2, started) => {
       const a = this.pw.tagOf(h1);
       const b = this.pw.tagOf(h2);
+      const robot = a?.kind === 'robot' ? a : b?.kind === 'robot' ? b : undefined;
+      const piece = a?.kind === 'piece' ? a : b?.kind === 'piece' ? b : undefined;
+      if (robot && piece && this.field?.pieces.list[piece.index]?.kind === 'critical') {
+        const k = `${piece.index}-${robot.robot}`;
+        const c = this.critTouch.get(k) ?? { n: 0, t: 0 };
+        this.critTouch.set(k, { n: Math.max(0, c.n + (started ? 1 : -1)), t: this.match()?.t ?? 0 });
+        return;
+      }
       if (a?.kind !== 'robot' || b?.kind !== 'robot' || a.robot === b.robot) return;
       const key = a.robot < b.robot ? `${a.robot}-${b.robot}` : `${b.robot}-${a.robot}`;
       const n = (this.contacts.get(key) ?? 0) + (started ? 1 : -1);
@@ -135,6 +157,22 @@ export class Referee {
       const r = e.type === 'grabCritical' && phase !== 'ENDGAME' ? this.robots.find((x) => x.index === e.robot) : undefined;
       if (r) this.charge('CRITICAL_EARLY', r);
     }
+
+    // §4.6: tirar la Muestra Crítica del equipo contrario de la Repisa (D21)
+    if (this.field)
+      for (const al of ALLIANCES) {
+        const on = this.field.sensors.criticalOnRepisa(al);
+        const was = this.critOnRepisa.get(al) ?? false;
+        this.critOnRepisa.set(al, on);
+        const c = this.field.pieces.critical(al);
+        // La tomó un robot (solo puede su dueño): no es tirarla
+        if (!was || on || c.state.at !== 'field') continue;
+        const rival = this.robots.find((r) => {
+          const k = this.critTouch.get(`${c.index}-${r.index}`);
+          return r.alliance !== al && !!k && (k.n > 0 || t - k.t <= KNOCK_WINDOW);
+        });
+        if (rival) this.charge('CRITICAL_KNOCK', rival);
+      }
 
     // §4.5 contacto y pinning; §4.6 contacto en zonas del color contrario
     for (let i = 0; i < this.robots.length; i++)
