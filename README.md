@@ -66,6 +66,30 @@ corre la ruta sin dibujar desde N poses al azar (± cm, ± °) y dice cuántas d
 cuánto se desvía la pose final. **Guardar** la deja en Ajustes → AUTO de tu robot para el match.
 Ojo: repite tus controles, así que con otro robot u otra Zona de Inicio termina en otro lugar.
 
+**Entrenamiento por retos** (menú → Taller): ejercicios cortos con tu robot solo en la cancha, con
+medalla (bronce, plata, oro) y récord personal por robot guardados en el navegador. Cada reto tiene
+instrucciones, cuenta de 3 s, el avance en vivo y el resultado (con lo que falta para la siguiente
+medalla); Enter lo repite y Backspace lo reinicia.
+
+| Reto | Meta | Límite | Oro · Plata · Bronce | Manual |
+|---|---|---|---|---|
+| Línea de autónomo | Salir por completo de la Zona de Inicio | 15 s (AUTO) | ≤ 1 · 1.6 · 3 s | §4.4, D1 |
+| Anotar en N3 | 5 Muestras en el Nivel 3 | 120 s | ≤ 35 · 55 · 120 s | §3.2.3, §4.4 |
+| Muestra Crítica | De la rendija de la Campana a la Repisa (se queda 0.5 s) | 30 s (ENDGAME) | ≤ 11 · 17 · 30 s | §3.2.4, §3.2.5, §4.3.1 |
+| Plataforma a tiempo | Desde la Cámara, subir y quedarse 1 s | 10 s | ≤ 4.5 · 6 · 10 s | §4.4, D5 |
+| ENDGAME completo | Puntos en 30 s (Plataforma y Crítica al sonar la bocina) | 30 s | ≥ 40 · 25 · 10 pts | §4.3.1, §4.4 |
+| Ciclos de 60 s | Puntos de Muestras con valores de TELEOP | 60 s | ≥ 105 · 60 · 30 pts | §4.4 |
+| Dominio de Cámara | 10 Muestras en tu Cámara | 135 s (TELEOP) | ≤ 50 · 75 · 135 s | §4.4 |
+
+Los puntos son los del manual (TELEOP; la línea, los de AUTO). **SUPUESTOS del simulador:** los
+límites, los cortes de cada medalla (calibrados con la física: una ruta con script del genérico hace
+la línea en 0.6 s, la Plataforma en 3.0 s y la Crítica en 7.1 s, y la IA difícil anota 5 en N3 a los
+≈28 s del TELEOP), la salida "frente a la Cámara" del reto de Plataforma, los tiempos que la pieza o
+el robot tienen que quedarse para contar, y el ritmo por tipo de robot en los retos de Muestras
+(pivote ×1.5, torre ×1.1: más tiempo o menos puntos para la misma medalla). El chasis solo hace los
+retos de manejo. En la práctica no hay faltas: en el match, tomar la Crítica o subir a la Plataforma
+antes del ENDGAME es Tech Foul (§4.6).
+
 En el menú eliges tu robot (Rojo 1–2, Azul 1–2) y el modo:
 
 - **Jugar match:** 150 s con reloj. En el AUTO (15 s) los robots corren su rutina preprogramada
@@ -153,8 +177,10 @@ src/
   core/       lógica pura y probada: clock.ts, match.ts (puntuación y RP), fouls.ts, matchLog.ts, types.ts,
               scouting.ts (registro por robot, resumen por equipo, predicción de alianzas),
               tournament.ts (calendario, selección de alianzas y eliminatorias; formato SUPUESTO)
+              training.ts (retos del entrenamiento: medallas y récords)
   physics/    Rapier: PhysicsWorld, FieldColliders, Pieces (pool de Muestras), RobotPhysics (tanque)
   game/       GameSession (une todo), Robot, Mechanisms, Sensors (anotación), HumanPlayer
+              drills.ts (cuenta de cada reto en la física) y trainingStore.ts (récords, localStorage)
   referee/    Referee.ts: faltas automáticas
   auto/       rutinas de AUTO; recorded.ts (rutas grabadas, localStorage); practice.ts (calificar
               15 s de AUTO y probar poses iniciales desplazadas)

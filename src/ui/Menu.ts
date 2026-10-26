@@ -12,6 +12,7 @@ import { GAME } from '../config/game';
 import { DEFAULT_SETTINGS, SETTINGS_RANGE, type Settings } from '../config/settings';
 import { RULES } from '../core/fouls';
 import type { Match } from '../core/match';
+import type { DrillId } from '../core/training';
 import { ALLIANCES, type Alliance } from '../core/types';
 import { ACTIONS, assign, clearAction, cloneBindings, DEFAULT_BINDINGS, keyLabel, padLabel, saveBindings, type Action } from '../input/bindings';
 import type { InputManager } from '../input/InputManager';
@@ -25,9 +26,13 @@ import { isIos, isStandalone, promptInstall, pwa } from '../pwa/register';
 const esc = (v: string): string => v.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
 
 export interface MenuChoice {
-  /** 'auto' = práctica de AUTO (`ui/AutoPractice.ts`): solo tu robot, grabar y probar rutas. */
-  mode: 'match' | 'practice' | 'auto';
+  /**
+   * 'auto' = práctica de AUTO (`ui/AutoPractice.ts`): solo tu robot, grabar y probar rutas.
+   * 'training' = un reto del entrenamiento (`ui/Training.ts`), el de `drill`.
+   */
+  mode: 'match' | 'practice' | 'auto' | 'training';
   player: number;
+  drill?: DrillId;
   /** Match del calendario del Scouting (equipos y sus robots); su registro se guarda al terminar. */
   scout?: ScoutPlay;
 }
@@ -91,6 +96,8 @@ export class Menu {
   onScouting: () => void = () => undefined;
   /** Abre el modo torneo (lo conecta App). */
   onTournament: () => void = () => undefined;
+  /** Abre la lista de retos del entrenamiento (la conecta App). */
+  onTraining: () => void = () => undefined;
 
   constructor(
     host: HTMLElement,
@@ -126,8 +133,8 @@ export class Menu {
     const s = this.settings;
     const b = this.input.bindings;
     const fs = !!document.documentElement.requestFullscreen;
-    const tool = (go: string, icon: string, label: Key, desc: Key) =>
-      `<button class="mm-tool" data-go="${go}">${icon.replace('class="ic"', 'class="mi"')}<span class="mt-txt"><b>${t(label)}</b><small>${t(desc)}</small></span></button>`;
+    const tool = (go: string, icon: string, label: Key, desc: Key, cls = '') =>
+      `<button class="mm-tool ${cls}" data-go="${go}">${icon.replace('class="ic"', 'class="mi"')}<span class="mt-txt"><b>${t(label)}</b><small>${t(desc)}</small></span></button>`;
     const g = GAME.times;
     this.open(`
       ${brandbar(`${t('mm_fan')} · ${t('mm_event')}`, `<span class="pwa-chips" data-pwa></span>${langChips()}${fs ? `<button class="chipbtn" data-fs title="${t('fullscreen')}">${ic.expand}</button>` : ''}`)}
@@ -149,6 +156,7 @@ export class Menu {
           </button>
           <div class="mm-eyebrow late"><span>02</span>${t('mm_workshop')}</div>
           <div class="mm-tools late">
+            ${tool('training', ic.medal, 'tn_title', 'trainingDesc', 'wide')}
             ${tool('replays', ic.film, 'replays', 'replaysDesc')}
             ${tool('editor', ic.cube, 'editor', 'editorDesc')}
             ${tool('autoPractice', ic.route, 'autoPractice', 'autoPracticeDesc')}
@@ -194,6 +202,7 @@ export class Menu {
     });
     this.on('[data-act="match"]', () => this.onStart({ mode: 'match', player: this.player }));
     this.on('[data-act="practice"]', () => this.onStart({ mode: 'practice', player: this.player }));
+    this.on('[data-go="training"]', () => this.onTraining());
     this.on('[data-go="replays"]', () => this.onReplays());
     this.on('[data-go="editor"]', () => this.onEditor());
     this.on('[data-go="autoPractice"]', () => this.onStart({ mode: 'auto', player: this.player }));
