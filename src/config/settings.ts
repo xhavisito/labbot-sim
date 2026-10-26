@@ -4,7 +4,8 @@
  * válidos (un valor raro guardado en el navegador no rompe el juego).
  */
 import { AI_LEVELS, type AiLevel } from '../ai/difficulty';
-import { DEFAULT_ROBOT, MECHANISM_KINDS, type MechanismKind } from './robot';
+import { DEFAULT_ROBOT } from './robot';
+import { allRobotIds, type RobotId } from './robotIds';
 
 export interface Settings {
   /** La IA maneja los otros 3 robots en el TELEOP. */
@@ -16,7 +17,7 @@ export interface Settings {
   /** Rutina de AUTO de los otros robots. */
   botAuto: string;
   /** Tipo de tu robot (`config/robot.ts`). */
-  robotType: MechanismKind;
+  robotType: RobotId;
   /** Tu robot: velocidad máxima (m/s) y Muestras que guarda (el pivote siempre lleva 1). */
   maxSpeed: number;
   capacity: number;
@@ -59,7 +60,8 @@ export function sanitizeSettings(raw: unknown, autoIds: readonly string[]): Sett
   const o = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
   const d = DEFAULT_SETTINGS;
   const auto = (v: unknown, def: string) => (typeof v === 'string' && autoIds.includes(v) ? v : def);
-  const kind = (v: unknown, def: MechanismKind) => MECHANISM_KINDS.find((k) => k === v) ?? def;
+  const ids = allRobotIds();
+  const kind = (v: unknown, def: RobotId) => ids.find((k) => k === v) ?? def;
   return {
     ai: typeof o.ai === 'boolean' ? o.ai : d.ai,
     aiLevel: AI_LEVELS.find((l) => l === o.aiLevel) ?? d.aiLevel,

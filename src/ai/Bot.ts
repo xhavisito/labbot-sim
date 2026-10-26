@@ -150,7 +150,8 @@ export class Bot {
   }
 
   private get level(): Level {
-    return this.opts.level ?? this.profile.level;
+    // Un robot propio del editor puede no llegar al N3 (`RobotSpec.maxLevel`)
+    return Math.min(this.opts.level ?? this.profile.level, this.robot.spec.maxLevel ?? 3) as Level;
   }
 
   /** ¿Le toca la Muestra Crítica? */

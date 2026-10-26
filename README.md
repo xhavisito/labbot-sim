@@ -38,6 +38,34 @@ abrirla con conexión (los cambios se ven la siguiente vez que se abre). Íconos
 
 ## Cómo se juega
 
+**Editor de robot** (menú → Taller): arma tu robot con medidas del chasis, tracción (motor, cantidad,
+reducción, rueda), mecanismo (intake, alcance, capacidad, elevador o brazo, nivel máximo), motores de
+mecanismos y materiales (área de MDF de 5.5 mm, PLA, otros, o la masa de báscula). Calcula masa
+estimada por partes, velocidad (velocidad libre del motor ÷ reducción × circunferencia × 0.8) y
+aceleración, y revisa las reglas de construcción: chasis ≤ 65 × 65 cm, ≤ 40 cm fuera, ≤ 100 cm (§7.2),
+motores (§7.3), PLA ≤ 150 g (§7.1.1); la masa solo se informa (no hay límite de peso, §7.2).
+**Comparar score** juega matches de solo IA de dos robots tuyos contra una alianza rival y lo mismo
+con un robot de referencia. Se guarda en el navegador y aparece en la lista de robots junto a los
+presets. Datos de motores: hojas de datos (CIM, Kraken X60/X44, NEO); masas de piezas
+y densidad del MDF: SUPUESTOS (`src/config/customRobots.ts`).
+
+**Repeticiones y estadísticas:** cada match terminado se graba (15 cuadros por segundo) y se guarda
+en el navegador (las últimas 12; las de ★ se conservan). En los resultados, o en el menú →
+**Repeticiones**, puedes verlo otra vez (play/pausa, 0.25×–4×, saltar con la línea de tiempo o ←/→,
+cámara siguiendo a cualquier robot) y abrir sus **Estadísticas**: mapa de calor de cada robot,
+Muestras anotadas por robot y nivel con sus puntos (§4.4), tiempos de ciclo (definición del sim:
+Muestras a menos de 2.5 s son un ciclo; solo TELEOP), distancia y velocidad. Se descargan como
+`.lbreplay` (≈ 80 KB) para abrirlas en otro equipo.
+
+**Práctica de AUTO** (menú → Taller): solo tu robot en su Zona de Inicio con la precarga y sin Human
+Player. **Grabar 15 s** guarda lo que haces con los controles en cada paso de física; luego la ruta
+se **repite** igual (también desde una pose movida unos cm o grados) y se califica con los puntos de
+AUTO (§4.4: Línea de Autónomo y Muestras por nivel). Avisa si cruzas la línea central (§4.2; D7,
+SUPUESTO Foul) o si la pose movida ya no cabe en la Zona de Inicio (§4.1). **Probar variaciones**
+corre la ruta sin dibujar desde N poses al azar (± cm, ± °) y dice cuántas dan los mismos puntos y
+cuánto se desvía la pose final. **Guardar** la deja en Ajustes → AUTO de tu robot para el match.
+Ojo: repite tus controles, así que con otro robot u otra Zona de Inicio termina en otro lugar.
+
 En el menú eliges tu robot (Rojo 1–2, Azul 1–2) y el modo:
 
 - **Jugar match:** 150 s con reloj. En el AUTO (15 s) los robots corren su rutina preprogramada
@@ -113,24 +141,30 @@ Plataforma y suéltala sobre la Repisa (R).
 src/
   config/     field.ts (medidas de la cancha, §3), fieldLayout.ts (sólidos para física y render),
               game.ts (tiempos, puntos, faltas y RP, §4.4–§4.6), robot.ts (límites §7.2),
-              settings.ts (ajustes del usuario)
+              settings.ts (ajustes del usuario), customRobots.ts (robots del editor: masa con MDF,
+              velocidad por reducción y revisión de §7.1–§7.3)
   core/       lógica pura y probada: clock.ts, match.ts (puntuación y RP), fouls.ts, matchLog.ts, types.ts,
               scouting.ts (registro por robot, resumen por equipo, predicción de alianzas),
               tournament.ts (calendario, selección de alianzas y eliminatorias; formato SUPUESTO)
   physics/    Rapier: PhysicsWorld, FieldColliders, Pieces (pool de Muestras), RobotPhysics (tanque)
   game/       GameSession (une todo), Robot, Mechanisms, Sensors (anotación), HumanPlayer
   referee/    Referee.ts: faltas automáticas
-  auto/       rutinas de AUTO
+  auto/       rutinas de AUTO; recorded.ts (rutas grabadas, localStorage); practice.ts (calificar
+              15 s de AUTO y probar poses iniciales desplazadas)
   ai/         Bot.ts: IA de los robots (recolectar → anotar → Plataforma o Muestra Crítica en el ENDGAME;
               papeles: anotar, solo chasis, bloquear; fuente: Laboratorio, Human Player o ambos);
               Team.ts: reparto de papeles en la alianza; difficulty.ts: Fácil/Normal/Difícil;
               lineup.ts: tipos de robot distintos para la IA en cada match
+  sim/        compare.ts: comparación de score del editor (matches de IA por partes, sin congelar la UI)
   sim/        batch.ts: estrategias de alianza y matches de solo IA sin render (npm run batch);
               legacyBot.ts: la IA anterior, solo para compararla (--set ai --b old);
               quickSim.ts: simular un match del calendario del Scouting en el navegador
   render/     Three.js: Renderer, FieldView, PieceView, RobotView, CameraRig
   input/      teclado, gamepad y touch; bindings.ts (asignación reasignable)
   ui/         i18n (es-MX / en), HUD, menús, resultados, Controles y TouchControls
+  replay/     format.ts (repetición en binario compacto), Recorder.ts (graba cada match, cuelga de
+              GameSession.tap), ReplayPlayer.ts (sesión "títere" que pone las poses grabadas),
+              stats.ts (mapa de calor, Muestras por robot y tiempos de ciclo) y store.ts (IndexedDB, .lbreplay)
   pwa/        register.ts (service worker, botón Instalar) y sw-template.js (precache del build)
 tests/        field, physics, robot, match (reglas y casos borde), session (match completo),
               bot (IA en un match completo, sin faltas de cancha), settings (ajustes y registro),
@@ -152,7 +186,8 @@ Cada regla en el código cita su sección del manual.
   pierde tiempo cuando un robot quieto le tapa el frente de la Cámara.
 - El Human Player es automático (una Muestra cada 3 s si la ranura está libre).
 - No se simulan las faltas de conducta, seguridad o del Human Player humano (no se pueden detectar).
-- La intake, el brazo y la plataforma no chocan con la cancha (solo mueven piezas); no hay editor de
-  robots: los cuatro tipos son presets en `src/config/robot.ts` con medidas SUPUESTAS.
+- La intake, el brazo y la plataforma no chocan con la cancha (solo mueven piezas). Los tipos son presets
+  en `src/config/robot.ts` con medidas SUPUESTAS; el editor de robot (`config/customRobots.ts`) cambia
+  medidas, masa, tracción y mecanismo, pero no la geometría de cada tipo.
 - Al pasar por la vertical, el brazo del pivote con una Muestra llega a ~109 cm; el manual no aclara
   si los 100 cm aplican con mecanismos en movimiento (§7.2) y la simulación no lo cobra.

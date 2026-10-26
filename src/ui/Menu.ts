@@ -3,8 +3,11 @@
  * controles (reasignar), reglas, pausa y resultados.
  */
 import { AUTO_ROUTINES } from '../auto/AutoRoutine';
-import { fixedCapacity, MECHANISM_KINDS, ROBOT_PRESETS, type MechanismKind } from '../config/robot';
+import { routeRoutine, savedRoutes } from '../auto/recorded';
+import { customById } from '../config/customRobots';
+import { allRobotIds, robotSpec, type RobotId } from '../config/robotIds';
 import { AI_LEVELS } from '../ai/difficulty';
+import { fixedCapacity, MECHANISM_KINDS, type MechanismKind } from '../config/robot';
 import { GAME } from '../config/game';
 import { DEFAULT_SETTINGS, SETTINGS_RANGE, type Settings } from '../config/settings';
 import { RULES } from '../core/fouls';
@@ -19,8 +22,11 @@ import { getLang, setLang, t, type Key } from './i18n';
 import type { ScoutPlay } from './Scouting';
 import { isIos, isStandalone, promptInstall, pwa } from '../pwa/register';
 
+const esc = (v: string): string => v.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
+
 export interface MenuChoice {
-  mode: 'match' | 'practice';
+  /** 'auto' = práctica de AUTO (`ui/AutoPractice.ts`): solo tu robot, grabar y probar rutas. */
+  mode: 'match' | 'practice' | 'auto';
   player: number;
   /** Match del calendario del Scouting (equipos y sus robots); su registro se guarda al terminar. */
   scout?: ScoutPlay;
@@ -42,12 +48,29 @@ const ROBOTS = [0, 1, 2, 3];
 /** ¿El tipo saca las Muestras por atrás? (se anota de reversa; ver `type_*_desc`). */
 const SCORES_BACK: Record<MechanismKind, boolean> = { generic: false, elevator: true, pivot: false, tower: true, chassis: false };
 
-/** Medidas del chasis del tipo (cm), para la vitrina del menú. */
-const chassisSize = (k: MechanismKind): string => `${Math.round(ROBOT_PRESETS[k].length * 100)} × ${Math.round(ROBOT_PRESETS[k].width * 100)} cm`;
-const robotOptions = (sel: MechanismKind): string => MECHANISM_KINDS.map((m) => `<option value="${m}" ${m === sel ? 'selected' : ''}>${t(`type_${m}` as Key)}</option>`).join('');
-/** Al elegir un tipo, la velocidad y la capacidad de los ajustes toman las suyas. */
-function adoptRobot(s: Settings, id: MechanismKind): void {
-  const spec = ROBOT_PRESETS[id];
+/** Medidas del chasis del robot (cm), para la vitrina del menú. */
+const chassisSize = (id: RobotId): string => `${Math.round(robotSpec(id).length * 100)} × ${Math.round(robotSpec(id).width * 100)} cm`;
+/** Nombre y descripción de un robot elegible (tipo de LabBot o robot propio). */
+const robotName = (id: RobotId): string => robotSpec(id).label ?? t(`type_${id}` as Key);
+function robotDesc(id: RobotId): string {
+  const c = customById(id);
+  if (c) {
+    const s = robotSpec(id);
+    return t('myRobotDesc', { type: t(`type_${s.mechanism}` as Key), mass: s.massKg.toFixed(1), speed: s.maxSpeed.toFixed(2) });
+  }
+  return t(`type_${id}_desc` as Key);
+}
+/** Lista de robots para elegir: sugerencias de LabBot y robots propios del editor. */
+const robotOptions = (sel: RobotId): string =>
+  `<optgroup label="${t('grp_labbot')}">${MECHANISM_KINDS.map((m) => `<option value="${m}" ${m === sel ? 'selected' : ''}>${robotName(m)}</option>`).join('')}</optgroup>${mineOptions(sel)}`;
+/** Robots propios del editor (si hay). */
+function mineOptions(sel: RobotId): string {
+  const ids = allRobotIds().filter((id) => customById(id));
+  return ids.length ? `<optgroup label="${t('grp_mine')}">${ids.map((id) => `<option value="${id}" ${id === sel ? 'selected' : ''}>${robotName(id)}</option>`).join('')}</optgroup>` : '';
+}
+/** Al elegir un robot, la velocidad y la capacidad de los ajustes toman las suyas. */
+function adoptRobot(s: Settings, id: RobotId): void {
+  const spec = robotSpec(id);
   s.robotType = id;
   s.maxSpeed = Math.min(SETTINGS_RANGE.maxSpeed.max, Math.round(spec.maxSpeed * 4) / 4);
   s.capacity = Math.min(SETTINGS_RANGE.capacity.max, spec.capacity);
@@ -56,6 +79,9 @@ function adoptRobot(s: Settings, id: MechanismKind): void {
 const stationLabel = (i: number): string => `${t(i < 2 ? 'red' : 'blue')} ${(i % 2) + 1}`;
 
 export class Menu {
+  /** Abre la pantalla de Repeticiones y el editor de robot (los conecta App). */
+  onReplays: () => void = () => undefined;
+  onEditor: () => void = () => undefined;
   readonly root: HTMLElement;
   player = 0;
   /** Abre la pantalla de Scouting (la conecta App). */
@@ -118,6 +144,9 @@ export class Menu {
           </button>
           <div class="mm-eyebrow late"><span>02</span>${t('mm_workshop')}</div>
           <div class="mm-tools late">
+            ${tool('replays', ic.film, 'replays', 'replaysDesc')}
+            ${tool('editor', ic.cube, 'editor', 'editorDesc')}
+            ${tool('autoPractice', ic.route, 'autoPractice', 'autoPracticeDesc')}
             ${tool('settings', ic.sliders, 'settings', 'settingsDesc')}
             ${tool('controls', ic.gamepad, 'controlsTitle', 'controlsDesc')}
             ${tool('rules', ic.book, 'rules', 'rulesDesc')}
@@ -137,7 +166,7 @@ export class Menu {
             <div class="bay-head"><span class="bay-label">${t('station')}</span></div>
             <div class="stations">${ROBOTS.map((i) => `<button class="${i < 2 ? 'red' : 'blue'} ${i === this.player ? 'on' : ''}" data-slot="${i}"><i></i>${stationLabel(i)}</button>`).join('')}</div>
             <div class="bay-head"><span class="bay-label">${t('yourRobot')}</span></div>
-            <div class="showcase">${robotSilhouette(s.robotType)}<span class="dim">${chassisSize(s.robotType)} · ${t('robotType').toUpperCase()}</span></div>
+            <div class="showcase">${robotSilhouette(robotSpec(s.robotType).mechanism)}<span class="dim">${chassisSize(s.robotType)} · ${t('robotType').toUpperCase()}</span></div>
             <div class="robotinfo" data-robotinfo></div>
           </div>
         </div>
@@ -159,6 +188,9 @@ export class Menu {
     });
     this.on('[data-act="match"]', () => this.onStart({ mode: 'match', player: this.player }));
     this.on('[data-act="practice"]', () => this.onStart({ mode: 'practice', player: this.player }));
+    this.on('[data-go="replays"]', () => this.onReplays());
+    this.on('[data-go="editor"]', () => this.onEditor());
+    this.on('[data-go="autoPractice"]', () => this.onStart({ mode: 'auto', player: this.player }));
     this.on('[data-go="settings"]', () => this.settingsPanel());
     this.on('[data-go="controls"]', () => this.controlsPanel(() => this.main()));
     this.on('[data-go="rules"]', () => this.rulesPanel());
@@ -192,31 +224,42 @@ export class Menu {
     });
   }
 
+  /** Elige un robot como el tuyo (desde el editor) y vuelve al menú. */
+  useRobot(id: RobotId): void {
+    adoptRobot(this.settings, id);
+    this.onSettings(this.settings);
+    this.main();
+  }
+
   /** Placa del robot elegido: nombre, descripción, barras y flechas para cambiar de tipo. */
   private robotInfo(): void {
     const s = this.settings;
-    const k = s.robotType;
-    const i = MECHANISM_KINDS.indexOf(k);
-    const n = MECHANISM_KINDS.length;
+    const id = s.robotType;
+    const spec = robotSpec(id);
+    const k = spec.mechanism;
+    const ids = allRobotIds();
+    const i = Math.max(0, ids.indexOf(id));
+    const n = ids.length;
     const cap = fixedCapacity(k) ?? s.capacity;
+    const levels = (['N1', 'N2', 'N3'] as const).slice(0, spec.maxLevel ?? 3).join(' · ');
     const bar = (label: string, v: number, txt: string) =>
       `<div class="sbar"><span>${label}</span><div><i style="width:${Math.round(Math.min(1, Math.max(0.04, v)) * 100)}%"></i></div><b>${txt}</b></div>`;
     const info = this.root.querySelector<HTMLElement>('[data-robotinfo]')!;
     info.innerHTML = `
-      <div class="ri-plate"><div class="num">${t(`type_${k}` as Key)}</div><p>${t(`type_${k}_desc` as Key)}</p></div>
+      <div class="ri-plate"><div class="num">${robotName(id)}</div><p>${robotDesc(id)}</p></div>
       <div class="ri-stats">
         ${bar(t('statSpeed'), s.maxSpeed / SETTINGS_RANGE.maxSpeed.max, `${s.maxSpeed.toFixed(2).replace(/0$/, '')} m/s`)}
         ${bar(t('statCapacity'), cap / SETTINGS_RANGE.capacity.max, String(cap))}
-        <div class="ri-flags">${k === 'chassis' ? `<span>${t('scoresNone')}</span><span>${t('lineAndPlatform')}</span>` : `<span>${t(SCORES_BACK[k] ? 'scoresBack' : 'scoresFront')}</span><span>N1 · N2 · N3</span>`}</div>
+        <div class="ri-flags">${k === 'chassis' ? `<span>${t('scoresNone')}</span><span>${t('lineAndPlatform')}</span>` : `<span>${t(SCORES_BACK[k] ? 'scoresBack' : 'scoresFront')}</span><span>${levels}</span>`}</div>
       </div>
       <div class="nav"><button class="arrowbtn" data-step="-1" aria-label="‹">‹</button>
         <div class="track"><i style="width:${100 / n}%;margin-left:${(100 * i) / n}%"></i></div>
         <span class="count">${i + 1}/${n}</span><button class="arrowbtn" data-step="1" aria-label="›">›</button></div>`;
     info.querySelectorAll<HTMLElement>('[data-step]').forEach((b) =>
       b.addEventListener('click', () => {
-        adoptRobot(s, MECHANISM_KINDS[(i + Number(b.dataset.step) + n) % n]);
+        adoptRobot(s, ids[(i + Number(b.dataset.step) + n) % n]);
         this.onSettings(s);
-        this.root.querySelector('.showcase')!.innerHTML = `${robotSilhouette(s.robotType)}<span class="dim">${chassisSize(s.robotType)} · ${t('robotType').toUpperCase()}</span>`;
+        this.root.querySelector('.showcase')!.innerHTML = `${robotSilhouette(robotSpec(s.robotType).mechanism)}<span class="dim">${chassisSize(s.robotType)} · ${t('robotType').toUpperCase()}</span>`;
         this.robotInfo();
       }),
     );
@@ -226,7 +269,12 @@ export class Menu {
   /** Ajustes: IA, rutinas de AUTO, tu robot y Human Player. Se guardan al volver. */
   settingsPanel(): void {
     const s = { ...this.settings };
-    const autoOpts = (sel: string) => AUTO_ROUTINES.map((r) => `<option value="${r.id}" ${r.id === sel ? 'selected' : ''}>${t(`auto_${r.id}` as Key)}</option>`).join('');
+    const autoOpts = (sel: string, routes = false) => {
+      const opt = (id: string, label: string) => `<option value="${id}" ${id === sel ? 'selected' : ''}>${label}</option>`;
+      const fixed = AUTO_ROUTINES.map((r) => opt(r.id, t(`auto_${r.id}` as Key))).join('');
+      const mine = routes ? savedRoutes.map((r) => opt(routeRoutine(r).id, esc(r.name))).join('') : '';
+      return fixed + (mine ? `<optgroup label="${t('grp_routes')}">${mine}</optgroup>` : '');
+    };
     const toggle = (k: 'ai' | 'hpEnabled') => `<button class="toggle ${s[k] ? 'on' : ''}" data-tog="${k}"><i></i>${s[k] ? t('on_') : t('no_')}</button>`;
     const range = (k: keyof typeof SETTINGS_RANGE, unit: string) => {
       const r = SETTINGS_RANGE[k];
@@ -241,7 +289,7 @@ export class Menu {
         <div class="panel"><div class="form">
           <h3>${t('sec_match')}</h3>
           <label>${t('setAi')}</label>${toggle('ai')}
-          <label>${t('setPlayerAuto')}</label><select data-k="playerAuto">${autoOpts(s.playerAuto)}</select>
+          <label>${t('setPlayerAuto')}</label><select data-k="playerAuto">${autoOpts(s.playerAuto, true)}</select>
           <label>${t('setBotAuto')}</label><select data-k="botAuto">${autoOpts(s.botAuto)}</select>
           <label>${t('setAiLevel')}</label><div class="seg" data-aiseg>${AI_LEVELS.map((l) => `<button class="${l === s.aiLevel ? 'on' : ''}" data-v="${l}">${t(`ai_${l}`)}</button>`).join('')}</div>
           <p class="full sub">${t('aiNote')}</p>
@@ -252,7 +300,7 @@ export class Menu {
         <div class="panel"><div class="form">
           <h3>${t('sec_robot')}</h3>
           <label>${t('robotType')}</label>${robotSel()}
-          <p class="full sub" data-desc>${t(`type_${s.robotType}_desc` as Key)}</p>
+          <p class="full sub" data-desc>${robotDesc(s.robotType)}</p>
           <label>${t('setSpeed')}</label>${range('maxSpeed', 'm/s')}
           <label>${t('setCapacity')}</label>${range('capacity', '')}
           <h3>${t('sec_graphics')}</h3>
@@ -282,9 +330,9 @@ export class Menu {
     });
     this.root.querySelectorAll<HTMLSelectElement>('[data-robot]').forEach((sel) =>
       sel.addEventListener('change', () => {
-        const id = sel.value as MechanismKind;
+        const id = sel.value as RobotId;
         adoptRobot(s, id);
-        this.root.querySelector('[data-desc]')!.textContent = t(`type_${id}_desc` as Key);
+        this.root.querySelector('[data-desc]')!.textContent = robotDesc(id);
         // Los deslizadores de velocidad y capacidad muestran los del robot elegido
         for (const k of ['maxSpeed', 'capacity'] as const) {
           const r = this.root.querySelector<HTMLInputElement>(`input[data-k="${k}"]`);

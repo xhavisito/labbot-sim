@@ -9,14 +9,14 @@ import * as THREE from 'three';
 import { Bot, type AutoPlan, type BotOptions, type BotOutput } from '../ai/Bot';
 import type { AiLevel } from '../ai/difficulty';
 import { Team } from '../ai/Team';
-import { AUTO_REF_SPEED, AutoRunner, LEAVE_ZONE, type AutoRoutine } from '../auto/AutoRoutine';
+import { AUTO_REF_SPEED, AutoRunner, LEAVE_ZONE, type AutoOutput, type AutoRoutine } from '../auto/AutoRoutine';
 import * as F from '../config/field';
 import { GAME, type GameConfig } from '../config/game';
 import { DEFAULT_ROBOT, type RobotSpec } from '../config/robot';
 import { isTeleop, robotsEnabled, type Phase } from '../core/clock';
 import { Match, type MatchEvent } from '../core/match';
 import type { TimedEvent } from '../core/matchLog';
-import { ALLIANCES, type Alliance } from '../core/types';
+import { ALLIANCES, type Alliance, type Level } from '../core/types';
 import type { PlayerInput } from '../input/InputManager';
 import { buildFieldColliders } from '../physics/FieldColliders';
 import { Pieces } from '../physics/Pieces';
@@ -32,6 +32,19 @@ import { Robot } from './Robot';
 import { Sensors } from './Sensors';
 
 export const PHYSICS_HZ = 120;
+
+/** Muestra anotada en un paso (pieza, Cámara, nivel y puntos que dio; 0 en práctica). */
+export interface ScoredSample {
+  piece: number;
+  alliance: Alliance;
+  level: Level;
+  points: number;
+}
+
+/** Observador de cada paso fijo (la grabadora de repeticiones, `replay/Recorder.ts`). */
+export interface SessionTap {
+  step(s: GameSession, mech: readonly MechEvent[], scored: readonly ScoredSample[]): void;
+}
 
 export interface SessionOptions {
   /** Robot que maneja el jugador (0–1 rojo, 2–3 azul). */
@@ -98,6 +111,14 @@ export class GameSession {
   private stepMechEvents: MechEvent[] = [];
   /** Tiempo de simulación (s). */
   time = 0;
+  /** Observador de cada paso (grabadora de la repetición); null = nadie graba. */
+  tap: SessionTap | null = null;
+  /** Práctica de AUTO: rutina que maneja al robot del jugador fuera del match (ignora sus controles). */
+  pilot: AutoRunner | null = null;
+  /** Práctica de AUTO: recibe lo que hizo el jugador en cada paso (para grabar la ruta). */
+  inputTap: ((o: AutoOutput) => void) | null = null;
+  /** Acciones de un disparo del jugador desde el último paso (para `inputTap`). */
+  private tapActs: Omit<AutoOutput, 'forward' | 'turn'> = {};
 
   constructor(readonly opts: SessionOptions = { player: 0, preload: true }) {
     this.game = opts.game ?? GAME;
@@ -204,13 +225,14 @@ export class GameSession {
     this.events.length = 0;
     this.matchEvents.length = 0;
     // En AUTO el robot sigue su rutina; fuera del match habilitado (PRE en match, DONE) no se mueve
-    if (!this.playerEnabled()) return;
+    if (!this.playerEnabled() || this.pilot) return;
     const m = this.player.mech;
-    if (inp.toggleIntake) m.intakeOn = !m.intakeOn;
-    if (inp.elevator !== null) m.target = inp.elevator;
-    if (inp.releaseSample) m.release('sample', this.stepMechEvents);
-    if (inp.grabCritical) m.grabCritical(this.stepMechEvents);
-    if (inp.releaseCritical) m.release('critical', this.stepMechEvents);
+    const a = this.tapActs;
+    if (inp.toggleIntake) a.intake = m.intakeOn = !m.intakeOn;
+    if (inp.elevator !== null) a.elevator = m.target = inp.elevator;
+    if (inp.releaseSample) a.release = m.release('sample', this.stepMechEvents) || undefined;
+    if (inp.grabCritical) a.grabCritical = m.grabCritical(this.stepMechEvents) || undefined;
+    if (inp.releaseCritical) a.releaseCritical = m.release('critical', this.stepMechEvents) || undefined;
   }
 
   /** ¿El jugador controla su robot ahora? (práctica o TELEOP) */
@@ -230,6 +252,7 @@ export class GameSession {
       let slow = false;
       const b = this.bots[r.index];
       const bot = !b || !m ? null : phase === 'AUTO' ? (b.opts.auto !== 'none' ? b : null) : isTeleop(phase) && b.opts.teleop ? b : null;
+      const runner = m && phase === 'AUTO' ? this.autos[r.index] : !m && r === this.player ? this.pilot : null;
       if (bot) {
         const o = bot.step(dt, phase, m ? m.remaining : Infinity);
         forward = o.forward;
@@ -239,17 +262,22 @@ export class GameSession {
         if (o.release) r.mech.release('sample', this.stepMechEvents);
         if (o.grabCritical) r.mech.grabCritical(this.stepMechEvents);
         if (o.releaseCritical) r.mech.release('critical', this.stepMechEvents);
-      } else if (m && phase === 'AUTO') {
-        const o = this.autos[r.index].step(dt);
-        forward = Math.max(-1, Math.min(1, (o.forward * AUTO_REF_SPEED) / r.spec.maxSpeed));
+      } else if (runner) {
+        const o = runner.step(dt);
+        forward = Math.max(-1, Math.min(1, o.raw ? o.forward : (o.forward * AUTO_REF_SPEED) / r.spec.maxSpeed));
         turn = o.turn;
         if (o.elevator !== undefined) r.mech.target = o.elevator;
         if (o.intake !== undefined) r.mech.intakeOn = o.intake;
         if (o.release) r.mech.release('sample', this.stepMechEvents);
+        if (o.grabCritical) r.mech.grabCritical(this.stepMechEvents);
+        if (o.releaseCritical) r.mech.release('critical', this.stepMechEvents);
       } else if (enabled && r === this.player && this.input) {
         forward = this.input.forward;
         turn = this.input.turn;
         slow = this.input.slow;
+        const k = slow ? 0.5 : 1;
+        this.inputTap?.({ forward: forward * k, turn: turn * k, ...this.tapActs });
+        this.tapActs = {};
       }
       if (!enabled) r.mech.intakeOn = false;
       const k = slow ? 0.5 : 1;
@@ -264,10 +292,11 @@ export class GameSession {
     this.referee.drainCollisions();
 
     // Sensores → puntuación
+    const scored: ScoredSample[] = [];
     for (const s of this.sensors.newSamples()) {
       const at = s.piece.body.translation();
       this.scoreFx.push({ x: at.x, y: at.y, z: at.z, alliance: s.alliance });
-      if (m) m.scoreSample(s.alliance, s.level, s.piece.lastRobot);
+      if (m) scored.push({ piece: s.piece.index, alliance: s.alliance, level: s.level, points: m.scoreSample(s.alliance, s.level, s.piece.lastRobot) });
       else {
         this.practiceCount[s.alliance]++;
         if (this.opts.solo) this.sink.set(s.piece.index, 0);
@@ -277,6 +306,7 @@ export class GameSession {
     if (m && phase === 'AUTO') for (const r of this.robots) if (this.sensors.outOfStartZone(r)) m.crossAutoLine(r.alliance, r.index);
     this.referee.step(dt, phase, this.stepMechEvents);
     this.events.push(...this.stepMechEvents);
+    const mechEvents = this.tap ? this.stepMechEvents.slice() : [];
     this.stepMechEvents.length = 0;
 
     if (m && !m.finished) {
@@ -297,6 +327,22 @@ export class GameSession {
     }
     this.pieceView.capture();
     for (const v of this.robotViews) v.capture();
+    this.tap?.step(this, mechEvents, scored);
+  }
+
+  /**
+   * Pone las vistas justo en la pose actual de los cuerpos, sin interpolar (la repetición mueve los
+   * cuerpos a mano y nunca da pasos de física).
+   */
+  snapViews(): void {
+    this.pieceView.capture();
+    this.pieceView.capture();
+    this.pieceView.sync(1);
+    for (const v of this.robotViews) {
+      v.capture();
+      v.capture();
+      v.sync(1);
+    }
   }
 
   /** El vacío de la Cámara: las Muestras anotadas en práctica regresan a la reserva del HP. */
