@@ -54,7 +54,7 @@ export interface PauseInfo {
 
 const ROBOTS = [0, 1, 2, 3];
 /** ¿El tipo saca las Muestras por atrás? (se anota de reversa; ver `type_*_desc`). */
-const SCORES_BACK: Record<MechanismKind, boolean> = { generic: false, elevator: true, pivot: false, tower: true, chassis: false };
+const SCORES_BACK: Record<MechanismKind, boolean> = { generic: false, elevator: true, pivot: false, pivotHopper: false, tower: true, chassis: false };
 
 /** Medidas del chasis del robot (cm), para la vitrina del menú. */
 const chassisSize = (id: RobotId): string => `${Math.round(robotSpec(id).length * 100)} × ${Math.round(robotSpec(id).width * 100)} cm`;

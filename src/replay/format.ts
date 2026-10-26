@@ -19,9 +19,10 @@ export const ROBOT_VALUES = 10;
 export const PIECE_VALUES = 8;
 export const PHASES = ['PRE', 'AUTO', 'PAUSE', 'TELEOP', 'ENDGAME', 'DONE'] as const;
 
-/** Banderas del robot: intake desplegada, Muestra Crítica en el robot y Muestras guardadas (bits 2+). */
+/** Banderas del robot: intake desplegada, Muestra Crítica en el robot, Muestras guardadas (bits 2–11) y Muestra en la garra del pivote (bit 12). */
 export const FLAG_INTAKE = 1;
 export const FLAG_CRITICAL = 2;
+export const FLAG_CLAW = 1 << 12;
 
 /** Lo que pasó en el match, con el robot que lo hizo (las Muestras se atribuyen a quien las soltó). */
 export type ReplayEvent =
@@ -82,6 +83,8 @@ export interface RobotFrame {
   intake: boolean;
   critical: boolean;
   stored: number;
+  /** Muestra en la garra (repeticiones viejas: no se grababa). */
+  claw: boolean;
 }
 
 export function frameTime(r: Replay, f: number): number {
@@ -106,7 +109,8 @@ export function robotFrame(r: Replay, f: number, i: number): RobotFrame {
     angle: d[o + 8] / 1e4,
     intake: (flags & FLAG_INTAKE) !== 0,
     critical: (flags & FLAG_CRITICAL) !== 0,
-    stored: flags >> 2,
+    stored: (flags >> 2) & 0x3ff,
+    claw: (flags & FLAG_CLAW) !== 0,
   };
 }
 

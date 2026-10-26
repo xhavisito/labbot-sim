@@ -78,6 +78,9 @@ tests/                    clock, scoring, fouls/cards, rp, match (casos borde), 
    por atrás) y Pivote (brazo con garra), elegibles en el menú.
    *Hecho:* `RobotSpec.mechanism` + presets en `config/robot.ts`; `Mechanisms` saca las piezas al
    frente, atrás o en la punta del brazo; la IA anota de reversa con el elevador.
+   *Pivote con hopper* (idea del equipo, 26-oct): `pivotHopper`, brazo con garra entre las paredes de
+   un hopper de 4; la garra pasa cada Muestra al hopper y la saca para anotar. Diseño en MDF en
+   `docs/pivote-hopper.md`.
 7. **Scouting y estrategia** (pedido después) — registro por equipo y match (simulado o capturado),
    tabla, calendario de clasificación, selección de alianzas y pronóstico de eliminatorias.
    *Hecho:* cada Muestra recuerda el robot que la soltó (`Piece.lastRobot`) y el match guarda quién

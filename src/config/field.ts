@@ -155,3 +155,6 @@ export function rectFor(a: Alliance, r: Rect): Rect {
   return a === 'red' ? { ...r } : { x0: -r.x1, x1: -r.x0, z0: -r.z1, z1: -r.z0 };
 }
 export const inRect = (r: Rect, x: number, z: number): boolean => x >= r.x0 && x <= r.x1 && z >= r.z0 && z <= r.z1;
+/** ¿El punto está dentro de alguna Cámara de Seguridad (las dos alianzas)? */
+export const inCamara = (x: number, z: number): boolean =>
+  (['red', 'blue'] as const).some((a) => inRect(rectFor(a, { x0: CAMARA_X_END_RED - CAMARA_LENGTH, x1: CAMARA_X_END_RED, z0: CAMARA_Z_RED[0], z1: CAMARA_Z_RED[1] }), x, z));

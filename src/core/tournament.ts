@@ -360,6 +360,8 @@ export function resultFromMatch(m: Match, t: Tournament, tm: TMatch): MatchResul
 const PROFILES: Record<MechanismKind, { auto: LevelCounts; tele: LevelCounts; line: number; platform: number; crit: number; critPref: number; fouls: number; tech: number }> = {
   tower: { auto: [0, 0.31, 0.94], tele: [0.56, 0.06, 9.5], line: 1, platform: 1, crit: 0.9, critPref: 2, fouls: 0.05, tech: 0.06 },
   pivot: { auto: [0, 0.06, 1.13], tele: [0.13, 0.25, 4.75], line: 1, platform: 1, crit: 0.95, critPref: 3, fouls: 0.05, tech: 0.06 },
+  // Pivote con hopper: medido con `npm run batch -- --set mech` entre pivotes con hopper, escalado como el pivote
+  pivotHopper: { auto: [0, 0.05, 0.7], tele: [0.3, 0.6, 5.0], line: 1, platform: 1, crit: 0.92, critPref: 3, fouls: 0.05, tech: 0.06 },
   elevator: { auto: [0.06, 0.19, 0.69], tele: [0, 1.13, 10.94], line: 1, platform: 1, crit: 0.4, critPref: 0.5, fouls: 0.05, tech: 0 },
   generic: { auto: [0.06, 0.06, 1.06], tele: [0.13, 0.06, 10.5], line: 1, platform: 1, crit: 0.6, critPref: 1, fouls: 0.05, tech: 0 },
   chassis: { auto: [0, 0, 0], tele: [0, 0, 0], line: 1, platform: 1, crit: 0, critPref: 0, fouls: 0.05, tech: 0.81 },

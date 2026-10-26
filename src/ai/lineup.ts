@@ -5,7 +5,7 @@
  */
 import type { MechanismKind } from '../config/robot';
 
-export const AI_TYPES: readonly MechanismKind[] = ['generic', 'elevator', 'pivot', 'tower'];
+export const AI_TYPES: readonly MechanismKind[] = ['generic', 'elevator', 'pivot', 'pivotHopper', 'tower'];
 
 /**
  * Tipo de cada uno de los 4 robots (0–1 rojo, 2–3 azul): `player` lleva `playerType` (−1 = ninguno,

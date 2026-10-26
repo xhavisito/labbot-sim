@@ -4,13 +4,18 @@
  * - elevator: igual, pero la plataforma del elevador está atrás y empuja las piezas hacia atrás.
  * - pivot: brazo con garra; agarra una pieza del piso con el brazo abajo y la suelta en la punta.
  *   Empieza guardado (`ArmSpec.stowAngle`) y sale de ahí al primer mando.
+ * - pivotHopper: el mismo brazo con garra y un hopper atrás. Con la garra encendida, cada Muestra que
+ *   agarra del piso la lleva a la boca del hopper (`ArmSpec.hopperAngle`) y regresa al piso; con la
+ *   garra apagada y vacía, el brazo saca la siguiente del hopper y vuelve a la posición pedida. La
+ *   Crítica va en la garra aunque el hopper tenga Muestras.
  * - tower: intake al frente y torre fija: las Muestras salen atrás a `sampleExit`; el elevador solo
  *   mueve la pala de la Crítica, que está al frente.
  * - chassis: sin mecanismo: no toma ni suelta piezas; solo lleva la precarga.
  * Las piezas guardadas son lógicas (cuerpo deshabilitado); al soltarlas vuelven a la física en la
  * punta del mecanismo, así que anotar depende de dónde caen (lo detecta la sesión).
  */
-import { armAngle, armTip, type ElevatorPos } from '../config/robot';
+import { inCamara } from '../config/field';
+import { armAngle, armTip, hasArm, type ElevatorPos } from '../config/robot';
 import type { Alliance } from '../core/types';
 import type { Piece, Pieces } from '../physics/Pieces';
 import type { RobotPhysics } from '../physics/RobotPhysics';
@@ -36,6 +41,10 @@ export class Mechanisms {
   angle = 0;
   /** Brazo del pivote en su posición de guardado del inicio. */
   stowed = false;
+  /** Pivote: la garra lleva una Muestra (la última de `stored`); en `pivotHopper` las demás van en el hopper. */
+  inClaw = false;
+  /** `pivotHopper`: segundos con la garra en la boca del hopper (pasando una Muestra). */
+  private transferT = 0;
   private cooldown = 0;
 
   constructor(
@@ -59,15 +68,35 @@ export class Mechanisms {
 
   /** ¿Puede soltar una Muestra ya? (elevador o brazo en su posición; la torre siempre). */
   get atTarget(): boolean {
-    const k = this.phys.spec.mechanism;
+    const s = this.phys.spec;
+    const k = s.mechanism;
     if (k === 'tower' || k === 'chassis') return true;
-    return Math.abs(this.height - this.phys.spec.elevatorHeights[this.target]) < 0.01;
+    // El brazo se compara por ángulo: de camino al hopper pasa por las mismas alturas, hacia atrás
+    if (k === 'pivotHopper' && s.arm) return !this.stowed && this.hopperTask() === null && Math.abs(this.angle - armAngle(s.arm, s.elevatorHeights[this.target])) < 0.01;
+    return Math.abs(this.height - s.elevatorHeights[this.target]) < 0.01;
+  }
+
+  /** Muestras en el hopper (las guardadas que no van en la garra). */
+  get inHopper(): number {
+    return this.phys.spec.mechanism === 'pivotHopper' ? this.stored.length - (this.inClaw ? 1 : 0) : 0;
+  }
+
+  /**
+   * `pivotHopper`: ¿el brazo tiene que ir a la boca del hopper? 'store' si trae una Muestra en la
+   * garra, la garra está encendida y cabe; 'fetch' si la garra está apagada y vacía (sin la Crítica)
+   * y hay Muestras en el hopper, salvo en la posición 4 (ahí se espera la Crítica con la garra vacía).
+   */
+  hopperTask(): 'store' | 'fetch' | null {
+    if (this.phys.spec.mechanism !== 'pivotHopper' || this.stowed) return null;
+    if (this.inClaw && this.intakeOn && this.inHopper < this.capacity - 1) return 'store';
+    if (!this.inClaw && !this.critical && !this.intakeOn && this.inHopper > 0 && this.target !== 4) return 'fetch';
+    return null;
   }
 
   /** Posición local (adelante) del centro de una pieza de lado `size` en la punta del mecanismo. */
   tipX(size: number, kind: 'sample' | 'critical' = 'sample'): number {
     const s = this.phys.spec;
-    if (s.mechanism === 'pivot' && s.arm) return armTip(s.arm, this.angle).x;
+    if (hasArm(s.mechanism) && s.arm) return armTip(s.arm, this.angle).x;
     // La pala de la torre está al frente
     if (s.mechanism === 'tower' && kind === 'critical') return this.phys.halfL + (s.critReach ?? 0) - size / 2;
     return this.side * (this.phys.halfL + s.reach - size / 2);
@@ -84,14 +113,23 @@ export class Mechanisms {
     const s = this.phys.spec;
     const goal = s.elevatorHeights[this.target];
     if (this.stowed && (this.target !== 0 || this.intakeOn)) this.stowed = false;
-    if (s.mechanism === 'pivot' && s.arm && this.stowed) {
+    if (hasArm(s.mechanism) && s.arm && this.stowed) {
       // Guardado: no se mueve
-    } else if (s.mechanism === 'pivot' && s.arm) {
-      const g = armAngle(s.arm, goal);
+    } else if (hasArm(s.mechanism) && s.arm) {
+      const task = this.hopperTask();
+      const g = task ? (s.arm.hopperAngle ?? Math.PI) : armAngle(s.arm, goal);
       const d = g - this.angle;
       const stepA = s.arm.speed * dt;
       this.angle = Math.abs(d) <= stepA ? g : this.angle + Math.sign(d) * stepA;
-      this.height = Math.abs(d) <= stepA ? goal : armTip(s.arm, this.angle).y;
+      this.height = Math.abs(d) <= stepA && !task ? goal : armTip(s.arm, this.angle).y;
+      // En la boca del hopper: pasa la Muestra después de `transferTime`
+      if (task && Math.abs(d) <= stepA) {
+        this.transferT += dt;
+        if (this.transferT >= (s.arm.transferTime ?? 0.25)) {
+          this.transferT = 0;
+          this.inClaw = task === 'fetch';
+        }
+      } else this.transferT = 0;
     } else {
       const d = goal - this.height;
       const stepLen = s.elevatorSpeed * dt;
@@ -99,7 +137,7 @@ export class Mechanisms {
     }
     this.cooldown = Math.max(0, this.cooldown - dt);
     if (this.intakeOn && this.stored.length < this.capacity && s.mechanism !== 'chassis') {
-      if (s.mechanism === 'pivot') this.runClaw(events);
+      if (hasArm(s.mechanism)) this.runClaw(events);
       else this.runIntake(events);
     }
   }
@@ -108,13 +146,14 @@ export class Mechanisms {
     const s = this.phys.spec;
     if (!s.arm) return;
     this.stowed = s.arm.stowAngle !== undefined;
+    this.transferT = 0;
     this.angle = s.arm.stowAngle ?? armAngle(s.arm, s.elevatorHeights[0]);
     this.height = armTip(s.arm, this.angle).y;
   }
 
   /** Garra del pivote: con el brazo abajo y vacía, agarra la Muestra que queda entre sus dedos. */
   private runClaw(events: MechEvent[]): void {
-    if (this.critical || this.height > 0.06 || this.cooldown > 0) return;
+    if (this.critical || this.inClaw || this.height > 0.06 || this.cooldown > 0 || this.hopperTask()) return;
     const p = this.phys;
     const base = p.position().y;
     const cx = this.tipX(0.15);
@@ -122,10 +161,13 @@ export class Mechanisms {
       if (piece.kind !== 'sample' || piece.state.at !== 'field') continue;
       const t = piece.body.translation();
       if (t.y - base > 0.2) continue;
+      // Las anotadas quedan en el piso del pozo, tras paredes de 200–800 mm (§3.2.3): la garra no las saca
+      if (inCamara(t.x, t.z)) continue;
       const { lx, lz } = p.worldToLocalFlat(t.x, t.z);
       if (Math.abs(lx - cx) > 0.12 || Math.abs(lz) > 0.12) continue;
       this.pieces.stash(piece, { at: 'robot', robot: p.index });
       this.stored.push(piece);
+      this.inClaw = true;
       events.push({ type: 'intake', robot: p.index, piece: piece.index });
       return;
     }
@@ -155,7 +197,14 @@ export class Mechanisms {
   load(piece: Piece): void {
     this.pieces.stash(piece, { at: 'robot', robot: this.phys.index });
     if (piece.kind === 'critical') this.critical = piece;
-    else this.stored.push(piece);
+    else {
+      // El pivote la lleva en la garra (con hopper, si la garra ya trae una, va al hopper)
+      if (!hasArm(this.phys.spec.mechanism)) this.stored.push(piece);
+      else if (!this.inClaw) {
+        this.stored.push(piece);
+        this.inClaw = true;
+      } else this.stored.unshift(piece);
+    }
   }
 
   /**
@@ -164,8 +213,9 @@ export class Mechanisms {
    */
   grabCritical(events: MechEvent[]): boolean {
     if (this.critical || this.phys.spec.mechanism === 'chassis') return false;
-    // La garra del pivote lleva una sola pieza
-    if (this.phys.spec.mechanism === 'pivot' && this.stored.length > 0) return false;
+    // La garra del pivote lleva una sola pieza (con hopper, las del hopper no estorban)
+    if (hasArm(this.phys.spec.mechanism) && this.inClaw) return false;
+    if (this.phys.spec.mechanism === 'pivotHopper' && this.angle > Math.PI / 2) return false;
     const p = this.phys;
     const c = this.pieces.critical(this.alliance);
     if (c.state.at !== 'field') return false;
@@ -174,7 +224,7 @@ export class Mechanisms {
     const carriage = p.position().y + this.height;
     const k = p.spec.mechanism;
     const reachOk =
-      k === 'pivot'
+      hasArm(k)
         ? Math.abs(lx - this.tipX(0.2)) < 0.2
         : k === 'tower'
           ? lx > p.halfL - 0.1 && lx < p.halfL + (p.spec.critReach ?? 0) + 0.15
@@ -190,16 +240,23 @@ export class Mechanisms {
   /** Suelta una pieza (Muestra o Crítica) en la punta del mecanismo, a su altura, hacia afuera. */
   release(kind: 'sample' | 'critical', events: MechEvent[]): boolean {
     if (this.cooldown > 0 || this.phys.spec.mechanism === 'chassis') return false;
+    // El pivote suelta lo que trae en la garra (no lo del hopper)
+    if (kind === 'sample' && hasArm(this.phys.spec.mechanism) && !this.inClaw) return false;
     const piece = kind === 'critical' ? this.critical : this.stored[this.stored.length - 1];
     if (!piece) return false;
     if (kind === 'critical') this.critical = null;
-    else this.stored.pop();
+    else {
+      this.stored.pop();
+      this.inClaw = false;
+    }
     const p = this.phys;
     const size = this.pieces.size(piece);
     const at = p.localToWorld(this.tipX(size, kind), this.exitHeight(kind) + size / 2, 0);
     const h = p.heading();
     const v = p.body.linvel();
-    const e = (p.spec.mechanism === 'tower' && kind === 'critical' ? 1 : this.side) * EJECT_SPEED;
+    // La garra del pivote con hopper solo abre (sin empujón): suelta desde más alto que el pivote y,
+    // con empujón, la Crítica rebotaba y se pasaba de la Repisa
+    const e = p.spec.mechanism === 'pivotHopper' ? 0 : (p.spec.mechanism === 'tower' && kind === 'critical' ? 1 : this.side) * EJECT_SPEED;
     this.pieces.place(piece, at.x, at.y, at.z, h, { x: v.x + Math.cos(h) * e, y: 0, z: v.z - Math.sin(h) * e });
     piece.lastRobot = p.index;
     this.cooldown = EJECT_COOLDOWN;
@@ -211,6 +268,7 @@ export class Mechanisms {
   clear(): void {
     this.stored.length = 0;
     this.critical = null;
+    this.inClaw = false;
     this.intakeOn = false;
     this.target = 0;
     this.height = this.phys.spec.elevatorHeights[0];
