@@ -1,7 +1,7 @@
 /**
  * Aficionada en silla de ruedas junto a la cancha (solo decorativa: sin colisionador, fuera del
- * área de juego y del margen de §3.1). Va en la vista de la cancha y no en el público de las gradas,
- * así que se ve en todas las calidades. Geometrías fusionadas por material: 5 draw calls.
+ * área de juego y del margen de §3.1). Va en la vista de la cancha y no depende de la calidad,
+ * así que se ve en todas. Geometrías fusionadas por material: 5 draw calls.
  */
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
