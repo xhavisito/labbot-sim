@@ -112,6 +112,28 @@ describe('match completo en la física', () => {
     expect(run(125)).toEqual([]);
   });
 
+  it('un robot rival que tira la Muestra Crítica de la Repisa comete Tech Foul (§4.6, D21); el propio no', () => {
+    const run = (player: number) => {
+      const g = session(still, player);
+      g.startMatch();
+      skipTo(g, 130);
+      // La Crítica roja sobresale de la Repisa hacia la plataforma roja
+      const c = g.pieces.critical('red');
+      g.pieces.place(c, 0.19, F.REPISA_TOP + F.CRITICAL_SIZE / 2 + 0.002, 0.1);
+      steps(g, 0.5);
+      expect(g.sensors.criticalOnRepisa('red')).toBe(true);
+      // Un robot en la plataforma roja, pegado a la Repisa, la toca y la pieza sale volando hacia +Z
+      g.player.phys.teleport(0.2 + DEFAULT_ROBOT.width / 2 + 0.005, 0.1, -Math.PI / 2, F.PLATFORM_HEIGHT + 0.01);
+      steps(g, 0.3);
+      c.body.setLinvel({ x: 0, y: 0.5, z: 3 }, true);
+      steps(g, 1.5);
+      expect(g.sensors.criticalOnRepisa('red')).toBe(false);
+      return g.match!.fouls.filter((f) => f.rule === 'CRITICAL_KNOCK');
+    };
+    expect(run(2)).toEqual([expect.objectContaining({ offender: 'blue', robot: 2, kind: 'TECH' })]);
+    expect(run(1)).toEqual([]);
+  });
+
   it('el Human Player solo introduce Muestras en TELEOP y a lo más 10 (§3.2.4, §4.1.1)', () => {
     const g = session();
     g.startMatch();

@@ -39,7 +39,7 @@ Origen en el centro de la cancha, Y hacia arriba, metros.
 | ─ Nivel 2 | 689 × 600 mm, apertura a **500 mm** | X ≈ [2.23, 2.91] |
 | ─ Nivel 3 | 639 × 600 mm, apertura a **800 mm** | X ≈ [1.56, 2.23] |
 | **Campana** (§3.2.4) — también llamada "Zona de Alimentación" (§4.1, §4.3.1) | En la pared lateral, una por alianza. Pared 2000 × 610 mm. Ranura inferior 1850.80 × 160 mm a 200 mm del suelo (Muestras, todo el TeleOp). Rendija deslizable superior (Muestra Crítica). | Pared lateral −Z (lado opuesto a la Cámara), por fuera del límite: X[2.47,4.50]. |
-| ─ Barra lateral de obstáculo | 1250 × 50.80 mm; "obliga a los robots a dar la vuelta" para llegar a las muestras del HP. | Perpendicular a la pared, en X ≈ 2.47, de Z −3.50 a −2.26. Altura no dada (SUPUESTO: igual que la pared, 610 mm). |
+| ─ Barra lateral de obstáculo | 1250 × 50.80 mm; "obliga a los robots a dar la vuelta" para llegar a las muestras del HP. | Perpendicular a la pared, en X ≈ 2.47, de Z −3.50 a −2.26. Altura no dada (SUPUESTO: 200 mm, `BARRIER_HEIGHT`; basta para impedir el paso). |
 | **Plataforma de Contención** (§3.2.5) | En el centro; 2 Rampas simétricas que convergen en la Repisa de Seguridad compartida. | Eje largo a lo largo de X (cada rampa mira a su Driver Station). [fig.] ≈ 4.0 m × 1.49 m, X[−2.0,2.0], Z[−0.745,0.745]. Ancho **no dado en el texto**. |
 | ─ cada Rampa | Longitud horizontal 1800 mm = tramo inclinado de 1035.28 mm a **15°** (1000 mm horizontales, sube 268 mm) + plataforma horizontal superior de 800 mm. | Rampa roja: X 2.0→1.0 inclinada, 1.0→0.2 plana a 0.268 m. |
 | ─ Repisa de Seguridad | Escalón **300 mm** sobre la plataforma superior (≈568 mm del suelo). "Ancho accesible total ~689 mm (344.50 mm de sobresaliente por cada lado)". Accesible desde ambas alianzas. | [fig.] bloque central X[−0.2,0.2] (≈0.39 m). Choca con los 689 mm: ver D6. |
@@ -118,7 +118,7 @@ siempre los otorga; SUPUESTO).
 8. Bloquear u obstruir deliberadamente las zonas del equipo contrario.
 9. **Subir a la Plataforma antes del endgame.**
 10. **Tomar la Muestra Crítica antes del endgame.**
-11. Tirar intencionalmente la Muestra Crítica del rival de la Repisa.
+11. Tirar intencionalmente la Muestra Crítica del rival de la Repisa (el sim no juzga intención: D21).
 12. El HP coloca la Muestra Crítica en la rendija **después del inicio del AUTO**.
 
 ### 4.3 Tarjetas (§4.3.2–§4.3.4, §8.1)
@@ -162,6 +162,9 @@ elegir a Rank 2); PlayOffs todos contra todos entre alianzas y final al 2 de 3 (
   con más victorias a la final y el último eliminado; en la final gana quien gane 2.
 - Lo que no dice el manual va en D18–D20.
 
+Auditoría completa del simulador contra el manual (26-oct-2026): `labbot-sim/auditoria-manual.html`
+en la carpeta del proyecto; ahí está cada regla con su sección, qué hace el sim y si coincide.
+
 ---
 
 ## 7. Dudas y ambigüedades
@@ -178,7 +181,7 @@ elegir a Rank 2); PlayOffs todos contra todos entre alianzas y final al 2 de 3 (
 | **D8** | Zonas "de la alianza contraria" | "Marcadas como tales" (§4.3) y Tech Foul por tocar a un robot en ellas; no se dice cuáles son. | Zonas de Inicio rivales + área frente a la Campana rival + huella de la Cámara rival. |
 | **D9** | Pausa AUTO→TELEOP | Solo "la señal de sonido". | Sin pausa. |
 | **D10** | Red Card en alianza | "Pierde todos los puntos el equipo que la reciba", y en PlayOffs se suman puntajes por robot. ¿Pierde la alianza entera o solo lo aportado por ese robot? ¿Y sus RP? | La alianza queda en 0 y sin RP (como pérdida de todo el match). |
-| **D11** | Frecuencia de faltas por contacto/pinning | Cualquier contacto con un rival es Foul, pero no hay duración de pinning ni regla de "una por contacto". | Una falta por contacto nuevo (con 1 s de enfriamiento); pinning > 3 s = Foul y otra cada 3 s más. |
+| **D11** | Frecuencia de faltas por contacto/pinning | Cualquier contacto con un rival es Foul, pero no hay duración de pinning ni regla de "una por contacto". | Una falta por contacto nuevo (con 2 s de enfriamiento por par de robots, `CONTACT_COOLDOWN`); pinning > 3 s = Foul y otra cada 3 s más. |
 | **D12** | Muestras que entran justo después de la bocina / entre AUTO y TELEOP | No se menciona gracia. | Sin gracia: cuenta el instante en que cruza la apertura. |
 | D13 | Errata menor | Encabezado "Manual_Reto LamBot 2024"; 352 in ≠ 900 cm. | Se ignora. |
 | D14 | Muestra en la Cámara de la alianza contraria | "Depositar en **su** Cámara"; no dice qué pasa si cae en la otra. | Cuenta para la alianza dueña de la Cámara. |
@@ -188,6 +191,16 @@ elegir a Rank 2); PlayOffs todos contra todos entre alianzas y final al 2 de 3 (
 | D18 | Ranking de Qualifications | "De acuerdo al ranking final" (§8.2.1), sin decir el criterio. | RP promedio (2 decimales); desempates: puntos sin faltas, AUTO, ENDGAME y azar (adaptado de la Tabla 10-1 de FRC). |
 | D19 | Selección de alianzas | Solo el orden por ranking y Rank 1 ≠ Rank 2 (§8.2.1). | Los 4 primeros son capitanes y eligen 1→4 (una ronda); un capitán puede invitar a otro de menor seed y se puede rechazar (como FRC §10.6). Con 8 equipos no sobra nadie: un equipo libre tiene que aceptar. |
 | D20 | PlayOffs con 4 alianzas | "Cada alianza se enfrenta a las otras dos" (§8.2.2), pero son 4 alianzas (§8.2). | Cada una contra las otras 3 (6 series a 2 de 3). "Victorias" = series ganadas; desempate: matches ganados, puntos, seed. Empate en un match: puntos sin faltas, AUTO, ENDGAME; si sigue, se repite. Opcional: doble eliminación de rebuilt-sim. |
+| D21 | Tirar "intencionalmente" la Muestra Crítica rival de la Repisa (§4.6) | El sim no puede juzgar la intención. | Tech Foul al robot rival que la tocaba (o la dejó de tocar hace ≤ 1 s) cuando sale de la Repisa. Si la mueve el propio equipo o una pieza, no hay falta. |
+| D22 | ¿Qué es "cruzar" la línea central en AUTO? (§4.2) | No dice si basta con una parte del robot. | Solo cuando el chasis completo pasa al otro lado (lo mismo que la línea de autónomo, D1). |
+| D23 | Contacto con un rival dentro de una zona de su color | §4.5 (Foul por contacto) y §4.6 (Tech Foul por tocarlo en su zona) describen el mismo hecho. | Se cobra una sola falta: la Tech Foul (8). |
+| D24 | ¿Los 100 cm de altura (§7.2) aplican con mecanismos extendidos? | §7.2 da 40 cm de extensión "en cualquier dirección" y 100 cm de altura máxima. | La altura máxima vale todo el match (elevador arriba con la pieza incluida); los 40 cm de extensión son solo horizontales. |
+| D25 | ¿Las Yellow Cards se acumulan entre matches? (§4.3.3) | "Acumular 2 Yellow Cards" sin decir en qué periodo. | Se cuentan por match (el sim no arrastra tarjetas de un match a otro). |
+| D26 | Human Players en Qualifications | §8.2.2 dice "un human player por alianza" solo para PlayOffs. | Uno por alianza en todos los matches; mete una Muestra cada 3 s si la ranura está libre (ajustable). |
+| D27 | "Manipular las Muestras dentro de su propia área" en AUTO (§4.2) | No asigna falta. | Sin falta propia: lo cubre la de cruzar la línea central (D7, D22); la IA solo toma Muestras de su mitad. |
+| D28 | ¿Qué parte de la Plataforma cuenta? (§4.4, D5) | La estructura es compartida (§3.2.5). | Cualquier rampa (también la del rival), la plataforma superior o la Repisa. |
+| D29 | Muestra Crítica tomada antes del endgame | Es Tech Foul (§4.6); no dice si después anota. | Se cobra la Tech Foul y, si está en la Repisa al sonar la bocina, cuenta igual (15 + 1 RP). |
+| D30 | Foul "en caso especial no se otorgarán los puntos" (§4.5) y Tech Foul doble por salir de la cancha (§4.6 lo lista dos veces) | Criterio de los referees. | El sim siempre otorga los puntos; salir de la cancha es una Tech Foul por cada salida. |
 
 **Presentación del kickoff** (`2026 Robotics WinterFest.pdf`, Canva, 38 págs.): repite el manual
 con las mismas figuras y valores; no trae medidas nuevas ni ubica la línea de autónomo. Solo
