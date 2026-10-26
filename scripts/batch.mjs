@@ -5,6 +5,7 @@
 //   npm run batch -- --plans torre+torre,n3+n3 --seeds 3
 //   npm run batch -- --vs n3+n3                    cada estrategia contra una referencia
 //   npm run batch -- --workers 4 --out batch.json
+//   npm run batch -- --set mech                    solo robots con mecanismo (sin chasis ni genérico)
 //
 // Imprime una tabla por estrategia (promedios) y guarda todos los matches en JSON.
 import { fork } from 'node:child_process';
@@ -30,7 +31,7 @@ async function load() {
 if (process.env.BATCH_WORKER) {
   // Proceso hijo: recibe la lista de matches, los corre y manda cada resultado
   const { server, batch } = await load();
-  const byId = new Map(batch.ALLIANCE_PLANS.map((p) => [p.id, p]));
+  const byId = new Map(Object.values(batch.PLAN_SETS).flat().map((p) => [p.id, p]));
   process.on('message', async (jobs) => {
     for (const j of jobs) process.send(batch.runMatch(byId.get(j.red), byId.get(j.blue), j.seed));
     await server.close();
@@ -39,7 +40,8 @@ if (process.env.BATCH_WORKER) {
   process.send('ready');
 } else {
   const { server, batch } = await load();
-  const all = batch.ALLIANCE_PLANS;
+  const all = batch.PLAN_SETS[opt('set', 'all')];
+  if (!all) throw new Error(`--set desconocido; usa: ${Object.keys(batch.PLAN_SETS).join(', ')}`);
   await server.close();
   const pick = opt('plans');
   const plans = pick ? all.filter((p) => pick.split(',').includes(p.id)) : all;
@@ -75,7 +77,7 @@ if (process.env.BATCH_WORKER) {
         }),
     ),
   );
-  writeFileSync(out, JSON.stringify({ seeds, vs: vs ?? null, plans: plans.map((p) => ({ id: p.id, name: p.name, robots: p.robots.map((r) => r.id) })), results }, null, 1));
+  writeFileSync(out, JSON.stringify({ seeds, vs: vs ?? null, plans: plans.map((p) => ({ id: p.id, name: p.name, robots: p.robots.map((r) => r.id) })), robotPlans: Object.fromEntries(plans.flatMap((p) => p.robots.map((r) => [r.id, { name: r.name, type: r.spec.mechanism }]))), results }, null, 1));
 
   // Promedios por estrategia
   const rows = new Map();

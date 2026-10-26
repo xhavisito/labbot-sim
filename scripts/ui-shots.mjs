@@ -50,6 +50,29 @@ for (const d of only) {
   await click('[data-go="rules"]');
   await shot('4-rules');
   await click('[data-act="back"]');
+  // Scouting: calendario, simular (solo el escritorio simula todo; en celular, 2 matches), tabla y alianzas
+  await click('[data-go="scouting"]');
+  await shot('4b-scout-empty');
+  await click('[data-act="gen"]');
+  if (d === 'desktop') await click('[data-act="simAll"]');
+  else {
+    await click('[data-sim="Q1"]');
+    await page.waitForFunction(() => !document.querySelector('[data-prog]') || document.querySelector('[data-prog]').hidden, null, { timeout: 120000 });
+    await click('[data-sim="Q2"]');
+  }
+  await page.waitForFunction(() => !document.querySelector('[data-prog]') || document.querySelector('[data-prog]').hidden, null, { timeout: 900000 });
+  await page.waitForTimeout(300);
+  await shot('4c-scout-schedule');
+  await click('[data-tab="table"]');
+  await shot('4d-scout-table');
+  await click('[data-tab="alliances"]');
+  await shot('4e-scout-alliances');
+  await click('[data-tab="record"]');
+  await click('[data-step="t3"] [data-d="1"]');
+  await shot('4f-scout-record');
+  await click('[data-tab="teams"]');
+  await shot('4g-scout-teams');
+  await click('[data-act="back"]');
   // Práctica libre: solo el robot propio
   await click('[data-slot="2"]');
   await click('[data-act="practice"]');

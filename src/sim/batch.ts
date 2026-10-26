@@ -8,8 +8,11 @@
  */
 import type { BotOptions } from '../ai/Bot';
 import { COLLECT_HOME, LEAVE_ZONE, SCORE_PRELOAD, type AutoRoutine } from '../auto/AutoRoutine';
+import { GAME } from '../config/game';
 import { FIRST_ROBOTS, type FirstRobot } from '../config/firstRobots';
-import { CHASSIS_ROBOT, DEFAULT_ROBOT, PIVOT_ROBOT, TOWER_ROBOT, type RobotSpec } from '../config/robot';
+import { CHASSIS_ROBOT, DEFAULT_ROBOT, ELEVATOR_ROBOT, PIVOT_ROBOT, TOWER_ROBOT, type RobotSpec } from '../config/robot';
+import { entriesFromMatch, entryPoints } from '../core/scouting';
+import { rng } from '../core/rng';
 import { ALLIANCES, type Alliance } from '../core/types';
 import { GameSession } from '../game/GameSession';
 
@@ -30,6 +33,27 @@ export interface AlliancePlan {
 /** Chasis tanque sin mecanismo (base común de las sugerencias en MDF): solo cruza la línea y sube a la Plataforma. */
 const CHASSIS: RobotSpec = CHASSIS_ROBOT;
 
+/**
+ * Variantes de un robot con mecanismo (`p` = prefijo del id): N3 base, + Crítica, solo del HP, solo del
+ * Laboratorio, a Nivel 2, AUTO solo con la precarga y sin ENDGAME. `torren3` es lo mismo que `torre`
+ * (y `pivn3` que `pivote`): se repiten con ids parejos para el conjunto `mech`.
+ */
+function mechVariants(p: string, name: string, spec: RobotSpec): Record<string, RobotPlan> {
+  const v = (suffix: string, label: string, auto: AutoRoutine, bot: Partial<BotOptions>): [string, RobotPlan] => [
+    `${p}${suffix}`,
+    { id: `${p}${suffix}`, name: `${name} ${label}`, spec, auto, bot },
+  ];
+  return Object.fromEntries([
+    v('n3', 'N3', COLLECT_HOME, { level: 3 }),
+    v('crit3', 'N3 + Muestra Crítica', COLLECT_HOME, { level: 3, endgame: 'critical' }),
+    v('hp3', 'N3 desde el HP', COLLECT_HOME, { level: 3, source: 'hp' }),
+    v('lab3', 'N3 solo del Laboratorio', COLLECT_HOME, { level: 3, source: 'lab' }),
+    v('n2', 'a Nivel 2', COLLECT_HOME, { level: 2 }),
+    v('pre3', 'N3, AUTO solo precarga', SCORE_PRELOAD, { level: 3 }),
+    v('sin3', 'N3 sin ENDGAME', COLLECT_HOME, { level: 3, endgame: 'none' }),
+  ]);
+}
+
 export const ROBOT_PLANS = {
   chasis: { id: 'chasis', name: 'Chasis (línea + Plataforma)', spec: CHASSIS, auto: LEAVE_ZONE, bot: { role: 'park' } },
   n1: { id: 'n1', name: 'Genérico a Nivel 1', spec: DEFAULT_ROBOT, auto: SCORE_PRELOAD, bot: { level: 1 } },
@@ -46,6 +70,9 @@ export const ROBOT_PLANS = {
   pivote: { id: 'pivote', name: 'Pivote N3', spec: PIVOT_ROBOT, auto: COLLECT_HOME, bot: { level: 3 } },
   pivcrit: { id: 'pivcrit', name: 'Pivote N3 + Muestra Crítica', spec: PIVOT_ROBOT, auto: COLLECT_HOME, bot: { level: 3, endgame: 'critical' } },
   bloqueo: { id: 'bloqueo', name: 'Chasis que bloquea la Cámara rival', spec: CHASSIS, auto: LEAVE_ZONE, bot: { role: 'block' } },
+  ...mechVariants('torre', 'Torre', TOWER_ROBOT),
+  ...mechVariants('piv', 'Pivote', PIVOT_ROBOT),
+  ...mechVariants('elev', 'Elevador', ELEVATOR_ROBOT),
 } satisfies Record<string, RobotPlan>;
 
 /** Plan de un robot de FIRST: recolecta en AUTO y juega con la estrategia que le funcionó en su juego. */
@@ -81,8 +108,69 @@ export const ALLIANCE_PLANS: AlliancePlan[] = [
   ...FIRST_ROBOTS.map((r): AlliancePlan => ({ id: `${r.id}+${r.id}`, name: `Dos ${r.spec.label}`, robots: [firstPlan(r), firstPlan(r)] })),
 ];
 
+/**
+ * Solo robots con mecanismo (pivote, torre, elevador; sin chasis ni genérico): en el reto nadie va a
+ * llevar un chasis solo. Cada tipo consigo mismo y con los otros dos, con el reparto de papeles
+ * (quién va por la Crítica, quién junta del HP o del Laboratorio) y variantes de nivel, AUTO y ENDGAME.
+ * `npm run batch -- --set mech`.
+ */
+const TYPES = [
+  ['torre', 'Torre'],
+  ['piv', 'Pivote'],
+  ['elev', 'Elevador'],
+] as const;
+const mp = (a: string, b: string, name: string): AlliancePlan => {
+  const plans = ROBOT_PLANS as Record<string, RobotPlan>;
+  return { id: `${a}+${b}`, name, robots: [plans[a], plans[b]] };
+};
+export const MECH_ALLIANCE_PLANS: AlliancePlan[] = [
+  ...TYPES.flatMap(([p, n]) => [
+    mp(`${p}n3`, `${p}n3`, `Dos ${n} N3`),
+    mp(`${p}crit3`, `${p}n3`, `${n} con Crítica + ${n}`),
+    mp(`${p}lab3`, `${p}hp3`, `${n} Laboratorio + ${n} HP`),
+    mp(`${p}crit3`, `${p}hp3`, `${n} con Crítica + ${n} HP`),
+    mp(`${p}n2`, `${p}n3`, `${n} N2 + ${n} N3`),
+    mp(`${p}pre3`, `${p}pre3`, `Dos ${n}, AUTO solo precarga`),
+    mp(`${p}sin3`, `${p}sin3`, `Dos ${n} sin ENDGAME`),
+  ]),
+  ...([
+    [0, 1],
+    [0, 2],
+    [1, 2],
+  ] as const).flatMap(([i, j]) => {
+    const [a, an] = TYPES[i];
+    const [b, bn] = TYPES[j];
+    return [
+      mp(`${a}n3`, `${b}n3`, `${an} + ${bn}`),
+      mp(`${a}crit3`, `${b}n3`, `${an} con Crítica + ${bn}`),
+      mp(`${a}n3`, `${b}crit3`, `${an} + ${bn} con Crítica`),
+      mp(`${a}lab3`, `${b}hp3`, `${an} Laboratorio + ${bn} HP`),
+      mp(`${a}hp3`, `${b}lab3`, `${an} HP + ${bn} Laboratorio`),
+    ];
+  }),
+];
+
+/** Conjuntos de estrategias para `npm run batch -- --set <id>`. */
+export const PLAN_SETS: Record<string, AlliancePlan[]> = { all: ALLIANCE_PLANS, mech: MECH_ALLIANCE_PLANS };
+
+/** Lo que hizo cada robot (del scouting del match, `core/scouting.ts`). */
+export interface RobotResult {
+  plan: string;
+  points: number;
+  auto: number;
+  teleop: number;
+  endgame: number;
+  samples: number;
+  n3: number;
+  autoLine: boolean;
+  platform: boolean;
+  critical: boolean;
+  foulPts: number;
+}
+
 export interface AllianceResult {
   plan: string;
+  robots: [RobotResult, RobotResult];
   total: number;
   /** Puntos propios (sin los que regalan las faltas del rival). */
   own: number;
@@ -110,17 +198,7 @@ export interface MatchResult {
   blue: AllianceResult;
 }
 
-/** Generador pseudoaleatorio reproducible (mulberry32). */
-export function rng(seed: number): () => number {
-  let a = seed >>> 0;
-  return () => {
-    a = (a + 0x6d2b79f5) >>> 0;
-    let t = a;
-    t = Math.imul(t ^ (t >>> 15), t | 1);
-    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-}
+export { rng };
 
 /**
  * Un match completo de solo IA. `seed` varía un poco la pose inicial (±3 cm, ±3°) y el ritmo del
@@ -147,6 +225,23 @@ export function runMatch(red: AlliancePlan, blue: AlliancePlan, seed = 1): Match
     const m = g.match!;
     for (let i = 0; i < 152 * 120 && !m.finished; i++) g.step();
     const res = {} as Record<Alliance, AllianceResult>;
+    const scout = entriesFromMatch(m, plans.map((p) => p.id), 'batch');
+    const robots: RobotResult[] = scout.map((e) => {
+      const pt = entryPoints(e, GAME);
+      return {
+        plan: e.team,
+        points: pt.total,
+        auto: pt.auto,
+        teleop: pt.teleop,
+        endgame: pt.endgame,
+        samples: e.samplesAuto.reduce((x, y) => x + y, 0) + e.samplesTeleop.reduce((x, y) => x + y, 0),
+        n3: e.samplesAuto[2] + e.samplesTeleop[2],
+        autoLine: e.autoLine,
+        platform: e.platform,
+        critical: e.critical,
+        foulPts: pt.foulPts,
+      };
+    });
     for (const a of ALLIANCES) {
       const b = m.breakdown(a);
       const rp = m.rankingPoints(a);
@@ -155,6 +250,7 @@ export function runMatch(red: AlliancePlan, blue: AlliancePlan, seed = 1): Match
       const other = a === 'red' ? 'blue' : 'red';
       res[a] = {
         plan: a === 'red' ? red.id : blue.id,
+        robots: a === 'red' ? [robots[0], robots[1]] : [robots[2], robots[3]],
         total: b.total,
         own: b.subtotal - b.penalties,
         autoLine: b.autoLine,

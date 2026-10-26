@@ -18,6 +18,7 @@ import { CAMERA_MODES, type CameraMode } from '../render/CameraRig';
 import { padHelp } from './controlsHelp';
 import { backBtn, brandbar, ic, kbds, langChips, robotSilhouette } from './chrome';
 import { getLang, setLang, t, type Key } from './i18n';
+import type { ScoutPlay } from './Scouting';
 import { isIos, isStandalone, promptInstall, pwa } from '../pwa/register';
 
 const esc = (v: string): string => v.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
@@ -26,6 +27,8 @@ export interface MenuChoice {
   /** 'auto' = práctica de AUTO (`ui/AutoPractice.ts`): solo tu robot, grabar y probar rutas. */
   mode: 'match' | 'practice' | 'auto';
   player: number;
+  /** Match del calendario del Scouting (equipos y sus robots); su registro se guarda al terminar. */
+  scout?: ScoutPlay;
 }
 
 /** Lo que la pausa muestra y puede cambiar de la partida en curso. */
@@ -82,6 +85,8 @@ export class Menu {
   onEditor: () => void = () => undefined;
   readonly root: HTMLElement;
   player = 0;
+  /** Abre la pantalla de Scouting (la conecta App). */
+  onScouting: () => void = () => undefined;
 
   constructor(
     host: HTMLElement,
@@ -146,6 +151,7 @@ export class Menu {
             ${tool('settings', ic.sliders, 'settings', 'settingsDesc')}
             ${tool('controls', ic.gamepad, 'controlsTitle', 'controlsDesc')}
             ${tool('rules', ic.book, 'rules', 'rulesDesc')}
+            ${tool('scouting', ic.clipboard, 'scouting', 'scoutingDesc')}
           </div>
           <div class="mm-timeline late" aria-hidden="true">
             <div class="tl-head"><span>${t('mm_timeline')}</span><small>${t('mm_tlNote')}</small></div>
@@ -189,6 +195,7 @@ export class Menu {
     this.on('[data-go="settings"]', () => this.settingsPanel());
     this.on('[data-go="controls"]', () => this.controlsPanel(() => this.main()));
     this.on('[data-go="rules"]', () => this.rulesPanel());
+    this.on('[data-go="scouting"]', () => this.onScouting());
     this.on('[data-lang]', (el) => {
       if (el.dataset.lang === getLang()) return;
       setLang(el.dataset.lang === 'en' ? 'en' : 'es');
@@ -533,7 +540,8 @@ export class Menu {
   }
 
   // ------------------------------------------------------------------ resultados
-  results(m: Match, onRestart: () => void, onMenu: () => void, onDownload: () => void, player: number): void {
+  /** `note`: aviso arriba de las acciones (p. ej. que el match se guardó en el scouting). */
+  results(m: Match, onRestart: () => void, onMenu: () => void, onDownload: () => void, player: number, note = ''): void {
     const b = { red: m.breakdown('red'), blue: m.breakdown('blue') };
     const rp = { red: m.rankingPoints('red'), blue: m.rankingPoints('blue') };
     const row = (label: string, f: (a: Alliance) => string | number, cls = '') => `<tr class="${cls}"><td>${label}</td>${ALLIANCES.map((a) => `<td>${f(a)}</td>`).join('')}</tr>`;
@@ -573,6 +581,7 @@ export class Menu {
           <tr><td>${t('rp')}</td>${ALLIANCES.map((a) => `<td>${rpCell(a)}</td>`).join('')}</tr>
         </table>
         <h3>${t('fouls')}</h3><ul class="fouls">${fouls}</ul>
+        ${note ? `<div class="msg ok">${ic.check}${note}</div>` : ''}
         <div class="actions">
           <button class="btn primary" data-act="restart">${ic.reset}<span>${t('playAgain')}</span></button>
           <button class="btn" data-act="menu">${ic.home}<span>${t('backToMenu')}</span></button>

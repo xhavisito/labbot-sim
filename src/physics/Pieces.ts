@@ -20,6 +20,8 @@ export interface Piece {
   body: RAPIER.RigidBody;
   collider: RAPIER.Collider;
   state: PieceState;
+  /** Último robot que la soltó (para el scouting: quién anotó). Se borra si el HP o el acomodo la ponen. */
+  lastRobot?: number;
 }
 
 /** Fricción de la espuma: no se da. SUPUESTO 0.8 (cubo de espuma sobre alfombra). */
@@ -70,6 +72,7 @@ export class Pieces {
     p.body.setLinvel(vel ?? { x: 0, y: 0, z: 0 }, true);
     p.body.setAngvel({ x: 0, y: 0, z: 0 }, true);
     p.state = { at: 'field' };
+    p.lastRobot = undefined;
   }
 
   /** Saca una pieza de la cancha (guardada en un robot o en la reserva del HP). */

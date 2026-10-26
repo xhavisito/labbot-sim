@@ -19,6 +19,7 @@ npm run build        # revisa tipos y genera el sitio estático en dist/
 npm run preview      # sirve dist/
 npm run batch        # matches de solo IA entre estrategias de alianza (sin navegador): tabla de puntos, RP y faltas
                      #   --plans torre+torre,n3+n3  --vs n3+n3  --seeds 3  --workers 4  --out batch.json
+                     #   --set mech: solo Pivote, Torre y Elevador (sin chasis ni genérico), con puntos por robot
 npm run shots        # capturas con Playwright en shots/ (requiere build; en la nube: CHROMIUM_PATH=/opt/pw-browsers/chromium; --mobile = celular)
 ```
 
@@ -70,6 +71,11 @@ En el menú eliges tu robot (Rojo 1–2, Azul 1–2) y el modo:
   (por defecto, salen de su Zona de Inicio). En el TELEOP (135 s) manejas tu robot, y en el ENDGAME
   (últimos 30 s) se habilitan la Plataforma y la Muestra Crítica. Al final verás el desglose de
   puntos, RP y faltas.
+- **Scouting** (en el menú): equipos del reto y su tipo de robot; formato del torneo (SUPUESTO,
+  configurable: el manual no lo define) y calendario de clasificación, donde cada match se puede
+  simular con la IA, jugar tú o capturar a mano viendo uno real; tabla por equipo (puntos, N3,
+  Plataforma, Crítica, faltas, constancia, RP) y alianzas sugeridas con el mejor compañero, el reparto
+  de papeles y el pronóstico de eliminatorias. Se guarda en el navegador; exporta JSON y CSV.
 - **Práctica libre:** sin reloj ni faltas; el marcador cuenta las Muestras anotadas.
   Backspace reacomoda la cancha.
 - **Tipo de robot** (en el menú, y el de los demás robots en Ajustes):
@@ -142,7 +148,9 @@ src/
               game.ts (tiempos, puntos, faltas y RP, §4.4–§4.6), robot.ts (límites §7.2),
               settings.ts (ajustes del usuario), customRobots.ts (robots del editor: masa con MDF,
               velocidad por reducción y revisión de §7.1–§7.3)
-  core/       lógica pura y probada: clock.ts, match.ts (puntuación y RP), fouls.ts, matchLog.ts, types.ts
+  core/       lógica pura y probada: clock.ts, match.ts (puntuación y RP), fouls.ts, matchLog.ts, types.ts,
+              scouting.ts (registro por robot, resumen por equipo, predicción de alianzas),
+              tournament.ts (calendario, selección de alianzas y eliminatorias; formato SUPUESTO)
   physics/    Rapier: PhysicsWorld, FieldColliders, Pieces (pool de Muestras), RobotPhysics (tanque)
   game/       GameSession (une todo), Robot, Mechanisms, Sensors (anotación), HumanPlayer
   referee/    Referee.ts: faltas automáticas
@@ -151,7 +159,8 @@ src/
   ai/         Bot.ts: IA de los robots (recolectar → anotar → Plataforma o Muestra Crítica en el ENDGAME;
               papeles: anotar, solo chasis, bloquear; fuente: Laboratorio, Human Player o ambos)
   sim/        compare.ts: comparación de score del editor (matches de IA por partes, sin congelar la UI)
-  sim/        batch.ts: estrategias de alianza y matches de solo IA sin render (npm run batch)
+  sim/        batch.ts: estrategias de alianza y matches de solo IA sin render (npm run batch);
+              quickSim.ts: simular un match del calendario del Scouting en el navegador
   render/     Three.js: Renderer, FieldView, PieceView, RobotView, CameraRig
   input/      teclado, gamepad y touch; bindings.ts (asignación reasignable)
   ui/         i18n (es-MX / en), HUD, menús, resultados, Controles y TouchControls
