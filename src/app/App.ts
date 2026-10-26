@@ -90,7 +90,6 @@ export class App {
     this.session = new GameSession();
     this.renderer.scene.add(this.session.root, this.arena.group, this.effects.points);
     this.renderer.onQuality.push((p) => {
-      this.arena.setDensity(p.crowd);
       this.effects.amount = p.particles;
     });
     this.applyQuality();
@@ -463,13 +462,9 @@ export class App {
       this.hud.events(this.session.matchEvents);
       this.hud.update(this.session, this.cam.mode);
       this.touch.setIntake(this.session.player.mech.intakeOn);
-      for (const f of this.session.scoreFx) {
-        this.effects.burst(f.x, f.y, f.z, f.alliance);
-        this.arena.cheer(0.3);
-      }
+      for (const f of this.session.scoreFx) this.effects.burst(f.x, f.y, f.z, f.alliance);
       const m = this.session.match;
       if (m?.finished) {
-        this.arena.cheer(1);
         this.state = 'results';
         this.updateTouch();
         const sc = this.choice.scout;
@@ -495,7 +490,7 @@ export class App {
     if (this.state !== 'paused' && this.state !== 'replay') this.session.update(this.state === 'playing' ? 0 : dt);
     this.watchFps(dt);
     this.effects.update(this.state === 'paused' ? 0 : dt);
-    this.arena.update(dt, now / 1000, this.cam.camera.position.y);
+    this.arena.update(now / 1000, this.cam.camera.position.y);
     const sm = this.session.match;
     const sb = this.replay?.scoreboard;
     if (sb) this.arena.setScreen(sb.timer, String(sb.red), String(sb.blue));
