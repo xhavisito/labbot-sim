@@ -84,6 +84,8 @@ export class ReplayPlayer {
       m.stored.length = 0;
       for (let j = 0; j < near.stored; j++) m.stored.push(spare);
       m.critical = near.critical ? spare : null;
+      // Repeticiones de antes del pivote con hopper: la garra del pivote lleva lo único que guarda
+      m.inClaw = near.claw || (rb.spec.mechanism === 'pivot' && near.stored > 0);
     });
     s.pieces.list.forEach((p, i) => {
       const a = pieceFrame(r, f0, i);

@@ -139,11 +139,11 @@ export class Hud {
     const me = s.player;
     const mech = me.mech;
     const kind = me.spec.mechanism;
-    const elevLabel = t(kind === 'pivot' ? 'arm' : kind === 'tower' ? 'scoop' : 'elevator');
+    const elevLabel = t(kind === 'pivot' || kind === 'pivotHopper' ? 'arm' : kind === 'tower' ? 'scoop' : 'elevator');
     const elev = mech.stowed ? t('stowed') : t('elevatorNames').split('|')[mech.target];
     const time = m ? formatTimer(timerSeconds(m.t, s.game)) : '';
     const score = { red: m ? m.score('red') : s.practiceCount.red, blue: m ? m.score('blue') : s.practiceCount.blue };
-    const key = `${score.red}|${score.blue}|${time}|${m?.phase}|${me.index}|${mech.capacity}|${mech.stored.length}|${!!mech.critical}|${elev}|${mech.intakeOn}|${cam}`;
+    const key = `${score.red}|${score.blue}|${time}|${m?.phase}|${me.index}|${mech.capacity}|${mech.stored.length}|${!!mech.critical}|${elev}|${mech.intakeOn}|${mech.inClaw}|${cam}`;
     if (key === this.lastKey) return;
     this.lastKey = key;
     this.root.classList.toggle('practice', !m);
@@ -187,7 +187,9 @@ export class Hud {
         kind === 'chassis'
           ? `<span class="off">${t('noMechanism')}</span>`
           : `<span class="${mech.intakeOn ? 'on' : 'off'}">${t('intake')} ${mech.intakeOn ? t('on') : t('off')}</span>
-        <span class="${mech.critical ? 'on' : 'off'}">${t('critical')} ${mech.critical ? '■' : '–'}</span>
+        <span class="${mech.critical ? 'on' : 'off'}">${t('critical')} ${mech.critical ? '■' : '–'}</span>${
+          kind === 'pivotHopper' ? `<span class="${mech.inClaw ? 'on' : 'off'}">${t('claw')} ${mech.inClaw ? '■' : '–'} · ${t('hopper')} ${mech.inHopper}</span>` : ''
+        }
         <span>${elevLabel}: ${elev}</span>`
       }</div>`;
     this.camLabel.querySelector('span')!.textContent = t(`cam_${cam}` as Key);

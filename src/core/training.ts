@@ -68,11 +68,11 @@ export const drillById = (id: string): Drill | undefined => DRILLS.find((d) => d
 /**
  * Ritmo de cada tipo de robot comparado con el genérico, para que la medalla sea justa con robots
  * que llevan menos piezas. Sale de las Muestras de N3 por match de la IA difícil en la física
- * (`core/tournament.ts`, PROFILES: genérico 10.5, elevador 10.9, torre 9.5, pivote 4.75) y de sus
+ * (`core/tournament.ts`, PROFILES: genérico 10.5, elevador 10.9, torre 9.5, pivote 4.75, pivote con hopper ≈ el pivote) y de sus
  * tiempos al principio del TELEOP (el pivote anota cada ≈8 s, pero de una en una). SUPUESTO de
  * diseño. El chasis no anota.
  */
-export const PACE: Record<MechanismKind, number> = { generic: 1, elevator: 1, tower: 1.1, pivot: 1.5, chassis: 1 };
+export const PACE: Record<MechanismKind, number> = { generic: 1, elevator: 1, tower: 1.1, pivot: 1.5, pivotHopper: 1.5, chassis: 1 };
 
 /** ¿Puede este tipo de robot hacer el reto? (el chasis no toma ni suelta piezas) */
 export function canPlay(d: Drill, mech: MechanismKind): boolean {

@@ -5,7 +5,7 @@
  */
 import type { MechEvent } from '../game/Mechanisms';
 import type { GameSession, ScoredSample, SessionTap } from '../game/GameSession';
-import { FLAG_CRITICAL, FLAG_INTAKE, FRAME_HEAD, frameSize, PHASES, PIECE_VALUES, REPLAY_HZ, ROBOT_VALUES, toAngle, toMm, toQ, type Replay, type ReplayEvent, type ReplayHeader } from './format';
+import { FLAG_CLAW, FLAG_CRITICAL, FLAG_INTAKE, FRAME_HEAD, frameSize, PHASES, PIECE_VALUES, REPLAY_HZ, ROBOT_VALUES, toAngle, toMm, toQ, type Replay, type ReplayEvent, type ReplayHeader } from './format';
 
 /** Cuadros por bloque de memoria (≈ 20 s). */
 const CHUNK = 300;
@@ -91,7 +91,7 @@ export class Recorder implements SessionTap {
       d[o + 6] = toQ(q.w);
       d[o + 7] = toMm(mc.height);
       d[o + 8] = toAngle(mc.angle);
-      d[o + 9] = (mc.intakeOn ? FLAG_INTAKE : 0) | (mc.critical ? FLAG_CRITICAL : 0) | (mc.stored.length << 2);
+      d[o + 9] = (mc.intakeOn ? FLAG_INTAKE : 0) | (mc.critical ? FLAG_CRITICAL : 0) | (mc.stored.length << 2) | (mc.inClaw ? FLAG_CLAW : 0);
       o += ROBOT_VALUES;
     }
     for (const p of s.pieces.list) {

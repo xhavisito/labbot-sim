@@ -58,15 +58,15 @@ const DRIVE: NumField[] = [
   { k: 'wheels', label: 'ed_wheels', unit: '', step: 1 },
 ];
 const MECH: NumField[] = [
-  { k: 'intakeCm', label: 'ed_intake', unit: 'cm', step: 1, not: ['pivot', 'chassis'] },
-  { k: 'intakeWidthCm', label: 'ed_intakeWidth', unit: 'cm', step: 1, not: ['pivot', 'chassis'] },
-  { k: 'reachCm', label: 'ed_reach', unit: 'cm', step: 1, not: ['pivot', 'chassis'] },
+  { k: 'intakeCm', label: 'ed_intake', unit: 'cm', step: 1, not: ['pivot', 'pivotHopper', 'chassis'] },
+  { k: 'intakeWidthCm', label: 'ed_intakeWidth', unit: 'cm', step: 1, not: ['pivot', 'pivotHopper', 'chassis'] },
+  { k: 'reachCm', label: 'ed_reach', unit: 'cm', step: 1, not: ['pivot', 'pivotHopper', 'chassis'] },
   { k: 'capacity', label: 'ed_capacity', unit: '', step: 1, not: ['pivot', 'chassis'] },
-  { k: 'liftSpeed', label: 'ed_liftSpeed', unit: 'm/s', step: 0.1, not: ['pivot', 'chassis'] },
-  { k: 'liftSpeed', label: 'ed_armSpeed', unit: 'rad/s', step: 0.1, only: ['pivot'] },
-  { k: 'armPivotXCm', label: 'ed_pivotX', unit: 'cm', step: 1, only: ['pivot'] },
-  { k: 'armPivotYCm', label: 'ed_pivotY', unit: 'cm', step: 1, only: ['pivot'] },
-  { k: 'armLengthCm', label: 'ed_armLength', unit: 'cm', step: 1, only: ['pivot'] },
+  { k: 'liftSpeed', label: 'ed_liftSpeed', unit: 'm/s', step: 0.1, not: ['pivot', 'pivotHopper', 'chassis'] },
+  { k: 'liftSpeed', label: 'ed_armSpeed', unit: 'rad/s', step: 0.1, only: ['pivot', 'pivotHopper'] },
+  { k: 'armPivotXCm', label: 'ed_pivotX', unit: 'cm', step: 1, only: ['pivot', 'pivotHopper'] },
+  { k: 'armPivotYCm', label: 'ed_pivotY', unit: 'cm', step: 1, only: ['pivot', 'pivotHopper'] },
+  { k: 'armLengthCm', label: 'ed_armLength', unit: 'cm', step: 1, only: ['pivot', 'pivotHopper'] },
   { k: 'exitCm', label: 'ed_exit', unit: 'cm', step: 1, only: ['tower'] },
 ];
 const MATERIAL: NumField[] = [

@@ -17,7 +17,7 @@
  */
 import * as F from '../config/field';
 import { GAME } from '../config/game';
-import { armAngle, armTip, type ElevatorPos } from '../config/robot';
+import { armAngle, armTip, hasArm, type ElevatorPos } from '../config/robot';
 import type { Phase } from '../core/clock';
 import { opponent, type Alliance, type Level } from '../core/types';
 import type { Robot } from '../game/Robot';
@@ -182,7 +182,7 @@ export class Bot {
   /** Distancia (centro del robot → centro de la Muestra al soltarla) en ese nivel. */
   private tipDistance(level: Level): number {
     const s = this.robot.spec;
-    if (s.mechanism === 'pivot' && s.arm) return armTip(s.arm, armAngle(s.arm, s.elevatorHeights[level])).x;
+    if (hasArm(s.mechanism) && s.arm) return armTip(s.arm, armAngle(s.arm, s.elevatorHeights[level])).x;
     return this.robot.phys.halfL + s.reach - F.SAMPLE_SIZE / 2;
   }
 
@@ -558,9 +558,9 @@ export class Bot {
     const pos = r.phys.position();
     const s = r.spec;
     // Distancia del centro del robot a la que la toma
-    const grab = s.mechanism === 'pivot' && s.arm ? armTip(s.arm, armAngle(s.arm, 0)).x : r.phys.halfL + s.intake.extension * 0.5;
+    const grab = hasArm(s.mechanism) && s.arm ? armTip(s.arm, armAngle(s.arm, 0)).x : r.phys.halfL + s.intake.extension * 0.5;
     const dist = Math.hypot(p.x - pos.x, p.z - pos.z);
-    this.drive(p, out, s.mechanism === 'pivot', phase, false, false, Math.max(0, dist - grab));
+    this.drive(p, out, hasArm(s.mechanism), phase, false, false, Math.max(0, dist - grab));
   }
 
   /**
@@ -736,7 +736,7 @@ export class Bot {
   private critDistance(): number {
     const s = this.robot.spec;
     const hl = this.robot.phys.halfL;
-    if (s.mechanism === 'pivot' && s.arm) return armTip(s.arm, armAngle(s.arm, s.elevatorHeights[4])).x - 0.05;
+    if (hasArm(s.mechanism) && s.arm) return armTip(s.arm, armAngle(s.arm, s.elevatorHeights[4])).x - 0.05;
     const reach = s.mechanism === 'tower' ? (s.critReach ?? 0) : s.reach;
     return Math.max(hl + 0.05, hl + reach - 0.2);
   }
@@ -760,6 +760,13 @@ export class Bot {
         out.release = true;
         return;
       }
+      // Con hopper, la garra va vacía: la garra encendida guarda lo que traiga (y no saca nada del
+      // hopper); si el hopper está lleno, suelta la de la garra
+      const hopper = r.spec.mechanism === 'pivotHopper';
+      if (hopper && m.inClaw && m.inHopper >= m.capacity - 1) {
+        out.release = true;
+        return;
+      }
       const h = F.CRITICAL_HOLDER_RED;
       const pose = F.forAlliance(r.alliance, { x: h.x, z: h.z + this.critDistance() });
       const faceZ = -this.side;
@@ -769,7 +776,7 @@ export class Bot {
       // Se arrima mientras intenta tomarla (la pinza la toma en cuanto queda a su alcance); la
       // intake se traga las Muestras que el Human Player dejó frente a la Campana
       if (endgame && (st === 'creep' || st === 'docked')) {
-        out.intake = r.spec.mechanism !== 'pivot' && dir > 0;
+        out.intake = !hasArm(r.spec.mechanism) && dir > 0;
         if (m.atTarget) {
           out.grabCritical = true;
           this.critTries += 1 / HZ;
@@ -779,6 +786,8 @@ export class Bot {
           out.forward = dir * 0.12;
         }
       }
+      // Con hopper: garra encendida todo el camino, para que el brazo no saque Muestras del hopper
+      if (hopper) out.intake = true;
       return;
     }
     // Con la Crítica: a su rampa y arriba hasta que la punta quede sobre la Repisa

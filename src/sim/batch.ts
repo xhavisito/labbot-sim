@@ -10,7 +10,7 @@ import type { BotOptions } from '../ai/Bot';
 import type { AiLevel } from '../ai/difficulty';
 import { COLLECT_HOME, LEAVE_ZONE, SCORE_PRELOAD, type AutoRoutine } from '../auto/AutoRoutine';
 import { GAME } from '../config/game';
-import { CHASSIS_ROBOT, DEFAULT_ROBOT, ELEVATOR_ROBOT, PIVOT_ROBOT, ROBOT_PRESETS, TOWER_ROBOT, type MechanismKind, type RobotSpec } from '../config/robot';
+import { CHASSIS_ROBOT, DEFAULT_ROBOT, ELEVATOR_ROBOT, PIVOT_HOPPER_ROBOT, PIVOT_ROBOT, ROBOT_PRESETS, TOWER_ROBOT, type MechanismKind, type RobotSpec } from '../config/robot';
 import { entriesFromMatch, entryPoints } from '../core/scouting';
 import { rng } from '../core/rng';
 import { ALLIANCES, type Alliance } from '../core/types';
@@ -72,10 +72,13 @@ export const ROBOT_PLANS = {
   torrecrit: { id: 'torrecrit', name: 'Torre N3 + Muestra Crítica', spec: TOWER_ROBOT, auto: COLLECT_HOME, bot: { level: 3, endgame: 'critical' } },
   pivote: { id: 'pivote', name: 'Pivote N3', spec: PIVOT_ROBOT, auto: COLLECT_HOME, bot: { level: 3 } },
   pivcrit: { id: 'pivcrit', name: 'Pivote N3 + Muestra Crítica', spec: PIVOT_ROBOT, auto: COLLECT_HOME, bot: { level: 3, endgame: 'critical' } },
+  pivhop: { id: 'pivhop', name: 'Pivote con hopper N3', spec: PIVOT_HOPPER_ROBOT, auto: COLLECT_HOME, bot: { level: 3 } },
+  pivhopcrit: { id: 'pivhopcrit', name: 'Pivote con hopper N3 + Muestra Crítica', spec: PIVOT_HOPPER_ROBOT, auto: COLLECT_HOME, bot: { level: 3, endgame: 'critical' } },
   bloqueo: { id: 'bloqueo', name: 'Chasis que bloquea la Cámara rival', spec: CHASSIS, auto: LEAVE_ZONE, bot: { role: 'block' } },
   ...mechVariants('torre', 'Torre', TOWER_ROBOT),
   ...mechVariants('piv', 'Pivote', PIVOT_ROBOT),
   ...mechVariants('elev', 'Elevador', ELEVATOR_ROBOT),
+  ...mechVariants('phop', 'Pivote con hopper', PIVOT_HOPPER_ROBOT),
 } satisfies Record<string, RobotPlan>;
 
 type PlanId = keyof typeof ROBOT_PLANS;
@@ -102,13 +105,16 @@ export const ALLIANCE_PLANS: AlliancePlan[] = [
   pair('pivote+pivote', 'Dos pivotes', 'pivote', 'pivote'),
   pair('torre+pivote', 'Torre + pivote', 'torre', 'pivote'),
   pair('torre+pivcrit', 'Torre + pivote con Crítica', 'torre', 'pivcrit'),
+  pair('pivhop+pivhop', 'Dos pivotes con hopper', 'pivhop', 'pivhop'),
+  pair('torre+pivhop', 'Torre + pivote con hopper', 'torre', 'pivhop'),
+  pair('torre+pivhopcrit', 'Torre + pivote con hopper y Crítica', 'torre', 'pivhopcrit'),
   pair('torre+bloqueo', 'Torre + bloqueo', 'torre', 'bloqueo'),
   pair('n3+bloqueo', 'N3 + bloqueo', 'n3', 'bloqueo'),
 ];
 
 /**
- * Solo robots con mecanismo (pivote, torre, elevador; sin chasis ni genérico): en el reto nadie va a
- * llevar un chasis solo. Cada tipo consigo mismo y con los otros dos, con el reparto de papeles
+ * Solo robots con mecanismo (pivote, pivote con hopper, torre, elevador; sin chasis ni genérico): en el reto nadie va a
+ * llevar un chasis solo. Cada tipo consigo mismo y con los otros, con el reparto de papeles
  * (quién va por la Crítica, quién junta del HP o del Laboratorio) y variantes de nivel, AUTO y ENDGAME.
  * `npm run batch -- --set mech`.
  */
@@ -116,6 +122,7 @@ const TYPES = [
   ['torre', 'Torre'],
   ['piv', 'Pivote'],
   ['elev', 'Elevador'],
+  ['phop', 'Pivote con hopper'],
 ] as const;
 const mp = (a: string, b: string, name: string): AlliancePlan => {
   const plans = ROBOT_PLANS as Record<string, RobotPlan>;
@@ -135,6 +142,9 @@ export const MECH_ALLIANCE_PLANS: AlliancePlan[] = [
     [0, 1],
     [0, 2],
     [1, 2],
+    [0, 3],
+    [1, 3],
+    [2, 3],
   ] as const).flatMap(([i, j]) => {
     const [a, an] = TYPES[i];
     const [b, bn] = TYPES[j];
@@ -154,9 +164,9 @@ export const MECH_ALLIANCE_PLANS: AlliancePlan[] = [
  * anterior, con los papeles que le daba `allianceRoles`), `hard`, `normal` o `easy`.
  * `npm run batch -- --set ai --a hard --b old` enfrenta cada alianza `hard:` con cada `old:`.
  */
-const AI_KINDS: readonly MechanismKind[] = ['generic', 'elevator', 'pivot', 'tower'];
+const AI_KINDS: readonly MechanismKind[] = ['generic', 'elevator', 'pivot', 'pivotHopper', 'tower'];
 /** Quién llevaba la Crítica con la IA anterior (el elevador nunca: no la alcanzaba). */
-const OLD_CRIT: Record<MechanismKind, number> = { pivot: 3, tower: 2, generic: 1, elevator: 0, chassis: 0 };
+const OLD_CRIT: Record<MechanismKind, number> = { pivot: 3, pivotHopper: 3, tower: 2, generic: 1, elevator: 0, chassis: 0 };
 function aiPlans(): AlliancePlan[] {
   const out: AlliancePlan[] = [];
   for (let i = 0; i < AI_KINDS.length; i++)

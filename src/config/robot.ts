@@ -22,13 +22,20 @@ export const ROBOT_LIMITS = {
  * - pivot: brazo con garra en un pivote; toma una pieza a la vez del piso y la suelta al frente.
  * - tower: torre fija de ruedas (sin carro que suba): sube varias Muestras a una salida fija atrás,
  *   a la altura del Nivel 3, y lleva una pala al frente para la Muestra Crítica.
+ * - pivotHopper: pivote con hopper (idea del equipo, 26-oct): el mismo brazo con garra, pero entre dos
+ *   paredes altas de un hopper que guarda varias Muestras. La garra toma una del piso y la pasa al
+ *   hopper; para anotar, el brazo saca la siguiente del hopper y la suelta al frente en N1–N3. Lleva
+ *   la Muestra Crítica en la garra aunque traiga Muestras en el hopper.
  * - chassis: la base común de las sugerencias, sin mecanismo para anotar (mínimo viable): lleva la
  *   precarga sin soltarla, cruza la línea y sube a la Plataforma.
  * Pivote, torre y chasis siguen las sugerencias de CAD en MDF de 5.5 mm (§7.1); el elevador se
  * descartó para construir en MDF, pero se queda aquí para comparar.
  */
-export type MechanismKind = 'generic' | 'elevator' | 'pivot' | 'tower' | 'chassis';
-export const MECHANISM_KINDS: readonly MechanismKind[] = ['generic', 'elevator', 'pivot', 'tower', 'chassis'];
+export type MechanismKind = 'generic' | 'elevator' | 'pivot' | 'pivotHopper' | 'tower' | 'chassis';
+export const MECHANISM_KINDS: readonly MechanismKind[] = ['generic', 'elevator', 'pivot', 'pivotHopper', 'tower', 'chassis'];
+
+/** ¿El tipo anota con brazo y garra (pivote, con o sin hopper)? */
+export const hasArm = (kind: MechanismKind): boolean => kind === 'pivot' || kind === 'pivotHopper';
 
 /** Brazo del pivote (local: x adelante desde el centro del robot, y sobre la base). */
 export interface ArmSpec {
@@ -43,6 +50,13 @@ export interface ArmSpec {
    * de ahí la primera vez que se le pide otra posición o se enciende la garra.
    */
   stowAngle?: number;
+  /**
+   * Solo `pivotHopper`: ángulo (rad) en el que la garra queda en la boca del hopper, atrás, para
+   * dejarle o sacarle una Muestra. Puede salir del perímetro (≤ 40 cm, §7.2), no al inicio.
+   */
+  hopperAngle?: number;
+  /** Solo `pivotHopper`: segundos con la garra en la boca del hopper para pasar una Muestra. */
+  transferTime?: number;
 }
 
 export interface RobotSpec {
@@ -72,7 +86,7 @@ export interface RobotSpec {
   capacity: number;
   /** Alcance del depósito más allá del chasis (≤ 0.40 m): al frente, o atrás en `elevator`. */
   reach: number;
-  /** Solo `pivot`. */
+  /** Solo `pivot` y `pivotHopper`. En `pivotHopper` la garra lleva 1 y el hopper `capacity − 1`. */
   arm?: ArmSpec;
   /** Solo `tower`: altura fija (fondo de la pieza, m sobre la base) de la salida de las Muestras, atrás. */
   sampleExit?: number;
@@ -184,10 +198,44 @@ export const CHASSIS_ROBOT: RobotSpec = {
   elevatorHeights: [mm(100), mm(100), mm(100), mm(100), mm(100)],
 };
 
+/**
+ * Pivote con hopper (dibujo del equipo, 26-oct; sugerencia de CAD en MDF en
+ * `docs/pivote-hopper.md`): chasis 600 × 600 mm; hopper con dos paredes altas a los lados (600 mm:
+ * con más, la superestructura de la física chocaba con la Cámara al acomodarse) y un canal al centro
+ * por donde pasa el brazo. El hopper guarda 4 Muestras y la garra 1
+ * (capacidad 5; el manual no limita la posesión, §4.1: SUPUESTO de diseño).
+ * El brazo pasa por arriba cada vez que guarda una Muestra, así que se diseñó para que la punta con
+ * la Muestra nunca pase de 100 cm (§7.2, D24): eje 290 mm adelante del centro (1 cm detrás del
+ * frente) a 400 mm de la base y brazo de 450 mm (400 + 450 + 150 = 1000 mm). Con ese brazo:
+ * - piso: la garra toma la Muestra 12 cm delante del chasis;
+ * - N1 y N2: suelta desde 740 mm (cae dentro del pozo; más bajo, la garra saldría más de 40 cm);
+ * - N3: suelta a 820 mm, 15 cm delante del chasis (apertura a 800 mm, §3.2.3);
+ * - posición 4 (730 mm): rendija de la Campana y Repisa desde la Plataforma (Crítica 200 mm → 93 cm);
+ * - la garra solo abre al soltar (sin empujón, `Mechanisms.release`);
+ * - boca del hopper y guardado al inicio a 180° (garra horizontal hacia atrás, dentro del chasis).
+ * Tiempos de paso al hopper (0.25 s) y velocidad del brazo (4.5 rad/s): SUPUESTOS.
+ */
+export const PIVOT_HOPPER_ROBOT: RobotSpec = {
+  ...DEFAULT_ROBOT,
+  name: 'Pivote con hopper',
+  mechanism: 'pivotHopper',
+  length: mm(600),
+  width: mm(600),
+  baseHeight: mm(600),
+  // Masa estimada con el editor (MDF ≈ 2.3 m², 4 + 4 motores, batería, tracción)
+  massKg: 31,
+  capacity: 5,
+  reach: 0,
+  intake: { extension: 0, width: mm(300) },
+  arm: { pivotX: mm(290), pivotY: mm(400), length: mm(450), speed: 4.5, stowAngle: Math.PI, hopperAngle: Math.PI, transferTime: 0.25 },
+  elevatorHeights: [0, mm(740), mm(740), mm(820), mm(730)],
+};
+
 export const ROBOT_PRESETS: Record<MechanismKind, RobotSpec> = {
   generic: DEFAULT_ROBOT,
   elevator: ELEVATOR_ROBOT,
   pivot: PIVOT_ROBOT,
+  pivotHopper: PIVOT_HOPPER_ROBOT,
   tower: TOWER_ROBOT,
   chassis: CHASSIS_ROBOT,
 };
@@ -218,7 +266,7 @@ export function validateRobot(s: RobotSpec, pieceSize = mm(200)): string[] {
   if (s.elevatorHeights[3] + mm(150) > ROBOT_LIMITS.maxHeight + 1e-9) out.push('elevador + Muestra pasa de 100 cm (§7.2)');
   if (s.elevatorHeights[4] + pieceSize > ROBOT_LIMITS.maxHeight + 1e-9) out.push('elevador + Muestra Crítica pasa de 100 cm (§7.2)');
   if (s.capacity < 1) out.push('capacidad mínima 1 (precarga, §4.1)');
-  if (s.mechanism === 'pivot') {
+  if (hasArm(s.mechanism)) {
     if (!s.arm) out.push('pivote sin brazo');
     else {
       for (const h of s.elevatorHeights) {
@@ -234,6 +282,13 @@ export function validateRobot(s: RobotSpec, pieceSize = mm(200)): string[] {
       const half = mm(150) / 2;
       if (st.x + half > s.length / 2 + 1e-9 || st.x - half < -s.length / 2 - 1e-9 || st.y + mm(150) > ROBOT_LIMITS.maxHeight + 1e-9)
         out.push('el brazo guardado no cabe en el perímetro al inicio (§4.1)');
+      if (s.mechanism === 'pivotHopper') {
+        // Pasa por arriba con una Muestra cada vez que la guarda: la punta más alta es pivotY + largo (D24)
+        if (s.arm.pivotY + s.arm.length + mm(150) > ROBOT_LIMITS.maxHeight + 1e-9) out.push('el brazo con la Muestra pasa de 100 cm al pasar por arriba (§7.2)');
+        const ht = armTip(s.arm, s.arm.hopperAngle ?? Math.PI);
+        if (-ht.x + half - s.length / 2 > ROBOT_LIMITS.maxExtension + 1e-9) out.push('la boca del hopper deja la garra más de 40 cm atrás (§7.2)');
+        if (s.capacity < 2) out.push('el hopper debe guardar al menos una Muestra');
+      }
     }
   }
   if (s.mechanism === 'tower') {

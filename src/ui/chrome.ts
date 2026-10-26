@@ -74,6 +74,8 @@ export function robotSilhouette(kind: MechanismKind): string {
     elevator: `<path d="M64 96V26M80 96V26"/><path class="hot" d="M34 46h50"/><path class="soft" d="M90 96V70h56v26"/>`,
     // Brazo pivotante con garra
     pivot: `<path d="M100 96V70"/><circle cx="100" cy="66" r="6"/><path class="hot" d="M100 66 178 34"/><path class="hot" d="M178 34l10 2M178 34l4 10"/>`,
+    // Pivote con hopper: paredes altas del hopper atrás (Muestras dentro) y el brazo con garra al frente
+    pivotHopper: `<path d="M48 96V20M118 96V20"/><path d="M66 96V58M100 96V58"/><rect class="soft" x="52" y="66" width="12" height="28"/><rect class="soft" x="102" y="66" width="12" height="28"/><path d="M136 96V72"/><circle cx="136" cy="68" r="6"/><path class="hot" d="M136 68 184 30"/><path class="hot" d="M184 30l10 2M184 30l4 10"/>`,
     // Torre fija de ruedas (saca por atrás a N3) y pala al frente
     tower: `<rect x="48" y="22" width="40" height="74"/><circle cx="68" cy="40" r="7"/><circle cx="68" cy="62" r="7"/><path class="hot" d="M48 30H32"/><path class="soft" d="M170 96l14-16h12"/>`,
     // Chasis solo (base común): caja de la batería con la precarga encima y la rueda central baja
