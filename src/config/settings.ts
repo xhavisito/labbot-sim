@@ -3,19 +3,20 @@
  * los puntos y tiempos viven en `game.ts`. Todo pasa por `sanitizeSettings`, que recorta a rangos
  * válidos (un valor raro guardado en el navegador no rompe el juego).
  */
-import { ROBOT_IDS, type RobotId } from './firstRobots';
-import { DEFAULT_ROBOT } from './robot';
+import { AI_LEVELS, type AiLevel } from '../ai/difficulty';
+import { DEFAULT_ROBOT, MECHANISM_KINDS, type MechanismKind } from './robot';
 
 export interface Settings {
   /** La IA maneja los otros 3 robots en el TELEOP. */
   ai: boolean;
+  /** Dificultad de la IA (`ai/difficulty.ts`). Los 3 robots de la IA usan tipos distintos en cada match. */
+  aiLevel: AiLevel;
   /** Rutina de AUTO de tu robot (id de `AUTO_ROUTINES`). */
   playerAuto: string;
   /** Rutina de AUTO de los otros robots. */
   botAuto: string;
-  /** Tu robot y el de los demás: un tipo (`config/robot.ts`) o un robot de FIRST (`config/firstRobots.ts`). */
-  robotType: RobotId;
-  botRobotType: RobotId;
+  /** Tipo de tu robot (`config/robot.ts`). */
+  robotType: MechanismKind;
   /** Tu robot: velocidad máxima (m/s) y Muestras que guarda (el pivote siempre lleva 1). */
   maxSpeed: number;
   capacity: number;
@@ -30,10 +31,10 @@ export interface Settings {
 
 export const DEFAULT_SETTINGS: Settings = {
   ai: true,
+  aiLevel: 'hard',
   playerAuto: 'leave',
   botAuto: 'preload',
   robotType: 'generic',
-  botRobotType: 'generic',
   maxSpeed: DEFAULT_ROBOT.maxSpeed,
   capacity: DEFAULT_ROBOT.capacity,
   hpEnabled: true,
@@ -43,8 +44,7 @@ export const DEFAULT_SETTINGS: Settings = {
 };
 
 export const SETTINGS_RANGE = {
-  /** Hasta 6.5 m/s: Skyfire (254, 2012) pasaba de 20 ft/s. */
-  maxSpeed: { min: 1, max: 6.5, step: 0.25 },
+  maxSpeed: { min: 1, max: 4.5, step: 0.25 },
   capacity: { min: 1, max: 10, step: 1 },
   hpInterval: { min: 1, max: 10, step: 0.5 },
 } as const;
@@ -59,13 +59,13 @@ export function sanitizeSettings(raw: unknown, autoIds: readonly string[]): Sett
   const o = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
   const d = DEFAULT_SETTINGS;
   const auto = (v: unknown, def: string) => (typeof v === 'string' && autoIds.includes(v) ? v : def);
-  const kind = (v: unknown, def: RobotId) => ROBOT_IDS.find((k) => k === v) ?? def;
+  const kind = (v: unknown, def: MechanismKind) => MECHANISM_KINDS.find((k) => k === v) ?? def;
   return {
     ai: typeof o.ai === 'boolean' ? o.ai : d.ai,
+    aiLevel: AI_LEVELS.find((l) => l === o.aiLevel) ?? d.aiLevel,
     playerAuto: auto(o.playerAuto, d.playerAuto),
     botAuto: auto(o.botAuto, d.botAuto),
     robotType: kind(o.robotType, d.robotType),
-    botRobotType: kind(o.botRobotType, d.botRobotType),
     maxSpeed: num(o.maxSpeed, d.maxSpeed, SETTINGS_RANGE.maxSpeed),
     capacity: Math.round(num(o.capacity, d.capacity, SETTINGS_RANGE.capacity)),
     hpEnabled: typeof o.hpEnabled === 'boolean' ? o.hpEnabled : d.hpEnabled,

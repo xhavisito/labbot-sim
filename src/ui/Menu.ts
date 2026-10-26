@@ -3,8 +3,8 @@
  * controles (reasignar), reglas, pausa y resultados.
  */
 import { AUTO_ROUTINES } from '../auto/AutoRoutine';
-import { FIRST_ROBOTS, firstRobot, ROBOT_IDS, robotSpec, type RobotId } from '../config/firstRobots';
-import { fixedCapacity, MECHANISM_KINDS, type MechanismKind } from '../config/robot';
+import { fixedCapacity, MECHANISM_KINDS, ROBOT_PRESETS, type MechanismKind } from '../config/robot';
+import { AI_LEVELS } from '../ai/difficulty';
 import { GAME } from '../config/game';
 import { DEFAULT_SETTINGS, SETTINGS_RANGE, type Settings } from '../config/settings';
 import { RULES } from '../core/fouls';
@@ -42,21 +42,12 @@ const ROBOTS = [0, 1, 2, 3];
 /** ¿El tipo saca las Muestras por atrás? (se anota de reversa; ver `type_*_desc`). */
 const SCORES_BACK: Record<MechanismKind, boolean> = { generic: false, elevator: true, pivot: false, tower: true, chassis: false };
 
-/** Medidas del chasis del robot (cm), para la vitrina del menú. */
-const chassisSize = (id: RobotId): string => `${Math.round(robotSpec(id).length * 100)} × ${Math.round(robotSpec(id).width * 100)} cm`;
-/** Nombre y descripción de un robot elegible (tipo de LabBot o robot de FIRST). */
-const robotName = (id: RobotId): string => robotSpec(id).label ?? t(`type_${id}` as Key);
-function robotDesc(id: RobotId): string {
-  const f = firstRobot(id);
-  return f ? `${t('firstTag', { team: f.team, year: f.year, game: f.game })} ${t(`first_${f.id}_desc` as Key)}` : t(`type_${id}_desc` as Key);
-}
-/** Lista de robots para elegir: sugerencias de LabBot y robots de FIRST (adaptados a §7.2). */
-const robotOptions = (sel: RobotId): string =>
-  `<optgroup label="${t('grp_labbot')}">${MECHANISM_KINDS.map((m) => `<option value="${m}" ${m === sel ? 'selected' : ''}>${robotName(m)}</option>`).join('')}</optgroup>
-  <optgroup label="${t('grp_first')}">${FIRST_ROBOTS.map((r) => `<option value="${r.id}" ${r.id === sel ? 'selected' : ''}>${robotName(r.id)}${robotName(r.id).includes(String(r.year)) ? '' : ` · ${r.year}`}</option>`).join('')}</optgroup>`;
-/** Al elegir un robot, la velocidad y la capacidad de los ajustes toman las suyas. */
-function adoptRobot(s: Settings, id: RobotId): void {
-  const spec = robotSpec(id);
+/** Medidas del chasis del tipo (cm), para la vitrina del menú. */
+const chassisSize = (k: MechanismKind): string => `${Math.round(ROBOT_PRESETS[k].length * 100)} × ${Math.round(ROBOT_PRESETS[k].width * 100)} cm`;
+const robotOptions = (sel: MechanismKind): string => MECHANISM_KINDS.map((m) => `<option value="${m}" ${m === sel ? 'selected' : ''}>${t(`type_${m}` as Key)}</option>`).join('');
+/** Al elegir un tipo, la velocidad y la capacidad de los ajustes toman las suyas. */
+function adoptRobot(s: Settings, id: MechanismKind): void {
+  const spec = ROBOT_PRESETS[id];
   s.robotType = id;
   s.maxSpeed = Math.min(SETTINGS_RANGE.maxSpeed.max, Math.round(spec.maxSpeed * 4) / 4);
   s.capacity = Math.min(SETTINGS_RANGE.capacity.max, spec.capacity);
@@ -146,7 +137,7 @@ export class Menu {
             <div class="bay-head"><span class="bay-label">${t('station')}</span></div>
             <div class="stations">${ROBOTS.map((i) => `<button class="${i < 2 ? 'red' : 'blue'} ${i === this.player ? 'on' : ''}" data-slot="${i}"><i></i>${stationLabel(i)}</button>`).join('')}</div>
             <div class="bay-head"><span class="bay-label">${t('yourRobot')}</span></div>
-            <div class="showcase">${robotSilhouette(robotSpec(s.robotType).mechanism)}<span class="dim">${chassisSize(s.robotType)} · ${t('robotType').toUpperCase()}</span></div>
+            <div class="showcase">${robotSilhouette(s.robotType)}<span class="dim">${chassisSize(s.robotType)} · ${t('robotType').toUpperCase()}</span></div>
             <div class="robotinfo" data-robotinfo></div>
           </div>
         </div>
@@ -204,31 +195,28 @@ export class Menu {
   /** Placa del robot elegido: nombre, descripción, barras y flechas para cambiar de tipo. */
   private robotInfo(): void {
     const s = this.settings;
-    const id = s.robotType;
-    const spec = robotSpec(id);
-    const k = spec.mechanism;
-    const i = ROBOT_IDS.indexOf(id);
-    const n = ROBOT_IDS.length;
+    const k = s.robotType;
+    const i = MECHANISM_KINDS.indexOf(k);
+    const n = MECHANISM_KINDS.length;
     const cap = fixedCapacity(k) ?? s.capacity;
-    const levels = (['N1', 'N2', 'N3'] as const).slice(0, spec.maxLevel ?? 3).join(' · ');
     const bar = (label: string, v: number, txt: string) =>
       `<div class="sbar"><span>${label}</span><div><i style="width:${Math.round(Math.min(1, Math.max(0.04, v)) * 100)}%"></i></div><b>${txt}</b></div>`;
     const info = this.root.querySelector<HTMLElement>('[data-robotinfo]')!;
     info.innerHTML = `
-      <div class="ri-plate"><div class="num">${robotName(id)}</div><p>${robotDesc(id)}</p></div>
+      <div class="ri-plate"><div class="num">${t(`type_${k}` as Key)}</div><p>${t(`type_${k}_desc` as Key)}</p></div>
       <div class="ri-stats">
         ${bar(t('statSpeed'), s.maxSpeed / SETTINGS_RANGE.maxSpeed.max, `${s.maxSpeed.toFixed(2).replace(/0$/, '')} m/s`)}
         ${bar(t('statCapacity'), cap / SETTINGS_RANGE.capacity.max, String(cap))}
-        <div class="ri-flags">${k === 'chassis' ? `<span>${t('scoresNone')}</span><span>${t('lineAndPlatform')}</span>` : `<span>${t(SCORES_BACK[k] ? 'scoresBack' : 'scoresFront')}</span><span>${levels}</span>`}</div>
+        <div class="ri-flags">${k === 'chassis' ? `<span>${t('scoresNone')}</span><span>${t('lineAndPlatform')}</span>` : `<span>${t(SCORES_BACK[k] ? 'scoresBack' : 'scoresFront')}</span><span>N1 · N2 · N3</span>`}</div>
       </div>
       <div class="nav"><button class="arrowbtn" data-step="-1" aria-label="‹">‹</button>
         <div class="track"><i style="width:${100 / n}%;margin-left:${(100 * i) / n}%"></i></div>
         <span class="count">${i + 1}/${n}</span><button class="arrowbtn" data-step="1" aria-label="›">›</button></div>`;
     info.querySelectorAll<HTMLElement>('[data-step]').forEach((b) =>
       b.addEventListener('click', () => {
-        adoptRobot(s, ROBOT_IDS[(i + Number(b.dataset.step) + n) % n]);
+        adoptRobot(s, MECHANISM_KINDS[(i + Number(b.dataset.step) + n) % n]);
         this.onSettings(s);
-        this.root.querySelector('.showcase')!.innerHTML = `${robotSilhouette(robotSpec(s.robotType).mechanism)}<span class="dim">${chassisSize(s.robotType)} · ${t('robotType').toUpperCase()}</span>`;
+        this.root.querySelector('.showcase')!.innerHTML = `${robotSilhouette(s.robotType)}<span class="dim">${chassisSize(s.robotType)} · ${t('robotType').toUpperCase()}</span>`;
         this.robotInfo();
       }),
     );
@@ -244,7 +232,7 @@ export class Menu {
       const r = SETTINGS_RANGE[k];
       return `<div class="range"><input type="range" data-k="${k}" min="${r.min}" max="${r.max}" step="${r.step}" value="${s[k]}"><output data-unit="${unit}">${s[k]} ${unit}</output></div>`;
     };
-    const robotSel = (k: 'robotType' | 'botRobotType') => `<select data-robot="${k}">${robotOptions(s[k])}</select>`;
+    const robotSel = () => `<select data-robot>${robotOptions(s.robotType)}</select>`;
     this.open(
       `${brandbar(t('settings'))}
       <h1>${t('settings')}</h1>
@@ -255,15 +243,16 @@ export class Menu {
           <label>${t('setAi')}</label>${toggle('ai')}
           <label>${t('setPlayerAuto')}</label><select data-k="playerAuto">${autoOpts(s.playerAuto)}</select>
           <label>${t('setBotAuto')}</label><select data-k="botAuto">${autoOpts(s.botAuto)}</select>
-          <label>${t('setBotType')}</label>${robotSel('botRobotType')}
+          <label>${t('setAiLevel')}</label><div class="seg" data-aiseg>${AI_LEVELS.map((l) => `<button class="${l === s.aiLevel ? 'on' : ''}" data-v="${l}">${t(`ai_${l}`)}</button>`).join('')}</div>
+          <p class="full sub">${t('aiNote')}</p>
           <h3>${t('sec_hp')}</h3>
           <label>${t('setHp')}</label>${toggle('hpEnabled')}
           <label>${t('setHpInterval')}</label>${range('hpInterval', 's')}
         </div></div>
         <div class="panel"><div class="form">
           <h3>${t('sec_robot')}</h3>
-          <label>${t('robotType')}</label>${robotSel('robotType')}
-          <p class="full sub" data-desc>${robotDesc(s.robotType)}</p>
+          <label>${t('robotType')}</label>${robotSel()}
+          <p class="full sub" data-desc>${t(`type_${s.robotType}_desc` as Key)}</p>
           <label>${t('setSpeed')}</label>${range('maxSpeed', 'm/s')}
           <label>${t('setCapacity')}</label>${range('capacity', '')}
           <h3>${t('sec_graphics')}</h3>
@@ -293,13 +282,9 @@ export class Menu {
     });
     this.root.querySelectorAll<HTMLSelectElement>('[data-robot]').forEach((sel) =>
       sel.addEventListener('change', () => {
-        const id = sel.value as RobotId;
-        if (sel.dataset.robot === 'botRobotType') {
-          s.botRobotType = id;
-          return;
-        }
+        const id = sel.value as MechanismKind;
         adoptRobot(s, id);
-        this.root.querySelector('[data-desc]')!.textContent = robotDesc(id);
+        this.root.querySelector('[data-desc]')!.textContent = t(`type_${id}_desc` as Key);
         // Los deslizadores de velocidad y capacidad muestran los del robot elegido
         for (const k of ['maxSpeed', 'capacity'] as const) {
           const r = this.root.querySelector<HTMLInputElement>(`input[data-k="${k}"]`);
@@ -308,6 +293,12 @@ export class Menu {
           const out = r.nextElementSibling;
           if (out instanceof HTMLOutputElement) out.textContent = `${s[k]} ${out.dataset.unit ?? ''}`;
         }
+      }),
+    );
+    this.root.querySelectorAll<HTMLElement>('[data-aiseg] button').forEach((b) =>
+      b.addEventListener('click', () => {
+        s.aiLevel = b.dataset.v as Settings['aiLevel'];
+        b.parentElement!.querySelectorAll('button').forEach((x) => x.classList.toggle('on', x === b));
       }),
     );
     this.root.querySelectorAll<HTMLElement>('[data-qseg] button').forEach((b) =>

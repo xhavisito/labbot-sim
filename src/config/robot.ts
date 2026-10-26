@@ -2,7 +2,6 @@
  * Especificación de un robot y sus límites según el manual (§7.2, §4.1). El manual no da
  * velocidad, masa ni mecanismos: esos números son SUPUESTOS configurables.
  */
-import type { Level } from '../core/types';
 import { mm } from './field';
 
 /** Límites del manual. */
@@ -47,8 +46,6 @@ export interface ArmSpec {
 
 export interface RobotSpec {
   name: string;
-  /** Nombre a mostrar (robots de referencia de FIRST); si no hay, se usa el nombre del tipo. */
-  label?: string;
   mechanism: MechanismKind;
   /** Chasis (m): largo (adelante) y ancho. Tanque obligatorio, sin bumpers (§7.2). */
   length: number;
@@ -88,8 +85,6 @@ export interface RobotSpec {
    * En `tower` solo mueven la pala de la Crítica (las Muestras salen siempre por `sampleExit`).
    */
   elevatorHeights: [number, number, number, number, number];
-  /** Nivel más alto que alcanza (por defecto 3). Las posiciones de arriba repiten la de ese nivel. */
-  maxLevel?: Level;
 }
 
 /** Posiciones del elevador. */

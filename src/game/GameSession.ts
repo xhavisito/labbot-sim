@@ -6,7 +6,9 @@
  * robot del jugador) y 'match' (150 s con puntuación, faltas y RP).
  */
 import * as THREE from 'three';
-import { Bot, type BotOptions } from '../ai/Bot';
+import { Bot, type AutoPlan, type BotOptions, type BotOutput } from '../ai/Bot';
+import type { AiLevel } from '../ai/difficulty';
+import { Team } from '../ai/Team';
 import { AUTO_REF_SPEED, AutoRunner, LEAVE_ZONE, type AutoRoutine } from '../auto/AutoRoutine';
 import * as F from '../config/field';
 import { GAME, type GameConfig } from '../config/game';
@@ -52,6 +54,16 @@ export interface SessionOptions {
   solo?: boolean;
   /** Estrategia de la IA de cada robot (nivel, de dónde junta, papel, ENDGAME). */
   bots?: Array<Partial<BotOptions> | undefined>;
+  /** Dificultad de la IA (`ai/difficulty.ts`; por defecto difícil). */
+  aiLevel?: AiLevel;
+  /** Otra IA para algunos robots (comparar versiones en `sim/batch.ts`); null = la de siempre. */
+  makeBot?: (r: Robot, opts: Partial<BotOptions> & { auto: AutoPlan; teleop: boolean }, all: Robot[], pieces: Pieces) => BotDriver | null;
+}
+
+/** Lo que la sesión necesita de una IA (la de `ai/Bot.ts`, u otra para comparar en la simulación por lotes). */
+export interface BotDriver {
+  readonly opts: { auto: AutoPlan; teleop: boolean };
+  step(dt: number, phase: Phase, timeLeft: number): BotOutput;
 }
 
 export class GameSession {
@@ -79,8 +91,8 @@ export class GameSession {
   private pieceView: PieceView;
   private robotViews: RobotView[] = [];
   private autos: AutoRunner[] = [];
-  private autoBots: Array<Bot | null> = [];
-  private bots: Array<Bot | null> = [];
+  /** IA de cada robot (AUTO de IA y/o TELEOP), coordinada por alianza en un `Team`. */
+  bots: Array<BotDriver | null> = [];
   private acc = 0;
   private input: PlayerInput | null = null;
   private stepMechEvents: MechEvent[] = [];
@@ -166,12 +178,16 @@ export class GameSession {
       const a = this.opts.autos?.[r.index] ?? LEAVE_ZONE;
       return new AutoRunner(a.bot && r.spec.mechanism === 'chassis' ? LEAVE_ZONE : a);
     });
-    this.autoBots = this.robots.map((r) => {
-      const b = this.autos[r.index].routine.bot;
-      const level = this.opts.bots?.[r.index]?.level;
-      return b ? new Bot(r, this.pieces, this.robots, { ...(level ? { level } : {}), scoreOnly: b.scoreOnly, stayHome: true }) : null;
+    const teams = { red: new Team('red', this.hps.red), blue: new Team('blue', this.hps.blue) };
+    this.bots = this.robots.map((r) => {
+      const routine = this.autos[r.index].routine.bot;
+      const teleop = !!this.opts.ai && r.index !== this.opts.player;
+      if (!routine && !teleop) return null;
+      // El robot del jugador con AUTO de IA juega como "difícil" (es su rutina, no un rival)
+      const ai = teleop ? (this.opts.aiLevel ?? 'hard') : 'hard';
+      const o = { ai, ...this.opts.bots?.[r.index], auto: (routine ? (routine.scoreOnly ? 'preload' : 'collect') : 'none') as AutoPlan, teleop };
+      return this.opts.makeBot?.(r, o, this.robots, this.pieces) ?? new Bot(r, this.pieces, this.robots, o, teams[r.alliance]);
     });
-    this.bots = this.robots.map((r) => (this.opts.ai && r.index !== this.opts.player ? new Bot(r, this.pieces, this.robots, this.opts.bots?.[r.index]) : null));
     this.match.start();
   }
 
@@ -212,7 +228,8 @@ export class GameSession {
       let forward = 0;
       let turn = 0;
       let slow = false;
-      const bot = m && phase === 'AUTO' ? this.autoBots[r.index] : m && isTeleop(phase) ? this.bots[r.index] : null;
+      const b = this.bots[r.index];
+      const bot = !b || !m ? null : phase === 'AUTO' ? (b.opts.auto !== 'none' ? b : null) : isTeleop(phase) && b.opts.teleop ? b : null;
       if (bot) {
         const o = bot.step(dt, phase, m ? m.remaining : Infinity);
         forward = o.forward;

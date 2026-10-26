@@ -20,6 +20,7 @@ npm run preview      # sirve dist/
 npm run batch        # matches de solo IA entre estrategias de alianza (sin navegador): tabla de puntos, RP y faltas
                      #   --plans torre+torre,n3+n3  --vs n3+n3  --seeds 3  --workers 4  --out batch.json
                      #   --set mech: solo Pivote, Torre y Elevador (sin chasis ni genérico), con puntos por robot
+                     #   --set ai --a hard --b old: IA nueva (easy/normal/hard) contra la anterior, alianzas de tipos distintos
 npm run shots        # capturas con Playwright en shots/ (requiere build; en la nube: CHROMIUM_PATH=/opt/pw-browsers/chromium; --mobile = celular)
 ```
 
@@ -50,7 +51,8 @@ En el menú eliges tu robot (Rojo 1–2, Azul 1–2) y el modo:
   de papeles y el pronóstico de eliminatorias. Se guarda en el navegador; exporta JSON y CSV.
 - **Práctica libre:** sin reloj ni faltas; el marcador cuenta las Muestras anotadas.
   Backspace reacomoda la cancha.
-- **Tipo de robot** (en el menú, y el de los demás robots en Ajustes):
+- **Tipo de robot** (en el menú; los 3 robots de la IA usan tipos distintos en cada match, sin repetir
+  el tuyo si se puede):
   - *Genérico:* intake al frente, tolva de 5 y elevador con depósito que suelta al frente.
   - *Elevador:* intake al frente, tolva de 5 y una plataforma que sube y empuja las Muestras por
     atrás (30 cm detrás del chasis). Se anota de reversa: espalda contra la pared de la Cámara.
@@ -65,15 +67,8 @@ En el menú eliges tu robot (Rojo 1–2, Azul 1–2) y el modo:
     (10 o 20). Con IA espera junto a su rampa y sube en el ENDGAME.
   Todos cumplen §7.2 (65×65 cm, ≤40 cm fuera del chasis, ≤100 cm de alto) y el pivote cabe guardado
   al inicio (§4.1); lo revisa `validateRobot`. El elevador se descartó para construir en MDF.
-  - *Inspirados en FIRST* (`src/config/firstRobots.ts`): 8 robots de referencia de los juegos más
-    parecidos, con todas sus variables (medidas, masa, velocidad, intake, capacidad, brazo o
-    elevador, nivel máximo) y la estrategia de IA que les funcionó: 118 Everybot 2018 y 2023,
-    254 Lockdown (2018), 5940 Baguette (2018), 254 Breakdown (2023), 401 (2023), 2713 Rainbow Dash
-    (2023) y 254 Skyfire (2012). Están **adaptados** a LabBot (tanque, 65×65 cm, 40 cm, 100 cm,
-    §7.2); lo que no viene de la fuente del equipo está marcado SUPUESTO. Se eligen en el menú o en
-    Ajustes; al elegir uno, la velocidad y la capacidad toman las suyas. `npm run batch -- --plans
-    lockdown254+lockdown254 --vs n3+n3` los pone a jugar.
-- **Ajustes:** IA de los otros 3 robots (encendida por defecto), rutina de AUTO de tu robot y de los
+- **Ajustes:** IA de los otros 3 robots (encendida por defecto) y su dificultad (Fácil, Normal o
+  Difícil, por defecto), rutina de AUTO de tu robot y de los
   demás (salir de la zona, anotar precarga, anotar y recolectar, quedarse quieto), velocidad y
   capacidad de tu robot, y el Human Player automático. Se guardan en el navegador. Los puntos y
   tiempos no se cambian aquí: son los del manual, en `src/config/game.ts`.
@@ -127,15 +122,19 @@ src/
   referee/    Referee.ts: faltas automáticas
   auto/       rutinas de AUTO
   ai/         Bot.ts: IA de los robots (recolectar → anotar → Plataforma o Muestra Crítica en el ENDGAME;
-              papeles: anotar, solo chasis, bloquear; fuente: Laboratorio, Human Player o ambos)
+              papeles: anotar, solo chasis, bloquear; fuente: Laboratorio, Human Player o ambos);
+              Team.ts: reparto de papeles en la alianza; difficulty.ts: Fácil/Normal/Difícil;
+              lineup.ts: tipos de robot distintos para la IA en cada match
   sim/        batch.ts: estrategias de alianza y matches de solo IA sin render (npm run batch);
+              legacyBot.ts: la IA anterior, solo para compararla (--set ai --b old);
               quickSim.ts: simular un match del calendario del Scouting en el navegador
   render/     Three.js: Renderer, FieldView, PieceView, RobotView, CameraRig
   input/      teclado, gamepad y touch; bindings.ts (asignación reasignable)
   ui/         i18n (es-MX / en), HUD, menús, resultados, Controles y TouchControls
   pwa/        register.ts (service worker, botón Instalar) y sw-template.js (precache del build)
 tests/        field, physics, robot, match (reglas y casos borde), session (match completo),
-              bot (IA en un match completo, sin faltas de cancha), settings (ajustes y registro)
+              bot (IA en un match completo, sin faltas de cancha), settings (ajustes y registro),
+              lineup (tipos de la IA y niveles de dificultad)
 ```
 
 Todos los parámetros del juego viven en `src/config/`; si el manual cambia, se ajustan ahí.
@@ -146,9 +145,11 @@ Cada regla en el código cita su sección del manual.
 - Varias posiciones (Zonas de Inicio, Laboratorio, Plataforma, Repisa) se midieron sobre la figura de
   §3.2 (error ≈ ±30 mm). El CAD oficial de la cancha (§3.3) daría las medidas exactas.
 - Supuestos marcados en `docs/reglas-reto.md`: zonas de color de cada alianza (D8), frecuencia de faltas por contacto (D11, D15), entre otros.
-- La IA es sencilla: va por la Muestra libre más cercana, anota en el Nivel 3 (o el nivel libre),
-  y en el ENDGAME sube a la Plataforma. No toma la Muestra Crítica ni defiende, y a veces choca con
-  rivales (Fouls por contacto, §4.5).
+- La IA calcula sus tiempos (anota antes de que acabe el AUTO, deja lo justo para el ENDGAME), junta
+  varias Muestras por viaje, anota en el Nivel 3 y se reparte con su compañero las Muestras, el Human
+  Player, el frente de la Cámara y la Muestra Crítica (uno la lleva a la Repisa, el otro sube a la
+  Plataforma). No defiende (§6.1: "no hay defensa") y evita el contacto con rivales (§4.5). Aún
+  pierde tiempo cuando un robot quieto le tapa el frente de la Cámara.
 - El Human Player es automático (una Muestra cada 3 s si la ranura está libre).
 - No se simulan las faltas de conducta, seguridad o del Human Player humano (no se pueden detectar).
 - La intake, el brazo y la plataforma no chocan con la cancha (solo mueven piezas); no hay editor de

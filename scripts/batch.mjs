@@ -6,6 +6,7 @@
 //   npm run batch -- --vs n3+n3                    cada estrategia contra una referencia
 //   npm run batch -- --workers 4 --out batch.json
 //   npm run batch -- --set mech                    solo robots con mecanismo (sin chasis ni genérico)
+//   npm run batch -- --set ai --a hard --b old     IA nueva (difícil) contra la anterior, alianzas de tipos distintos
 //
 // Imprime una tabla por estrategia (promedios) y guarda todos los matches en JSON.
 import { fork } from 'node:child_process';
@@ -51,8 +52,14 @@ if (process.env.BATCH_WORKER) {
   const out = opt('out', 'batch-results.json');
 
   const jobs = [];
+  // --a <versión> --b <versión>: cada alianza "<a>:…" contra cada "<b>:…" (conjunto `ai`)
+  const A = opt('a');
+  const B = opt('b');
   for (let s = 1; s <= seeds; s++) {
-    if (vs) for (const p of plans) jobs.push({ red: p.id, blue: vs, seed: s }, { red: vs, blue: p.id, seed: s });
+    if (A && B) {
+      for (const p of plans.filter((x) => x.id.startsWith(`${A}:`)))
+        for (const q of plans.filter((x) => x.id.startsWith(`${B}:`))) jobs.push({ red: p.id, blue: q.id, seed: s }, { red: q.id, blue: p.id, seed: s });
+    } else if (vs) for (const p of plans) jobs.push({ red: p.id, blue: vs, seed: s }, { red: vs, blue: p.id, seed: s });
     else
       for (let i = 0; i < plans.length; i++)
         for (let j = i + 1; j < plans.length; j++) jobs.push({ red: plans[i].id, blue: plans[j].id, seed: s }, { red: plans[j].id, blue: plans[i].id, seed: s });
@@ -115,5 +122,16 @@ if (process.env.BATCH_WORKER) {
   }));
   table.sort((a, b) => b.RP - a.RP || b.puntos - a.puntos);
   console.table(table);
+  if (A && B) {
+    // Resumen por versión de la IA
+    const byV = new Map();
+    for (const [id, s] of rows) {
+      const v = id.split(':')[0];
+      const t = byV.get(v) ?? { n: 0, total: 0, own: 0, samples: 0, rp: 0, win: 0, crit: 0, dom: 0, plat: 0, auto: 0, foulsOut: 0 };
+      for (const k of Object.keys(t)) t[k] += s[k];
+      byV.set(v, t);
+    }
+    console.table([...byV].map(([v, s]) => ({ ia: v, matches: s.n, puntos: f(s.total, s.n), propios: f(s.own, s.n), auto: f(s.auto, s.n), muestras: f(s.samples, s.n), plataforma: f(s.plat, s.n), 'critica%': f(100 * s.crit, s.n, 0), 'dominio%': f(100 * s.dom, s.n, 0), 'faltas(pts)': f(s.foulsOut, s.n), RP: f(s.rp, s.n, 2), 'gana%': f(100 * s.win, s.n, 0) })));
+  }
   console.log(`Listo en ${Math.round((Date.now() - t0) / 1000)} s; resultados en ${out}`);
 }

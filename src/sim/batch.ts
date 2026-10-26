@@ -7,14 +7,15 @@
  * que los puntos son un techo para cada estrategia: sirven para comparar, no como pronóstico.
  */
 import type { BotOptions } from '../ai/Bot';
+import type { AiLevel } from '../ai/difficulty';
 import { COLLECT_HOME, LEAVE_ZONE, SCORE_PRELOAD, type AutoRoutine } from '../auto/AutoRoutine';
 import { GAME } from '../config/game';
-import { FIRST_ROBOTS, type FirstRobot } from '../config/firstRobots';
-import { CHASSIS_ROBOT, DEFAULT_ROBOT, ELEVATOR_ROBOT, PIVOT_ROBOT, TOWER_ROBOT, type RobotSpec } from '../config/robot';
+import { CHASSIS_ROBOT, DEFAULT_ROBOT, ELEVATOR_ROBOT, PIVOT_ROBOT, ROBOT_PRESETS, TOWER_ROBOT, type MechanismKind, type RobotSpec } from '../config/robot';
 import { entriesFromMatch, entryPoints } from '../core/scouting';
 import { rng } from '../core/rng';
 import { ALLIANCES, type Alliance } from '../core/types';
-import { GameSession } from '../game/GameSession';
+import { GameSession, type BotDriver } from '../game/GameSession';
+import { LegacyBot, type LegacyBotOptions } from './legacyBot';
 
 export interface RobotPlan {
   id: string;
@@ -22,6 +23,8 @@ export interface RobotPlan {
   spec: RobotSpec;
   auto: AutoRoutine;
   bot: Partial<BotOptions>;
+  /** Juega con la IA anterior (`sim/legacyBot.ts`) y estas opciones suyas, para comparar. */
+  legacy?: Partial<LegacyBotOptions>;
 }
 
 export interface AlliancePlan {
@@ -75,9 +78,6 @@ export const ROBOT_PLANS = {
   ...mechVariants('elev', 'Elevador', ELEVATOR_ROBOT),
 } satisfies Record<string, RobotPlan>;
 
-/** Plan de un robot de FIRST: recolecta en AUTO y juega con la estrategia que le funcionó en su juego. */
-export const firstPlan = (r: FirstRobot): RobotPlan => ({ id: r.id, name: r.spec.label ?? r.spec.name, spec: r.spec, auto: COLLECT_HOME, bot: r.strategy });
-
 type PlanId = keyof typeof ROBOT_PLANS;
 const pair = (id: string, name: string, a: PlanId, b: PlanId): AlliancePlan => ({ id, name, robots: [ROBOT_PLANS[a], ROBOT_PLANS[b]] });
 
@@ -104,8 +104,6 @@ export const ALLIANCE_PLANS: AlliancePlan[] = [
   pair('torre+pivcrit', 'Torre + pivote con Crítica', 'torre', 'pivcrit'),
   pair('torre+bloqueo', 'Torre + bloqueo', 'torre', 'bloqueo'),
   pair('n3+bloqueo', 'N3 + bloqueo', 'n3', 'bloqueo'),
-  // Robots de referencia de FIRST (`config/firstRobots.ts`), en pareja consigo mismos
-  ...FIRST_ROBOTS.map((r): AlliancePlan => ({ id: `${r.id}+${r.id}`, name: `Dos ${r.spec.label}`, robots: [firstPlan(r), firstPlan(r)] })),
 ];
 
 /**
@@ -150,8 +148,58 @@ export const MECH_ALLIANCE_PLANS: AlliancePlan[] = [
   }),
 ];
 
+/**
+ * IA nueva contra la anterior y entre dificultades: alianzas de dos tipos distintos (como juegan los
+ * robots de la IA en el juego, `ai/lineup.ts`). Ids `<versión>:<tipo>+<tipo>` con versión `old` (IA
+ * anterior, con los papeles que le daba `allianceRoles`), `hard`, `normal` o `easy`.
+ * `npm run batch -- --set ai --a hard --b old` enfrenta cada alianza `hard:` con cada `old:`.
+ */
+const AI_KINDS: readonly MechanismKind[] = ['generic', 'elevator', 'pivot', 'tower'];
+/** Quién llevaba la Crítica con la IA anterior (el elevador nunca: no la alcanzaba). */
+const OLD_CRIT: Record<MechanismKind, number> = { pivot: 3, tower: 2, generic: 1, elevator: 0, chassis: 0 };
+function aiPlans(): AlliancePlan[] {
+  const out: AlliancePlan[] = [];
+  for (let i = 0; i < AI_KINDS.length; i++)
+    for (let j = i + 1; j < AI_KINDS.length; j++) {
+      const ks = [AI_KINDS[i], AI_KINDS[j]];
+      for (const v of ['old', 'hard', 'normal', 'easy'] as const) {
+        const critFirst = OLD_CRIT[ks[0]] >= OLD_CRIT[ks[1]];
+        const robots = ks.map((k, n): RobotPlan => {
+          const crit = (n === 0) === critFirst && OLD_CRIT[k] > 0;
+          return {
+            id: `${v}:${k}`,
+            name: `${k} (${v})`,
+            spec: ROBOT_PRESETS[k],
+            auto: COLLECT_HOME,
+            bot: v === 'old' ? {} : { ai: v as AiLevel },
+            legacy: v === 'old' ? { level: 3, endgame: crit ? 'critical' : 'platform' } : undefined,
+          };
+        }) as [RobotPlan, RobotPlan];
+        out.push({ id: `${v}:${ks[0]}+${ks[1]}`, name: `${ks[0]} + ${ks[1]} (${v})`, robots });
+      }
+    }
+  return out;
+}
+export const AI_ALLIANCE_PLANS = aiPlans();
+
 /** Conjuntos de estrategias para `npm run batch -- --set <id>`. */
-export const PLAN_SETS: Record<string, AlliancePlan[]> = { all: ALLIANCE_PLANS, mech: MECH_ALLIANCE_PLANS };
+export const PLAN_SETS: Record<string, AlliancePlan[]> = { all: ALLIANCE_PLANS, mech: MECH_ALLIANCE_PLANS, ai: AI_ALLIANCE_PLANS };
+
+/** La IA anterior para los robots con `legacy` (una para el AUTO, como la usaba la sesión, y otra para el TELEOP). */
+function legacyDriver(plans: RobotPlan[]) {
+  return (r: { index: number }, o: { auto: BotDriver['opts']['auto']; teleop: boolean }, all: unknown[], pieces: unknown): BotDriver | null => {
+    const plan = plans[r.index];
+    if (!plan.legacy) return null;
+    type Args = ConstructorParameters<typeof LegacyBot>;
+    const make = (opts: Partial<LegacyBotOptions>) => new LegacyBot(r as Args[0], pieces as Args[1], all as Args[2], opts);
+    const auto = o.auto !== 'none' ? make({ level: plan.legacy.level ?? 3, scoreOnly: o.auto === 'preload', stayHome: true }) : null;
+    const tele = o.teleop ? make(plan.legacy) : null;
+    return {
+      opts: { auto: o.auto, teleop: o.teleop },
+      step: (dt, phase, timeLeft) => (phase === 'AUTO' ? auto : tele)?.step(dt, phase, timeLeft) ?? { forward: 0, turn: 0, intake: false, elevator: 0, release: false },
+    };
+  };
+}
 
 /** Lo que hizo cada robot (del scouting del match, `core/scouting.ts`). */
 export interface RobotResult {
@@ -215,6 +263,7 @@ export function runMatch(red: AlliancePlan, blue: AlliancePlan, seed = 1): Match
     autos: plans.map((p) => p.auto),
     bots: plans.map((p) => p.bot),
     hp: { enabled: true, interval: 2.5 + rand() * 1.5 },
+    makeBot: plans.some((p) => p.legacy) ? legacyDriver(plans) : undefined,
   });
   try {
     g.startMatch();
