@@ -432,6 +432,49 @@ canvas.heat { display: block; width: 100%; height: auto; margin: 10px 0 8px; bor
 .rp-btns .btn { min-height: 40px; padding: 8px 14px; }
 @media (max-width: 760px) { .rp-card { grid-template-columns: 1fr; } .rp-btns { justify-content: flex-start; } }
 
+/* ===================================================================== editor de robot */
+.editor { grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); }
+@media (max-width: 900px) { .editor { grid-template-columns: 1fr; } }
+.ed-side { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+.numin { display: flex; align-items: center; gap: 8px; }
+.numin span { color: var(--muted); font: 600 11px var(--mono); white-space: nowrap; }
+.form input[type='number'], .form input[type='text'] { width: 100%; max-width: 160px; min-height: 38px; padding: 8px 10px; border: 1px solid var(--line-2); border-radius: 3px; background: var(--bg-2); color: var(--text); font: 600 13px var(--font); font-variant-numeric: tabular-nums; }
+.form input[type='text'] { max-width: 100%; }
+.form input:focus { outline: none; border-color: var(--accent); }
+.ed-card { display: grid; grid-template-columns: 110px 1fr auto; align-items: center; gap: 14px; padding: 10px 14px; border: 1px solid var(--line); background: linear-gradient(160deg, var(--surface-2), var(--surface) 70%); }
+.ed-card .ed-sil svg { width: 100%; height: auto; color: #b9c4d6; }
+.ed-info { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.ed-info small { color: var(--muted); }
+.ed-info small.bad { color: #ff8a83; }
+.ed-info small.good { color: var(--ok); }
+.ed-sil.big svg { display: block; width: min(260px, 70%); height: auto; margin: 0 auto 6px; color: #b9c4d6; }
+.ed-sil .hot { stroke: var(--accent); }
+.ed-kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 10px; }
+.ed-kpis div { padding: 8px; text-align: center; border: 1px solid var(--line); background: var(--bg-2); }
+.ed-kpis b { display: block; font: 700 22px var(--display); }
+.ed-kpis small { color: var(--muted); font: 600 10.5px var(--mono); text-transform: uppercase; }
+.rules-t { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+.rules-t td { padding: 5px 4px; border-bottom: 1px solid var(--line); color: #cfd3da; }
+.rules-t td:last-child { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.rules-t tr.tot td { font: 700 15px var(--display); color: var(--text); }
+.checks { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; font-size: 13px; }
+.checks li { display: flex; gap: 8px; align-items: baseline; padding: 6px 8px; border-left: 3px solid var(--line-2); background: rgba(255, 255, 255, 0.02); }
+.checks li i { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
+.checks li.error { border-color: var(--red); color: #ffc2bd; }
+.checks li.error i { background: var(--red); }
+.checks li.warn { border-color: var(--accent); color: #ffe7a6; }
+.checks li.warn i { background: var(--accent); }
+.checks li.info { color: var(--muted); }
+.cmp-bar { height: 6px; margin: 10px 0; background: var(--bg-2); overflow: hidden; }
+.cmp-bar i { display: block; height: 100%; background: var(--accent); transition: width 0.2s; }
+.cmp-t { margin-top: 10px; }
+.cmp-t em { font-style: normal; font-size: 11px; margin-left: 4px; }
+.cmp-t em.up { color: var(--ok); }
+.cmp-t em.down { color: #ff8a83; }
+.cmp-act { display: flex; justify-content: flex-end; margin: 10px 0 6px; }
+.panel.wide-p { grid-column: span 1; }
+@media (max-width: 760px) { .ed-card { grid-template-columns: 70px 1fr; } .ed-card .rp-btns { grid-column: 1 / -1; justify-content: flex-start; } .ed-kpis { grid-template-columns: repeat(2, 1fr); } }
+
 /* ===================================================================== HUD */
 /* Todo el HUD va en em: la letra base escala con la ventana (laptops, celulares) */
 .hud { position: absolute; inset: 0; pointer-events: none; font-variant-numeric: tabular-nums; font-size: clamp(10px, min(1.02vw, 1.85vh), 16px); --gut: max(0.9em, 8px); }

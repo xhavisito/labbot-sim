@@ -3,7 +3,8 @@
  * controles (reasignar), reglas, pausa y resultados.
  */
 import { AUTO_ROUTINES } from '../auto/AutoRoutine';
-import { FIRST_ROBOTS, firstRobot, ROBOT_IDS, robotSpec, type RobotId } from '../config/firstRobots';
+import { customById } from '../config/customRobots';
+import { allRobotIds, FIRST_ROBOTS, firstRobot, robotSpec, type RobotId } from '../config/firstRobots';
 import { fixedCapacity, MECHANISM_KINDS, type MechanismKind } from '../config/robot';
 import { GAME } from '../config/game';
 import { DEFAULT_SETTINGS, SETTINGS_RANGE, type Settings } from '../config/settings';
@@ -44,13 +45,23 @@ const chassisSize = (id: RobotId): string => `${Math.round(robotSpec(id).length 
 /** Nombre y descripción de un robot elegible (tipo de LabBot o robot de FIRST). */
 const robotName = (id: RobotId): string => robotSpec(id).label ?? t(`type_${id}` as Key);
 function robotDesc(id: RobotId): string {
+  const c = customById(id);
+  if (c) {
+    const s = robotSpec(id);
+    return t('myRobotDesc', { type: t(`type_${s.mechanism}` as Key), mass: s.massKg.toFixed(1), speed: s.maxSpeed.toFixed(2) });
+  }
   const f = firstRobot(id);
   return f ? `${t('firstTag', { team: f.team, year: f.year, game: f.game })} ${t(`first_${f.id}_desc` as Key)}` : t(`type_${id}_desc` as Key);
 }
 /** Lista de robots para elegir: sugerencias de LabBot y robots de FIRST (adaptados a §7.2). */
 const robotOptions = (sel: RobotId): string =>
   `<optgroup label="${t('grp_labbot')}">${MECHANISM_KINDS.map((m) => `<option value="${m}" ${m === sel ? 'selected' : ''}>${robotName(m)}</option>`).join('')}</optgroup>
-  <optgroup label="${t('grp_first')}">${FIRST_ROBOTS.map((r) => `<option value="${r.id}" ${r.id === sel ? 'selected' : ''}>${robotName(r.id)}${robotName(r.id).includes(String(r.year)) ? '' : ` · ${r.year}`}</option>`).join('')}</optgroup>`;
+  <optgroup label="${t('grp_first')}">${FIRST_ROBOTS.map((r) => `<option value="${r.id}" ${r.id === sel ? 'selected' : ''}>${robotName(r.id)}${robotName(r.id).includes(String(r.year)) ? '' : ` · ${r.year}`}</option>`).join('')}</optgroup>${mineOptions(sel)}`;
+/** Robots propios del editor (si hay). */
+function mineOptions(sel: RobotId): string {
+  const ids = allRobotIds().filter((id) => customById(id));
+  return ids.length ? `<optgroup label="${t('grp_mine')}">${ids.map((id) => `<option value="${id}" ${id === sel ? 'selected' : ''}>${robotName(id)}</option>`).join('')}</optgroup>` : '';
+}
 /** Al elegir un robot, la velocidad y la capacidad de los ajustes toman las suyas. */
 function adoptRobot(s: Settings, id: RobotId): void {
   const spec = robotSpec(id);
@@ -62,8 +73,9 @@ function adoptRobot(s: Settings, id: RobotId): void {
 const stationLabel = (i: number): string => `${t(i < 2 ? 'red' : 'blue')} ${(i % 2) + 1}`;
 
 export class Menu {
-  /** Abre la pantalla de Repeticiones (la conecta App). */
+  /** Abre la pantalla de Repeticiones y el editor de robot (los conecta App). */
   onReplays: () => void = () => undefined;
+  onEditor: () => void = () => undefined;
   readonly root: HTMLElement;
   player = 0;
 
@@ -125,6 +137,7 @@ export class Menu {
           <div class="mm-eyebrow late"><span>02</span>${t('mm_workshop')}</div>
           <div class="mm-tools late">
             ${tool('replays', ic.film, 'replays', 'replaysDesc')}
+            ${tool('editor', ic.cube, 'editor', 'editorDesc')}
             ${tool('settings', ic.sliders, 'settings', 'settingsDesc')}
             ${tool('controls', ic.gamepad, 'controlsTitle', 'controlsDesc')}
             ${tool('rules', ic.book, 'rules', 'rulesDesc')}
@@ -166,6 +179,7 @@ export class Menu {
     this.on('[data-act="match"]', () => this.onStart({ mode: 'match', player: this.player }));
     this.on('[data-act="practice"]', () => this.onStart({ mode: 'practice', player: this.player }));
     this.on('[data-go="replays"]', () => this.onReplays());
+    this.on('[data-go="editor"]', () => this.onEditor());
     this.on('[data-go="settings"]', () => this.settingsPanel());
     this.on('[data-go="controls"]', () => this.controlsPanel(() => this.main()));
     this.on('[data-go="rules"]', () => this.rulesPanel());
@@ -198,14 +212,22 @@ export class Menu {
     });
   }
 
+  /** Elige un robot como el tuyo (desde el editor) y vuelve al menú. */
+  useRobot(id: RobotId): void {
+    adoptRobot(this.settings, id);
+    this.onSettings(this.settings);
+    this.main();
+  }
+
   /** Placa del robot elegido: nombre, descripción, barras y flechas para cambiar de tipo. */
   private robotInfo(): void {
     const s = this.settings;
     const id = s.robotType;
     const spec = robotSpec(id);
     const k = spec.mechanism;
-    const i = ROBOT_IDS.indexOf(id);
-    const n = ROBOT_IDS.length;
+    const ids = allRobotIds();
+    const i = Math.max(0, ids.indexOf(id));
+    const n = ids.length;
     const cap = fixedCapacity(k) ?? s.capacity;
     const levels = (['N1', 'N2', 'N3'] as const).slice(0, spec.maxLevel ?? 3).join(' · ');
     const bar = (label: string, v: number, txt: string) =>
@@ -223,7 +245,7 @@ export class Menu {
         <span class="count">${i + 1}/${n}</span><button class="arrowbtn" data-step="1" aria-label="›">›</button></div>`;
     info.querySelectorAll<HTMLElement>('[data-step]').forEach((b) =>
       b.addEventListener('click', () => {
-        adoptRobot(s, ROBOT_IDS[(i + Number(b.dataset.step) + n) % n]);
+        adoptRobot(s, ids[(i + Number(b.dataset.step) + n) % n]);
         this.onSettings(s);
         this.root.querySelector('.showcase')!.innerHTML = `${robotSilhouette(robotSpec(s.robotType).mechanism)}<span class="dim">${chassisSize(s.robotType)} · ${t('robotType').toUpperCase()}</span>`;
         this.robotInfo();

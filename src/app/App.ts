@@ -21,6 +21,7 @@ import { ReplayPlayer } from '../replay/ReplayPlayer';
 import { storeReplay } from '../replay/store';
 import { ReplayBar } from '../ui/ReplayBar';
 import { ReplaysScreen } from '../ui/ReplaysScreen';
+import { RobotEditor } from '../ui/RobotEditor';
 import { StatsPanel } from '../ui/StatsPanel';
 import { Hud } from '../ui/Hud';
 import { t, type Key } from '../ui/i18n';
@@ -57,6 +58,7 @@ export class App {
   private replayBack: () => void = () => this.toMenu();
   readonly replayBar: ReplayBar;
   readonly replays: ReplaysScreen;
+  readonly editor: RobotEditor;
   /** `?touch=1` fuerza los controles touch (para probar en escritorio). */
   private touchForced = new URLSearchParams(location.search).get('touch') === '1';
 
@@ -83,6 +85,8 @@ export class App {
       stats: (r) => this.showStats(r, () => this.openReplays(), () => this.watchReplay(r, () => this.openReplays())),
     });
     this.menu.onReplays = () => this.openReplays();
+    this.editor = new RobotEditor(this.menu.root, () => this.toMenu(), (id) => this.menu.useRobot(id));
+    this.menu.onEditor = () => this.editor.show(null);
     pwa.onChange = () => {
       if (this.state === 'menu') this.menu.pwaChips();
     };
