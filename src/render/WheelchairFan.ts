@@ -99,10 +99,14 @@ export function buildWheelchairFan(): THREE.Group {
   return g;
 }
 
-/** Junto al lado +Z de la cancha, pasando el margen de §3.1, mirando hacia el campo. SUPUESTO: lugar decorativo. */
+/**
+ * A la mitad de la cancha (x = 0, sobre la línea central) en el lado +Z, el que queda al frente de la
+ * cámara libre, ya fuera del tapete y de su base gris (margen de §3.1), mirando al campo.
+ * SUPUESTO: lugar decorativo.
+ */
 export function placeWheelchairFan(): THREE.Group {
   const g = buildWheelchairFan();
-  g.position.set(-1.6, 0, F.HALF_W + F.OUT_OF_BOUNDS_MARGIN + 0.75);
-  g.rotation.y = Math.PI - 0.25;
+  g.position.set(F.CENTER_LINE_X, 0, F.HALF_W + F.OUT_OF_BOUNDS_MARGIN + 0.6);
+  g.rotation.y = Math.PI;
   return g;
 }
