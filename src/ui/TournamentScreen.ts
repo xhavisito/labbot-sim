@@ -4,7 +4,7 @@
  * simulan). Muestra rankings (general y por categoría), la selección de alianzas (§8.2.1: si eres
  * capitán invitas tú; cada equipo acepta o rechaza) y los PlayOffs (§8.2.2).
  */
-import { robotSpec } from '../config/firstRobots';
+import { robotSpec } from '../config/robotIds';
 import { GAME } from '../config/game';
 import type { Settings } from '../config/settings';
 import type { Match } from '../core/match';

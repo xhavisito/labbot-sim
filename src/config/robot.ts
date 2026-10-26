@@ -47,7 +47,7 @@ export interface ArmSpec {
 
 export interface RobotSpec {
   name: string;
-  /** Nombre a mostrar (robots de referencia de FIRST); si no hay, se usa el nombre del tipo. */
+  /** Nombre a mostrar (robots propios del editor); si no hay, se usa el nombre del tipo. */
   label?: string;
   mechanism: MechanismKind;
   /** Chasis (m): largo (adelante) y ancho. Tanque obligatorio, sin bumpers (§7.2). */

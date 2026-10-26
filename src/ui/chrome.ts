@@ -32,9 +32,13 @@ export const ic = {
   expand: svg('<path d="M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5"/>'),
   x: svg('<path d="M6 6l12 12M18 6 6 18"/>'),
   check: svg('<path d="m4.5 12.5 5 5 10-11"/>'),
+  chart: svg('<path d="M4 20V10M10 20V4M16 20v-7M21.5 20.5h-19"/>'),
+  film: svg('<rect x="3" y="5" width="18" height="14" rx="1.5"/><path d="M3 9h3M3 15h3M18 9h3M18 15h3M10 9.5v5l4-2.5z"/>'),
   clipboard: svg('<rect x="5" y="4.5" width="14" height="16.5" rx="1.5"/><path d="M9 3h6v3H9zM8.5 11h7M8.5 14.5h7M8.5 18h4"/>'),
   phone: svg('<rect x="6.5" y="2.5" width="11" height="19" rx="2"/><path d="M12 7v7M9 11l3 3 3-3"/>'),
   offline: svg('<path d="M7 18.5h10a4.5 4.5 0 0 0 .6-9 6 6 0 0 0-11.5 1.5A3.8 3.8 0 0 0 7 18.5z"/><path d="m9.5 13.5 2 2 3.5-4"/>'),
+  route: svg('<circle cx="5.5" cy="18.5" r="2"/><circle cx="18.5" cy="5.5" r="2"/><path d="M7.5 18.5h7a3.5 3.5 0 0 0 0-7h-5a3.5 3.5 0 0 1 0-7h7"/>'),
+  rec: svg('<circle cx="12" cy="12" r="6.5" fill="currentColor"/>'),
 };
 
 /** Barra superior con la marca; `right` = botones a la derecha. */

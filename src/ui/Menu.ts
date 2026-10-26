@@ -3,7 +3,10 @@
  * controles (reasignar), reglas, pausa y resultados.
  */
 import { AUTO_ROUTINES } from '../auto/AutoRoutine';
-import { FIRST_ROBOTS, firstRobot, ROBOT_IDS, robotSpec, type RobotId } from '../config/firstRobots';
+import { routeRoutine, savedRoutes } from '../auto/recorded';
+import { customById } from '../config/customRobots';
+import { allRobotIds, robotSpec, type RobotId } from '../config/robotIds';
+import { AI_LEVELS } from '../ai/difficulty';
 import { fixedCapacity, MECHANISM_KINDS, type MechanismKind } from '../config/robot';
 import { GAME } from '../config/game';
 import { DEFAULT_SETTINGS, SETTINGS_RANGE, type Settings } from '../config/settings';
@@ -19,8 +22,11 @@ import { getLang, setLang, t, type Key } from './i18n';
 import type { ScoutPlay } from './Scouting';
 import { isIos, isStandalone, promptInstall, pwa } from '../pwa/register';
 
+const esc = (v: string): string => v.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
+
 export interface MenuChoice {
-  mode: 'match' | 'practice';
+  /** 'auto' = práctica de AUTO (`ui/AutoPractice.ts`): solo tu robot, grabar y probar rutas. */
+  mode: 'match' | 'practice' | 'auto';
   player: number;
   /** Match del calendario del Scouting (equipos y sus robots); su registro se guarda al terminar. */
   scout?: ScoutPlay;
@@ -47,16 +53,24 @@ const SCORES_BACK: Record<MechanismKind, boolean> = { generic: false, elevator: 
 
 /** Medidas del chasis del robot (cm), para la vitrina del menú. */
 const chassisSize = (id: RobotId): string => `${Math.round(robotSpec(id).length * 100)} × ${Math.round(robotSpec(id).width * 100)} cm`;
-/** Nombre y descripción de un robot elegible (tipo de LabBot o robot de FIRST). */
+/** Nombre y descripción de un robot elegible (tipo de LabBot o robot propio). */
 const robotName = (id: RobotId): string => robotSpec(id).label ?? t(`type_${id}` as Key);
 function robotDesc(id: RobotId): string {
-  const f = firstRobot(id);
-  return f ? `${t('firstTag', { team: f.team, year: f.year, game: f.game })} ${t(`first_${f.id}_desc` as Key)}` : t(`type_${id}_desc` as Key);
+  const c = customById(id);
+  if (c) {
+    const s = robotSpec(id);
+    return t('myRobotDesc', { type: t(`type_${s.mechanism}` as Key), mass: s.massKg.toFixed(1), speed: s.maxSpeed.toFixed(2) });
+  }
+  return t(`type_${id}_desc` as Key);
 }
-/** Lista de robots para elegir: sugerencias de LabBot y robots de FIRST (adaptados a §7.2). */
+/** Lista de robots para elegir: sugerencias de LabBot y robots propios del editor. */
 const robotOptions = (sel: RobotId): string =>
-  `<optgroup label="${t('grp_labbot')}">${MECHANISM_KINDS.map((m) => `<option value="${m}" ${m === sel ? 'selected' : ''}>${robotName(m)}</option>`).join('')}</optgroup>
-  <optgroup label="${t('grp_first')}">${FIRST_ROBOTS.map((r) => `<option value="${r.id}" ${r.id === sel ? 'selected' : ''}>${robotName(r.id)}${robotName(r.id).includes(String(r.year)) ? '' : ` · ${r.year}`}</option>`).join('')}</optgroup>`;
+  `<optgroup label="${t('grp_labbot')}">${MECHANISM_KINDS.map((m) => `<option value="${m}" ${m === sel ? 'selected' : ''}>${robotName(m)}</option>`).join('')}</optgroup>${mineOptions(sel)}`;
+/** Robots propios del editor (si hay). */
+function mineOptions(sel: RobotId): string {
+  const ids = allRobotIds().filter((id) => customById(id));
+  return ids.length ? `<optgroup label="${t('grp_mine')}">${ids.map((id) => `<option value="${id}" ${id === sel ? 'selected' : ''}>${robotName(id)}</option>`).join('')}</optgroup>` : '';
+}
 /** Al elegir un robot, la velocidad y la capacidad de los ajustes toman las suyas. */
 function adoptRobot(s: Settings, id: RobotId): void {
   const spec = robotSpec(id);
@@ -68,6 +82,9 @@ function adoptRobot(s: Settings, id: RobotId): void {
 const stationLabel = (i: number): string => `${t(i < 2 ? 'red' : 'blue')} ${(i % 2) + 1}`;
 
 export class Menu {
+  /** Abre la pantalla de Repeticiones y el editor de robot (los conecta App). */
+  onReplays: () => void = () => undefined;
+  onEditor: () => void = () => undefined;
   readonly root: HTMLElement;
   player = 0;
   /** Abre la pantalla de Scouting (la conecta App). */
@@ -132,6 +149,9 @@ export class Menu {
           </button>
           <div class="mm-eyebrow late"><span>02</span>${t('mm_workshop')}</div>
           <div class="mm-tools late">
+            ${tool('replays', ic.film, 'replays', 'replaysDesc')}
+            ${tool('editor', ic.cube, 'editor', 'editorDesc')}
+            ${tool('autoPractice', ic.route, 'autoPractice', 'autoPracticeDesc')}
             ${tool('settings', ic.sliders, 'settings', 'settingsDesc')}
             ${tool('controls', ic.gamepad, 'controlsTitle', 'controlsDesc')}
             ${tool('rules', ic.book, 'rules', 'rulesDesc')}
@@ -174,6 +194,9 @@ export class Menu {
     });
     this.on('[data-act="match"]', () => this.onStart({ mode: 'match', player: this.player }));
     this.on('[data-act="practice"]', () => this.onStart({ mode: 'practice', player: this.player }));
+    this.on('[data-go="replays"]', () => this.onReplays());
+    this.on('[data-go="editor"]', () => this.onEditor());
+    this.on('[data-go="autoPractice"]', () => this.onStart({ mode: 'auto', player: this.player }));
     this.on('[data-go="settings"]', () => this.settingsPanel());
     this.on('[data-go="controls"]', () => this.controlsPanel(() => this.main()));
     this.on('[data-go="rules"]', () => this.rulesPanel());
@@ -208,14 +231,22 @@ export class Menu {
     });
   }
 
+  /** Elige un robot como el tuyo (desde el editor) y vuelve al menú. */
+  useRobot(id: RobotId): void {
+    adoptRobot(this.settings, id);
+    this.onSettings(this.settings);
+    this.main();
+  }
+
   /** Placa del robot elegido: nombre, descripción, barras y flechas para cambiar de tipo. */
   private robotInfo(): void {
     const s = this.settings;
     const id = s.robotType;
     const spec = robotSpec(id);
     const k = spec.mechanism;
-    const i = ROBOT_IDS.indexOf(id);
-    const n = ROBOT_IDS.length;
+    const ids = allRobotIds();
+    const i = Math.max(0, ids.indexOf(id));
+    const n = ids.length;
     const cap = fixedCapacity(k) ?? s.capacity;
     const levels = (['N1', 'N2', 'N3'] as const).slice(0, spec.maxLevel ?? 3).join(' · ');
     const bar = (label: string, v: number, txt: string) =>
@@ -233,7 +264,7 @@ export class Menu {
         <span class="count">${i + 1}/${n}</span><button class="arrowbtn" data-step="1" aria-label="›">›</button></div>`;
     info.querySelectorAll<HTMLElement>('[data-step]').forEach((b) =>
       b.addEventListener('click', () => {
-        adoptRobot(s, ROBOT_IDS[(i + Number(b.dataset.step) + n) % n]);
+        adoptRobot(s, ids[(i + Number(b.dataset.step) + n) % n]);
         this.onSettings(s);
         this.root.querySelector('.showcase')!.innerHTML = `${robotSilhouette(robotSpec(s.robotType).mechanism)}<span class="dim">${chassisSize(s.robotType)} · ${t('robotType').toUpperCase()}</span>`;
         this.robotInfo();
@@ -245,13 +276,18 @@ export class Menu {
   /** Ajustes: IA, rutinas de AUTO, tu robot y Human Player. Se guardan al volver. */
   settingsPanel(): void {
     const s = { ...this.settings };
-    const autoOpts = (sel: string) => AUTO_ROUTINES.map((r) => `<option value="${r.id}" ${r.id === sel ? 'selected' : ''}>${t(`auto_${r.id}` as Key)}</option>`).join('');
+    const autoOpts = (sel: string, routes = false) => {
+      const opt = (id: string, label: string) => `<option value="${id}" ${id === sel ? 'selected' : ''}>${label}</option>`;
+      const fixed = AUTO_ROUTINES.map((r) => opt(r.id, t(`auto_${r.id}` as Key))).join('');
+      const mine = routes ? savedRoutes.map((r) => opt(routeRoutine(r).id, esc(r.name))).join('') : '';
+      return fixed + (mine ? `<optgroup label="${t('grp_routes')}">${mine}</optgroup>` : '');
+    };
     const toggle = (k: 'ai' | 'hpEnabled') => `<button class="toggle ${s[k] ? 'on' : ''}" data-tog="${k}"><i></i>${s[k] ? t('on_') : t('no_')}</button>`;
     const range = (k: keyof typeof SETTINGS_RANGE, unit: string) => {
       const r = SETTINGS_RANGE[k];
       return `<div class="range"><input type="range" data-k="${k}" min="${r.min}" max="${r.max}" step="${r.step}" value="${s[k]}"><output data-unit="${unit}">${s[k]} ${unit}</output></div>`;
     };
-    const robotSel = (k: 'robotType' | 'botRobotType') => `<select data-robot="${k}">${robotOptions(s[k])}</select>`;
+    const robotSel = () => `<select data-robot>${robotOptions(s.robotType)}</select>`;
     this.open(
       `${brandbar(t('settings'))}
       <h1>${t('settings')}</h1>
@@ -260,16 +296,17 @@ export class Menu {
         <div class="panel"><div class="form">
           <h3>${t('sec_match')}</h3>
           <label>${t('setAi')}</label>${toggle('ai')}
-          <label>${t('setPlayerAuto')}</label><select data-k="playerAuto">${autoOpts(s.playerAuto)}</select>
+          <label>${t('setPlayerAuto')}</label><select data-k="playerAuto">${autoOpts(s.playerAuto, true)}</select>
           <label>${t('setBotAuto')}</label><select data-k="botAuto">${autoOpts(s.botAuto)}</select>
-          <label>${t('setBotType')}</label>${robotSel('botRobotType')}
+          <label>${t('setAiLevel')}</label><div class="seg" data-aiseg>${AI_LEVELS.map((l) => `<button class="${l === s.aiLevel ? 'on' : ''}" data-v="${l}">${t(`ai_${l}`)}</button>`).join('')}</div>
+          <p class="full sub">${t('aiNote')}</p>
           <h3>${t('sec_hp')}</h3>
           <label>${t('setHp')}</label>${toggle('hpEnabled')}
           <label>${t('setHpInterval')}</label>${range('hpInterval', 's')}
         </div></div>
         <div class="panel"><div class="form">
           <h3>${t('sec_robot')}</h3>
-          <label>${t('robotType')}</label>${robotSel('robotType')}
+          <label>${t('robotType')}</label>${robotSel()}
           <p class="full sub" data-desc>${robotDesc(s.robotType)}</p>
           <label>${t('setSpeed')}</label>${range('maxSpeed', 'm/s')}
           <label>${t('setCapacity')}</label>${range('capacity', '')}
@@ -301,10 +338,6 @@ export class Menu {
     this.root.querySelectorAll<HTMLSelectElement>('[data-robot]').forEach((sel) =>
       sel.addEventListener('change', () => {
         const id = sel.value as RobotId;
-        if (sel.dataset.robot === 'botRobotType') {
-          s.botRobotType = id;
-          return;
-        }
         adoptRobot(s, id);
         this.root.querySelector('[data-desc]')!.textContent = robotDesc(id);
         // Los deslizadores de velocidad y capacidad muestran los del robot elegido
@@ -315,6 +348,12 @@ export class Menu {
           const out = r.nextElementSibling;
           if (out instanceof HTMLOutputElement) out.textContent = `${s[k]} ${out.dataset.unit ?? ''}`;
         }
+      }),
+    );
+    this.root.querySelectorAll<HTMLElement>('[data-aiseg] button').forEach((b) =>
+      b.addEventListener('click', () => {
+        s.aiLevel = b.dataset.v as Settings['aiLevel'];
+        b.parentElement!.querySelectorAll('button').forEach((x) => x.classList.toggle('on', x === b));
       }),
     );
     this.root.querySelectorAll<HTMLElement>('[data-qseg] button').forEach((b) =>

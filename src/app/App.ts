@@ -2,9 +2,11 @@
  * Orquestador: renderer, cámara, entrada, sesión, HUD y menús; bucle principal.
  * Estados: menú (la cancha gira de fondo) → jugando ⇄ pausa → resultados.
  */
-import { AUTO_ROUTINES, COLLECT_HOME, LEAVE_ZONE } from '../auto/AutoRoutine';
-import { firstRobot, robotSpec } from '../config/firstRobots';
+import { COLLECT_HOME, LEAVE_ZONE } from '../auto/AutoRoutine';
+import { aiLineup } from '../ai/lineup';
+import { allAutoRoutines, autoRoutineIds } from '../auto/recorded';
 import { fixedCapacity, ROBOT_PRESETS, type RobotSpec } from '../config/robot';
+import { robotSpec } from '../config/robotIds';
 import { loadSettings, saveSettings, type Settings } from '../config/settings';
 import { formatTimer, timerSeconds } from '../core/clock';
 import { buildMatchLog } from '../core/matchLog';
@@ -16,15 +18,28 @@ import { Arena } from '../render/Arena';
 import { Effects } from '../render/Effects';
 import { guessQuality, QUALITIES, Renderer, type Quality } from '../render/Renderer';
 import { pwa } from '../pwa/register';
+import type { Replay } from '../replay/format';
+import { Recorder } from '../replay/Recorder';
+import { ReplayPlayer } from '../replay/ReplayPlayer';
+import { storeReplay } from '../replay/store';
+import { AutoPractice } from '../ui/AutoPractice';
+import { ReplayBar } from '../ui/ReplayBar';
+import { ReplaysScreen } from '../ui/ReplaysScreen';
+import { RobotEditor } from '../ui/RobotEditor';
+import { StatsPanel } from '../ui/StatsPanel';
 import { Hud } from '../ui/Hud';
 import { t, type Key } from '../ui/i18n';
+import { ic } from '../ui/chrome';
 import { Menu, type MenuChoice } from '../ui/Menu';
 import { saveMatchEntries, ScoutingScreen, type ScoutPlay } from '../ui/Scouting';
 import { isTouchDevice, TouchControls } from '../ui/TouchControls';
 import { TournamentScreen, WATCH_CAMERA } from '../ui/TournamentScreen';
 import { allianceRoles } from '../sim/quickSim';
 
-type State = 'menu' | 'playing' | 'paused' | 'results';
+type State = 'menu' | 'playing' | 'paused' | 'results' | 'replay';
+
+/** Nombre del robot para la repetición y las estadísticas (robot propio o tipo). */
+const robotLabel = (s: RobotSpec): string => s.label ?? t(`type_${s.mechanism}` as Key);
 
 export class App {
   readonly renderer: Renderer;
@@ -40,12 +55,24 @@ export class App {
   session: GameSession;
   state: State = 'menu';
   private choice: MenuChoice = { mode: 'match', player: 0 };
-  readonly settings: Settings = loadSettings(AUTO_ROUTINES.map((r) => r.id));
+  readonly settings: Settings = loadSettings(autoRoutineIds());
   private last = performance.now();
   readonly touch: TouchControls;
+  /** Repetición: grabadora del match en curso, la del último match y el reproductor abierto. */
+  private recorder: Recorder | null = null;
+  lastReplay: Replay | null = null;
+  replay: ReplayPlayer | null = null;
+  private replayBack: () => void = () => this.toMenu();
+  readonly replayBar: ReplayBar;
+  readonly replays: ReplaysScreen;
+  readonly editor: RobotEditor;
+  /** Práctica de AUTO abierta (panel y grabación sobre la sesión de práctica). */
+  autoPractice: AutoPractice | null = null;
   readonly scoutData = loadScout();
   readonly scouting: ScoutingScreen;
   readonly tourney: TournamentScreen;
+  /** Aviso de resultados del último match del torneo (se guarda una vez; los resultados se reabren). */
+  private tourNote = '';
   /** `?touch=1` fuerza los controles touch (para probar en escritorio). */
   private touchForced = new URLSearchParams(location.search).get('touch') === '1';
 
@@ -65,6 +92,15 @@ export class App {
       saveSettings(s);
       this.applyQuality();
     }, this.input);
+    this.replayBar = new ReplayBar(ui, { camera: () => this.cycleCamera(), stats: () => this.replayStats(), exit: () => this.exitReplay() });
+    this.replays = new ReplaysScreen(this.menu.root, {
+      back: () => this.toMenu(),
+      watch: (r) => this.watchReplay(r, () => this.openReplays()),
+      stats: (r) => this.showStats(r, () => this.openReplays(), () => this.watchReplay(r, () => this.openReplays())),
+    });
+    this.menu.onReplays = () => this.openReplays();
+    this.editor = new RobotEditor(this.menu.root, () => this.toMenu(), (id) => this.menu.useRobot(id));
+    this.menu.onEditor = () => this.editor.show(null);
     this.scouting = new ScoutingScreen(this.menu.root, this.scoutData, () => this.toMenu(), (p) => this.start({ mode: 'match', player: p.player, scout: p }));
     this.menu.onScouting = () => this.scouting.show();
     this.tourney = new TournamentScreen(this.menu.root, this.scoutData, this.settings, {
@@ -92,37 +128,58 @@ export class App {
   /** Empieza un match o una práctica con el robot elegido. */
   start(c: MenuChoice): void {
     this.choice = c;
+    this.closeAutoPractice();
     this.renderer.scene.remove(this.session.root);
     this.session.dispose();
-    // Práctica libre: solo el robot del jugador en la cancha
-    this.session = new GameSession(c.scout ? this.scoutOptions(c.scout) : { ...this.sessionOptions(c.player), solo: c.mode === 'practice' });
+    // Práctica libre y de AUTO: solo el robot del jugador en la cancha (en la de AUTO, sin Human Player)
+    const o = c.scout ? this.scoutOptions(c.scout) : this.sessionOptions(c.player);
+    this.session = new GameSession(c.scout ? o : { ...o, solo: c.mode !== 'match', ...(c.mode === 'auto' ? { hp: { enabled: false, interval: 3 } } : {}) });
     this.renderer.scene.add(this.session.root);
     if (c.mode === 'match') this.session.startMatch();
+    // Cada match se graba para la repetición y las estadísticas
+    this.recorder = c.mode === 'match' ? new Recorder(this.session, this.session.robots.map((r) => robotLabel(r.spec))) : null;
+    this.session.tap = this.recorder;
     this.menu.hide();
     this.hud.show(true);
     this.hud.setHelp(this.input.bindings);
     this.state = 'playing';
     this.updateTouch();
     this.cam.setMode(c.player < 2 ? 'driverRed' : 'driverBlue');
+    if (c.mode === 'auto')
+      this.autoPractice = new AutoPractice(this.hud.root.parentElement ?? document.body, {
+        session: () => this.session,
+        robotName: robotLabel(this.session.player.spec),
+        exit: () => this.toMenu(),
+        useRoute: (id) => {
+          this.settings.playerAuto = id;
+          saveSettings(this.settings);
+        },
+        currentAuto: () => this.settings.playerAuto,
+      });
+  }
+
+  private closeAutoPractice(): void {
+    this.autoPractice?.dispose();
+    this.autoPractice = null;
   }
 
   /** Opciones de la sesión según los ajustes: IA, rutinas de AUTO, tu robot y Human Player. */
   private sessionOptions(player: number): SessionOptions {
     const s = this.settings;
-    const auto = (id: string) => AUTO_ROUTINES.find((r) => r.id === id) ?? LEAVE_ZONE;
+    const auto = (id: string) => allAutoRoutines().find((r) => r.id === id) ?? LEAVE_ZONE;
     return {
       player,
       preload: true,
       ai: s.ai,
       autos: [0, 1, 2, 3].map((i) => auto(i === player ? s.playerAuto : s.botAuto)),
-      specs: [0, 1, 2, 3].map((i) => {
-        if (i !== player) return robotSpec(s.botRobotType);
+      aiLevel: s.aiLevel,
+      // Los robots de la IA: tipos distintos en cada match (`ai/lineup.ts`)
+      specs: aiLineup(player, robotSpec(s.robotType).mechanism).map((k, i) => {
+        if (i !== player) return ROBOT_PRESETS[k];
         const base = robotSpec(s.robotType);
         // La garra del pivote lleva una sola pieza; el chasis, solo la precarga
         return { ...base, maxSpeed: s.maxSpeed, capacity: fixedCapacity(base.mechanism) ?? s.capacity };
       }),
-      // Los robots de FIRST juegan con la estrategia que les funcionó (nivel, de dónde juntan, ENDGAME)
-      bots: [0, 1, 2, 3].map((i) => firstRobot(i === player ? s.robotType : s.botRobotType)?.strategy),
       hp: { enabled: s.hpEnabled, interval: s.hpInterval },
     };
   }
@@ -133,11 +190,12 @@ export class App {
    */
   private scoutOptions(p: ScoutPlay): SessionOptions {
     const s = this.settings;
-    const auto = AUTO_ROUTINES.find((r) => r.id === s.playerAuto) ?? LEAVE_ZONE;
+    const auto = allAutoRoutines().find((r) => r.id === s.playerAuto) ?? LEAVE_ZONE;
     return {
       player: p.player,
       preload: true,
       ai: true,
+      aiLevel: s.aiLevel,
       // En el torneo tu robot es el del menú (con tu velocidad y capacidad)
       specs: p.kinds.map((k, i) => (p.tour && i === p.player ? this.playerSpec() : ROBOT_PRESETS[k])),
       autos: p.kinds.map((k, i) => (i === p.player ? auto : k === 'chassis' ? LEAVE_ZONE : COLLECT_HOME)),
@@ -181,7 +239,9 @@ export class App {
 
   /** Reacomoda la cancha en práctica (Backspace o el botón del HUD). */
   resetPractice(): void {
-    if (this.state === 'playing' && !this.session.match) this.session.resetField();
+    if (this.state !== 'playing' || this.session.match) return;
+    if (this.autoPractice) this.autoPractice.reset();
+    else this.session.resetField();
   }
 
   /** Descarga el registro del match terminado como JSON. */
@@ -205,7 +265,86 @@ export class App {
     this.touch.show(want && this.state === 'playing');
   }
 
+  /** Resultados del match terminado, con botones para la repetición y las estadísticas. */
+  private showResults(): void {
+    const m = this.session.match;
+    if (!m) return this.toMenu();
+    this.state = 'results';
+    const sc = this.choice.scout;
+    this.menu.results(
+      m,
+      () => this.start(this.choice),
+      () => (sc ? this.toScouting() : this.toMenu()),
+      () => this.downloadLog(),
+      this.choice.player,
+      sc?.tour ? this.tourNote : sc ? t('sc_saved', { match: sc.match }) : '',
+      sc?.tour ? t('tr_continue') : undefined,
+    );
+    const rep = this.lastReplay;
+    const bar = this.menu.root.querySelector('.results .actions');
+    if (!rep || !bar) return;
+    bar.insertAdjacentHTML('afterbegin', `<button class="btn" data-act="replay">${ic.play}<span>${t('rp_watch')}</span></button><button class="btn" data-act="stats">${ic.chart}<span>${t('st_title')}</span></button>`);
+    const back = () => this.showResults();
+    bar.querySelector('[data-act="replay"]')!.addEventListener('click', () => this.watchReplay(rep, back));
+    bar.querySelector('[data-act="stats"]')!.addEventListener('click', () => this.showStats(rep, back, () => this.watchReplay(rep, back)));
+  }
+
+  /** Pantalla de estadísticas de una repetición. */
+  showStats(r: Replay, back: () => void, watch: (() => void) | null): void {
+    this.hud.show(false);
+    this.touch.show(false);
+    new StatsPanel(this.menu.root, r, back, watch).show();
+  }
+
+  openReplays(): void {
+    this.toMenu();
+    void this.replays.show();
+  }
+
+  /** Abre el reproductor (la sesión en vivo se queda guardada detrás). `back` = adónde volver al salir. */
+  watchReplay(r: Replay, back: () => void): void {
+    this.closeReplay();
+    this.menu.hide();
+    this.hud.show(false);
+    this.touch.show(false);
+    this.replay = new ReplayPlayer(r);
+    this.renderer.scene.remove(this.session.root);
+    this.renderer.scene.add(this.replay.session.root);
+    this.replayBack = back;
+    this.state = 'replay';
+    this.replayBar.show(this.replay);
+    const focus = r.header.robots[this.replay.focus];
+    this.cam.setMode(focus?.alliance === 'blue' ? 'driverBlue' : 'driverRed');
+  }
+
+  private closeReplay(): void {
+    if (!this.replay) return;
+    this.renderer.scene.remove(this.replay.session.root);
+    this.replay.dispose();
+    this.replay = null;
+    this.renderer.scene.add(this.session.root);
+    this.replayBar.show(null);
+  }
+
+  exitReplay(): void {
+    this.closeReplay();
+    this.replayBack();
+  }
+
+  /** Estadísticas desde la barra de la repetición (pausa; al volver sigue la repetición). */
+  private replayStats(): void {
+    const p = this.replay;
+    if (!p) return;
+    p.playing = false;
+    this.replayBar.show(null);
+    this.showStats(p.replay, () => {
+      this.menu.hide();
+      this.replayBar.show(p);
+    }, null);
+  }
+
   toMenu(): void {
+    this.closeAutoPractice();
     this.state = 'menu';
     this.touch.show(false);
     this.hud.show(false);
@@ -264,11 +403,15 @@ export class App {
       return;
     }
     const inp = this.input.poll();
-    if (this.input.pause) this.togglePause();
+    if (this.input.pause) {
+      if (this.state === 'replay') this.exitReplay();
+      else this.togglePause();
+    }
     if (this.state === 'playing') {
       if (this.input.camera) this.cycleCamera();
-      this.session.setInput(inp);
+      this.session.setInput(this.autoPractice ? this.autoPractice.filter(inp) : inp);
       this.session.update(dt);
+      this.autoPractice?.update(dt);
       this.hud.events(this.session.matchEvents);
       this.hud.update(this.session, this.cam.mode);
       this.touch.setIntake(this.session.player.mech.intakeOn);
@@ -284,33 +427,34 @@ export class App {
         const sc = this.choice.scout;
         if (sc && !sc.tour) saveMatchEntries(this.scoutData, m, sc.teams, sc.match);
         // Torneo: el resultado va a su tabla
-        const tourNote = sc?.tour ? this.tourney.record(m, sc) : '';
-        this.menu.results(
-          m,
-          () => this.start(this.choice),
-          () => (sc ? this.toScouting() : this.toMenu()),
-          () => this.downloadLog(),
-          this.choice.player,
-          sc?.tour ? tourNote : sc ? t('sc_saved', { match: sc.match }) : '',
-          sc?.tour ? t('tr_continue') : undefined,
-        );
+        this.tourNote = sc?.tour ? this.tourney.record(m, sc) : '';
+        this.lastReplay = this.recorder?.build(this.session) ?? null;
+        if (this.lastReplay) void storeReplay(this.lastReplay);
+        this.showResults();
       }
+    } else if (this.state === 'replay' && this.replay) {
+      if (this.input.camera) this.cycleCamera();
+      if (this.replayBar.root.style.display !== 'none') this.replay.update(dt);
+      this.replayBar.update();
     } else if (this.state === 'menu') {
       // Vista de fondo: la cámara libre gira despacio alrededor de la cancha
       const a = now / 1000 / 20;
       this.cam.camera.position.set(Math.cos(a) * 9, 6.5, Math.sin(a) * 7.5);
       this.cam.orbit.target.set(0, 0, 0);
     }
-    if (this.state !== 'paused') this.session.update(this.state === 'playing' ? 0 : dt);
+    if (this.autoPractice) this.autoPractice.root.style.display = this.state === 'playing' ? '' : 'none';
+    if (this.state !== 'paused' && this.state !== 'replay') this.session.update(this.state === 'playing' ? 0 : dt);
     this.watchFps(dt);
     this.effects.update(this.state === 'paused' ? 0 : dt);
     this.arena.update(dt, now / 1000, this.cam.camera.position.y);
     const sm = this.session.match;
-    if (sm) this.arena.setScreen(formatTimer(timerSeconds(sm.t, this.session.game)), String(sm.score('red')), String(sm.score('blue')));
+    const sb = this.replay?.scoreboard;
+    if (sb) this.arena.setScreen(sb.timer, String(sb.red), String(sb.blue));
+    else if (sm) this.arena.setScreen(formatTimer(timerSeconds(sm.t, this.session.game)), String(sm.score('red')), String(sm.score('blue')));
     else this.arena.setScreen(this.state === 'menu' ? 'LABBOT RESCUE' : t('practiceMode').toUpperCase(), '', '');
     const p = this.session.player.phys;
     const pt = p.position();
-    this.cam.update(dt, { x: pt.x, y: pt.y, z: pt.z, heading: p.heading() });
+    this.cam.update(dt, this.replay?.focusPose ?? { x: pt.x, y: pt.y, z: pt.z, heading: p.heading() });
     this.renderer.render(this.cam.camera);
     requestAnimationFrame(this.loop);
   };

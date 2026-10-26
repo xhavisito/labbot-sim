@@ -85,7 +85,14 @@ tests/                    clock, scoring, fouls/cards, rp, match (casos borde), 
    SUPUESTO y configurable: 5 matches por equipo, 4 alianzas de 2, ranking por RP, 1 vs 4 y 2 vs 3);
    pantalla `ui/Scouting.ts` con datos en localStorage (`game/scoutStore.ts`). Meta con solo robots
    con mecanismo: `npm run batch -- --set mech`.
-8. **Modo torneo** (pedido después, "como en rebuilt-sim") — Qualifications contra la IA, ranking,
+8. **IA rival** (pedido después) — rivales dignos: robots de la IA de tipos distintos en cada match,
+   ciclos eficientes, Muestra Crítica y Plataforma en el ENDGAME, coordinación de la alianza, sin
+   faltas ni defensa (§4.5, §4.6, §6.1) y tres dificultades. Se quitaron los robots FIRST de prueba.
+   *Hecho:* `ai/Bot.ts` reescrito (tiempos estimados, varias Muestras por viaje, acomodo fino frente
+   a la Cámara, filtro de orilla y Plataforma), `ai/Team.ts` (reparto de Muestras, Human Player,
+   Cámara y Crítica), `ai/difficulty.ts` (SUPUESTOS de diseño, no del manual), `ai/lineup.ts`.
+   La IA anterior queda en `sim/legacyBot.ts` para comparar: `npm run batch -- --set ai --a hard --b old`.
+9. **Modo torneo** (pedido después, "como en rebuilt-sim") — Qualifications contra la IA, ranking,
    selección de alianzas por invitación y PlayOffs, con el formato del manual (§8.2).
    *Hecho:* `core/tournament.ts` (parte de abajo: calendario con `makeSchedule`, marcador desde los
    registros del Scouting, simulación estadística por tipo de robot calibrada con 20 matches de la
