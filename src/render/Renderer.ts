@@ -26,16 +26,14 @@ export interface QualityPreset {
   aa: 'none' | 'fxaa' | 'msaa';
   /** Reflejos del entorno (IBL; barato, sin ellos los metales se ven negros). */
   ibl: boolean;
-  /** Densidad del público en las gradas (0–1). */
-  crowd: number;
   /** Partículas al anotar (0–1). */
   particles: number;
 }
 
 export const QUALITY: Record<Quality, QualityPreset> = {
-  low: { maxPixelRatio: 1, renderScale: 0.8, shadows: false, shadowMapSize: 512, softShadows: false, bloom: false, aa: 'none', ibl: true, crowd: 0, particles: 0.4 },
-  medium: { maxPixelRatio: 1.5, renderScale: 0.9, shadows: true, shadowMapSize: 1024, softShadows: false, bloom: true, aa: 'fxaa', ibl: true, crowd: 0.4, particles: 0.7 },
-  high: { maxPixelRatio: 2, renderScale: 1, shadows: true, shadowMapSize: 2048, softShadows: true, bloom: true, aa: 'msaa', ibl: true, crowd: 1, particles: 1 },
+  low: { maxPixelRatio: 1, renderScale: 0.8, shadows: false, shadowMapSize: 512, softShadows: false, bloom: false, aa: 'none', ibl: true, particles: 0.4 },
+  medium: { maxPixelRatio: 1.5, renderScale: 0.9, shadows: true, shadowMapSize: 1024, softShadows: false, bloom: true, aa: 'fxaa', ibl: true, particles: 0.7 },
+  high: { maxPixelRatio: 2, renderScale: 1, shadows: true, shadowMapSize: 2048, softShadows: true, bloom: true, aa: 'msaa', ibl: true, particles: 1 },
 };
 
 /** Calidad inicial para "Automática": media en celulares y tabletas, alta en computadora. */

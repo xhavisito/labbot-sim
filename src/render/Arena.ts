@@ -1,33 +1,16 @@
 /**
  * El gimnasio del WinterFest alrededor de la cancha (solo decorativo, como el estadio de
- * rebuilt-sim pero a escala de evento interno): duela, gradas con público instanciado (se mueve en
- * el vertex shader; la densidad depende de la calidad), estructuras con focos emisivos (el bloom
- * les da brillo), mantas LED con texto genérico y una pantalla con el marcador.
+ * rebuilt-sim pero a escala de evento interno): duela, gradas vacías (sin público, en ninguna
+ * calidad), estructuras con focos emisivos (el bloom les da brillo), mantas LED con texto genérico
+ * y una pantalla con el marcador.
  */
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import * as F from '../config/field';
 import { gymFloorTexture } from './textures';
 
-const MAX_CROWD = 900;
-
-function rng(seed: number): () => number {
-  let a = seed >>> 0;
-  return () => {
-    a = (a + 0x6d2b79f5) >>> 0;
-    let t = a;
-    t = Math.imul(t ^ (t >>> 15), t | 1);
-    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-}
-
 export class Arena {
   readonly group = new THREE.Group();
-  private crowd: THREE.InstancedMesh;
-  private heads: THREE.InstancedMesh;
-  private shaders: Array<{ uniforms: Record<string, THREE.IUniform> }> = [];
-  private excite = 0;
   private screenCanvas: HTMLCanvasElement | null = null;
   private screenTex: THREE.CanvasTexture | null = null;
   private lastScreen = '';
@@ -37,7 +20,6 @@ export class Arena {
 
   constructor() {
     this.group.name = 'arena';
-    const r = rng(11);
 
     // ---- Duela del gimnasio y paredes lejanas
     const floorTex = gymFloorTexture();
@@ -74,7 +56,6 @@ export class Arena {
     // ---- Gradas de aluminio en los lados largos y atrás de cada Driver Station
     const tierGeos: THREE.BufferGeometry[] = [];
     const seatGeos: THREE.BufferGeometry[] = [];
-    const seats: Array<{ x: number; y: number; z: number; ry: number }> = [];
     const rows = 7;
     const place = (g: THREE.BufferGeometry, ry: number) => g.rotateY(ry);
     const addStand = (len: number, ry: number, start: number) => {
@@ -85,11 +66,6 @@ export class Arena {
         seatGeos.push(place(new THREE.BoxGeometry(len, 0.045, 0.3).translate(0, h, d + 0.58), ry));
         seatGeos.push(place(new THREE.BoxGeometry(len, 0.03, 0.32).translate(0, h - 0.09, d + 0.18), ry));
         if (i === 0) seatGeos.push(place(new THREE.BoxGeometry(len, 0.05, 0.05).translate(0, h + 0.55, d - 0.05), ry));
-        for (let s = -len / 2 + 0.35; s < len / 2 - 0.35; s += 0.55) {
-          if (r() < 0.18) continue;
-          const local = new THREE.Vector3(s + (r() - 0.5) * 0.15, h, d + 0.42).applyAxisAngle(new THREE.Vector3(0, 1, 0), ry);
-          seats.push({ x: local.x, y: local.y, z: local.z, ry: ry + Math.PI });
-        }
       }
     };
     addStand(16, 0, F.HALF_W + 2.6); // lado +Z
@@ -100,51 +76,6 @@ export class Arena {
     const boards = new THREE.Mesh(mergeGeometries(seatGeos)!, new THREE.MeshStandardMaterial({ color: 0xa2a9b3, metalness: 0.75, roughness: 0.35 }));
     boards.receiveShadow = true;
     this.group.add(boards);
-
-    // ---- Público sentado (torso + cabeza, dos InstancedMesh con la misma matriz)
-    const body = new THREE.CapsuleGeometry(0.15, 0.26, 3, 8).scale(1, 1, 0.75).translate(0, 0.33, 0);
-    const head = new THREE.SphereGeometry(0.1, 10, 8).translate(0, 0.66, 0.01);
-    for (let i = seats.length - 1; i > 0; i--) {
-      const j = Math.floor(r() * (i + 1));
-      [seats[i], seats[j]] = [seats[j], seats[i]];
-    }
-    const n = Math.min(MAX_CROWD, seats.length);
-    const phase = new Float32Array(n);
-    for (let i = 0; i < n; i++) phase[i] = r() * Math.PI * 2;
-    body.setAttribute('aPhase', new THREE.InstancedBufferAttribute(phase, 1));
-    head.setAttribute('aPhase', new THREE.InstancedBufferAttribute(phase, 1));
-    const bob = (sh: { uniforms: Record<string, THREE.IUniform>; vertexShader: string }) => {
-      sh.uniforms.uTime = { value: 0 };
-      sh.uniforms.uExcite = { value: 0 };
-      sh.vertexShader = sh.vertexShader
-        .replace('#include <common>', '#include <common>\nuniform float uTime;\nuniform float uExcite;\nattribute float aPhase;')
-        .replace('#include <begin_vertex>', '#include <begin_vertex>\ntransformed.y += (0.03 + 0.14 * uExcite) * max(0.0, sin(uTime * (2.0 + 4.0 * uExcite) + aPhase));');
-      this.shaders.push(sh);
-    };
-    const bodyMat = new THREE.MeshStandardMaterial({ roughness: 0.9 });
-    const headMat = new THREE.MeshStandardMaterial({ roughness: 0.8 });
-    bodyMat.onBeforeCompile = bob;
-    headMat.onBeforeCompile = bob;
-    this.crowd = new THREE.InstancedMesh(body, bodyMat, n);
-    this.heads = new THREE.InstancedMesh(head, headMat, n);
-    // Playeras: sobre todo oscuras, con rojo/azul de los equipos y el amarillo de LamBot
-    const palette = [0x2b2f36, 0x3a3f47, 0x1f2329, 0x55595f, 0xc9ccd1, 0x23344f, 0x8a1f1f, 0x1d3f7a, 0xc9a01a, 0x2f5a35];
-    const skins = [0x8d5524, 0xc68642, 0xe0ac69, 0xf1c27d, 0xffdbac, 0x5c3a1e];
-    const m = new THREE.Matrix4();
-    const q = new THREE.Quaternion();
-    const c = new THREE.Color();
-    for (let i = 0; i < n; i++) {
-      const s = seats[i];
-      q.setFromAxisAngle(new THREE.Vector3(0, 1, 0), s.ry);
-      const k = 0.9 + r() * 0.2;
-      m.compose(new THREE.Vector3(s.x, s.y, s.z), q, new THREE.Vector3(k, k, k));
-      this.crowd.setMatrixAt(i, m);
-      this.heads.setMatrixAt(i, m);
-      this.crowd.setColorAt(i, c.setHex(palette[Math.floor(r() * palette.length)]).multiplyScalar(0.55 + r() * 0.35));
-      this.heads.setColorAt(i, c.setHex(skins[Math.floor(r() * skins.length)]));
-    }
-    this.crowd.frustumCulled = this.heads.frustumCulled = false;
-    this.group.add(this.crowd, this.heads);
 
     // ---- Estructuras de focos sobre la cancha (barras emisivas: el bloom las hace brillar)
     const truss = new THREE.MeshStandardMaterial({ color: 0x161a22, metalness: 0.6, roughness: 0.5 });
@@ -184,25 +115,9 @@ export class Arena {
     }
   }
 
-  /** Densidad del público según la calidad (0–1). */
-  setDensity(d: number): void {
-    this.crowd.count = this.heads.count = Math.round(this.crowd.instanceMatrix.count * d);
-    this.crowd.visible = this.heads.visible = d > 0;
-  }
-
-  /** El público se emociona (al anotar, al terminar el match). */
-  cheer(amount = 1): void {
-    this.excite = Math.min(1, this.excite + amount);
-  }
-
-  update(dt: number, time: number, cameraY = 0): void {
+  update(time: number, cameraY = 0): void {
     this.overhead.visible = cameraY < 7;
-    this.excite = Math.max(0, this.excite - dt * 0.35);
     for (const t of this.led) t.offset.x = (time * 0.04) % 1;
-    for (const sh of this.shaders) {
-      sh.uniforms.uTime.value = time;
-      sh.uniforms.uExcite.value = this.excite;
-    }
   }
 
   /** Pantalla: rojo · centro (timer o título) · azul. */
