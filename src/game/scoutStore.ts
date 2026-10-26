@@ -71,6 +71,8 @@ export function sanitizeScout(raw: unknown): ScoutData {
         allianceScore: num(e.allianceScore),
         opponentScore: num(e.opponentScore),
         rp: num(e.rp),
+        ...(typeof e.cycles === 'number' ? { cycles: int(e.cycles) } : {}),
+        ...(typeof e.cycleAvg === 'number' && Number.isFinite(e.cycleAvg) && e.cycleAvg > 0 ? { cycleAvg: Math.min(150, Math.round(e.cycleAvg * 10) / 10) } : {}),
         notes: typeof e.notes === 'string' ? e.notes.slice(0, 300) : undefined,
         createdAt: str(e.createdAt, new Date(0).toISOString(), 30),
       });
@@ -114,14 +116,14 @@ export function saveScout(s: ScoutData): void {
 /** Registros como CSV (una fila por equipo y match), con los puntos calculados. */
 export function scoutCsv(s: ScoutData, cfg: GameConfig): string {
   const name = new Map(s.teams.map((t) => [t.id, t.name]));
-  const head = ['match', 'equipo', 'nombre', 'alianza', 'fuente', 'linea', 'auto_n1', 'auto_n2', 'auto_n3', 'teleop_n1', 'teleop_n2', 'teleop_n3', 'plataforma', 'critica', 'fouls', 'tech_fouls', 'yellow', 'red', 'pts_auto', 'pts_teleop', 'pts_endgame', 'pts_total', 'pts_faltas', 'marcador', 'rival', 'rp', 'notas'];
+  const head = ['match', 'equipo', 'nombre', 'alianza', 'fuente', 'linea', 'auto_n1', 'auto_n2', 'auto_n3', 'teleop_n1', 'teleop_n2', 'teleop_n3', 'plataforma', 'critica', 'fouls', 'tech_fouls', 'yellow', 'red', 'pts_auto', 'pts_teleop', 'pts_endgame', 'pts_total', 'pts_faltas', 'marcador', 'rival', 'rp', 'ciclos', 'ciclo_s', 'notas'];
   const q = (v: unknown) => {
     const x = v === undefined ? '' : String(v);
     return /[",\n]/.test(x) ? `"${x.replaceAll('"', '""')}"` : x;
   };
   const rows = s.entries.map((e) => {
     const p = entryPoints(e, cfg);
-    return [e.match, e.team, name.get(e.team), e.alliance, e.source, +e.autoLine, ...e.samplesAuto, ...e.samplesTeleop, +e.platform, +e.critical, e.fouls, e.techFouls, e.yellow, +e.red, p.auto, p.teleop, p.endgame, p.total, p.foulPts, e.allianceScore, e.opponentScore, e.rp, e.notes]
+    return [e.match, e.team, name.get(e.team), e.alliance, e.source, +e.autoLine, ...e.samplesAuto, ...e.samplesTeleop, +e.platform, +e.critical, e.fouls, e.techFouls, e.yellow, +e.red, p.auto, p.teleop, p.endgame, p.total, p.foulPts, e.allianceScore, e.opponentScore, e.rp, e.cycles, e.cycleAvg, e.notes]
       .map(q)
       .join(',');
   });

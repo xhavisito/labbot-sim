@@ -9,6 +9,8 @@ import { GAME } from '../config/game';
 import type { Settings } from '../config/settings';
 import type { Match } from '../core/match';
 import { rng } from '../core/rng';
+import { addEvent, eventFromTournament, tournamentEventId } from '../core/history';
+import { computeOpr, oprMatchesFromTournament } from '../core/opr';
 import { predictAlliance, type TeamSummary } from '../core/scouting';
 import {
   advancePlayoffs,
@@ -42,6 +44,7 @@ import {
   type TMatch,
   type Tournament,
 } from '../core/tournament';
+import { loadHistory, saveHistory } from '../game/historyStore';
 import { saveScout, type ScoutData } from '../game/scoutStore';
 import type { CameraMode } from '../render/CameraRig';
 import { backBtn, brandbar, ic } from './chrome';
@@ -78,10 +81,11 @@ type Next =
   | { kind: 'invite'; alliance: number }
   | null;
 
-/** Pestañas del ranking: general (RS) o por categoría (promedios del Scouting). */
-type Tab = 'overall' | 'samples' | 'auto' | 'endgame' | 'fouls';
-const CATS: Exclude<Tab, 'overall'>[] = ['samples', 'auto', 'endgame', 'fouls'];
-const catValue = (s: TeamSummary, c: Exclude<Tab, 'overall'>): number => (c === 'samples' ? s.samples : c === 'auto' ? s.auto : c === 'endgame' ? s.endgame : s.foulPts);
+/** Pestañas del ranking: general (RS), OPR (`core/opr.ts`) o por categoría (promedios del Scouting). */
+type Tab = 'overall' | 'opr' | 'samples' | 'auto' | 'endgame' | 'fouls';
+type Cat = Exclude<Tab, 'overall' | 'opr'>;
+const CATS: Cat[] = ['samples', 'auto', 'endgame', 'fouls'];
+const catValue = (s: TeamSummary, c: Cat): number => (c === 'samples' ? s.samples : c === 'auto' ? s.auto : c === 'endgame' ? s.endgame : s.foulPts);
 
 /** Cámara para ver un match de otros: transmisión (desde arriba) o desde las gradas (libre). */
 export type WatchMode = 'broadcast' | 'stands';
@@ -100,7 +104,7 @@ export class TournamentScreen {
     private root: HTMLElement,
     private scout: ScoutData,
     private settings: Settings,
-    private cb: { back: () => void; play: (p: ScoutPlay, watch?: WatchMode) => void; scouting: () => void },
+    private cb: { back: () => void; play: (p: ScoutPlay, watch?: WatchMode) => void; scouting: () => void; history?: () => void },
   ) {}
 
   private on(sel: string, fn: (el: HTMLElement) => void, ev = 'click'): void {
@@ -363,7 +367,11 @@ export class TournamentScreen {
       ? `<div class="sel-log">${sel.log.map((l) => `<div>A${l.alliance + 1} → ${this.name(tt, l.team)} ${l.accepted ? `<span class="ok">✓ ${t('tr_accepted')}</span>` : `<span class="no">✗ ${t('tr_declined')}</span>`}</div>`).join('')}</div>`
       : '';
     const playoffs = tt.alliances ? (tt.playoffFormat === 'doubleElim' ? this.bracketHtml(tt) : this.roundRobinHtml(tt)) : '';
-    const champ = tt.champion !== null ? `<div class="msg ok champ">${ic.trophy}${t('tr_champion')}: A${tt.champion + 1} ${this.side(tt, tt.alliances![tt.champion])}</div>` : '';
+    const archived = tt.champion !== null && this.archive(tt);
+    const champ =
+      tt.champion !== null
+        ? `<div class="msg ok champ">${ic.trophy}${t('tr_champion')}: A${tt.champion + 1} ${this.side(tt, tt.alliances![tt.champion])}${archived ? ` <span class="dim">· ${t('tr_archived')}</span>` : ''}</div>`
+        : '';
     const inPlayoffs = tt.alliances?.some((a) => a.includes(me));
     const myA = tt.alliances?.findIndex((a) => a.includes(me)) ?? -1;
     const myPlace = myA >= 0 ? places.get(myA) : undefined;
@@ -406,14 +414,23 @@ export class TournamentScreen {
     } else if (tt.alliances && !inPlayoffs) action = `<div class="msg warn">${t('tr_notPicked')}</div>`;
     else if (myPlace !== undefined && myPlace > 1) action = `<div class="msg warn">${myPlace === 2 ? t('tr_finalist') : t('tr_eliminated', { n: myPlace })}</div>`;
     // ---- Ranking: general o por categoría
-    const tabs = `<div class="seg" data-tabs>${(['overall', ...CATS] as Tab[]).map((c) => `<button class="${c === this.tab ? 'on' : ''}" data-v="${c}">${t(`tr_cat_${c}` as Key)}</button>`).join('')}</div>`;
+    const tabs = `<div class="seg" data-tabs>${(['overall', 'opr', ...CATS] as Tab[]).map((c) => `<button class="${c === this.tab ? 'on' : ''}" data-v="${c}">${t(`tr_cat_${c}` as Key)}</button>`).join('')}</div>`;
     const teamCell = (i: number) => `${this.name(tt, i)} <span class="dim">${t(`type_${tt.teams[i].robot}` as Key)}</span>`;
     const table =
       this.tab === 'overall'
         ? `<table class="stable rank"><tr><th>#</th><th>${t('sc_team')}</th><th class="num">RS</th><th class="num">${t('tr_avgPts')}</th><th class="num">AUTO</th><th class="num">END</th><th class="num">M</th></tr>
           ${rk.map((r, i) => `<tr class="${tt.teams[r.team].isPlayer ? 'me' : ''}"><td class="mono">${i + 1}</td><td>${teamCell(r.team)}</td><td class="num strong">${r.rs.toFixed(2)}</td><td class="num">${r.avgNoFoul.toFixed(0)}</td><td class="num">${f1(r.avgAuto)}</td><td class="num">${f1(r.avgEndgame)}</td><td class="num">${r.played}</td></tr>`).join('')}</table>`
-        : (() => {
-            const c = this.tab as Exclude<Tab, 'overall'>;
+        : this.tab === 'opr'
+          ? (() => {
+              const ms = oprMatchesFromTournament(tt, 'quals');
+              const by = new Map(computeOpr(ms).map((r) => [r.team, r]));
+              const rows = tt.teams.map((x, i) => ({ i, r: by.get(x.id) })).sort((a, b) => (b.r?.opr ?? -Infinity) - (a.r?.opr ?? -Infinity) || a.i - b.i);
+              const sg = (v: number) => `${v > 0 ? '+' : ''}${f1(v)}`;
+              return `<p class="sub">${t('tr_cat_oprHelp')}</p><table class="stable rank"><tr><th>#</th><th>${t('sc_team')}</th><th class="num">OPR</th><th class="num">DPR</th><th class="num">CCWM</th><th class="num">M</th></tr>
+                ${rows.map((x, k) => `<tr class="${tt.teams[x.i].isPlayer ? 'me' : ''}"><td class="mono">${k + 1}</td><td>${teamCell(x.i)}</td><td class="num strong">${x.r ? f1(x.r.opr) : '–'}</td><td class="num">${x.r ? f1(x.r.dpr) : '–'}</td><td class="num">${x.r ? sg(x.r.ccwm) : '–'}</td><td class="num">${x.r?.matches ?? 0}</td></tr>`).join('')}</table>`;
+            })()
+          : (() => {
+            const c = this.tab as Cat;
             const rows = tt.teams.map((_, i) => ({ i, s: sum.get(i) })).sort((a, b) => (c === 'fouls' ? 1 : -1) * ((a.s ? catValue(a.s, c) : 0) - (b.s ? catValue(b.s, c) : 0)) || a.i - b.i);
             return `<p class="sub">${t(`tr_catHelp_${c}` as Key)}</p><table class="stable rank"><tr><th>#</th><th>${t('sc_team')}</th><th class="num">${t(`tr_cat_${c}` as Key)}</th><th class="num">M</th></tr>
               ${rows.map((r, k) => `<tr class="${tt.teams[r.i].isPlayer ? 'me' : ''}"><td class="mono">${k + 1}</td><td>${teamCell(r.i)}</td><td class="num strong">${r.s ? f1(catValue(r.s, c)) : '–'}</td><td class="num">${r.s?.matches ?? 0}</td></tr>`).join('')}</table>`;
@@ -434,6 +451,7 @@ export class TournamentScreen {
           <h3 class="mt">Qualifications</h3><div class="scroll"><table class="stable sched">${quals}</table></div></div>
       </div>
       <div class="actionbar">${backBtn('data-act="back"')}<div class="grow"></div>
+        ${this.cb.history ? `<button class="btn" data-act="history">${ic.chart}<span>${t('tr_history')}</span></button>` : ''}
         <button class="btn" data-act="toScout" ${tournamentEntries(tt).length ? '' : 'disabled'}>${ic.clipboard}<span>${t('tr_toScouting')}</span></button>
         <button class="btn" data-act="new">${ic.reset}<span>${t('tr_new')}</span></button></div>`);
     this.note = '';
@@ -446,6 +464,7 @@ export class TournamentScreen {
         this.setup();
       } else (el.querySelector('span') as HTMLElement).textContent = t('tr_newConfirm');
     });
+    this.on('[data-act="history"]', () => this.cb.history?.());
     this.on('[data-act="toScout"]', (el) => {
       this.exportToScouting(tt);
       (el.querySelector('span') as HTMLElement).textContent = t('tr_exported', { n: tournamentEntries(tt).length });
@@ -481,6 +500,17 @@ export class TournamentScreen {
     };
     this.on('[data-accept]', () => answer(true));
     this.on('[data-decline]', () => answer(false));
+  }
+
+  /** Guarda el torneo terminado en el historial (una sola vez por torneo). Devuelve si ya está ahí. */
+  private archive(tt: Tournament): boolean {
+    const h = loadHistory();
+    if (h.events.some((e) => e.id === tournamentEventId(tt))) return true;
+    const now = new Date();
+    const n = h.events.filter((e) => e.source === 'tournament').length + 1;
+    const next = addEvent(h, eventFromTournament(tt, t('tr_eventName', { n, date: now.toISOString().slice(0, 10) }), now));
+    saveHistory(next);
+    return next.events.some((e) => e.id === tournamentEventId(tt));
   }
 
   /**

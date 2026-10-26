@@ -110,6 +110,7 @@ export class App {
         if (watch) this.setCamera(WATCH_CAMERA[watch]);
       },
       scouting: () => this.scouting.show('teams'),
+      history: () => this.scouting.show('history'),
     });
     this.menu.onTournament = () => this.tourney.open();
     pwa.onChange = () => {

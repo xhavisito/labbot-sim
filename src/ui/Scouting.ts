@@ -7,14 +7,17 @@ import { GAME } from '../config/game';
 import { MECHANISM_KINDS, type MechanismKind } from '../config/robot';
 import type { Match } from '../core/match';
 import { bestPartners, entriesFromMatch, entryPoints, summarize, type LevelCounts, type Role, type ScoutEntry, type TeamSummary } from '../core/scouting';
+import { addEvent, byRobotKind, careers, eventFromScouting, sanitizeHistory, seasons, teamEventRows, type HistoryData, type HistoryEvent } from '../core/history';
+import { computeOpr, oprError, oprMatchesFromEntries, type OprMatch, type OprRow } from '../core/opr';
 import { makeSchedule, predictPlayoffs, rankTeams, suggestDraft, type DraftAlliance, type QualMatch } from '../core/tournament';
+import { loadHistory, saveHistory } from '../game/historyStore';
 import { emptyScout, sanitizeScout, saveScout, scoutCsv, type ScoutData } from '../game/scoutStore';
 import { simulateMatch } from '../sim/quickSim';
 import { backBtn, brandbar, ic } from './chrome';
 import { t, type Key } from './i18n';
 
-export type ScoutTab = 'teams' | 'schedule' | 'record' | 'table' | 'alliances';
-const TABS: ScoutTab[] = ['schedule', 'table', 'alliances', 'record', 'teams'];
+export type ScoutTab = 'teams' | 'schedule' | 'record' | 'table' | 'opr' | 'robots' | 'alliances' | 'history';
+const TABS: ScoutTab[] = ['schedule', 'table', 'opr', 'robots', 'alliances', 'history', 'record', 'teams'];
 
 /** Partido del calendario que se juega en el simulador (lo usa App para el registro al terminar). */
 export interface ScoutPlay {
@@ -30,6 +33,17 @@ export interface ScoutPlay {
 const esc = (s: string): string => s.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
 const pct = (x: number): string => `${Math.round(100 * x)}%`;
 const f1 = (x: number): string => x.toFixed(1);
+const fN = (x: number | null | undefined, d = 1): string => (x === null || x === undefined ? '–' : x.toFixed(d));
+
+/** Mini gráfica de línea (SVG) para tendencias: puntos por match, OPR por evento. */
+export function sparkline(vals: readonly number[], w = 96, h = 26): string {
+  if (vals.length < 2) return vals.length ? `<span class="spark-one">${f1(vals[0])}</span>` : '–';
+  const lo = Math.min(...vals);
+  const hi = Math.max(...vals);
+  const y = (v: number) => (hi > lo ? h - 3 - ((v - lo) / (hi - lo)) * (h - 6) : h / 2);
+  const pts = vals.map((v, i) => `${((i / (vals.length - 1)) * (w - 4) + 2).toFixed(1)},${y(v).toFixed(1)}`);
+  return `<svg class="spark" viewBox="0 0 ${w} ${h}" width="${w}" height="${h}" aria-hidden="true"><polyline points="${pts.join(' ')}"/><circle cx="${pts[pts.length - 1].split(',')[0]}" cy="${pts[pts.length - 1].split(',')[1]}" r="2.2"/></svg>`;
+}
 
 /**
  * Guarda los registros de un match del simulador. Si ese match ya tenía registros del mismo equipo
@@ -50,6 +64,11 @@ export class ScoutingScreen {
   busy = false;
   /** Formulario de captura (se conserva al cambiar de pestaña). */
   private draft: ScoutEntry | null = null;
+  /** Equipo del perfil en la pestaña Robots. */
+  private robotFocus = '';
+  /** Historial: temporada filtrada ('' = todas) y evento abierto. */
+  private season = '';
+  private eventOpen = '';
 
   constructor(
     private root: HTMLElement,
@@ -85,7 +104,10 @@ export class ScoutingScreen {
       schedule: () => this.scheduleHtml(),
       record: () => this.recordHtml(),
       table: () => this.tableHtml(),
+      opr: () => this.oprHtml(),
+      robots: () => this.robotsHtml(),
       alliances: () => this.alliancesHtml(),
+      history: () => this.historyHtml(),
     };
     const y = this.root.scrollTop;
     this.root.className = 'screen solid';
@@ -115,7 +137,10 @@ export class ScoutingScreen {
       schedule: () => this.wireSchedule(),
       record: () => this.wireRecord(),
       table: () => undefined,
+      opr: () => undefined,
+      robots: () => this.wireRobots(),
       alliances: () => this.wireAlliances(),
+      history: () => this.wireHistory(),
     };
     wire[tab]();
   }
@@ -375,6 +400,8 @@ export class ScoutingScreen {
         ${[1, 2, 3].map((l) => `<label>${t('level')} ${l}</label>${stepper(`a${l}`, d.samplesAuto[l - 1])}`).join('')}
         <h3>TELEOP</h3>
         ${[1, 2, 3].map((l) => `<label>${t('level')} ${l}</label>${stepper(`t${l}`, d.samplesTeleop[l - 1])}`).join('')}
+        <label>${t('st_cycles')}</label>${stepper('cycles', d.cycles ?? 0)}
+        <label>${t('rb_cycleS')}</label><input class="tin" type="number" min="0" max="150" step="0.5" data-f="cycleAvg" value="${d.cycleAvg ?? ''}" placeholder="${t('rb_optional')}">
         <h3>ENDGAME</h3>
         <label>${t('platform')}</label>${tog('platform', t('sc_onPlatform'))}
         <label>${t('criticalSample')}</label>${tog('critical', t('sc_onRepisa'))}
@@ -415,13 +442,18 @@ export class ScoutingScreen {
         if (k === 'match') d.match = v.trim().slice(0, 20) || d.match;
         else if (k === 'team') d.team = v;
         else if (k === 'notes') d.notes = v.slice(0, 300);
+        else if (k === 'cycleAvg') {
+          const x = Number(v);
+          if (v.trim() && Number.isFinite(x) && x > 0) d.cycleAvg = Math.min(150, Math.round(x * 10) / 10);
+          else delete d.cycleAvg;
+        }
         // Al elegir un match del calendario, el equipo y la alianza salen de ahí
         const q = this.data.schedule.find((x) => x.id === d.match);
         if (q) {
           if (![...q.red, ...q.blue].includes(d.team)) d.team = q.red[0];
           d.alliance = q.red.includes(d.team) ? 'red' : 'blue';
         }
-        if (k !== 'notes') this.show();
+        if (k !== 'notes' && k !== 'cycleAvg') this.show();
       },
       'change',
     );
@@ -441,6 +473,8 @@ export class ScoutingScreen {
         const arr = (key[0] === 'a' ? d.samplesAuto : d.samplesTeleop) as LevelCounts;
         const i = Number(key[1]) - 1;
         arr[i] = Math.max(0, Math.min(99, arr[i] + delta));
+      } else if (key === 'cycles') {
+        d.cycles = Math.max(0, Math.min(99, (d.cycles ?? 0) + delta));
       } else {
         const k = key as 'fouls' | 'techFouls' | 'yellow';
         d[k] = Math.max(0, Math.min(k === 'yellow' ? 2 : 99, d[k] + delta));
@@ -498,6 +532,232 @@ export class ScoutingScreen {
           .join('')}
       </table></div>
       <p class="sub">${t('sc_tableNote')}</p></div>`;
+  }
+
+  // ------------------------------------------------------------------ OPR
+  private oprMatches(): OprMatch[] {
+    return oprMatchesFromEntries(this.data.entries, GAME);
+  }
+
+  /** Tabla de OPR / DPR / CCWM y OPR por componente (`core/opr.ts`). */
+  oprTable(matches: readonly OprMatch[], rows: readonly OprRow[], chip: (id: string) => string): string {
+    const max = Math.max(...rows.map((r) => r.opr), 1);
+    const head = ['#', t('sc_team'), 'M', 'OPR', 'DPR', 'CCWM', 'AUTO', 'TELEOP', 'END', t('op_noFoul'), t('stored')];
+    return `<div class="scroll"><table class="stable summary opr">
+        <tr>${head.map((h) => `<th>${h}</th>`).join('')}</tr>
+        ${rows
+          .map(
+            (r, i) => `<tr><td class="mono">${i + 1}</td><td>${chip(r.team)}</td><td class="num">${r.matches}</td>
+          <td class="num bar"><i style="width:${(100 * Math.max(0, r.opr)) / max}%"></i><b>${f1(r.opr)}</b></td>
+          <td class="num">${f1(r.dpr)}</td><td class="num strong ${r.ccwm < 0 ? 'neg' : ''}">${r.ccwm > 0 ? '+' : ''}${f1(r.ccwm)}</td>
+          <td class="num">${f1(r.auto)}</td><td class="num">${f1(r.teleop)}</td><td class="num">${f1(r.endgame)}</td><td class="num">${f1(r.noFoul)}</td><td class="num">${f1(r.samples)}</td></tr>`,
+          )
+          .join('')}
+      </table></div>
+      <p class="sub">${t('op_fit', { m: matches.length, e: f1(oprError(matches, rows)) })}${matches.length * 2 < rows.length ? ` <span class="neg">${t('op_few')}</span>` : ''}</p>`;
+  }
+
+  private oprHtml(): string {
+    const ms = this.oprMatches();
+    if (!ms.length) return `<p class="msg">${t('op_none')}</p>`;
+    return `<div class="panel wide"><h3>${t('op_title')}</h3>
+      <p class="sub">${t('op_note')}</p>
+      ${this.oprTable(ms, computeOpr(ms), (id) => this.chip(id))}</div>`;
+  }
+
+  // ------------------------------------------------------------------ desempeño por robot
+  private robotsHtml(): string {
+    const sum = this.summaries();
+    if (!sum.length) return `<p class="msg">${t('sc_noData')}</p>`;
+    if (!sum.some((s) => s.team === this.robotFocus)) this.robotFocus = sum[0].team;
+    const s = sum.find((x) => x.team === this.robotFocus)!;
+    const opr = computeOpr(this.oprMatches()).find((r) => r.team === s.team);
+    const es = this.data.entries.filter((e) => e.team === s.team);
+    const lvMax = Math.max(1, ...s.levels);
+    const kpi = (label: string, v: string, sub = '') => `<div class="kpi"><small>${label}</small><b>${v}</b>${sub ? `<span>${sub}</span>` : ''}</div>`;
+    const lvl = [0, 1, 2]
+      .map(
+        (i) => `<div class="lvrow"><span>N${i + 1}</span><div class="lvbar"><i class="a" style="width:${(100 * s.levelsAuto[i]) / lvMax}%"></i><i class="t" style="width:${(100 * (s.levels[i] - s.levelsAuto[i])) / lvMax}%"></i></div><b>${f1(s.levels[i])}</b></div>`,
+      )
+      .join('');
+    const matchRows = es
+      .map((e) => {
+        const p = entryPoints(e, GAME);
+        const lv = [0, 1, 2].map((i) => e.samplesAuto[i] + e.samplesTeleop[i]).join('/');
+        return `<tr><td class="mono">${esc(e.match)}</td><td class="num strong">${p.total}</td><td class="num">${p.auto}</td><td class="num">${lv}</td><td class="num">${e.cycles ?? '–'}</td><td class="num">${fN(e.cycleAvg)}</td>
+          <td>${e.autoLine ? '✓' : '·'}</td><td>${e.platform ? '✓' : '·'}</td><td>${e.critical ? '✓' : '·'}</td><td class="num ${p.foulPts ? 'neg' : ''}">${p.foulPts || ''}</td></tr>`;
+      })
+      .join('');
+    const cmp = sum
+      .map(
+        (x) => `<tr class="${x.team === s.team ? 'me' : ''}"><td>${this.chip(x.team)}</td><td class="num">${x.matches}</td><td class="num strong">${f1(x.points)}</td>
+        <td class="num">${f1(x.levels[0])}</td><td class="num">${f1(x.levels[1])}</td><td class="num">${f1(x.levels[2])}</td><td class="num">${x.topLevel ? `N${x.topLevel}` : '–'}</td>
+        <td class="num">${fN(x.cycles)}</td><td class="num">${fN(x.cycle)}</td><td class="num">${fN(x.bestCycle)}</td>
+        <td class="num">${pct(x.platformPct)}</td><td class="num">${pct(x.criticalPct)}</td><td>${sparkline(x.trend)}</td></tr>`,
+      )
+      .join('');
+    const kinds = byRobotKind(sum, (id) => this.kind(id))
+      .map(
+        (k) => `<tr><td>${t(`type_${k.robot}` as Key)}</td><td class="num">${k.teams}</td><td class="num">${k.matches}</td><td class="num strong">${f1(k.points)}</td><td class="num">${f1(k.samples)}</td><td class="num">${f1(k.n3)}</td>
+        <td class="num">${fN(k.cycle)}</td><td class="num">${pct(k.platformPct)}</td><td class="num">${pct(k.criticalPct)}</td><td class="num">${f1(k.foulPts)}</td></tr>`,
+      )
+      .join('');
+    return `<div class="panels">
+      <div class="panel"><h3>${t('rb_profile')}</h3>
+        <div class="form"><label>${t('sc_team')}</label><select data-rfocus>${sum.map((x) => `<option value="${x.team}" ${x.team === s.team ? 'selected' : ''}>${esc(this.name(x.team))}</option>`).join('')}</select></div>
+        <div class="kpis">
+          ${kpi(t('sc_points'), f1(s.points), `± ${f1(s.sd)} · ${t('rb_best')} ${s.best}`)}
+          ${kpi('OPR', opr ? f1(opr.opr) : '–', opr ? `CCWM ${opr.ccwm > 0 ? '+' : ''}${f1(opr.ccwm)}` : '')}
+          ${kpi(t('stored'), f1(s.samples), s.topLevel ? t('rb_mostly', { n: s.topLevel }) : '')}
+          ${kpi(t('rb_cycle'), s.cycle === null ? '–' : `${f1(s.cycle)} s`, s.cycles === null ? t('rb_noCycle') : t('rb_cyclesPer', { n: f1(s.cycles), b: fN(s.bestCycle) }))}
+          ${kpi(t('sc_crit'), pct(s.criticalPct))}
+          ${kpi(t('sc_plat'), pct(s.platformPct), `${t('sc_line')} ${pct(s.autoLinePct)}`)}
+        </div>
+        <h3 class="mt">${t('rb_levels')}</h3>
+        <div class="lvbars">${lvl}<p class="sub"><i class="sw a"></i> AUTO <i class="sw t"></i> TELEOP</p></div>
+        <h3 class="mt">${t('rb_trend')}</h3>${sparkline(s.trend, 260, 48)}
+      </div>
+      <div class="panel"><h3>${t('rb_matches')} · ${esc(this.name(s.team))}</h3>
+        <div class="scroll"><table class="stable">
+          <tr><th>${t('sc_match')}</th><th>${t('sc_points')}</th><th>AUTO</th><th>N1/N2/N3</th><th>${t('st_cycles')}</th><th>${t('rb_cycleS')}</th><th>${t('sc_line')}</th><th>${t('sc_plat')}</th><th>${t('sc_crit')}</th><th>${t('fouls')}</th></tr>
+          ${matchRows}</table></div>
+      </div></div>
+      <div class="panel wide"><h3>${t('rb_compare')}</h3>
+        <div class="scroll"><table class="stable summary">
+          <tr><th>${t('sc_team')}</th><th>M</th><th>${t('sc_points')}</th><th>N1</th><th>N2</th><th>N3</th><th>${t('rb_level')}</th><th>${t('rb_cyclesM')}</th><th>${t('rb_cycleS')}</th><th>${t('rb_best')}</th><th>${t('sc_plat')}</th><th>${t('sc_crit')}</th><th>${t('rb_trend')}</th></tr>
+          ${cmp}</table></div>
+        <p class="sub">${t('rb_note')}</p></div>
+      <div class="panel wide"><h3>${t('rb_byKind')}</h3>
+        <div class="scroll"><table class="stable summary">
+          <tr><th>${t('robotType')}</th><th>${t('hi_teams')}</th><th>M</th><th>${t('sc_points')}</th><th>${t('stored')}</th><th>N3</th><th>${t('rb_cycleS')}</th><th>${t('sc_plat')}</th><th>${t('sc_crit')}</th><th>${t('fouls')}</th></tr>
+          ${kinds}</table></div></div>`;
+  }
+
+  private wireRobots(): void {
+    this.on(
+      '[data-rfocus]',
+      (el) => {
+        this.robotFocus = (el as HTMLSelectElement).value;
+        this.show();
+      },
+      'change',
+    );
+  }
+
+  // ------------------------------------------------------------------ historial
+  private historyHtml(): string {
+    const h = loadHistory();
+    const ss = seasons(h);
+    if (this.season && !ss.includes(this.season)) this.season = '';
+    const evs = h.events.filter((e) => !this.season || e.season === this.season);
+    const car = careers(h, GAME, this.season || undefined);
+    const save = `<div class="panel"><div class="form">
+        <h3>${t('hi_saveTitle')}</h3>
+        <p class="full msg">${t('hi_saveNote')}</p>
+        <label>${t('hi_name')}</label><input class="tin" data-hname value="${esc(t('hi_defaultName', { n: h.events.length + 1 }))}" maxlength="60">
+        <div class="full row-actions"><button class="btn primary" data-act="hsave" ${this.data.entries.length ? '' : 'disabled'}>${ic.check}<span>${t('hi_save')}</span></button>
+          <button class="btn" data-act="hexport" ${h.events.length ? '' : 'disabled'}>${ic.download}<span>${t('hi_export')}</span></button>
+          <button class="btn" data-act="himport">${ic.go}<span>${t('hi_import')}</span></button></div>
+      </div></div>`;
+    if (!h.events.length) return `<div class="panels">${save}</div><p class="msg">${t('hi_none')}</p>`;
+    const seg = `<div class="seg" data-season><button class="${this.season ? '' : 'on'}" data-v="">${t('hi_allSeasons')}</button>${ss.map((x) => `<button class="${x === this.season ? 'on' : ''}" data-v="${esc(x)}">${esc(x)}</button>`).join('')}</div>`;
+    const careerRows = car
+      .map(
+        (c) => `<tr><td><b>${esc(c.name)}</b> <span class="dim">${t(`type_${c.robot}` as Key)}</span></td><td class="num">${c.events}</td><td class="num strong">${c.titles ? `${ic.trophy}${c.titles}` : '0'}</td><td class="num">${c.finals}</td>
+        <td class="num">${c.bestRank}</td><td class="num">${f1(c.rank)}</td><td class="num strong">${fN(c.opr)}</td><td class="num">${fN(c.points)}</td><td>${sparkline(c.oprTrend)}</td></tr>`,
+      )
+      .join('');
+    const champ = (e: HistoryEvent) => {
+      const ids = Object.entries(e.place).filter(([, p]) => p === 1).map(([id]) => id);
+      const nm = (id: string) => esc(e.teams.find((x) => x.id === id)?.name ?? id);
+      return ids.length ? ids.map(nm).join(' + ') : e.ranking[0] ? `${t('hi_top')}: ${nm(e.ranking[0])}` : '–';
+    };
+    const evRows = [...evs]
+      .reverse()
+      .map(
+        (e) => `<tr class="${e.id === this.eventOpen ? 'me' : ''}"><td><b>${esc(e.name)}</b><br><span class="dim">${e.date.slice(0, 10)} · ${t(e.source === 'tournament' ? 'tournament' : 'scouting')}</span></td>
+        <td><input class="tin season" data-hseason="${esc(e.id)}" value="${esc(e.season)}" maxlength="20" aria-label="${t('hi_season')}"></td>
+        <td>${champ(e)}</td><td class="num">${e.teams.length}</td><td class="num">${e.matches.length}</td>
+        <td class="acts"><button class="chipbtn" data-hopen="${esc(e.id)}">${t(e.id === this.eventOpen ? 'hi_close' : 'hi_open')}</button><button class="x" data-hdel="${esc(e.id)}" title="${t('clear')}" aria-label="${t('clear')}">${ic.x}</button></td></tr>`,
+      )
+      .join('');
+    const open = h.events.find((e) => e.id === this.eventOpen);
+    return `<div class="panels">${save}
+      <div class="panel"><h3>${t('hi_events')}</h3>${seg}
+        <div class="scroll"><table class="stable events"><tr><th>${t('hi_event')}</th><th>${t('hi_season')}</th><th>${t('hi_champion')}</th><th>${t('hi_teams')}</th><th>M</th><th></th></tr>${evRows}</table></div></div></div>
+      ${open ? this.eventDetail(open) : ''}
+      <div class="panel wide"><h3>${t('hi_careers')} · ${this.season ? esc(this.season) : t('hi_allSeasons')}</h3>
+        <div class="scroll"><table class="stable summary"><tr><th>${t('sc_team')}</th><th>${t('hi_events')}</th><th>${t('hi_titles')}</th><th>${t('hi_finals')}</th><th>${t('hi_bestRank')}</th><th>${t('hi_avgRank')}</th><th>OPR</th><th>${t('sc_points')}</th><th>${t('hi_oprTrend')}</th></tr>${careerRows}</table></div>
+        <p class="sub">${t('hi_note')}</p></div>`;
+  }
+
+  /** Detalle de un evento del historial: ranking final con lugar y OPR. */
+  private eventDetail(e: HistoryEvent): string {
+    const rows = teamEventRows({ format: 'labbot-history', version: 1, events: [e] }, GAME).sort((a, b) => a.rank - b.rank);
+    const ms = e.matches;
+    const name = (id: string) => `<b>${esc(e.teams.find((x) => x.id === id)?.name ?? id)}</b>`;
+    return `<div class="panel wide"><h3>${esc(e.name)} · ${esc(e.season)}</h3>
+      <div class="scroll"><table class="stable summary"><tr><th>#</th><th>${t('sc_team')}</th><th>${t('hi_place')}</th><th>M</th><th>${t('sc_points')}</th><th>${t('stored')}</th><th>N3</th><th>${t('rb_cycleS')}</th><th>OPR</th><th>CCWM</th></tr>
+      ${rows
+        .map(
+          (r) => `<tr class="${r.team === e.player ? 'me' : ''}"><td class="mono">${r.rank}</td><td>${name(r.team)} <span class="dim">${t(`type_${r.robot}` as Key)}</span></td><td class="num">${r.place ? (r.place === 1 ? `${ic.trophy}1` : r.place) : '–'}</td>
+          <td class="num">${r.summary?.matches ?? 0}</td><td class="num strong">${fN(r.summary?.points)}</td><td class="num">${fN(r.summary?.samples)}</td><td class="num">${fN(r.summary?.n3)}</td><td class="num">${fN(r.summary?.cycle)}</td>
+          <td class="num strong">${fN(r.opr)}</td><td class="num">${r.ccwm === undefined ? '–' : `${r.ccwm > 0 ? '+' : ''}${f1(r.ccwm)}`}</td></tr>`,
+        )
+        .join('')}</table></div>
+      ${ms.length ? `<h3 class="mt">${t('op_title')}</h3>${this.oprTable(ms, computeOpr(ms), name)}` : ''}</div>`;
+  }
+
+  private wireHistory(): void {
+    const update = (f: (h: HistoryData) => HistoryData) => {
+      saveHistory(f(loadHistory()));
+      this.show();
+    };
+    this.on('[data-season] button', (el) => {
+      this.season = el.dataset.v ?? '';
+      this.show();
+    });
+    this.on('[data-act="hsave"]', () => {
+      const name = (this.root.querySelector<HTMLInputElement>('[data-hname]')?.value.trim() || t('scouting')).slice(0, 60);
+      const ev = eventFromScouting(this.data.teams, this.data.entries, name, GAME);
+      this.eventOpen = ev.id;
+      update((h) => addEvent(h, ev));
+    });
+    this.on('[data-hopen]', (el) => {
+      this.eventOpen = this.eventOpen === el.dataset.hopen ? '' : el.dataset.hopen!;
+      this.show();
+    });
+    this.on('[data-hdel]', (el) => {
+      // Dos toques: el primero arma el botón
+      if (el.classList.toggle('armed')) return;
+      update((h) => ({ ...h, events: h.events.filter((e) => e.id !== el.dataset.hdel) }));
+    });
+    this.on(
+      '[data-hseason]',
+      (el) => {
+        const v = (el as HTMLInputElement).value.trim().slice(0, 20);
+        if (v) update((h) => ({ ...h, events: h.events.map((e) => (e.id === el.dataset.hseason ? { ...e, season: v } : e)) }));
+      },
+      'change',
+    );
+    this.on('[data-act="hexport"]', () => download('labbot-historial.json', JSON.stringify(loadHistory()), 'application/json'));
+    this.on('[data-act="himport"]', () => {
+      const inp = document.createElement('input');
+      inp.type = 'file';
+      inp.accept = 'application/json,.json';
+      inp.addEventListener('change', async () => {
+        const file = inp.files?.[0];
+        if (!file) return;
+        try {
+          // Se suman a los que ya hay (mismo id = se reemplaza)
+          const add = sanitizeHistory(JSON.parse(await file.text()));
+          update((h) => add.events.reduce(addEvent, h));
+        } catch {
+          this.show();
+        }
+      });
+      inp.click();
+    });
   }
 
   // ------------------------------------------------------------------ alianzas

@@ -37,6 +37,12 @@ export interface ScoutEntry {
   allianceScore?: number;
   opponentScore?: number;
   rp?: number;
+  /**
+   * Ciclos del TELEOP y su tiempo promedio (s). Del simulador salen solos (`cycleStats`); a mano son
+   * opcionales.
+   */
+  cycles?: number;
+  cycleAvg?: number;
   notes?: string;
   createdAt: string;
 }
@@ -71,6 +77,25 @@ export function entryPoints(e: ScoutEntry, cfg: GameConfig): { auto: number; tel
 }
 
 /**
+ * Ciclo (definición del sim, no del manual; la misma de `replay/stats.ts`): una ráfaga de Muestras
+ * anotadas sin más de `CYCLE_GAP` s entre una y otra. Tiempo de ciclo = del inicio de una ráfaga al
+ * de la siguiente. Solo el TELEOP (en AUTO todos arrancan juntos).
+ */
+export const CYCLE_GAP = 2.5;
+
+/** Ráfagas y tiempo de ciclo promedio a partir de los tiempos (s) de las Muestras del TELEOP. */
+export function cycleStats(times: readonly number[]): { cycles: number; cycleAvg?: number } {
+  const bursts: number[] = [];
+  let last = -Infinity;
+  for (const t of [...times].sort((a, b) => a - b)) {
+    if (t - last > CYCLE_GAP) bursts.push(t);
+    last = t;
+  }
+  if (bursts.length < 2) return { cycles: bursts.length };
+  return { cycles: bursts.length, cycleAvg: Math.round(((bursts[bursts.length - 1] - bursts[0]) / (bursts.length - 1)) * 10) / 10 };
+}
+
+/**
  * Un registro por robot de un match del simulador. `teams[i]` = equipo del robot i (0–1 rojo,
  * 2–3 azul). Las Muestras que entraron sin que un robot las soltara (empujadas) no se le cuentan a
  * nadie.
@@ -84,6 +109,7 @@ export function entriesFromMatch(m: Match, teams: readonly string[], match: stri
     const samplesAuto = zero();
     const samplesTeleop = zero();
     for (const r of s.samples) if (r.robot === i) (r.period === 'AUTO' ? samplesAuto : samplesTeleop)[r.level - 1]++;
+    const cyc = cycleStats(s.samples.filter((r) => r.robot === i && r.period === 'TELEOP').map((r) => r.time));
     const mine = m.fouls.filter((f) => f.robot === i);
     const cards = m.cards.filter((c) => c.robot === i);
     out.push({
@@ -104,6 +130,8 @@ export function entriesFromMatch(m: Match, teams: readonly string[], match: stri
       allianceScore: m.score(alliance),
       opponentScore: m.score(opponent(alliance)),
       rp: m.rankingPoints(alliance).total,
+      cycles: cyc.cycles,
+      ...(cyc.cycleAvg !== undefined ? { cycleAvg: cyc.cycleAvg } : {}),
       createdAt: now.toISOString(),
     });
   });
@@ -134,9 +162,34 @@ export interface TeamSummary {
   /** RP promedio de su alianza (solo registros que lo traen). */
   rp: number | null;
   best: number;
+  /** Muestras promedio por nivel [N1, N2, N3] (AUTO + TELEOP) y solo en AUTO. */
+  levels: LevelCounts;
+  levelsAuto: LevelCounts;
+  /** Nivel donde más anota (0 si no anota). */
+  topLevel: 0 | Level;
+  /** Ciclos por match y tiempo de ciclo promedio y mejor (s); null sin datos de ciclo. */
+  cycles: number | null;
+  cycle: number | null;
+  bestCycle: number | null;
+  /** Puntos propios de cada match, en el orden en que se registraron (tendencia). */
+  trend: number[];
 }
 
 const mean = (xs: number[]): number => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : 0);
+
+function levelsOf(es: readonly ScoutEntry[]): Pick<TeamSummary, 'levels' | 'levelsAuto' | 'topLevel'> {
+  const lv = (f: (e: ScoutEntry, i: number) => number): LevelCounts => [0, 1, 2].map((i) => mean(es.map((e) => f(e, i)))) as LevelCounts;
+  const levels = lv((e, i) => e.samplesAuto[i] + e.samplesTeleop[i]);
+  const levelsAuto = lv((e, i) => e.samplesAuto[i]);
+  const top = Math.max(...levels);
+  return { levels, levelsAuto, topLevel: top > 0 ? ((levels.lastIndexOf(top) + 1) as Level) : 0 };
+}
+
+function cyclesOf(es: readonly ScoutEntry[]): Pick<TeamSummary, 'cycles' | 'cycle' | 'bestCycle'> {
+  const withC = es.filter((e) => e.cycles !== undefined);
+  const avg = es.filter((e) => e.cycleAvg !== undefined).map((e) => e.cycleAvg!);
+  return { cycles: withC.length ? mean(withC.map((e) => e.cycles!)) : null, cycle: avg.length ? mean(avg) : null, bestCycle: avg.length ? Math.min(...avg) : null };
+}
 
 /** Resumen por equipo de todos sus registros. */
 export function summarize(entries: readonly ScoutEntry[], cfg: GameConfig): TeamSummary[] {
@@ -170,6 +223,9 @@ export function summarize(entries: readonly ScoutEntry[], cfg: GameConfig): Team
       net: m - foulPts,
       rp: rps.length ? mean(rps) : null,
       best: Math.max(...tot),
+      ...levelsOf(es),
+      ...cyclesOf(es),
+      trend: tot,
     });
   }
   return out.sort((a, b) => b.net - a.net || b.points - a.points);
