@@ -145,7 +145,7 @@ export class GameSession {
       this.robotViews.push(v);
       this.root.add(v.group);
     }
-    this.referee = new Referee(this.pw, this.robots, () => this.match);
+    this.referee = new Referee(this.pw, this.robots, () => this.match, { pieces: this.pieces, sensors: this.sensors });
     this.resetField();
   }
 
