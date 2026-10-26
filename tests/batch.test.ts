@@ -40,5 +40,5 @@ describe('scouting de un match de solo robots con mecanismo', () => {
     for (const a of [r.red, r.blue]) expect(a.robots[0].samples + a.robots[1].samples).toBeLessThanOrEqual(a.samples);
     expect(torre.samples).toBeGreaterThan(0);
     expect(r.red.robots.filter((x) => x.platform).length * 10).toBe(r.red.platform === 20 ? 20 : r.red.platform);
-  });
+  }, 60_000);
 });

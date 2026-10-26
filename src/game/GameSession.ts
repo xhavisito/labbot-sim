@@ -199,6 +199,8 @@ export class GameSession {
 
   /** ¿El jugador controla su robot ahora? (práctica o TELEOP) */
   playerEnabled(): boolean {
+    // Sin jugador (ver un match del torneo) los controles no mueven a nadie
+    if (this.opts.player < 0) return false;
     return !this.match || isTeleop(this.match.phase);
   }
 

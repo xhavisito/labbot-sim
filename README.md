@@ -48,6 +48,13 @@ En el menú eliges tu robot (Rojo 1–2, Azul 1–2) y el modo:
   simular con la IA, jugar tú o capturar a mano viendo uno real; tabla por equipo (puntos, N3,
   Plataforma, Crítica, faltas, constancia, RP) y alianzas sugeridas con el mejor compañero, el reparto
   de papeles y el pronóstico de eliminatorias. Se guarda en el navegador; exporta JSON y CSV.
+- **Torneo** (en el menú, como el de rebuilt-sim): los equipos del Scouting juegan Qualifications
+  2 vs 2; tu equipo juega en el simulador con tu robot y los matches de los demás se ven (transmisión
+  o gradas) u omiten (simulación estadística calibrada con la física). Ranking general y por
+  categoría, selección de alianzas por invitación (§8.2.1: el Rank 1 no puede elegir al Rank 2; cada
+  equipo acepta o rechaza) y PlayOffs del manual (§8.2.2: todos contra todos a 2 de 3 y final a 2 de
+  3) o, opcional, la doble eliminación de rebuilt-sim. Se guarda en el navegador y sus registros se
+  pueden pasar al Scouting.
 - **Práctica libre:** sin reloj ni faltas; el marcador cuenta las Muestras anotadas.
   Backspace reacomoda la cancha.
 - **Tipo de robot** (en el menú, y el de los demás robots en Ajustes):

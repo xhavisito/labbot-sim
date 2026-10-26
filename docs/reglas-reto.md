@@ -153,9 +153,14 @@ siempre los otorga; SUPUESTO).
 - 2 robots por alianza, 4 en cancha (§8.2). Precarga: 1 Muestra por robot (§4.1).
 - Velocidad, aceleración y masa: no dados (SUPUESTO configurable; p. ej. 2.5 m/s, 45 kg).
 
-## 6. Torneo (contexto, fuera del alcance inicial)
+## 6. Torneo (§8.2; modo Torneo del menú, `core/tournament.ts`)
 8 equipos, alianzas de 2 que rotan en qualifications; selección por ranking (Rank 1 no puede
 elegir a Rank 2); PlayOffs todos contra todos entre alianzas y final al 2 de 3 (§8.2).
+- §8.2.1: la selección empieza por el Rank 1, por invitación ("invita cordialmente… acepta
+  cordialmente"), alianzas de 2 equipos.
+- §8.2.2: todos los matches de PlayOffs a 2 de 3, sin bonus de RP; ronda de todos contra todos, los dos
+  con más victorias a la final y el último eliminado; en la final gana quien gane 2.
+- Lo que no dice el manual va en D18–D20.
 
 ---
 
@@ -180,6 +185,9 @@ elegir a Rank 2); PlayOffs todos contra todos entre alianzas y final al 2 de 3 (
 | D15 | ¿Quién "entra en contacto"? | Foul por "entrar en contacto con los robots de la alianza contraria" (§4.5). | Lo comete el robot que se acerca más rápido al otro (mín. 0.15 m/s); dos robots quietos que se tocan no cometen falta. |
 | D16 | Muestra Crítica "durante el endgame" | Se evalúa "al sonar la bocina" (§4.3.1). | Cuenta si la Crítica propia está sobre la Repisa al sonar la bocina. |
 | D17 | "Bloquear u obstruir deliberadamente las zonas del equipo contrario" (§4.6) y "no hay defensa" (§6.1) | No dice cuánto tiempo ni dónde. | Tech Foul si un robot pasa más de 3 s seguidos en el TELEOP frente a la Cámara rival (su largo y 1 m hacia la cancha); otra cada 5 s más. |
+| D18 | Ranking de Qualifications | "De acuerdo al ranking final" (§8.2.1), sin decir el criterio. | RP promedio (2 decimales); desempates: puntos sin faltas, AUTO, ENDGAME y azar (adaptado de la Tabla 10-1 de FRC). |
+| D19 | Selección de alianzas | Solo el orden por ranking y Rank 1 ≠ Rank 2 (§8.2.1). | Los 4 primeros son capitanes y eligen 1→4 (una ronda); un capitán puede invitar a otro de menor seed y se puede rechazar (como FRC §10.6). Con 8 equipos no sobra nadie: un equipo libre tiene que aceptar. |
+| D20 | PlayOffs con 4 alianzas | "Cada alianza se enfrenta a las otras dos" (§8.2.2), pero son 4 alianzas (§8.2). | Cada una contra las otras 3 (6 series a 2 de 3). "Victorias" = series ganadas; desempate: matches ganados, puntos, seed. Empate en un match: puntos sin faltas, AUTO, ENDGAME; si sigue, se repite. Opcional: doble eliminación de rebuilt-sim. |
 
 **Presentación del kickoff** (`2026 Robotics WinterFest.pdf`, Canva, 38 págs.): repite el manual
 con las mismas figuras y valores; no trae medidas nuevas ni ubica la línea de autónomo. Solo

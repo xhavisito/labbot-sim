@@ -34,8 +34,11 @@ export interface PauseInfo {
   camera: CameraMode;
   setCamera: (m: CameraMode) => void;
   onResume: () => void;
-  onRestart: () => void;
+  /** Sin reiniciar (match del torneo: el resultado cuenta). */
+  onRestart?: () => void;
   onMenu: () => void;
+  /** Texto del botón de salir (p. ej. volver al torneo). */
+  menuLabel?: string;
 }
 
 const ROBOTS = [0, 1, 2, 3];
@@ -69,6 +72,8 @@ export class Menu {
   player = 0;
   /** Abre la pantalla de Scouting (la conecta App). */
   onScouting: () => void = () => undefined;
+  /** Abre el modo torneo (lo conecta App). */
+  onTournament: () => void = () => undefined;
 
   constructor(
     host: HTMLElement,
@@ -131,6 +136,7 @@ export class Menu {
             ${tool('controls', ic.gamepad, 'controlsTitle', 'controlsDesc')}
             ${tool('rules', ic.book, 'rules', 'rulesDesc')}
             ${tool('scouting', ic.clipboard, 'scouting', 'scoutingDesc')}
+            ${tool('tournament', ic.trophy, 'tournament', 'tournamentDesc')}
           </div>
           <div class="mm-timeline late" aria-hidden="true">
             <div class="tl-head"><span>${t('mm_timeline')}</span><small>${t('mm_tlNote')}</small></div>
@@ -172,6 +178,7 @@ export class Menu {
     this.on('[data-go="controls"]', () => this.controlsPanel(() => this.main()));
     this.on('[data-go="rules"]', () => this.rulesPanel());
     this.on('[data-go="scouting"]', () => this.onScouting());
+    this.on('[data-go="tournament"]', () => this.onTournament());
     this.on('[data-lang]', (el) => {
       if (el.dataset.lang === getLang()) return;
       setLang(el.dataset.lang === 'en' ? 'en' : 'es');
@@ -474,9 +481,9 @@ export class Menu {
           }
           <div class="ps-menu">
             <button class="primary" data-act="resume">${ic.play}<span>${t('resume')}</span>${key('pause')}</button>
-            <button data-act="restart">${ic.reset}<span>${t('restart')}</span></button>
+            ${p.onRestart ? `<button data-act="restart">${ic.reset}<span>${t('restart')}</span></button>` : ''}
             <button data-act="controls">${ic.gamepad}<span>${t('controlsTitle')}</span></button>
-            <button class="quit" data-act="menu">${ic.home}<span>${t('backToMenu')}</span></button>
+            <button class="quit" data-act="menu">${ic.home}<span>${p.menuLabel ?? t('backToMenu')}</span></button>
           </div>
         </div>
         <div class="ps-side">
@@ -497,19 +504,22 @@ export class Menu {
     });
     this.on('[data-act="controls"]', () => this.controlsPanel(() => this.pause(p)));
     this.on('[data-act="resume"]', p.onResume);
-    this.on('[data-act="restart"]', p.onRestart);
+    if (p.onRestart) this.on('[data-act="restart"]', p.onRestart);
     this.on('[data-act="menu"]', p.onMenu);
     (this.root.querySelector('[data-act="resume"]') as HTMLElement).focus({ preventScroll: true });
   }
 
   // ------------------------------------------------------------------ resultados
-  /** `note`: aviso arriba de las acciones (p. ej. que el match se guardó en el scouting). */
-  results(m: Match, onRestart: () => void, onMenu: () => void, onDownload: () => void, player: number, note = ''): void {
+  /**
+   * `note`: aviso arriba de las acciones (p. ej. que el match se guardó en el scouting). `cont`: match
+   * del torneo, sin "Jugar de nuevo" (el resultado ya cuenta) y el botón principal es este.
+   */
+  results(m: Match, onRestart: () => void, onMenu: () => void, onDownload: () => void, player: number, note = '', cont?: string): void {
     const b = { red: m.breakdown('red'), blue: m.breakdown('blue') };
     const rp = { red: m.rankingPoints('red'), blue: m.rankingPoints('blue') };
     const row = (label: string, f: (a: Alliance) => string | number, cls = '') => `<tr class="${cls}"><td>${label}</td>${ALLIANCES.map((a) => `<td>${f(a)}</td>`).join('')}</tr>`;
     const winner: Alliance | null = b.red.total === b.blue.total ? null : b.red.total > b.blue.total ? 'red' : 'blue';
-    const mine: Alliance = player < 2 ? 'red' : 'blue';
+    const mine: Alliance | null = player < 0 ? null : player < 2 ? 'red' : 'blue';
     const chip = (on: boolean, label: string) => `<span class="rpchip ${on ? 'on' : ''}">${label}</span>`;
     const rpCell = (a: Alliance) =>
       `<div class="rprow">${chip(rp[a].win > 0, `${t('rpWin')} +${rp[a].win}`)}${chip(rp[a].autoLine, t('rpAuto'))}${chip(rp[a].critical, t('rpCritical'))}${chip(rp[a].dominance, `${t('dominance')} ${m.samplesIn(a)}/${GAME.rp.dominanceSamples}`)}</div><div class="rptotal">${rp[a].total} RP</div>`;
@@ -523,7 +533,7 @@ export class Menu {
       : `<li class="none">${t('noFouls')}</li>`;
     this.open(
       `<div class="dialog results">
-        <div class="kicker"><span></span>${t('resultsKick')} · ${t('yourRobot')}: ${stationLabel(player)}</div>
+        <div class="kicker"><span></span>${t('resultsKick')}${player >= 0 ? ` · ${t('yourRobot')}: ${stationLabel(player)}` : ''}</div>
         <h2 class="${winner ?? ''}">${winner ? `${t('winner')} ${t(winner)}` : t('tie')}</h2>
         <div class="final">
           <div class="red ${winner === 'red' ? 'win' : ''}"><small>${t('red')}${mine === 'red' ? ` · ${t('you')}` : ''}</small>${b.red.total}</div>
@@ -546,8 +556,8 @@ export class Menu {
         <h3>${t('fouls')}</h3><ul class="fouls">${fouls}</ul>
         ${note ? `<div class="msg ok">${ic.check}${note}</div>` : ''}
         <div class="actions">
-          <button class="btn primary" data-act="restart">${ic.reset}<span>${t('playAgain')}</span></button>
-          <button class="btn" data-act="menu">${ic.home}<span>${t('backToMenu')}</span></button>
+          ${cont ? `<button class="btn primary" data-act="menu">${ic.go}<span>${cont}</span></button>` : `<button class="btn primary" data-act="restart">${ic.reset}<span>${t('playAgain')}</span></button>
+          <button class="btn" data-act="menu">${ic.home}<span>${t('backToMenu')}</span></button>`}
           <button class="btn" data-act="log">${ic.download}<span>${t('downloadLog')}</span></button>
         </div>
       </div>`,
