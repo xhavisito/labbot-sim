@@ -133,6 +133,8 @@ export class Hud {
   }
 
   update(s: GameSession, cam: CameraMode): void {
+    // Viendo un match del torneo (sin robot propio): sin tarjeta de "tu robot" ni teclas
+    this.root.classList.toggle('watch', s.opts.player < 0);
     const m = s.match;
     const me = s.player;
     const mech = me.mech;

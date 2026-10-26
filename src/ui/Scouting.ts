@@ -21,7 +21,10 @@ export interface ScoutPlay {
   match: string;
   teams: string[];
   kinds: MechanismKind[];
+  /** Robot que manejas (0–3); −1 = solo ver (la IA maneja los 4). */
   player: number;
+  /** Match del modo torneo (`ui/TournamentScreen.ts`): el resultado va al torneo, no al Scouting. */
+  tour?: boolean;
 }
 
 const esc = (s: string): string => s.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);

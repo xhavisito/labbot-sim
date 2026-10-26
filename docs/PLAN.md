@@ -92,6 +92,14 @@ tests/                    clock, scoring, fouls/cards, rp, match (casos borde), 
    a la Cámara, filtro de orilla y Plataforma), `ai/Team.ts` (reparto de Muestras, Human Player,
    Cámara y Crítica), `ai/difficulty.ts` (SUPUESTOS de diseño, no del manual), `ai/lineup.ts`.
    La IA anterior queda en `sim/legacyBot.ts` para comparar: `npm run batch -- --set ai --a hard --b old`.
+9. **Modo torneo** (pedido después, "como en rebuilt-sim") — Qualifications contra la IA, ranking,
+   selección de alianzas por invitación y PlayOffs, con el formato del manual (§8.2).
+   *Hecho:* `core/tournament.ts` (parte de abajo: calendario con `makeSchedule`, marcador desde los
+   registros del Scouting, simulación estadística por tipo de robot calibrada con 20 matches de la
+   física, ranking D18, selección D19, PlayOffs D20 y la doble eliminación de rebuilt-sim como
+   opción); pantalla `ui/TournamentScreen.ts`, guardado en localStorage (`labbot.tournament.v1`).
+   Los matches propios se juegan por el camino del Scouting (`ScoutPlay.tour`); los de otros se ven
+   con la IA en los 4 robots o se omiten.
 
 Cada hito: `npm test`, `npm run build` y captura con Playwright; resumen corto al terminar.
 

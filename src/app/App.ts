@@ -33,6 +33,7 @@ import { ic } from '../ui/chrome';
 import { Menu, type MenuChoice } from '../ui/Menu';
 import { saveMatchEntries, ScoutingScreen, type ScoutPlay } from '../ui/Scouting';
 import { isTouchDevice, TouchControls } from '../ui/TouchControls';
+import { TournamentScreen, WATCH_CAMERA } from '../ui/TournamentScreen';
 import { allianceRoles } from '../sim/quickSim';
 
 type State = 'menu' | 'playing' | 'paused' | 'results' | 'replay';
@@ -69,6 +70,9 @@ export class App {
   autoPractice: AutoPractice | null = null;
   readonly scoutData = loadScout();
   readonly scouting: ScoutingScreen;
+  readonly tourney: TournamentScreen;
+  /** Aviso de resultados del último match del torneo (se guarda una vez; los resultados se reabren). */
+  private tourNote = '';
   /** `?touch=1` fuerza los controles touch (para probar en escritorio). */
   private touchForced = new URLSearchParams(location.search).get('touch') === '1';
 
@@ -99,6 +103,15 @@ export class App {
     this.menu.onEditor = () => this.editor.show(null);
     this.scouting = new ScoutingScreen(this.menu.root, this.scoutData, () => this.toMenu(), (p) => this.start({ mode: 'match', player: p.player, scout: p }));
     this.menu.onScouting = () => this.scouting.show();
+    this.tourney = new TournamentScreen(this.menu.root, this.scoutData, this.settings, {
+      back: () => this.toMenu(),
+      play: (p, watch) => {
+        this.start({ mode: 'match', player: p.player, scout: p });
+        if (watch) this.setCamera(WATCH_CAMERA[watch]);
+      },
+      scouting: () => this.scouting.show('teams'),
+    });
+    this.menu.onTournament = () => this.tourney.open();
     pwa.onChange = () => {
       if (this.state === 'menu') this.menu.pwaChips();
     };
@@ -183,11 +196,19 @@ export class App {
       preload: true,
       ai: true,
       aiLevel: s.aiLevel,
-      specs: p.kinds.map((k) => ROBOT_PRESETS[k]),
+      // En el torneo tu robot es el del menú (con tu velocidad y capacidad)
+      specs: p.kinds.map((k, i) => (p.tour && i === p.player ? this.playerSpec() : ROBOT_PRESETS[k])),
       autos: p.kinds.map((k, i) => (i === p.player ? auto : k === 'chassis' ? LEAVE_ZONE : COLLECT_HOME)),
       bots: [...allianceRoles(p.kinds[0], p.kinds[1]), ...allianceRoles(p.kinds[2], p.kinds[3])],
       hp: { enabled: s.hpEnabled, interval: s.hpInterval },
     };
+  }
+
+  /** Tu robot según los ajustes (tipo, velocidad y capacidad). */
+  private playerSpec(): RobotSpec {
+    const s = this.settings;
+    const base = robotSpec(s.robotType);
+    return { ...base, maxSpeed: s.maxSpeed, capacity: fixedCapacity(base.mechanism) ?? s.capacity };
   }
 
   /** Calidad gráfica: `?quality=` manda; si no, el ajuste (o la automática). */
@@ -256,7 +277,8 @@ export class App {
       () => (sc ? this.toScouting() : this.toMenu()),
       () => this.downloadLog(),
       this.choice.player,
-      sc ? t('sc_saved', { match: sc.match }) : '',
+      sc?.tour ? this.tourNote : sc ? t('sc_saved', { match: sc.match }) : '',
+      sc?.tour ? t('tr_continue') : undefined,
     );
     const rep = this.lastReplay;
     const bar = this.menu.root.querySelector('.results .actions');
@@ -333,6 +355,8 @@ export class App {
   /** De vuelta al calendario del Scouting (después de jugar uno de sus matches). */
   toScouting(): void {
     this.toMenu();
+    // Match del torneo: de vuelta a su pantalla
+    if (this.choice.scout?.tour) return this.tourney.open();
     this.scouting.show('schedule');
   }
 
@@ -347,8 +371,9 @@ export class App {
         camera: this.cam.mode,
         setCamera: (c) => this.setCamera(c),
         onResume: () => this.togglePause(),
-        onRestart: () => this.start(this.choice),
+        onRestart: this.choice.scout?.tour ? undefined : () => this.start(this.choice),
         onMenu: () => (this.choice.scout ? this.toScouting() : this.toMenu()),
+        menuLabel: this.choice.scout?.tour ? t('tr_backTo') : undefined,
       });
     } else if (this.state === 'paused') {
       this.state = 'playing';
@@ -400,7 +425,9 @@ export class App {
         this.state = 'results';
         this.updateTouch();
         const sc = this.choice.scout;
-        if (sc) saveMatchEntries(this.scoutData, m, sc.teams, sc.match);
+        if (sc && !sc.tour) saveMatchEntries(this.scoutData, m, sc.teams, sc.match);
+        // Torneo: el resultado va a su tabla
+        this.tourNote = sc?.tour ? this.tourney.record(m, sc) : '';
         this.lastReplay = this.recorder?.build(this.session) ?? null;
         if (this.lastReplay) void storeReplay(this.lastReplay);
         this.showResults();
