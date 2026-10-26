@@ -1,7 +1,7 @@
 /**
  * Simular un match del calendario sin dibujarlo (pantalla de Scouting): los 4 robots con IA según
- * el tipo de robot de cada equipo, repartiendo papeles en cada alianza como recomienda el meta
- * (`allianceRoles`). Corre en pedazos con `setTimeout` para no congelar la página.
+ * el tipo de robot de cada equipo; la IA de cada alianza se reparte los papeles (`allianceRoles`).
+ * Corre en pedazos con `setTimeout` para no congelar la página.
  */
 import type { BotOptions } from '../ai/Bot';
 import { COLLECT_HOME, LEAVE_ZONE } from '../auto/AutoRoutine';
@@ -11,20 +11,12 @@ import { rng } from '../core/rng';
 import { GameSession } from '../game/GameSession';
 
 /**
- * Quién va por la Muestra Crítica (meta de `npm run batch -- --set mech`): el pivote (97–99%) antes
- * que la torre (92%). El elevador nunca: su IA no la alcanza (la saca por atrás y llega de frente).
- */
-const CRIT_PREF: Record<MechanismKind, number> = { pivot: 3, tower: 2, generic: 1, elevator: 0, chassis: 0 };
-
-/**
- * Papeles de una alianza de dos: los dos anotan a Nivel 3 y suben a la Plataforma; uno de ellos
- * (ver `CRIT_PREF`) lleva además la Muestra Crítica a la Repisa en el ENDGAME. El chasis solo cruza
- * la línea y sube a la Plataforma.
+ * Papeles de una alianza de dos: el chasis solo cruza la línea y sube a la Plataforma; a los demás
+ * la IA de su alianza (`ai/Team.ts`) les reparte las Muestras, el Human Player y la Muestra Crítica.
  */
 export function allianceRoles(a: MechanismKind, b: MechanismKind): [Partial<BotOptions>, Partial<BotOptions>] {
-  const critFirst = CRIT_PREF[a] >= CRIT_PREF[b];
-  const role = (k: MechanismKind, crit: boolean): Partial<BotOptions> => (k === 'chassis' ? { role: 'park' } : { level: 3, endgame: crit && CRIT_PREF[k] > 0 ? 'critical' : 'platform' });
-  return [role(a, critFirst), role(b, !critFirst)];
+  const role = (k: MechanismKind): Partial<BotOptions> => (k === 'chassis' ? { role: 'park' } : {});
+  return [role(a), role(b)];
 }
 
 /** Opciones de la sesión para que la IA juegue los 4 robots (0–1 rojo, 2–3 azul). */

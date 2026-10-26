@@ -27,6 +27,11 @@ export class HumanPlayer {
     this.introduced = 0;
   }
 
+  /** Segundos que faltan para que intente meter la siguiente Muestra (la IA espera en la Campana). */
+  get nextIn(): number {
+    return Math.max(0, this.interval - this.timer);
+  }
+
   /** Punto (dentro de la cancha) por donde sale la Muestra y su dirección. */
   slot(): { x: number; z: number; dz: number } {
     const p = F.forAlliance(this.alliance, { x: (F.CAMPANA_X_RED[0] + F.CAMPANA_X_RED[1]) / 2, z: -F.HALF_W + F.SAMPLE_SIZE / 2 + 0.01 });

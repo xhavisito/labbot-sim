@@ -85,6 +85,13 @@ tests/                    clock, scoring, fouls/cards, rp, match (casos borde), 
    SUPUESTO y configurable: 5 matches por equipo, 4 alianzas de 2, ranking por RP, 1 vs 4 y 2 vs 3);
    pantalla `ui/Scouting.ts` con datos en localStorage (`game/scoutStore.ts`). Meta con solo robots
    con mecanismo: `npm run batch -- --set mech`.
+8. **IA rival** (pedido después) — rivales dignos: robots de la IA de tipos distintos en cada match,
+   ciclos eficientes, Muestra Crítica y Plataforma en el ENDGAME, coordinación de la alianza, sin
+   faltas ni defensa (§4.5, §4.6, §6.1) y tres dificultades. Se quitaron los robots FIRST de prueba.
+   *Hecho:* `ai/Bot.ts` reescrito (tiempos estimados, varias Muestras por viaje, acomodo fino frente
+   a la Cámara, filtro de orilla y Plataforma), `ai/Team.ts` (reparto de Muestras, Human Player,
+   Cámara y Crítica), `ai/difficulty.ts` (SUPUESTOS de diseño, no del manual), `ai/lineup.ts`.
+   La IA anterior queda en `sim/legacyBot.ts` para comparar: `npm run batch -- --set ai --a hard --b old`.
 
 Cada hito: `npm test`, `npm run build` y captura con Playwright; resumen corto al terminar.
 

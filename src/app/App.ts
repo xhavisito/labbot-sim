@@ -3,9 +3,10 @@
  * Estados: menú (la cancha gira de fondo) → jugando ⇄ pausa → resultados.
  */
 import { COLLECT_HOME, LEAVE_ZONE } from '../auto/AutoRoutine';
+import { aiLineup } from '../ai/lineup';
 import { allAutoRoutines, autoRoutineIds } from '../auto/recorded';
-import { firstRobot, robotSpec } from '../config/firstRobots';
 import { fixedCapacity, ROBOT_PRESETS, type RobotSpec } from '../config/robot';
+import { robotSpec } from '../config/robotIds';
 import { loadSettings, saveSettings, type Settings } from '../config/settings';
 import { formatTimer, timerSeconds } from '../core/clock';
 import { buildMatchLog } from '../core/matchLog';
@@ -36,7 +37,7 @@ import { allianceRoles } from '../sim/quickSim';
 
 type State = 'menu' | 'playing' | 'paused' | 'results' | 'replay';
 
-/** Nombre del robot para la repetición y las estadísticas (robot de FIRST o tipo). */
+/** Nombre del robot para la repetición y las estadísticas (robot propio o tipo). */
 const robotLabel = (s: RobotSpec): string => s.label ?? t(`type_${s.mechanism}` as Key);
 
 export class App {
@@ -158,14 +159,14 @@ export class App {
       preload: true,
       ai: s.ai,
       autos: [0, 1, 2, 3].map((i) => auto(i === player ? s.playerAuto : s.botAuto)),
-      specs: [0, 1, 2, 3].map((i) => {
-        if (i !== player) return robotSpec(s.botRobotType);
+      aiLevel: s.aiLevel,
+      // Los robots de la IA: tipos distintos en cada match (`ai/lineup.ts`)
+      specs: aiLineup(player, robotSpec(s.robotType).mechanism).map((k, i) => {
+        if (i !== player) return ROBOT_PRESETS[k];
         const base = robotSpec(s.robotType);
         // La garra del pivote lleva una sola pieza; el chasis, solo la precarga
         return { ...base, maxSpeed: s.maxSpeed, capacity: fixedCapacity(base.mechanism) ?? s.capacity };
       }),
-      // Los robots de FIRST juegan con la estrategia que les funcionó (nivel, de dónde juntan, ENDGAME)
-      bots: [0, 1, 2, 3].map((i) => firstRobot(i === player ? s.robotType : s.botRobotType)?.strategy),
       hp: { enabled: s.hpEnabled, interval: s.hpInterval },
     };
   }
@@ -181,6 +182,7 @@ export class App {
       player: p.player,
       preload: true,
       ai: true,
+      aiLevel: s.aiLevel,
       specs: p.kinds.map((k) => ROBOT_PRESETS[k]),
       autos: p.kinds.map((k, i) => (i === p.player ? auto : k === 'chassis' ? LEAVE_ZONE : COLLECT_HOME)),
       bots: [...allianceRoles(p.kinds[0], p.kinds[1]), ...allianceRoles(p.kinds[2], p.kinds[3])],

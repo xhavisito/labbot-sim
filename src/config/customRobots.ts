@@ -83,7 +83,7 @@ const KEY = 'labbot.customRobots';
 const PRESET: Record<MechanismKind, RobotSpec> = { generic: DEFAULT_ROBOT, elevator: ELEVATOR_ROBOT, pivot: PIVOT_ROBOT, tower: TOWER_ROBOT, chassis: CHASSIS_ROBOT };
 const cm = (m: number) => Math.round(m * 1000) / 10;
 
-/** Un robot nuevo a partir de un `RobotSpec` (los presets o los de FIRST), con la tracción del chasis base (4 CIM, 12.75:1, 6 in). */
+/** Un robot nuevo a partir de un `RobotSpec` (los presets u otro robot propio), con la tracción del chasis base (4 CIM, 12.75:1, 6 in). */
 export function customFromSpec(s: RobotSpec, name: string, id = newId()): CustomRobot {
   return {
     id,

@@ -2,9 +2,9 @@
  * Editor de robot propio: medidas, tracción (motor, reducción, rueda), mecanismo, motores y
  * materiales con números reales de MDF de 5.5 mm (§7.1). Calcula masa, velocidad y aceleración,
  * revisa las reglas de construcción (§7.1–§7.3) y compara su score contra un robot de referencia
- * en matches de solo IA. Se guarda en este navegador y aparece junto a los presets y los de FIRST.
+ * en matches de solo IA. Se guarda en este navegador y aparece junto a los presets.
  */
-import { allRobotIds, FIRST_ROBOTS, robotSpec, type RobotId } from '../config/firstRobots';
+import { allRobotIds, robotSpec, type RobotId } from '../config/robotIds';
 import {
   checkCustom,
   CUSTOM_PREFIX,
@@ -76,8 +76,8 @@ const MATERIAL: NumField[] = [
 
 const shows = (f: NumField, m: MechanismKind) => (!f.only || f.only.includes(m)) && (!f.not || !f.not.includes(m));
 
-/** Robots con los que se puede comparar (presets y FIRST, no los propios). */
-const baselines = (): RobotId[] => [...MECHANISM_KINDS, ...FIRST_ROBOTS.map((r) => r.id)];
+/** Robots con los que se puede comparar (los presets, no los propios). */
+const baselines = (): RobotId[] => [...MECHANISM_KINDS];
 const nameOf = (id: RobotId): string => robotSpec(id).label ?? t(`type_${id}` as Key);
 
 export class RobotEditor {
@@ -142,7 +142,6 @@ export class RobotEditor {
       <div class="panel"><h3>${t('ed_new')}</h3><div class="form">
         <label>${t('ed_from')}</label><select data-from>
           <optgroup label="${t('grp_labbot')}">${MECHANISM_KINDS.map((m) => `<option value="${m}">${nameOf(m)}</option>`).join('')}</optgroup>
-          <optgroup label="${t('grp_first')}">${FIRST_ROBOTS.map((r) => `<option value="${r.id}">${nameOf(r.id)}</option>`).join('')}</optgroup>
         </select>
         <div></div><button class="btn primary" data-act="new">${ic.cube}<span>${t('ed_create')}</span></button>
         <p class="full sub">${t('ed_newNote')}</p>

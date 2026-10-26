@@ -35,7 +35,7 @@ export interface ReplayRobot {
   alliance: Alliance;
   station: 0 | 1;
   spec: RobotSpec;
-  /** Nombre que se muestra (tipo o robot de FIRST). */
+  /** Nombre que se muestra (tipo o robot propio). */
   label: string;
 }
 
