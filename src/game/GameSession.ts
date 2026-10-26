@@ -298,8 +298,9 @@ export class GameSession {
     for (const s of this.sensors.newSamples()) {
       const at = s.piece.body.translation();
       this.scoreFx.push({ x: at.x, y: at.y, z: at.z, alliance: s.alliance });
-      if (m) scored.push({ piece: s.piece.index, alliance: s.alliance, level: s.level, points: m.scoreSample(s.alliance, s.level, s.piece.lastRobot) });
-      else {
+      // En práctica también se avisa (0 puntos): la práctica de AUTO y los retos llevan su cuenta
+      scored.push({ piece: s.piece.index, alliance: s.alliance, level: s.level, points: m ? m.scoreSample(s.alliance, s.level, s.piece.lastRobot) : 0 });
+      if (!m) {
         this.practiceCount[s.alliance]++;
         if (this.opts.solo) this.sink.set(s.piece.index, 0);
       }

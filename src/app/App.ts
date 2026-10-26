@@ -10,6 +10,9 @@ import { robotSpec } from '../config/robotIds';
 import { loadSettings, saveSettings, type Settings } from '../config/settings';
 import { formatTimer, timerSeconds } from '../core/clock';
 import { buildMatchLog } from '../core/matchLog';
+import { drillById } from '../core/training';
+import { drillSessionOptions } from '../game/drills';
+import { loadTraining } from '../game/trainingStore';
 import { GameSession, type SessionOptions } from '../game/GameSession';
 import { loadScout } from '../game/scoutStore';
 import { InputManager } from '../input/InputManager';
@@ -34,6 +37,7 @@ import { Menu, type MenuChoice } from '../ui/Menu';
 import { saveMatchEntries, ScoutingScreen, type ScoutPlay } from '../ui/Scouting';
 import { isTouchDevice, TouchControls } from '../ui/TouchControls';
 import { TournamentScreen, WATCH_CAMERA } from '../ui/TournamentScreen';
+import { TrainingRun, TrainingScreen, type TrainingRobot } from '../ui/Training';
 import { allianceRoles } from '../sim/quickSim';
 
 type State = 'menu' | 'playing' | 'paused' | 'results' | 'replay';
@@ -71,6 +75,10 @@ export class App {
   readonly scoutData = loadScout();
   readonly scouting: ScoutingScreen;
   readonly tourney: TournamentScreen;
+  /** Entrenamiento por retos: récords (localStorage), lista de retos y el reto en curso. */
+  readonly trainingProgress = loadTraining();
+  readonly training: TrainingScreen;
+  trainingRun: TrainingRun | null = null;
   /** Aviso de resultados del último match del torneo (se guarda una vez; los resultados se reabren). */
   private tourNote = '';
   /** `?touch=1` fuerza los controles touch (para probar en escritorio). */
@@ -113,6 +121,11 @@ export class App {
       history: () => this.scouting.show('history'),
     });
     this.menu.onTournament = () => this.tourney.open();
+    this.training = new TrainingScreen(this.menu.root, this.trainingProgress, () => this.trainingRobot(), {
+      back: () => this.toMenu(),
+      play: (drill) => this.start({ mode: 'training', player: this.menu.player, drill }),
+    });
+    this.menu.onTraining = () => this.training.show();
     pwa.onChange = () => {
       if (this.state === 'menu') this.menu.pwaChips();
     };
@@ -130,11 +143,20 @@ export class App {
   start(c: MenuChoice): void {
     this.choice = c;
     this.closeAutoPractice();
+    this.closeTraining();
     this.renderer.scene.remove(this.session.root);
     this.session.dispose();
     // Práctica libre y de AUTO: solo el robot del jugador en la cancha (en la de AUTO, sin Human Player)
     const o = c.scout ? this.scoutOptions(c.scout) : this.sessionOptions(c.player);
-    this.session = new GameSession(c.scout ? o : { ...o, solo: c.mode !== 'match', ...(c.mode === 'auto' ? { hp: { enabled: false, interval: 3 } } : {}) });
+    const drill = c.mode === 'training' ? drillById(c.drill ?? '') : undefined;
+    if (c.mode === 'training' && !drill) return this.toMenu();
+    this.session = new GameSession(
+      drill
+        ? drillSessionOptions(drill, c.player, this.playerSpec(), this.settings.hpInterval)
+        : c.scout
+          ? o
+          : { ...o, solo: c.mode !== 'match', ...(c.mode === 'auto' ? { hp: { enabled: false, interval: 3 } } : {}) },
+    );
     this.renderer.scene.add(this.session.root);
     if (c.mode === 'match') this.session.startMatch();
     // Cada match se graba para la repetición y las estadísticas
@@ -157,6 +179,28 @@ export class App {
         },
         currentAuto: () => this.settings.playerAuto,
       });
+    if (drill)
+      this.trainingRun = new TrainingRun(this.hud.root.parentElement ?? document.body, drill, {
+        session: () => this.session,
+        progress: this.trainingProgress,
+        robot: this.trainingRobot(),
+        other: () => {
+          this.toMenu();
+          this.training.show();
+        },
+        exit: () => this.toMenu(),
+      });
+  }
+
+  private closeTraining(): void {
+    this.trainingRun?.dispose();
+    this.trainingRun = null;
+  }
+
+  /** Robot con el que se entrena (el del menú; los récords son por robot). */
+  private trainingRobot(): TrainingRobot {
+    const s = this.playerSpec();
+    return { id: this.settings.robotType, name: robotLabel(s), mech: s.mechanism };
   }
 
   private closeAutoPractice(): void {
@@ -242,6 +286,7 @@ export class App {
   resetPractice(): void {
     if (this.state !== 'playing' || this.session.match) return;
     if (this.autoPractice) this.autoPractice.reset();
+    else if (this.trainingRun) this.trainingRun.reset();
     else this.session.resetField();
   }
 
@@ -346,6 +391,7 @@ export class App {
 
   toMenu(): void {
     this.closeAutoPractice();
+    this.closeTraining();
     this.state = 'menu';
     this.touch.show(false);
     this.hud.show(false);
@@ -410,9 +456,10 @@ export class App {
     }
     if (this.state === 'playing') {
       if (this.input.camera) this.cycleCamera();
-      this.session.setInput(this.autoPractice ? this.autoPractice.filter(inp) : inp);
+      this.session.setInput(this.autoPractice ? this.autoPractice.filter(inp) : this.trainingRun ? this.trainingRun.filter(inp) : inp);
       this.session.update(dt);
       this.autoPractice?.update(dt);
+      this.trainingRun?.update(dt);
       this.hud.events(this.session.matchEvents);
       this.hud.update(this.session, this.cam.mode);
       this.touch.setIntake(this.session.player.mech.intakeOn);
@@ -444,6 +491,7 @@ export class App {
       this.cam.orbit.target.set(0, 0, 0);
     }
     if (this.autoPractice) this.autoPractice.root.style.display = this.state === 'playing' ? '' : 'none';
+    if (this.trainingRun) this.trainingRun.root.style.display = this.state === 'playing' ? '' : 'none';
     if (this.state !== 'paused' && this.state !== 'replay') this.session.update(this.state === 'playing' ? 0 : dt);
     this.watchFps(dt);
     this.effects.update(this.state === 'paused' ? 0 : dt);

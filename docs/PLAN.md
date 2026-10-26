@@ -100,6 +100,12 @@ tests/                    clock, scoring, fouls/cards, rp, match (casos borde), 
    opción); pantalla `ui/TournamentScreen.ts`, guardado en localStorage (`labbot.tournament.v1`).
    Los matches propios se juegan por el camino del Scouting (`ScoutPlay.tour`); los de otros se ven
    con la IA en los 4 robots o se omiten.
+10. **Entrenamiento por retos** (pedido después) — ejercicios guiados con medalla y récord personal.
+   *Hecho:* `core/training.ts` (7 retos, cortes de medalla SUPUESTOS, ritmo por tipo de robot,
+   récords por reto y robot), `game/drills.ts` (acomodo y cuenta en la física con `GameSession.tap`;
+   la sesión ahora también avisa las Muestras anotadas en práctica, con 0 puntos), `game/trainingStore.ts`
+   (localStorage `labbot.training.v1`) y `ui/Training.ts` (lista de retos y panel sobre la cancha).
+   Tabla de retos y supuestos en el README.
 
 Cada hito: `npm test`, `npm run build` y captura con Playwright; resumen corto al terminar.
 
