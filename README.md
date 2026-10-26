@@ -55,6 +55,15 @@ Muestras anotadas por robot y nivel con sus puntos (§4.4), tiempos de ciclo (de
 Muestras a menos de 2.5 s son un ciclo; solo TELEOP), distancia y velocidad. Se descargan como
 `.lbreplay` (≈ 80 KB) para abrirlas en otro equipo.
 
+**Práctica de AUTO** (menú → Taller): solo tu robot en su Zona de Inicio con la precarga y sin Human
+Player. **Grabar 15 s** guarda lo que haces con los controles en cada paso de física; luego la ruta
+se **repite** igual (también desde una pose movida unos cm o grados) y se califica con los puntos de
+AUTO (§4.4: Línea de Autónomo y Muestras por nivel). Avisa si cruzas la línea central (§4.2; D7,
+SUPUESTO Foul) o si la pose movida ya no cabe en la Zona de Inicio (§4.1). **Probar variaciones**
+corre la ruta sin dibujar desde N poses al azar (± cm, ± °) y dice cuántas dan los mismos puntos y
+cuánto se desvía la pose final. **Guardar** la deja en Ajustes → AUTO de tu robot para el match.
+Ojo: repite tus controles, así que con otro robot u otra Zona de Inicio termina en otro lugar.
+
 En el menú eliges tu robot (Rojo 1–2, Azul 1–2) y el modo:
 
 - **Jugar match:** 150 s con reloj. En el AUTO (15 s) los robots corren su rutina preprogramada
@@ -137,7 +146,8 @@ src/
   physics/    Rapier: PhysicsWorld, FieldColliders, Pieces (pool de Muestras), RobotPhysics (tanque)
   game/       GameSession (une todo), Robot, Mechanisms, Sensors (anotación), HumanPlayer
   referee/    Referee.ts: faltas automáticas
-  auto/       rutinas de AUTO
+  auto/       rutinas de AUTO; recorded.ts (rutas grabadas, localStorage); practice.ts (calificar
+              15 s de AUTO y probar poses iniciales desplazadas)
   ai/         Bot.ts: IA de los robots (recolectar → anotar → Plataforma o Muestra Crítica en el ENDGAME;
               papeles: anotar, solo chasis, bloquear; fuente: Laboratorio, Human Player o ambos)
   sim/        compare.ts: comparación de score del editor (matches de IA por partes, sin congelar la UI)

@@ -7,7 +7,7 @@
  */
 import * as THREE from 'three';
 import { Bot, type BotOptions } from '../ai/Bot';
-import { AUTO_REF_SPEED, AutoRunner, LEAVE_ZONE, type AutoRoutine } from '../auto/AutoRoutine';
+import { AUTO_REF_SPEED, AutoRunner, LEAVE_ZONE, type AutoOutput, type AutoRoutine } from '../auto/AutoRoutine';
 import * as F from '../config/field';
 import { GAME, type GameConfig } from '../config/game';
 import { DEFAULT_ROBOT, type RobotSpec } from '../config/robot';
@@ -101,6 +101,12 @@ export class GameSession {
   time = 0;
   /** Observador de cada paso (grabadora de la repetición); null = nadie graba. */
   tap: SessionTap | null = null;
+  /** Práctica de AUTO: rutina que maneja al robot del jugador fuera del match (ignora sus controles). */
+  pilot: AutoRunner | null = null;
+  /** Práctica de AUTO: recibe lo que hizo el jugador en cada paso (para grabar la ruta). */
+  inputTap: ((o: AutoOutput) => void) | null = null;
+  /** Acciones de un disparo del jugador desde el último paso (para `inputTap`). */
+  private tapActs: Omit<AutoOutput, 'forward' | 'turn'> = {};
 
   constructor(readonly opts: SessionOptions = { player: 0, preload: true }) {
     this.game = opts.game ?? GAME;
@@ -203,13 +209,14 @@ export class GameSession {
     this.events.length = 0;
     this.matchEvents.length = 0;
     // En AUTO el robot sigue su rutina; fuera del match habilitado (PRE en match, DONE) no se mueve
-    if (!this.playerEnabled()) return;
+    if (!this.playerEnabled() || this.pilot) return;
     const m = this.player.mech;
-    if (inp.toggleIntake) m.intakeOn = !m.intakeOn;
-    if (inp.elevator !== null) m.target = inp.elevator;
-    if (inp.releaseSample) m.release('sample', this.stepMechEvents);
-    if (inp.grabCritical) m.grabCritical(this.stepMechEvents);
-    if (inp.releaseCritical) m.release('critical', this.stepMechEvents);
+    const a = this.tapActs;
+    if (inp.toggleIntake) a.intake = m.intakeOn = !m.intakeOn;
+    if (inp.elevator !== null) a.elevator = m.target = inp.elevator;
+    if (inp.releaseSample) a.release = m.release('sample', this.stepMechEvents) || undefined;
+    if (inp.grabCritical) a.grabCritical = m.grabCritical(this.stepMechEvents) || undefined;
+    if (inp.releaseCritical) a.releaseCritical = m.release('critical', this.stepMechEvents) || undefined;
   }
 
   /** ¿El jugador controla su robot ahora? (práctica o TELEOP) */
@@ -228,6 +235,7 @@ export class GameSession {
       let turn = 0;
       let slow = false;
       const bot = m && phase === 'AUTO' ? this.autoBots[r.index] : m && isTeleop(phase) ? this.bots[r.index] : null;
+      const runner = m && phase === 'AUTO' ? this.autos[r.index] : !m && r === this.player ? this.pilot : null;
       if (bot) {
         const o = bot.step(dt, phase, m ? m.remaining : Infinity);
         forward = o.forward;
@@ -237,17 +245,22 @@ export class GameSession {
         if (o.release) r.mech.release('sample', this.stepMechEvents);
         if (o.grabCritical) r.mech.grabCritical(this.stepMechEvents);
         if (o.releaseCritical) r.mech.release('critical', this.stepMechEvents);
-      } else if (m && phase === 'AUTO') {
-        const o = this.autos[r.index].step(dt);
-        forward = Math.max(-1, Math.min(1, (o.forward * AUTO_REF_SPEED) / r.spec.maxSpeed));
+      } else if (runner) {
+        const o = runner.step(dt);
+        forward = Math.max(-1, Math.min(1, o.raw ? o.forward : (o.forward * AUTO_REF_SPEED) / r.spec.maxSpeed));
         turn = o.turn;
         if (o.elevator !== undefined) r.mech.target = o.elevator;
         if (o.intake !== undefined) r.mech.intakeOn = o.intake;
         if (o.release) r.mech.release('sample', this.stepMechEvents);
+        if (o.grabCritical) r.mech.grabCritical(this.stepMechEvents);
+        if (o.releaseCritical) r.mech.release('critical', this.stepMechEvents);
       } else if (enabled && r === this.player && this.input) {
         forward = this.input.forward;
         turn = this.input.turn;
         slow = this.input.slow;
+        const k = slow ? 0.5 : 1;
+        this.inputTap?.({ forward: forward * k, turn: turn * k, ...this.tapActs });
+        this.tapActs = {};
       }
       if (!enabled) r.mech.intakeOn = false;
       const k = slow ? 0.5 : 1;

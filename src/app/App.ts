@@ -2,7 +2,8 @@
  * Orquestador: renderer, cámara, entrada, sesión, HUD y menús; bucle principal.
  * Estados: menú (la cancha gira de fondo) → jugando ⇄ pausa → resultados.
  */
-import { AUTO_ROUTINES, LEAVE_ZONE } from '../auto/AutoRoutine';
+import { LEAVE_ZONE } from '../auto/AutoRoutine';
+import { allAutoRoutines, autoRoutineIds } from '../auto/recorded';
 import { firstRobot, robotSpec } from '../config/firstRobots';
 import { fixedCapacity, type RobotSpec } from '../config/robot';
 import { loadSettings, saveSettings, type Settings } from '../config/settings';
@@ -19,6 +20,7 @@ import type { Replay } from '../replay/format';
 import { Recorder } from '../replay/Recorder';
 import { ReplayPlayer } from '../replay/ReplayPlayer';
 import { storeReplay } from '../replay/store';
+import { AutoPractice } from '../ui/AutoPractice';
 import { ReplayBar } from '../ui/ReplayBar';
 import { ReplaysScreen } from '../ui/ReplaysScreen';
 import { RobotEditor } from '../ui/RobotEditor';
@@ -48,7 +50,7 @@ export class App {
   session: GameSession;
   state: State = 'menu';
   private choice: MenuChoice = { mode: 'match', player: 0 };
-  readonly settings: Settings = loadSettings(AUTO_ROUTINES.map((r) => r.id));
+  readonly settings: Settings = loadSettings(autoRoutineIds());
   private last = performance.now();
   readonly touch: TouchControls;
   /** Repetición: grabadora del match en curso, la del último match y el reproductor abierto. */
@@ -59,6 +61,8 @@ export class App {
   readonly replayBar: ReplayBar;
   readonly replays: ReplaysScreen;
   readonly editor: RobotEditor;
+  /** Práctica de AUTO abierta (panel y grabación sobre la sesión de práctica). */
+  autoPractice: AutoPractice | null = null;
   /** `?touch=1` fuerza los controles touch (para probar en escritorio). */
   private touchForced = new URLSearchParams(location.search).get('touch') === '1';
 
@@ -103,10 +107,12 @@ export class App {
   /** Empieza un match o una práctica con el robot elegido. */
   start(c: MenuChoice): void {
     this.choice = c;
+    this.closeAutoPractice();
     this.renderer.scene.remove(this.session.root);
     this.session.dispose();
-    // Práctica libre: solo el robot del jugador en la cancha
-    this.session = new GameSession({ ...this.sessionOptions(c.player), solo: c.mode === 'practice' });
+    // Práctica libre y de AUTO: solo el robot del jugador en la cancha (en la de AUTO, sin Human Player)
+    const o = this.sessionOptions(c.player);
+    this.session = new GameSession({ ...o, solo: c.mode !== 'match', ...(c.mode === 'auto' ? { hp: { enabled: false, interval: 3 } } : {}) });
     this.renderer.scene.add(this.session.root);
     if (c.mode === 'match') this.session.startMatch();
     // Cada match se graba para la repetición y las estadísticas
@@ -118,12 +124,28 @@ export class App {
     this.state = 'playing';
     this.updateTouch();
     this.cam.setMode(c.player < 2 ? 'driverRed' : 'driverBlue');
+    if (c.mode === 'auto')
+      this.autoPractice = new AutoPractice(this.hud.root.parentElement ?? document.body, {
+        session: () => this.session,
+        robotName: robotLabel(this.session.player.spec),
+        exit: () => this.toMenu(),
+        useRoute: (id) => {
+          this.settings.playerAuto = id;
+          saveSettings(this.settings);
+        },
+        currentAuto: () => this.settings.playerAuto,
+      });
+  }
+
+  private closeAutoPractice(): void {
+    this.autoPractice?.dispose();
+    this.autoPractice = null;
   }
 
   /** Opciones de la sesión según los ajustes: IA, rutinas de AUTO, tu robot y Human Player. */
   private sessionOptions(player: number): SessionOptions {
     const s = this.settings;
-    const auto = (id: string) => AUTO_ROUTINES.find((r) => r.id === id) ?? LEAVE_ZONE;
+    const auto = (id: string) => allAutoRoutines().find((r) => r.id === id) ?? LEAVE_ZONE;
     return {
       player,
       preload: true,
@@ -169,7 +191,9 @@ export class App {
 
   /** Reacomoda la cancha en práctica (Backspace o el botón del HUD). */
   resetPractice(): void {
-    if (this.state === 'playing' && !this.session.match) this.session.resetField();
+    if (this.state !== 'playing' || this.session.match) return;
+    if (this.autoPractice) this.autoPractice.reset();
+    else this.session.resetField();
   }
 
   /** Descarga el registro del match terminado como JSON. */
@@ -269,6 +293,7 @@ export class App {
   }
 
   toMenu(): void {
+    this.closeAutoPractice();
     this.state = 'menu';
     this.touch.show(false);
     this.hud.show(false);
@@ -318,8 +343,9 @@ export class App {
     }
     if (this.state === 'playing') {
       if (this.input.camera) this.cycleCamera();
-      this.session.setInput(inp);
+      this.session.setInput(this.autoPractice ? this.autoPractice.filter(inp) : inp);
       this.session.update(dt);
+      this.autoPractice?.update(dt);
       this.hud.events(this.session.matchEvents);
       this.hud.update(this.session, this.cam.mode);
       this.touch.setIntake(this.session.player.mech.intakeOn);
@@ -346,6 +372,7 @@ export class App {
       this.cam.camera.position.set(Math.cos(a) * 9, 6.5, Math.sin(a) * 7.5);
       this.cam.orbit.target.set(0, 0, 0);
     }
+    if (this.autoPractice) this.autoPractice.root.style.display = this.state === 'playing' ? '' : 'none';
     if (this.state !== 'paused' && this.state !== 'replay') this.session.update(this.state === 'playing' ? 0 : dt);
     this.watchFps(dt);
     this.effects.update(this.state === 'paused' ? 0 : dt);

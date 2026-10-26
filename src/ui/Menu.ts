@@ -3,6 +3,7 @@
  * controles (reasignar), reglas, pausa y resultados.
  */
 import { AUTO_ROUTINES } from '../auto/AutoRoutine';
+import { routeRoutine, savedRoutes } from '../auto/recorded';
 import { customById } from '../config/customRobots';
 import { allRobotIds, FIRST_ROBOTS, firstRobot, robotSpec, type RobotId } from '../config/firstRobots';
 import { fixedCapacity, MECHANISM_KINDS, type MechanismKind } from '../config/robot';
@@ -19,8 +20,11 @@ import { backBtn, brandbar, ic, kbds, langChips, robotSilhouette } from './chrom
 import { getLang, setLang, t, type Key } from './i18n';
 import { isIos, isStandalone, promptInstall, pwa } from '../pwa/register';
 
+const esc = (v: string): string => v.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
+
 export interface MenuChoice {
-  mode: 'match' | 'practice';
+  /** 'auto' = práctica de AUTO (`ui/AutoPractice.ts`): solo tu robot, grabar y probar rutas. */
+  mode: 'match' | 'practice' | 'auto';
   player: number;
 }
 
@@ -138,6 +142,7 @@ export class Menu {
           <div class="mm-tools late">
             ${tool('replays', ic.film, 'replays', 'replaysDesc')}
             ${tool('editor', ic.cube, 'editor', 'editorDesc')}
+            ${tool('autoPractice', ic.route, 'autoPractice', 'autoPracticeDesc')}
             ${tool('settings', ic.sliders, 'settings', 'settingsDesc')}
             ${tool('controls', ic.gamepad, 'controlsTitle', 'controlsDesc')}
             ${tool('rules', ic.book, 'rules', 'rulesDesc')}
@@ -180,6 +185,7 @@ export class Menu {
     this.on('[data-act="practice"]', () => this.onStart({ mode: 'practice', player: this.player }));
     this.on('[data-go="replays"]', () => this.onReplays());
     this.on('[data-go="editor"]', () => this.onEditor());
+    this.on('[data-go="autoPractice"]', () => this.onStart({ mode: 'auto', player: this.player }));
     this.on('[data-go="settings"]', () => this.settingsPanel());
     this.on('[data-go="controls"]', () => this.controlsPanel(() => this.main()));
     this.on('[data-go="rules"]', () => this.rulesPanel());
@@ -257,7 +263,12 @@ export class Menu {
   /** Ajustes: IA, rutinas de AUTO, tu robot y Human Player. Se guardan al volver. */
   settingsPanel(): void {
     const s = { ...this.settings };
-    const autoOpts = (sel: string) => AUTO_ROUTINES.map((r) => `<option value="${r.id}" ${r.id === sel ? 'selected' : ''}>${t(`auto_${r.id}` as Key)}</option>`).join('');
+    const autoOpts = (sel: string, routes = false) => {
+      const opt = (id: string, label: string) => `<option value="${id}" ${id === sel ? 'selected' : ''}>${label}</option>`;
+      const fixed = AUTO_ROUTINES.map((r) => opt(r.id, t(`auto_${r.id}` as Key))).join('');
+      const mine = routes ? savedRoutes.map((r) => opt(routeRoutine(r).id, esc(r.name))).join('') : '';
+      return fixed + (mine ? `<optgroup label="${t('grp_routes')}">${mine}</optgroup>` : '');
+    };
     const toggle = (k: 'ai' | 'hpEnabled') => `<button class="toggle ${s[k] ? 'on' : ''}" data-tog="${k}"><i></i>${s[k] ? t('on_') : t('no_')}</button>`;
     const range = (k: keyof typeof SETTINGS_RANGE, unit: string) => {
       const r = SETTINGS_RANGE[k];
@@ -272,7 +283,7 @@ export class Menu {
         <div class="panel"><div class="form">
           <h3>${t('sec_match')}</h3>
           <label>${t('setAi')}</label>${toggle('ai')}
-          <label>${t('setPlayerAuto')}</label><select data-k="playerAuto">${autoOpts(s.playerAuto)}</select>
+          <label>${t('setPlayerAuto')}</label><select data-k="playerAuto">${autoOpts(s.playerAuto, true)}</select>
           <label>${t('setBotAuto')}</label><select data-k="botAuto">${autoOpts(s.botAuto)}</select>
           <label>${t('setBotType')}</label>${robotSel('botRobotType')}
           <h3>${t('sec_hp')}</h3>
