@@ -3,7 +3,7 @@
  * los puntos y tiempos viven en `game.ts`. Todo pasa por `sanitizeSettings`, que recorta a rangos
  * válidos (un valor raro guardado en el navegador no rompe el juego).
  */
-import { ROBOT_IDS, type RobotId } from './firstRobots';
+import { allRobotIds, type RobotId } from './firstRobots';
 import { DEFAULT_ROBOT } from './robot';
 
 export interface Settings {
@@ -59,7 +59,8 @@ export function sanitizeSettings(raw: unknown, autoIds: readonly string[]): Sett
   const o = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
   const d = DEFAULT_SETTINGS;
   const auto = (v: unknown, def: string) => (typeof v === 'string' && autoIds.includes(v) ? v : def);
-  const kind = (v: unknown, def: RobotId) => ROBOT_IDS.find((k) => k === v) ?? def;
+  const ids = allRobotIds();
+  const kind = (v: unknown, def: RobotId) => ids.find((k) => k === v) ?? def;
   return {
     ai: typeof o.ai === 'boolean' ? o.ai : d.ai,
     playerAuto: auto(o.playerAuto, d.playerAuto),

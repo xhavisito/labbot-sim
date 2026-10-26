@@ -10,6 +10,7 @@
  * ni bumpers (SUPUESTO por conocimiento general, no verificado aquí); se usa como referencia.
  */
 import type { Level } from '../core/types';
+import { CUSTOM_PREFIX, customById, customRobots, customSpec } from './customRobots';
 import { mm } from './field';
 import { DEFAULT_ROBOT, MECHANISM_KINDS, PIVOT_ROBOT, ROBOT_PRESETS, TOWER_ROBOT, type MechanismKind, type RobotSpec } from './robot';
 
@@ -285,14 +286,19 @@ export const FIRST_ROBOTS: FirstRobot[] = [
     sources: ['https://www.team254.com/frc/2012/'],
   },
 ];
-/** Robot elegible: un tipo de las sugerencias de LabBot o un robot de referencia de FIRST. */
-export type RobotId = MechanismKind | FirstRobotId;
+/** Robot elegible: un tipo de las sugerencias de LabBot, un robot de referencia de FIRST o uno propio del editor. */
+export type RobotId = MechanismKind | FirstRobotId | `custom:${string}`;
 
 export const ROBOT_IDS: readonly RobotId[] = [...MECHANISM_KINDS, ...FIRST_ROBOTS.map((r) => r.id)];
 
 export const firstRobot = (id: RobotId): FirstRobot | undefined => FIRST_ROBOTS.find((r) => r.id === id);
 
-/** El `RobotSpec` de cualquier robot elegible. */
+/** Ids elegibles ahora: los fijos y los robots propios guardados en este navegador. */
+export const allRobotIds = (): RobotId[] => [...ROBOT_IDS, ...customRobots.map((c): RobotId => `${CUSTOM_PREFIX}${c.id}`)];
+
+/** El `RobotSpec` de cualquier robot elegible (uno propio que ya no existe cae al genérico). */
 export function robotSpec(id: RobotId): RobotSpec {
-  return firstRobot(id)?.spec ?? ROBOT_PRESETS[id as MechanismKind];
+  const c = customById(id);
+  if (c) return customSpec(c);
+  return firstRobot(id)?.spec ?? ROBOT_PRESETS[id as MechanismKind] ?? DEFAULT_ROBOT;
 }
