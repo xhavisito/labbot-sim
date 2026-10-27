@@ -6,8 +6,7 @@ import { AUTO_ROUTINES } from '../auto/AutoRoutine';
 import { routeRoutine, savedRoutes } from '../auto/recorded';
 import { customById } from '../config/customRobots';
 import { allRobotIds, robotSpec, type RobotId } from '../config/robotIds';
-import { AI_LEVELS } from '../ai/difficulty';
-import { fixedCapacity, MECHANISM_KINDS, type MechanismKind } from '../config/robot';
+import { armTravelDeg, MECHANISM_KINDS } from '../config/robot';
 import { GAME } from '../config/game';
 import { DEFAULT_SETTINGS, SETTINGS_RANGE, type Settings } from '../config/settings';
 import { RULES } from '../core/fouls';
@@ -35,6 +34,8 @@ export interface MenuChoice {
   drill?: DrillId;
   /** Match del calendario del Scouting (equipos y sus robots); su registro se guarda al terminar. */
   scout?: ScoutPlay;
+  /** Ya pasó por "Preparar match" (o es una repetición de ese match): empieza directo. */
+  ready?: boolean;
 }
 
 /** Lo que la pausa muestra y puede cambiar de la partida en curso. */
@@ -53,8 +54,6 @@ export interface PauseInfo {
 }
 
 const ROBOTS = [0, 1, 2, 3];
-/** ¿El tipo saca las Muestras por atrás? (se anota de reversa; ver `type_*_desc`). */
-const SCORES_BACK: Record<MechanismKind, boolean> = { generic: false, elevator: true, pivot: false, pivotHopper: false, tower: true, chassis: false };
 
 /** Medidas del chasis del robot (cm), para la vitrina del menú. */
 const chassisSize = (id: RobotId): string => `${Math.round(robotSpec(id).length * 100)} × ${Math.round(robotSpec(id).width * 100)} cm`;
@@ -68,7 +67,7 @@ function robotDesc(id: RobotId): string {
   }
   return t(`type_${id}_desc` as Key);
 }
-/** Lista de robots para elegir: sugerencias de LabBot y robots propios del editor. */
+/** Lista de robots para elegir: los pivotes con hopper y los robots propios del editor. */
 const robotOptions = (sel: RobotId): string =>
   `<optgroup label="${t('grp_labbot')}">${MECHANISM_KINDS.map((m) => `<option value="${m}" ${m === sel ? 'selected' : ''}>${robotName(m)}</option>`).join('')}</optgroup>${mineOptions(sel)}`;
 /** Robots propios del editor (si hay). */
@@ -252,11 +251,10 @@ export class Menu {
     const s = this.settings;
     const id = s.robotType;
     const spec = robotSpec(id);
-    const k = spec.mechanism;
     const ids = allRobotIds();
     const i = Math.max(0, ids.indexOf(id));
     const n = ids.length;
-    const cap = fixedCapacity(k) ?? s.capacity;
+    const cap = s.capacity;
     const levels = (['N1', 'N2', 'N3'] as const).slice(0, spec.maxLevel ?? 3).join(' · ');
     const bar = (label: string, v: number, txt: string) =>
       `<div class="sbar"><span>${label}</span><div><i style="width:${Math.round(Math.min(1, Math.max(0.04, v)) * 100)}%"></i></div><b>${txt}</b></div>`;
@@ -266,7 +264,7 @@ export class Menu {
       <div class="ri-stats">
         ${bar(t('statSpeed'), s.maxSpeed / SETTINGS_RANGE.maxSpeed.max, `${s.maxSpeed.toFixed(2).replace(/0$/, '')} m/s`)}
         ${bar(t('statCapacity'), cap / SETTINGS_RANGE.capacity.max, String(cap))}
-        <div class="ri-flags">${k === 'chassis' ? `<span>${t('scoresNone')}</span><span>${t('lineAndPlatform')}</span>` : `<span>${t(SCORES_BACK[k] ? 'scoresBack' : 'scoresFront')}</span><span>${levels}</span>`}</div>
+        <div class="ri-flags"><span>${t('scoresFront')}</span><span>${t('armTravel', { d: armTravelDeg(spec) })}</span><span>${levels}</span></div>
       </div>
       <div class="nav"><button class="arrowbtn" data-step="-1" aria-label="‹">‹</button>
         <div class="track"><i style="width:${100 / n}%;margin-left:${(100 * i) / n}%"></i></div>
@@ -306,8 +304,6 @@ export class Menu {
           <h3>${t('sec_match')}</h3>
           <label>${t('setAi')}</label>${toggle('ai')}
           <label>${t('setPlayerAuto')}</label><select data-k="playerAuto">${autoOpts(s.playerAuto, true)}</select>
-          <label>${t('setBotAuto')}</label><select data-k="botAuto">${autoOpts(s.botAuto)}</select>
-          <label>${t('setAiLevel')}</label><div class="seg" data-aiseg>${AI_LEVELS.map((l) => `<button class="${l === s.aiLevel ? 'on' : ''}" data-v="${l}">${t(`ai_${l}`)}</button>`).join('')}</div>
           <p class="full sub">${t('aiNote')}</p>
           <h3>${t('sec_hp')}</h3>
           <label>${t('setHp')}</label>${toggle('hpEnabled')}
@@ -359,12 +355,6 @@ export class Menu {
         }
       }),
     );
-    this.root.querySelectorAll<HTMLElement>('[data-aiseg] button').forEach((b) =>
-      b.addEventListener('click', () => {
-        s.aiLevel = b.dataset.v as Settings['aiLevel'];
-        b.parentElement!.querySelectorAll('button').forEach((x) => x.classList.toggle('on', x === b));
-      }),
-    );
     this.root.querySelectorAll<HTMLElement>('[data-qseg] button').forEach((b) =>
       b.addEventListener('click', () => {
         s.quality = b.dataset.v as Settings['quality'];
@@ -378,7 +368,7 @@ export class Menu {
     });
     this.on('[data-act="cancel"]', () => this.main());
     this.on('[data-act="defaults"]', () => {
-      Object.assign(this.settings, { ...DEFAULT_SETTINGS, touch: this.settings.touch, quality: this.settings.quality });
+      Object.assign(this.settings, { ...structuredClone(DEFAULT_SETTINGS), touch: this.settings.touch, quality: this.settings.quality });
       this.onSettings(this.settings);
       this.settingsPanel();
     });

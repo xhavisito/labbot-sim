@@ -2,11 +2,11 @@
 // navegador. Carga el código TypeScript con el SSR de Vite y reparte los matches en procesos.
 //
 //   npm run batch                                  todos contra todos, 1 semilla, ambos lados
-//   npm run batch -- --plans torre+torre,n3+n3 --seeds 3
-//   npm run batch -- --vs n3+n3                    cada estrategia contra una referencia
+//   npm run batch -- --plans phopn3+phopn3,p180n3+p180n3 --seeds 3
+//   npm run batch -- --vs phopn3+phopn3            cada estrategia contra una referencia
 //   npm run batch -- --workers 4 --out batch.json
-//   npm run batch -- --set mech                    solo robots con mecanismo (sin chasis ni genérico)
-//   npm run batch -- --set ai --a hard --b old     IA nueva (difícil) contra la anterior, alianzas de tipos distintos
+//   npm run batch -- --set mech                    los dos pivotes con hopper y sus papeles (sin el bloqueo)
+//   npm run batch -- --set ai --a hard --b normal  IA difícil contra normal, alianzas de los dos tipos
 //
 // Imprime una tabla por estrategia (promedios) y guarda todos los matches en JSON.
 import { fork } from 'node:child_process';

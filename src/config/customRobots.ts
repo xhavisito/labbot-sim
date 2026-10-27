@@ -10,7 +10,7 @@
  */
 import type { Level } from '../core/types';
 import { mm } from './field';
-import { CHASSIS_ROBOT, DEFAULT_ROBOT, ELEVATOR_ROBOT, hasArm, PIVOT_HOPPER_ROBOT, PIVOT_ROBOT, ROBOT_LIMITS, TOWER_ROBOT, validateRobot, MECHANISM_KINDS, type MechanismKind, type RobotSpec } from './robot';
+import { DEFAULT_ROBOT, MECHANISM_KINDS, ROBOT_PRESETS, validateRobot, type MechanismKind, type RobotSpec } from './robot';
 
 export type MotorKind = 'cim' | 'x60' | 'x44' | 'neo';
 export const MOTOR_KINDS: readonly MotorKind[] = ['cim', 'x60', 'x44', 'neo'];
@@ -53,21 +53,15 @@ export interface CustomRobot {
   wheels: number;
   /** Motores de los mecanismos (cuentan para el límite de §7.3). */
   mechMotors: Record<MotorKind, number>;
-  /** Intake: cuánto sale del chasis y su ancho (cm). */
-  intakeCm: number;
-  intakeWidthCm: number;
-  /** Alcance del depósito / pala fuera del chasis (cm). */
-  reachCm: number;
+  /** Muestras que guarda (1 en la garra y el resto en el hopper). */
   capacity: number;
-  /** Velocidad del elevador (m/s) o del brazo (rad/s en pivote). */
+  /** Velocidad del brazo (rad/s). */
   liftSpeed: number;
   maxLevel: Level;
-  /** Pivote: eje adelante del centro y alto (cm) y largo del brazo (cm). */
+  /** Brazo: eje adelante del centro y alto (cm) y largo del brazo (cm). */
   armPivotXCm: number;
   armPivotYCm: number;
   armLengthCm: number;
-  /** Torre: altura de la salida de las Muestras (cm). */
-  exitCm: number;
   /** Área de MDF (m²); null = estimada con las medidas. */
   mdfM2: number | null;
   plaG: number;
@@ -80,7 +74,6 @@ export interface CustomRobot {
 export const CUSTOM_PREFIX = 'custom:';
 const KEY = 'labbot.customRobots';
 
-const PRESET: Record<MechanismKind, RobotSpec> = { generic: DEFAULT_ROBOT, elevator: ELEVATOR_ROBOT, pivot: PIVOT_ROBOT, pivotHopper: PIVOT_HOPPER_ROBOT, tower: TOWER_ROBOT, chassis: CHASSIS_ROBOT };
 const cm = (m: number) => Math.round(m * 1000) / 10;
 
 /** Un robot nuevo a partir de un `RobotSpec` (los presets u otro robot propio), con la tracción del chasis base (4 CIM, 12.75:1, 6 in). */
@@ -97,18 +90,14 @@ export function customFromSpec(s: RobotSpec, name: string, id = newId()): Custom
     gearRatio: 12.75,
     wheelIn: 6,
     wheels: 6,
-    // Pivote con hopper: 2 X60 en el brazo, X44 en la garra y NEO en el indexador del hopper (§7.3)
-    mechMotors: { cim: 0, x60: s.mechanism === 'chassis' ? 0 : s.mechanism === 'tower' ? 3 : 2, x44: s.mechanism === 'pivotHopper' ? 1 : 0, neo: s.mechanism === 'chassis' ? 0 : 1 },
-    intakeCm: cm(s.intake.extension),
-    intakeWidthCm: cm(s.intake.width),
-    reachCm: cm(s.mechanism === 'tower' ? (s.critReach ?? 0) : s.reach),
+    // 2 X60 en el brazo, X44 en la garra y NEO en el indexador del hopper (§7.3)
+    mechMotors: { cim: 0, x60: 2, x44: 1, neo: 1 },
     capacity: s.capacity,
-    liftSpeed: hasArm(s.mechanism) ? (s.arm?.speed ?? 4) : s.elevatorSpeed,
+    liftSpeed: s.arm.speed,
     maxLevel: s.maxLevel ?? 3,
-    armPivotXCm: cm(s.arm?.pivotX ?? PIVOT_ROBOT.arm!.pivotX),
-    armPivotYCm: cm(s.arm?.pivotY ?? PIVOT_ROBOT.arm!.pivotY),
-    armLengthCm: cm(s.arm?.length ?? PIVOT_ROBOT.arm!.length),
-    exitCm: cm(s.sampleExit ?? TOWER_ROBOT.sampleExit!),
+    armPivotXCm: cm(s.arm.pivotX),
+    armPivotYCm: cm(s.arm.pivotY),
+    armLengthCm: cm(s.arm.length),
     mdfM2: null,
     plaG: 0,
     extraKg: 0,
@@ -124,16 +113,9 @@ export function estimateMdf(c: CustomRobot): number {
   const W = c.widthCm / 100;
   const H = c.heightCm / 100;
   const chassis = 2 * L * W + 2 * (L + W) * 0.12;
-  const mech: Record<MechanismKind, number> = {
-    chassis: 0.3 * W * Math.max(0, H - 0.22) * 2,
-    generic: 2 * 0.3 * H + 0.3 * (L / 2 + c.reachCm / 100) + 0.25 * (c.intakeWidthCm / 100),
-    elevator: 2 * 0.3 * H + 0.3 * (L / 2 + c.reachCm / 100) + 0.25 * (c.intakeWidthCm / 100),
-    tower: 2 * 0.42 * L * H + 0.25 * H + 0.22 * (L / 2 + 0.3) + 0.25 * (c.intakeWidthCm / 100),
-    pivot: 2 * 0.3 * (c.armPivotYCm / 100) + 2 * 0.06 * (c.armLengthCm / 100) + 0.35 * L * W,
-    // Torres del pivote, brazo, y el hopper: 4 paredes (2 altas por fuera, 2 bajas junto al canal), pisos inclinados y fondo
-    pivotHopper: 2 * 0.3 * (c.armPivotYCm / 100) + 2 * 0.06 * (c.armLengthCm / 100) + 2 * 0.6 * L * H + 2 * 0.6 * L * 0.35 + 2 * 0.6 * L * 0.2 + W * 0.3,
-  };
-  return chassis + mech[c.mechanism];
+  // Torres del pivote, brazo, y el hopper: 4 paredes (2 altas por fuera, 2 bajas junto al canal), pisos inclinados y fondo
+  const mech = 2 * 0.3 * (c.armPivotYCm / 100) + 2 * 0.06 * (c.armLengthCm / 100) + 2 * 0.6 * L * H + 2 * 0.6 * L * 0.35 + 2 * 0.6 * L * 0.2 + W * 0.3;
+  return chassis + mech;
 }
 
 export interface MassBreakdown {
@@ -183,9 +165,9 @@ export function driveAccel(c: CustomRobot, traction = 1): number {
   return Math.min(force / robotMass(c), traction * 9.81 * 0.62);
 }
 
-/** `RobotSpec` para la simulación. Las alturas de los niveles salen del preset de su tipo (las fija la cancha). */
+/** `RobotSpec` para la simulación. Las alturas de los niveles y la boca del hopper salen del preset de su tipo. */
 export function customSpec(c: CustomRobot): RobotSpec {
-  const base = PRESET[c.mechanism];
+  const base = ROBOT_PRESETS[c.mechanism];
   const L = mm(c.lengthCm * 10);
   const speed = driveSpeed(c);
   const s: RobotSpec = {
@@ -202,17 +184,10 @@ export function customSpec(c: CustomRobot): RobotSpec {
     // Giro: un tanque gira a ≈ v / (media trocha) limitado por el derrape de las ruedas (SUPUESTO)
     maxOmega: Math.min(7, (2 * speed) / Math.max(0.3, mm(c.widthCm * 10))),
     traction: base.traction,
-    intake: { extension: hasArm(c.mechanism) || c.mechanism === 'chassis' ? 0 : mm(c.intakeCm * 10), width: mm(c.intakeWidthCm * 10) },
-    capacity: c.mechanism === 'pivot' || c.mechanism === 'chassis' ? 1 : Math.max(c.mechanism === 'pivotHopper' ? 2 : 1, Math.round(c.capacity)),
-    reach: hasArm(c.mechanism) || c.mechanism === 'chassis' ? 0 : c.mechanism === 'tower' ? base.reach : mm(c.reachCm * 10),
-    elevatorSpeed: hasArm(c.mechanism) ? base.elevatorSpeed : c.liftSpeed,
+    capacity: Math.max(2, Math.round(c.capacity)),
+    arm: { ...base.arm, pivotX: mm(c.armPivotXCm * 10), pivotY: mm(c.armPivotYCm * 10), length: mm(c.armLengthCm * 10), speed: c.liftSpeed },
     maxLevel: c.maxLevel,
   };
-  if (hasArm(c.mechanism)) s.arm = { ...base.arm, pivotX: mm(c.armPivotXCm * 10), pivotY: mm(c.armPivotYCm * 10), length: mm(c.armLengthCm * 10), speed: c.liftSpeed, stowAngle: base.arm?.stowAngle };
-  if (c.mechanism === 'tower') {
-    s.sampleExit = mm(c.exitCm * 10);
-    s.critReach = mm(c.reachCm * 10);
-  }
   return s;
 }
 
@@ -231,8 +206,6 @@ export function checkCustom(c: CustomRobot): Check[] {
   for (const k of MOTOR_KINDS) if (n[k] > MOTOR_LIMITS[k]) out.push({ level: 'error', text: `${n[k]} ${MOTORS[k].name}: el máximo es ${MOTOR_LIMITS[k]} (§7.3)` });
   if (c.plaG > PLA_LIMIT_G) out.push({ level: 'error', text: `${c.plaG} g de PLA: cada equipo tiene ${PLA_LIMIT_G} g (§7.1.1)` });
   if (c.driveCount < 2 || c.driveCount % 2 !== 0) out.push({ level: 'warn', text: 'tracción tanque: los motores van en pares, uno o más por lado (§7.2)' });
-  if (c.lengthCm + c.intakeCm > ROBOT_LIMITS.maxChassis * 100 + 40 + 1e-6 && !hasArm(c.mechanism)) out.push({ level: 'error', text: 'la intake desplegada pasa de 65 + 40 cm (§7.2)' });
-  if (c.mechanism !== 'chassis' && !hasArm(c.mechanism) && c.intakeWidthCm > c.widthCm) out.push({ level: 'warn', text: 'la intake es más ancha que el chasis: cuenta dentro de los 40 cm por lado (§7.2)' });
   const sp = driveSpeed(c);
   if (sp > 5) out.push({ level: 'warn', text: `${sp.toFixed(1)} m/s es muy rápido para una cancha de 9 m: más reducción da más empuje` });
   if (sp < 1.2) out.push({ level: 'warn', text: `${sp.toFixed(1)} m/s es lento: menos reducción o rueda más grande` });
@@ -244,12 +217,20 @@ export function checkCustom(c: CustomRobot): Check[] {
 
 const finite = (v: unknown, d: number, lo: number, hi: number): number => (typeof v === 'number' && Number.isFinite(v) ? Math.max(lo, Math.min(hi, v)) : d);
 
-/** Robot válido a partir de cualquier valor guardado (lo raro toma el valor del preset). */
+/**
+ * Robot válido a partir de cualquier valor guardado (lo raro toma el valor del preset).
+ * Robots propios de tipos que ya no existen (genérico, elevador, pivote, torre, chasis; quitados el
+ * 27-oct): se convierten en pivote con hopper con su nombre, chasis, tracción y masa, y el brazo,
+ * la capacidad y los motores de los mecanismos del preset (los suyos eran de otro mecanismo).
+ */
 export function sanitizeCustom(raw: unknown): CustomRobot | null {
   if (!raw || typeof raw !== 'object') return null;
   const o = raw as Record<string, unknown>;
-  const mech = MECHANISM_KINDS.find((k) => k === o.mechanism) ?? 'generic';
-  const d = customFromSpec(PRESET[mech], 'Mi robot', typeof o.id === 'string' && /^[a-z0-9]{1,16}$/.test(o.id) ? o.id : newId());
+  const known = MECHANISM_KINDS.find((k) => k === o.mechanism);
+  const mech = known ?? DEFAULT_ROBOT.mechanism;
+  const d = customFromSpec(ROBOT_PRESETS[mech], 'Mi robot', typeof o.id === 'string' && /^[a-z0-9]{1,16}$/.test(o.id) ? o.id : newId());
+  // De un tipo quitado solo se conserva lo que no depende del mecanismo
+  const arm = (v: unknown, def: number, lo: number, hi: number) => (known ? finite(v, def, lo, hi) : def);
   const mm0 = (o.mechMotors ?? {}) as Record<string, unknown>;
   const motor = (v: unknown): MotorKind => MOTOR_KINDS.find((k) => k === v) ?? d.driveMotor;
   return {
@@ -264,17 +245,15 @@ export function sanitizeCustom(raw: unknown): CustomRobot | null {
     gearRatio: finite(o.gearRatio, d.gearRatio, 2, 40),
     wheelIn: finite(o.wheelIn, d.wheelIn, 3, 8),
     wheels: Math.round(finite(o.wheels, d.wheels, 4, 8)),
-    mechMotors: { cim: Math.round(finite(mm0.cim, 0, 0, 8)), x60: Math.round(finite(mm0.x60, 0, 0, 8)), x44: Math.round(finite(mm0.x44, 0, 0, 8)), neo: Math.round(finite(mm0.neo, 0, 0, 8)) },
-    intakeCm: finite(o.intakeCm, d.intakeCm, 0, 60),
-    intakeWidthCm: finite(o.intakeWidthCm, d.intakeWidthCm, 0, 120),
-    reachCm: finite(o.reachCm, d.reachCm, 0, 60),
-    capacity: Math.round(finite(o.capacity, d.capacity, 1, 10)),
-    liftSpeed: finite(o.liftSpeed, d.liftSpeed, 0.2, 8),
+    mechMotors: known
+      ? { cim: Math.round(finite(mm0.cim, 0, 0, 8)), x60: Math.round(finite(mm0.x60, 0, 0, 8)), x44: Math.round(finite(mm0.x44, 0, 0, 8)), neo: Math.round(finite(mm0.neo, 0, 0, 8)) }
+      : d.mechMotors,
+    capacity: Math.round(arm(o.capacity, d.capacity, 2, 10)),
+    liftSpeed: arm(o.liftSpeed, d.liftSpeed, 0.2, 8),
     maxLevel: o.maxLevel === 1 || o.maxLevel === 2 ? o.maxLevel : 3,
-    armPivotXCm: finite(o.armPivotXCm, d.armPivotXCm, -40, 40),
-    armPivotYCm: finite(o.armPivotYCm, d.armPivotYCm, 15, 100),
-    armLengthCm: finite(o.armLengthCm, d.armLengthCm, 20, 90),
-    exitCm: finite(o.exitCm, d.exitCm, 20, 100),
+    armPivotXCm: arm(o.armPivotXCm, d.armPivotXCm, -40, 40),
+    armPivotYCm: arm(o.armPivotYCm, d.armPivotYCm, 15, 100),
+    armLengthCm: arm(o.armLengthCm, d.armLengthCm, 20, 90),
     mdfM2: o.mdfM2 === null || o.mdfM2 === undefined ? null : finite(o.mdfM2, 1, 0, 10),
     plaG: finite(o.plaG, 0, 0, 1000),
     extraKg: finite(o.extraKg, 0, 0, 40),

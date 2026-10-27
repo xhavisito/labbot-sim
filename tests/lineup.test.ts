@@ -4,33 +4,31 @@ import { AI_TYPES, aiLineup } from '../src/ai/lineup';
 import { rng } from '../src/core/rng';
 
 describe('tipos de robot de la IA en cada match', () => {
-  it('los 3 robots de la IA usan tipos distintos entre sí y del tuyo', () => {
+  it('solo hay pivotes con hopper (el de 243° y el de 180°) y la IA usa los dos', () => {
+    expect([...AI_TYPES].sort()).toEqual(['pivotHopper', 'pivotHopper180']);
     const rand = rng(7);
     for (let n = 0; n < 50; n++) {
       for (const player of [0, 1, 2, 3]) {
-        const types = aiLineup(player, 'pivot', rand);
-        expect(types[player]).toBe('pivot');
+        const types = aiLineup(player, 'pivotHopper', rand);
+        expect(types[player]).toBe('pivotHopper');
         const bots = types.filter((_, i) => i !== player);
-        expect(new Set(bots).size).toBe(3);
-        expect(bots).not.toContain('pivot');
+        // Con 2 tipos y 3 robots se repiten, pero salen los dos
+        expect(new Set(bots).size).toBe(2);
         for (const k of bots) expect(AI_TYPES).toContain(k);
       }
     }
   });
 
-  it('con el chasis (que la IA no usa) o sin jugador, todos los tipos de la IA salen', () => {
-    const rand = rng(3);
-    expect(new Set(aiLineup(1, 'chassis', rand).filter((_, i) => i !== 1)).size).toBe(3);
-    const all = aiLineup(-1, 'generic', rand);
-    expect(new Set(all).size).toBe(4);
-    expect(all).not.toContain('chassis');
+  it('sin jugador, la IA usa los dos tipos', () => {
+    const all = aiLineup(-1, 'pivotHopper180', rng(3));
+    expect(new Set(all).size).toBe(2);
   });
 
   it('varía de un match a otro', () => {
     const rand = rng(11);
     const seen = new Set<string>();
-    for (let n = 0; n < 20; n++) seen.add(aiLineup(0, 'generic', rand).join(','));
-    expect(seen.size).toBeGreaterThan(3);
+    for (let n = 0; n < 20; n++) seen.add(aiLineup(0, 'pivotHopper', rand).join(','));
+    expect(seen.size).toBeGreaterThan(1);
   });
 });
 

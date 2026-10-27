@@ -2,9 +2,9 @@
  * Entrenamiento por retos (lógica pura): ejercicios guiados con medalla (bronce, plata, oro) y
  * récord personal. Los puntos son los del manual (§4.4, con los números de `config/game.ts`); los
  * tiempos límite y los cortes de cada medalla son SUPUESTOS de diseño del simulador (no están en el
- * manual), calibrados con la física: una ruta con script (línea 0.6 s, Plataforma 3.0 s, Crítica 7.1 s con el
- * genérico) y la IA difícil en un match (el genérico anota 5 en N3 a los ≈28 s del TELEOP). El oro pide
- * acercarse a eso; el bronce, cumplir la meta dentro del límite.
+ * manual), calibrados con la física de un robot de referencia que anotaba ≈10 Muestras en N3 por
+ * match (línea 0.6 s, Plataforma 3.0 s, Crítica 7.1 s; 5 en N3 a los ≈28 s del TELEOP) y ajustados
+ * al ritmo de cada tipo (`PACE`). El oro pide acercarse a eso; el bronce, cumplir la meta dentro del límite.
  *
  * Dos clases de reto:
  *  - 'time': cumplir la meta lo antes posible (menos segundos = mejor). Sin cumplirla no hay medalla.
@@ -66,18 +66,12 @@ export const DRILLS: readonly Drill[] = [
 export const drillById = (id: string): Drill | undefined => DRILLS.find((d) => d.id === id);
 
 /**
- * Ritmo de cada tipo de robot comparado con el genérico, para que la medalla sea justa con robots
- * que llevan menos piezas. Sale de las Muestras de N3 por match de la IA difícil en la física
- * (`core/tournament.ts`, PROFILES: genérico 10.5, elevador 10.9, torre 9.5, pivote 4.75, pivote con hopper ≈ el pivote) y de sus
- * tiempos al principio del TELEOP (el pivote anota cada ≈8 s, pero de una en una). SUPUESTO de
- * diseño. El chasis no anota.
+ * Ritmo de cada tipo de robot comparado con un robot de referencia que anota ≈10 Muestras en N3 por
+ * match (los cortes de las medallas se pensaron para él). Sale de las Muestras de N3 por match de
+ * la IA difícil en la física (`core/tournament.ts`, PROFILES) y de sus tiempos al principio del
+ * TELEOP (el pivote con hopper anota cada ≈8 s, de una en una). SUPUESTO de diseño.
  */
-export const PACE: Record<MechanismKind, number> = { generic: 1, elevator: 1, tower: 1.1, pivot: 1.5, pivotHopper: 1.5, chassis: 1 };
-
-/** ¿Puede este tipo de robot hacer el reto? (el chasis no toma ni suelta piezas) */
-export function canPlay(d: Drill, mech: MechanismKind): boolean {
-  return mech !== 'chassis' || d.needs === 'none';
-}
+export const PACE: Record<MechanismKind, number> = { pivotHopper: 1.5, pivotHopper180: 1.5 };
 
 /** Límite y cortes del reto para un tipo de robot (con su ritmo, si el reto es de Muestras). */
 export function drillTargets(d: Drill, mech: MechanismKind): { limit: number; medals: [number, number, number] } {

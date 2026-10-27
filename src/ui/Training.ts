@@ -5,7 +5,7 @@
  */
 import type { MechanismKind } from '../config/robot';
 import { formatTimer } from '../core/clock';
-import { bestOf, canPlay, DRILLS, drillTargets, medalCount, MEDALS, PACE, recordRun, type Drill, type DrillId, type Medal, type RunResult, type TrainingProgress } from '../core/training';
+import { bestOf, DRILLS, drillTargets, medalCount, MEDALS, PACE, recordRun, type Drill, type DrillId, type Medal, type RunResult, type TrainingProgress } from '../core/training';
 import { DrillTracker, setupDrill } from '../game/drills';
 import type { GameSession } from '../game/GameSession';
 import { saveTraining } from '../game/trainingStore';
@@ -59,16 +59,15 @@ export class TrainingScreen {
     const count = medalCount(this.progress, r.id);
     const card = (d: Drill): string => {
       const best = bestOf(this.progress, d.id, r.id);
-      const ok = canPlay(d, r.mech);
       const { limit } = drillTargets(d, r.mech);
-      return `<div class="tn-card ${ok ? '' : 'off'}" data-id="${d.id}">
+      return `<div class="tn-card" data-id="${d.id}">
         ${medalDisc(best?.medal ?? null, 'lg')}
         <div class="tn-info"><b>${drillName(d)}</b><p>${t(`tn_${d.id}_goal` as Key)}</p>
           <small class="tn-meta">${t('tn_limit', { s: secs(limit) })} · ${d.section}</small>
           ${cutsHtml(d, r.mech)}</div>
         <div class="tn-side">
           <div class="tn-rec">${best ? `<small>${t('tn_record')}</small><b>${fmtValue(d, best.best)}</b><small>${t('tn_runs', { n: best.runs })}</small>` : `<small>${t('tn_noRecord')}</small>`}</div>
-          ${ok ? `<button class="btn primary" data-play>${ic.play}<span>${t('tn_play')}</span></button>` : `<small class="tn-nomech">${t('tn_noMech')}</small>`}
+          <button class="btn primary" data-play>${ic.play}<span>${t('tn_play')}</span></button>
         </div></div>`;
     };
     this.root.className = 'screen solid';

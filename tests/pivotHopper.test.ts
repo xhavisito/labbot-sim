@@ -1,7 +1,7 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 import { SCORE_PRELOAD } from '../src/auto/AutoRoutine';
 import * as F from '../src/config/field';
-import { armAngle, armTip, PIVOT_HOPPER_ROBOT, ROBOT_LIMITS, TOWER_ROBOT, validateRobot, type RobotSpec } from '../src/config/robot';
+import { armAngle, armTip, PIVOT_HOPPER_180_ROBOT, PIVOT_HOPPER_ROBOT, ROBOT_LIMITS, validateRobot, type RobotSpec } from '../src/config/robot';
 import { GameSession } from '../src/game/GameSession';
 import { emptyInput, type PlayerInput } from '../src/input/InputManager';
 import { initRapier } from '../src/physics/PhysicsWorld';
@@ -99,8 +99,8 @@ describe('Pivote con hopper', () => {
     expect(m.inHopper).toBe(1);
   });
 
-  it('IA: anota más que dos pivotes y no pisa la Plataforma ni sale de la cancha', () => {
-    const specs = [S, TOWER_ROBOT, S, TOWER_ROBOT];
+  it('IA con los dos tipos: anota y no pisa la Plataforma ni sale de la cancha', () => {
+    const specs = [S, PIVOT_HOPPER_180_ROBOT, S, PIVOT_HOPPER_180_ROBOT];
     const g = new GameSession({ player: 0, preload: true, ai: true, specs, autos: [SCORE_PRELOAD, SCORE_PRELOAD, SCORE_PRELOAD, SCORE_PRELOAD] });
     g.startMatch();
     for (let i = 0; i < 151 * 120 && !g.match!.finished; i++) {
@@ -108,7 +108,7 @@ describe('Pivote con hopper', () => {
       g.step();
     }
     const m = g.match!;
-    for (const a of ['red', 'blue'] as const) expect(m.breakdown(a).samplesAuto + m.breakdown(a).samplesTeleop).toBeGreaterThan(18);
+    for (const a of ['red', 'blue'] as const) expect(m.breakdown(a).samplesAuto + m.breakdown(a).samplesTeleop).toBeGreaterThan(12);
     expect(m.fouls.filter((f) => f.rule === 'PLATFORM_EARLY' || f.rule === 'OUT_OF_BOUNDS' || f.rule === 'AUTO_CENTER')).toEqual([]);
   }, 120_000);
 });

@@ -65,21 +65,42 @@ abra al soltar, sin empujar: en el simulador, con empujón la Crítica rebotaba 
 3. ENDGAME: posición 4 con la garra vacía (las del hopper no estorban) para tomar la Crítica y
    dejarla en la Repisa (§4.3.1).
 
+## Variante: brazo de 180°
+Pedido de Xhavi (27-oct): una variación donde el brazo "pueda girar 180 grados". En el simulador es
+**Pivote con hopper 180°** (`PIVOT_HOPPER_180_ROBOT`). Mismo chasis, mismo eje (290 mm adelante,
+400 mm de alto) y mismo brazo de 450 mm; lo único que cambia es el recorrido:
+
+- El brazo va del **piso (−63°) a 117°**: 180° justos. La boca del hopper queda **arriba del centro
+  del robot, a 117°** (la garra a ~800 mm de alto y ~8 cm delante del centro), en vez de atrás a 180°.
+- Guarda y saca cada Muestra con menos vuelta (~180° contra 243°), así que cada paso al hopper es
+  ~25% más rápido. Alturas de N1–N3 y de la Crítica, y alcance al frente: iguales.
+- **Por qué no "anota por atrás"**: con el eje al frente, girar 180° desde el frente deja la garra
+  apenas 16 cm detrás del centro, lejos de una Cámara a la espalda; y con el eje al centro no llega
+  al N3 sin pasar de 100 cm (D24). Por eso se tomó como "brazo limitado a 180°" (SUPUESTO; si lo
+  querían de otra forma, p. ej. con torreta, se cambia).
+- Para el CAD: la boca arriba obliga a que el indexador del hopper reciba la Muestra desde arriba
+  (caída al compartimento), más sencillo que la boca trasera, pero la Muestra cae ~45 cm.
+
 ## Qué dice el simulador
-`npm run batch -- --set mech` (IA difícil, 20 matches por alianza, 26-oct). Es un techo para comparar,
-no un pronóstico: la velocidad del brazo (4.5 rad/s) y el paso al hopper (0.25 s) son SUPUESTOS.
+`npm run batch -- --set mech --vs phopn3+p180n3 --seeds 3` (IA difícil, 27-oct; 6 matches por
+alianza, 132 la de referencia). Es un techo para comparar, no un pronóstico: la velocidad del brazo
+(4.5 rad/s) y el paso al hopper (0.25 s) son SUPUESTOS.
 
 | Alianza | Puntos | Muestras | Crítica | RP |
 |---|---|---|---|---|
-| Dos torres | 340 | 20.1 | 75% | 4.45 |
-| Torre + pivote con hopper (lleva la Crítica) | 306 | 18.8 | 90% | 4.40 |
-| Torre + pivote (lleva la Crítica) | 313 | 18.8 | 65% | 4.15 |
-| Pivote con hopper Laboratorio + pivote con hopper HP | 255 | 14.8 | 95% | 3.65 |
-| Dos pivotes con hopper | 241 | 13.9 | 100% | 3.30 |
-| Dos pivotes | 227 | 13.2 | 90% | 3.20 |
+| Dos pivotes con hopper (uno lleva la Crítica) | 269 | 15.7 | 83% | 4.50 |
+| Dos pivotes 180° (uno lleva la Crítica) | 258 | 15.2 | 100% | 4.33 |
+| Pivote con hopper + pivote 180° | 245 | 14.2 | 100% | 4.12 |
+| Pivote con hopper Laboratorio + pivote con hopper HP | 236 | 13.8 | 100% | 4.00 |
+| Pivote N3 + pivote que solo sube a la Plataforma | 208–215 | 11 | 100% | 2.7–2.8 |
+| Dos pivotes sin ENDGAME | 213–228 | 15.5 | 0% | 2.3–3.0 |
 
-- Anota un poco más que el pivote (junta varias y hace menos viajes) y deja la Crítica con más
-  seguridad, porque puede traer Muestras en el hopper y la garra vacía para la Crítica.
-- Lo que lo frena es el brazo: cada Muestra que guarda es una vuelta completa (piso → 180° → piso,
-  ~2 s). Una boca del hopper más rápida o un brazo más rápido es donde más se gana.
-- Su mejor papel: con una torre o un elevador, llevando la Crítica en el ENDGAME.
+- Los dos tipos quedan parejos: el de 180° guarda más rápido, pero en el match pesa más el manejo y
+  la fila frente a la Cámara que la vuelta del brazo. Su AUTO anota un poco más (49 contra 44 pts).
+- Lo que más cuenta sigue siendo subir a la Plataforma (20) y dejar la Crítica (15 + 1 RP): sin
+  ENDGAME se pierden ~1.5 RP por match.
+- Un pivote que solo cruza la línea y sube a la Plataforma deja a su compañero solo y baja ~1.5 RP.
+
+## Historial
+Tabla anterior (26-oct, con los demás robots del simulador, ya quitados): dos torres 340 pts / 4.45 RP,
+torre + pivote con hopper 306 / 4.40, dos pivotes con hopper 241 / 3.30.

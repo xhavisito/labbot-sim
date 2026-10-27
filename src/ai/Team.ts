@@ -12,12 +12,11 @@ import type { HumanPlayer } from '../game/HumanPlayer';
 import type { Bot } from './Bot';
 
 /**
- * Quién lleva la Muestra Crítica (medido con `npm run batch`): el pivote la toma y suelta con la
- * garra (con hopper, igual: la garra va vacía aunque traiga Muestras); la torre con su pala al frente; el genérico con su depósito; el elevador la saca por
- * atrás (sube la rampa de reversa). El chasis no tiene con qué. Todos la dejan casi siempre; el orden
- * es por lo que cuesta a la alianza: con un elevador, que la lleve el otro da más RP (`--set mech`).
+ * Quién lleva la Muestra Crítica: el pivote con hopper la toma y suelta con la garra (la garra va
+ * vacía aunque traiga Muestras en el hopper). Con dos iguales, la lleva el primero; con la variante
+ * de 180°, la lleva el de 243° (el de 180° guarda Muestras más rápido y sigue anotando).
  */
-export const CRIT_PREF: Record<MechanismKind, number> = { pivotHopper: 4, pivot: 4, tower: 3, generic: 2, elevator: 1, chassis: 0 };
+export const CRIT_PREF: Record<MechanismKind, number> = { pivotHopper: 2, pivotHopper180: 1 };
 
 export class Team {
   readonly members: Bot[] = [];
@@ -46,7 +45,7 @@ export class Team {
 
   /** Reparte la Crítica y el Human Player (respeta lo que pida cada `BotOptions`). */
   plan(): void {
-    const scorers = this.members.filter((b) => b.opts.role === 'score' && b.robot.spec.mechanism !== 'chassis');
+    const scorers = this.members.filter((b) => b.opts.role === 'score');
     const explicitCrit = scorers.find((b) => b.opts.endgame === 'critical');
     const critCand = scorers.filter((b) => b.opts.endgame === undefined && b.profile.critical);
     const best = (list: Bot[], score: (b: Bot) => number) => list.reduce<Bot | null>((a, b) => (!a || score(b) > score(a) ? b : a), null);

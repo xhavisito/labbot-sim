@@ -4,6 +4,7 @@
  * grabada, interpolando entre cuadros. Las vistas (`RobotView`, `PieceView`) dibujan igual que en vivo.
  */
 import { GAME } from '../config/game';
+import { knownSpec } from '../config/robot';
 import { formatTimer, timerSeconds } from '../core/clock';
 import { GameSession } from '../game/GameSession';
 import { frameScore, frameTime, pieceFrame, REPLAY_HZ, replayDuration, robotFrame, type Replay } from './format';
@@ -31,7 +32,7 @@ export class ReplayPlayer {
 
   constructor(readonly replay: Replay) {
     const h = replay.header;
-    this.session = new GameSession({ player: h.player, preload: false, ai: false, specs: h.robots.map((r) => r.spec), hp: { enabled: false, interval: 3 } });
+    this.session = new GameSession({ player: h.player, preload: false, ai: false, specs: h.robots.map((r) => knownSpec(r.spec)), hp: { enabled: false, interval: 3 } });
     this.duration = replayDuration(replay);
     this.focus = Math.max(0, h.robots.findIndex((r) => r.index === h.player));
     this.apply();
@@ -84,8 +85,7 @@ export class ReplayPlayer {
       m.stored.length = 0;
       for (let j = 0; j < near.stored; j++) m.stored.push(spare);
       m.critical = near.critical ? spare : null;
-      // Repeticiones de antes del pivote con hopper: la garra del pivote lleva lo único que guarda
-      m.inClaw = near.claw || (rb.spec.mechanism === 'pivot' && near.stored > 0);
+      m.inClaw = near.claw;
     });
     s.pieces.list.forEach((p, i) => {
       const a = pieceFrame(r, f0, i);

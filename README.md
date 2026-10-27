@@ -4,7 +4,7 @@ Simulador 3D web del reto interno **LabBot Rescue 2026** (Robotics WinterFest, L
 Cancha, piezas, robots tanque, reloj, puntuación, faltas y Ranking Points según el manual del reto.
 
 - **Reglas:** [`docs/reglas-reto.md`](docs/reglas-reto.md) resume el manual con la sección de cada
-  regla (§x.y), las medidas tomadas de las figuras y la lista de dudas y supuestos (D1–D16).
+  regla (§x.y), las medidas tomadas de las figuras y la lista de dudas y supuestos (D1–D32).
 - **Plan y arquitectura:** [`docs/PLAN.md`](docs/PLAN.md).
 
 ## Instalar y correr
@@ -18,9 +18,9 @@ npm test             # pruebas unitarias y de física (Vitest)
 npm run build        # revisa tipos y genera el sitio estático en dist/
 npm run preview      # sirve dist/
 npm run batch        # matches de solo IA entre estrategias de alianza (sin navegador): tabla de puntos, RP y faltas
-                     #   --plans torre+torre,n3+n3  --vs n3+n3  --seeds 3  --workers 4  --out batch.json
-                     #   --set mech: solo Pivote, Torre y Elevador (sin chasis ni genérico), con puntos por robot
-                     #   --set ai --a hard --b old: IA nueva (easy/normal/hard) contra la anterior, alianzas de tipos distintos
+                     #   --plans phopcrit3+phopn3  --vs phopn3+p180n3  --seeds 3  --workers 4  --out batch.json
+                     #   --set mech: los dos pivotes con hopper (243° y 180°), con puntos por robot
+                     #   --set ai --a hard --b normal: una dificultad contra otra, alianzas de los dos tipos
 npm run shots        # capturas con Playwright en shots/ (requiere build; en la nube: CHROMIUM_PATH=/opt/pw-browsers/chromium; --mobile = celular)
 ```
 
@@ -39,10 +39,10 @@ abrirla con conexión (los cambios se ven la siguiente vez que se abre). Íconos
 ## Cómo se juega
 
 **Editor de robot** (menú → Taller): arma tu robot con medidas del chasis, tracción (motor, cantidad,
-reducción, rueda), mecanismo (intake, alcance, capacidad, elevador o brazo, nivel máximo), motores de
+reducción, rueda), mecanismo (tipo de pivote, capacidad del hopper, pivote y largo del brazo, velocidad, nivel máximo), motores de
 mecanismos y materiales (área de MDF de 5.5 mm, PLA, otros, o la masa de báscula). Calcula masa
 estimada por partes, velocidad (velocidad libre del motor ÷ reducción × circunferencia × 0.8) y
-aceleración, y revisa las reglas de construcción: chasis ≤ 65 × 65 cm, ≤ 40 cm fuera, ≤ 100 cm (§7.2),
+aceleración, y revisa las reglas de construcción: chasis ≤ 65 × 65 cm, ≤ 100 cm con el brazo (§7.2),
 motores (§7.3), PLA ≤ 150 g (§7.1.1); la masa solo se informa (no hay límite de peso, §7.2).
 **Comparar score** juega matches de solo IA de dos robots tuyos contra una alianza rival y lo mismo
 con un robot de referencia. Se guarda en el navegador y aparece en la lista de robots junto a los
@@ -82,18 +82,21 @@ medalla); Enter lo repite y Backspace lo reinicia.
 | Dominio de Cámara | 10 Muestras en tu Cámara | 135 s (TELEOP) | ≤ 50 · 75 · 135 s | §4.4 |
 
 Los puntos son los del manual (TELEOP; la línea, los de AUTO). **SUPUESTOS del simulador:** los
-límites, los cortes de cada medalla (calibrados con la física: una ruta con script del genérico hace
+límites, los cortes de cada medalla (calibrados con la física: una ruta con script de un robot de referencia hace
 la línea en 0.6 s, la Plataforma en 3.0 s y la Crítica en 7.1 s, y la IA difícil anota 5 en N3 a los
 ≈28 s del TELEOP), la salida "frente a la Cámara" del reto de Plataforma, los tiempos que la pieza o
-el robot tienen que quedarse para contar, y el ritmo por tipo de robot en los retos de Muestras
-(pivote ×1.5, torre ×1.1: más tiempo o menos puntos para la misma medalla). El chasis solo hace los
-retos de manejo. En la práctica no hay faltas: en el match, tomar la Crítica o subir a la Plataforma
+el robot tienen que quedarse para contar, y el ritmo del pivote con hopper en los retos de Muestras
+(×1.5 para los dos tipos: más tiempo o menos puntos para la misma medalla). En la práctica no hay faltas: en el match, tomar la Crítica o subir a la Plataforma
 antes del ENDGAME es Tech Foul (§4.6).
 
 En el menú eliges tu robot (Rojo 1–2, Azul 1–2) y el modo:
 
-- **Jugar match:** 150 s con reloj. En el AUTO (15 s) los robots corren su rutina preprogramada
-  (por defecto, salen de su Zona de Inicio). En el TELEOP (135 s) manejas tu robot, y en el ENDGAME
+- **Jugar match:** primero la pantalla **Preparar match**: eliges dónde arranca tu robot (arrastrándolo
+  en el mapa de tu Zona de Inicio y con el giro; solo deja lugares donde el chasis completo queda
+  dentro de la zona, §3.2.1 y §4.1) y, para cada robot de la IA, su tipo, su **estrategia** (automática,
+  N3, N2, N1, va por la Muestra Crítica, atiende al Human Player, solo del Laboratorio, sin ENDGAME o
+  solo línea y Plataforma), su **dificultad** (Fácil, Normal o Difícil, o todas de un jalón) y su
+  rutina de AUTO. Se recuerda para el siguiente match. En el AUTO (15 s) los robots corren su rutina preprogramada. En el TELEOP (135 s) manejas tu robot, y en el ENDGAME
   (últimos 30 s) se habilitan la Plataforma y la Muestra Crítica. Al final verás el desglose de
   puntos, RP y faltas.
 - **Scouting** (en el menú): equipos del reto y su tipo de robot; formato del torneo (SUPUESTO,
@@ -110,25 +113,20 @@ En el menú eliges tu robot (Rojo 1–2, Azul 1–2) y el modo:
   pueden pasar al Scouting.
 - **Práctica libre:** sin reloj ni faltas; el marcador cuenta las Muestras anotadas.
   Backspace reacomoda la cancha.
-- **Tipo de robot** (en el menú; los 3 robots de la IA usan tipos distintos en cada match, sin repetir
-  el tuyo si se puede):
-  - *Genérico:* intake al frente, tolva de 5 y elevador con depósito que suelta al frente.
-  - *Elevador:* intake al frente, tolva de 5 y una plataforma que sube y empuja las Muestras por
-    atrás (30 cm detrás del chasis). Se anota de reversa: espalda contra la pared de la Cámara.
-  - *Pivote* (sugerencia de CAD en MDF): chasis 60×60 cm, brazo de 50 cm con pivote a 44 cm.
-    Empieza guardado con la precarga; con el brazo en el piso (tecla 0) y la intake encendida agarra
-    una Muestra y la suelta al frente en N1–N3. Lleva una sola pieza (Muestra o Crítica).
-  - *Torre* (sugerencia de CAD en MDF): torre fija de ruedas, sin carro que suba. Guarda hasta 5
-    Muestras y las saca atrás a 83 cm (altura del N3), de reversa como el Elevador; la Crítica va en
-    una pala al frente (teclas 0–4 la mueven).
-  - *Chasis* (base común de las sugerencias en MDF, mínimo viable): tanque de 60×60 cm sin mecanismo
-    para anotar. Lleva la precarga sin soltarla, cruza la línea en AUTO (5) y sube a la Plataforma
-    (10 o 20). Con IA espera junto a su rampa y sube en el ENDGAME.
-  Todos cumplen §7.2 (65×65 cm, ≤40 cm fuera del chasis, ≤100 cm de alto) y el pivote cabe guardado
-  al inicio (§4.1); lo revisa `validateRobot`. El elevador se descartó para construir en MDF.
-- **Ajustes:** IA de los otros 3 robots (encendida por defecto) y su dificultad (Fácil, Normal o
-  Difícil, por defecto), rutina de AUTO de tu robot y de los
-  demás (salir de la zona, anotar precarga, anotar y recolectar, quedarse quieto), velocidad y
+- **Tipo de robot** (en el menú; solo hay dos y los dos son el **Pivote con hopper**; con "Al azar" la
+  IA usa los dos):
+  - *Pivote con hopper:* chasis 60×60 cm, brazo de 45 cm con pivote a 40 cm y garra. Agarra del piso
+    y, con la garra encendida, pasa cada Muestra al hopper (hasta 4 más la de la garra) pasando el
+    brazo por arriba (243° de recorrido, del piso hasta atrás); anota al frente en N1–N3 sacando cada
+    Muestra del hopper sola. La Crítica va en la garra (con la garra vacía).
+  - *Pivote con hopper 180°:* el mismo robot con el brazo limitado a 180° de giro (del piso hasta la
+    boca del hopper, que queda arriba del centro a 117°). Guarda y saca cada Muestra más rápido
+    porque recorre menos; mismas alturas y mismo alcance al frente.
+  Los dos cumplen §7.2 (65×65 cm, ≤100 cm de alto con una Muestra en la garra) y caben guardados al
+  inicio (§4.1); lo revisa `validateRobot`. Los robots guardados de tipos que se quitaron (genérico,
+  elevador, pivote sin hopper, torre, chasis) se abren como Pivote con hopper con su chasis.
+- **Ajustes:** IA de los otros 3 robots (encendida por defecto; su dificultad, estrategia y rutina de
+  AUTO se eligen en Preparar match), rutina de AUTO de tu robot, velocidad y
   capacidad de tu robot, y el Human Player automático. Se guardan en el navegador. Los puntos y
   tiempos no se cambian aquí: son los del manual, en `src/config/game.ts`.
 - **Registro del match:** en la pantalla de resultados, "Descargar registro (JSON)" baja el desglose,
@@ -149,21 +147,21 @@ Asignación por defecto:
 | Avanzar / retroceder | W / S (o flechas) | Stick izquierdo ↕ |
 | Girar | A / D (o flechas) | Stick izquierdo ↔ (o derecho) |
 | Modo lento | Shift | LT |
-| Intake (encender/apagar) | Espacio | A |
-| Elevador: abajo, N1, N2, N3, Repisa | 0, 1, 2, 3, 4 | — |
-| Subir / bajar elevador | — | RB / LB (o cruceta ↕) |
+| Garra (encender/apagar) | Espacio | A |
+| Brazo: piso, N1, N2, N3, Repisa | 0, 1, 2, 3, 4 | — |
+| Subir / bajar brazo | — | RB / LB (o cruceta ↕) |
 | Soltar Muestra | E | B |
 | Tomar Muestra Crítica | F | X |
 | Soltar Muestra Crítica | R | Y |
 | Cambiar cámara | C | Back |
 | Pausa | Esc | Start |
 
-**Touch:** en celular o tableta aparecen un joystick (izquierda) y botones (derecha): intake, soltar,
-subir/bajar elevador y la Crítica, más cámara y pausa arriba. `?touch=1` los fuerza en escritorio.
+**Touch:** en celular o tableta aparecen un joystick (izquierda) y botones (derecha): garra, soltar,
+subir/bajar el brazo y la Crítica, más cámara y pausa arriba. `?touch=1` los fuerza en escritorio.
 
-**Para anotar:** acércate de frente a la pared de tu Cámara de Seguridad, sube el elevador al nivel y
+**Para anotar:** acércate de frente a la pared de tu Cámara de Seguridad, sube el brazo al nivel y
 suelta la Muestra; cuenta cuando cae dentro del nivel. **Para la Muestra Crítica**, en el ENDGAME
-ponte de frente a la rendija de tu Campana con el elevador en "Repisa" y presiona F; luego sube a la
+ponte de frente a la rendija de tu Campana con el brazo en "Repisa" y presiona F; luego sube a la
 Plataforma y suéltala sobre la Repisa (R).
 
 ## Estructura

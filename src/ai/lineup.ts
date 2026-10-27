@@ -1,11 +1,11 @@
 /**
  * Tipos de robot de la IA en un match: los robots de la computadora usan tipos DISTINTOS entre sí
- * (y distintos al tuyo si alcanza), para que cada match tenga variedad. Solo tipos con mecanismo
- * para anotar: el chasis sin mecanismo (`chassis`) no es un rival digno, así que la IA no lo usa.
+ * (y distintos al tuyo si alcanza), para que cada match tenga variedad. Solo hay dos tipos (el pivote
+ * con hopper y su variante de 180°), así que se reparten y se repiten.
  */
-import type { MechanismKind } from '../config/robot';
+import { MECHANISM_KINDS, type MechanismKind } from '../config/robot';
 
-export const AI_TYPES: readonly MechanismKind[] = ['generic', 'elevator', 'pivot', 'pivotHopper', 'tower'];
+export const AI_TYPES: readonly MechanismKind[] = MECHANISM_KINDS;
 
 /**
  * Tipo de cada uno de los 4 robots (0–1 rojo, 2–3 azul): `player` lleva `playerType` (−1 = ninguno,

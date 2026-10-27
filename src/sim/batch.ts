@@ -7,15 +7,14 @@
  * que los puntos son un techo para cada estrategia: sirven para comparar, no como pronóstico.
  */
 import type { BotOptions } from '../ai/Bot';
-import type { AiLevel } from '../ai/difficulty';
+import { AI_LEVELS, type AiLevel } from '../ai/difficulty';
 import { COLLECT_HOME, LEAVE_ZONE, SCORE_PRELOAD, type AutoRoutine } from '../auto/AutoRoutine';
 import { GAME } from '../config/game';
-import { CHASSIS_ROBOT, DEFAULT_ROBOT, ELEVATOR_ROBOT, PIVOT_HOPPER_ROBOT, PIVOT_ROBOT, ROBOT_PRESETS, TOWER_ROBOT, type MechanismKind, type RobotSpec } from '../config/robot';
+import { MECHANISM_KINDS, PIVOT_HOPPER_180_ROBOT, PIVOT_HOPPER_ROBOT, ROBOT_PRESETS, type RobotSpec } from '../config/robot';
 import { entriesFromMatch, entryPoints } from '../core/scouting';
 import { rng } from '../core/rng';
 import { ALLIANCES, type Alliance } from '../core/types';
-import { GameSession, type BotDriver } from '../game/GameSession';
-import { LegacyBot, type LegacyBotOptions } from './legacyBot';
+import { GameSession } from '../game/GameSession';
 
 export interface RobotPlan {
   id: string;
@@ -23,8 +22,6 @@ export interface RobotPlan {
   spec: RobotSpec;
   auto: AutoRoutine;
   bot: Partial<BotOptions>;
-  /** Juega con la IA anterior (`sim/legacyBot.ts`) y estas opciones suyas, para comparar. */
-  legacy?: Partial<LegacyBotOptions>;
 }
 
 export interface AlliancePlan {
@@ -33,13 +30,9 @@ export interface AlliancePlan {
   robots: [RobotPlan, RobotPlan];
 }
 
-/** Chasis tanque sin mecanismo (base común de las sugerencias en MDF): solo cruza la línea y sube a la Plataforma. */
-const CHASSIS: RobotSpec = CHASSIS_ROBOT;
-
 /**
- * Variantes de un robot con mecanismo (`p` = prefijo del id): N3 base, + Crítica, solo del HP, solo del
- * Laboratorio, a Nivel 2, AUTO solo con la precarga y sin ENDGAME. `torren3` es lo mismo que `torre`
- * (y `pivn3` que `pivote`): se repiten con ids parejos para el conjunto `mech`.
+ * Variantes de un tipo de robot (`p` = prefijo del id): N3 base, + Crítica, solo del HP, solo del
+ * Laboratorio, a Nivel 2, AUTO solo con la precarga, sin ENDGAME y solo Plataforma (sin anotar).
  */
 function mechVariants(p: string, name: string, spec: RobotSpec): Record<string, RobotPlan> {
   const v = (suffix: string, label: string, auto: AutoRoutine, bot: Partial<BotOptions>): [string, RobotPlan] => [
@@ -54,80 +47,31 @@ function mechVariants(p: string, name: string, spec: RobotSpec): Record<string, 
     v('n2', 'a Nivel 2', COLLECT_HOME, { level: 2 }),
     v('pre3', 'N3, AUTO solo precarga', SCORE_PRELOAD, { level: 3 }),
     v('sin3', 'N3 sin ENDGAME', COLLECT_HOME, { level: 3, endgame: 'none' }),
+    v('park', 'solo línea y Plataforma', LEAVE_ZONE, { role: 'park' }),
   ]);
 }
 
 export const ROBOT_PLANS = {
-  chasis: { id: 'chasis', name: 'Chasis (línea + Plataforma)', spec: CHASSIS, auto: LEAVE_ZONE, bot: { role: 'park' } },
-  n1: { id: 'n1', name: 'Genérico a Nivel 1', spec: DEFAULT_ROBOT, auto: SCORE_PRELOAD, bot: { level: 1 } },
-  n2: { id: 'n2', name: 'Genérico a Nivel 2', spec: DEFAULT_ROBOT, auto: SCORE_PRELOAD, bot: { level: 2 } },
-  n3: { id: 'n3', name: 'Genérico (elevador) a Nivel 3', spec: DEFAULT_ROBOT, auto: COLLECT_HOME, bot: { level: 3 } },
-  n3pre: { id: 'n3pre', name: 'Genérico N3, AUTO solo precarga', spec: DEFAULT_ROBOT, auto: SCORE_PRELOAD, bot: { level: 3 } },
-  n3sin: { id: 'n3sin', name: 'Genérico N3 sin ENDGAME', spec: DEFAULT_ROBOT, auto: COLLECT_HOME, bot: { level: 3, endgame: 'none' } },
-  n3hp: { id: 'n3hp', name: 'Genérico N3 desde el HP', spec: DEFAULT_ROBOT, auto: COLLECT_HOME, bot: { level: 3, source: 'hp' } },
-  n3crit: { id: 'n3crit', name: 'Genérico N3 + Muestra Crítica', spec: DEFAULT_ROBOT, auto: COLLECT_HOME, bot: { level: 3, endgame: 'critical' } },
-  torre: { id: 'torre', name: 'Torre N3', spec: TOWER_ROBOT, auto: COLLECT_HOME, bot: { level: 3 } },
-  torrehp: { id: 'torrehp', name: 'Torre N3 desde el HP', spec: TOWER_ROBOT, auto: COLLECT_HOME, bot: { level: 3, source: 'hp' } },
-  torrelab: { id: 'torrelab', name: 'Torre N3 solo del Laboratorio', spec: TOWER_ROBOT, auto: COLLECT_HOME, bot: { level: 3, source: 'lab' } },
-  torrecrit: { id: 'torrecrit', name: 'Torre N3 + Muestra Crítica', spec: TOWER_ROBOT, auto: COLLECT_HOME, bot: { level: 3, endgame: 'critical' } },
-  pivote: { id: 'pivote', name: 'Pivote N3', spec: PIVOT_ROBOT, auto: COLLECT_HOME, bot: { level: 3 } },
-  pivcrit: { id: 'pivcrit', name: 'Pivote N3 + Muestra Crítica', spec: PIVOT_ROBOT, auto: COLLECT_HOME, bot: { level: 3, endgame: 'critical' } },
-  pivhop: { id: 'pivhop', name: 'Pivote con hopper N3', spec: PIVOT_HOPPER_ROBOT, auto: COLLECT_HOME, bot: { level: 3 } },
-  pivhopcrit: { id: 'pivhopcrit', name: 'Pivote con hopper N3 + Muestra Crítica', spec: PIVOT_HOPPER_ROBOT, auto: COLLECT_HOME, bot: { level: 3, endgame: 'critical' } },
-  bloqueo: { id: 'bloqueo', name: 'Chasis que bloquea la Cámara rival', spec: CHASSIS, auto: LEAVE_ZONE, bot: { role: 'block' } },
-  ...mechVariants('torre', 'Torre', TOWER_ROBOT),
-  ...mechVariants('piv', 'Pivote', PIVOT_ROBOT),
-  ...mechVariants('elev', 'Elevador', ELEVATOR_ROBOT),
   ...mechVariants('phop', 'Pivote con hopper', PIVOT_HOPPER_ROBOT),
+  ...mechVariants('p180', 'Pivote con hopper 180°', PIVOT_HOPPER_180_ROBOT),
+  bloqueo: { id: 'bloqueo', name: 'Pivote con hopper que bloquea la Cámara rival', spec: PIVOT_HOPPER_ROBOT, auto: LEAVE_ZONE, bot: { role: 'block' } },
 } satisfies Record<string, RobotPlan>;
 
-type PlanId = keyof typeof ROBOT_PLANS;
-const pair = (id: string, name: string, a: PlanId, b: PlanId): AlliancePlan => ({ id, name, robots: [ROBOT_PLANS[a], ROBOT_PLANS[b]] });
-
-export const ALLIANCE_PLANS: AlliancePlan[] = [
-  pair('chasis+chasis', 'Dos chasis', 'chasis', 'chasis'),
-  pair('n1+chasis', 'N1 + chasis', 'n1', 'chasis'),
-  pair('n1+n1', 'Dos a N1', 'n1', 'n1'),
-  pair('n2+n2', 'Dos a N2', 'n2', 'n2'),
-  pair('n3+chasis', 'N3 + chasis', 'n3', 'chasis'),
-  pair('n3+n1', 'N3 + N1', 'n3', 'n1'),
-  pair('n3+n3', 'Dos genéricos N3', 'n3', 'n3'),
-  pair('n3pre+n3pre', 'Dos N3, AUTO solo precarga', 'n3pre', 'n3pre'),
-  pair('n3sin+n3sin', 'Dos N3 sin ENDGAME', 'n3sin', 'n3sin'),
-  pair('n3crit+n3', 'N3 con Crítica + N3', 'n3crit', 'n3'),
-  pair('n3+n3hp', 'N3 + N3 del HP', 'n3', 'n3hp'),
-  pair('torre+torre', 'Dos torres', 'torre', 'torre'),
-  pair('torrelab+torrehp', 'Torre Laboratorio + torre HP', 'torrelab', 'torrehp'),
-  pair('torrecrit+torre', 'Torre con Crítica + torre', 'torrecrit', 'torre'),
-  pair('torrecrit+torrehp', 'Torre con Crítica + torre HP', 'torrecrit', 'torrehp'),
-  pair('torre+chasis', 'Torre + chasis', 'torre', 'chasis'),
-  pair('torre+n1', 'Torre + N1', 'torre', 'n1'),
-  pair('pivote+pivote', 'Dos pivotes', 'pivote', 'pivote'),
-  pair('torre+pivote', 'Torre + pivote', 'torre', 'pivote'),
-  pair('torre+pivcrit', 'Torre + pivote con Crítica', 'torre', 'pivcrit'),
-  pair('pivhop+pivhop', 'Dos pivotes con hopper', 'pivhop', 'pivhop'),
-  pair('torre+pivhop', 'Torre + pivote con hopper', 'torre', 'pivhop'),
-  pair('torre+pivhopcrit', 'Torre + pivote con hopper y Crítica', 'torre', 'pivhopcrit'),
-  pair('torre+bloqueo', 'Torre + bloqueo', 'torre', 'bloqueo'),
-  pair('n3+bloqueo', 'N3 + bloqueo', 'n3', 'bloqueo'),
-];
-
-/**
- * Solo robots con mecanismo (pivote, pivote con hopper, torre, elevador; sin chasis ni genérico): en el reto nadie va a
- * llevar un chasis solo. Cada tipo consigo mismo y con los otros, con el reparto de papeles
- * (quién va por la Crítica, quién junta del HP o del Laboratorio) y variantes de nivel, AUTO y ENDGAME.
- * `npm run batch -- --set mech`.
- */
-const TYPES = [
-  ['torre', 'Torre'],
-  ['piv', 'Pivote'],
-  ['elev', 'Elevador'],
-  ['phop', 'Pivote con hopper'],
-] as const;
 const mp = (a: string, b: string, name: string): AlliancePlan => {
   const plans = ROBOT_PLANS as Record<string, RobotPlan>;
   return { id: `${a}+${b}`, name, robots: [plans[a], plans[b]] };
 };
+
+/** Los dos tipos del simulador (`config/robot.ts`). */
+const TYPES = [
+  ['phop', 'Pivote con hopper'],
+  ['p180', 'Pivote 180°'],
+] as const;
+
+/**
+ * Cada tipo consigo mismo y con el otro, con el reparto de papeles (quién va por la Crítica, quién
+ * junta del HP o del Laboratorio) y variantes de nivel, AUTO y ENDGAME. `npm run batch -- --set mech`.
+ */
 export const MECH_ALLIANCE_PLANS: AlliancePlan[] = [
   ...TYPES.flatMap(([p, n]) => [
     mp(`${p}n3`, `${p}n3`, `Dos ${n} N3`),
@@ -137,56 +81,34 @@ export const MECH_ALLIANCE_PLANS: AlliancePlan[] = [
     mp(`${p}n2`, `${p}n3`, `${n} N2 + ${n} N3`),
     mp(`${p}pre3`, `${p}pre3`, `Dos ${n}, AUTO solo precarga`),
     mp(`${p}sin3`, `${p}sin3`, `Dos ${n} sin ENDGAME`),
+    mp(`${p}n3`, `${p}park`, `${n} N3 + ${n} solo Plataforma`),
   ]),
-  ...([
-    [0, 1],
-    [0, 2],
-    [1, 2],
-    [0, 3],
-    [1, 3],
-    [2, 3],
-  ] as const).flatMap(([i, j]) => {
-    const [a, an] = TYPES[i];
-    const [b, bn] = TYPES[j];
-    return [
-      mp(`${a}n3`, `${b}n3`, `${an} + ${bn}`),
-      mp(`${a}crit3`, `${b}n3`, `${an} con Crítica + ${bn}`),
-      mp(`${a}n3`, `${b}crit3`, `${an} + ${bn} con Crítica`),
-      mp(`${a}lab3`, `${b}hp3`, `${an} Laboratorio + ${bn} HP`),
-      mp(`${a}hp3`, `${b}lab3`, `${an} HP + ${bn} Laboratorio`),
-    ];
-  }),
+  mp('phopn3', 'p180n3', 'Pivote con hopper + Pivote 180°'),
+  mp('phopcrit3', 'p180n3', 'Pivote con hopper con Crítica + Pivote 180°'),
+  mp('phopn3', 'p180crit3', 'Pivote con hopper + Pivote 180° con Crítica'),
+  mp('phoplab3', 'p180hp3', 'Pivote con hopper Laboratorio + Pivote 180° HP'),
+  mp('phophp3', 'p180lab3', 'Pivote con hopper HP + Pivote 180° Laboratorio'),
 ];
 
+/** Estrategias de alianza de siempre (`--set all`): las de `mech` más el bloqueo (para medir cuánto cuesta, §4.6). */
+export const ALLIANCE_PLANS: AlliancePlan[] = [...MECH_ALLIANCE_PLANS, mp('phopn3', 'bloqueo', 'Pivote con hopper + bloqueo')];
+
 /**
- * IA nueva contra la anterior y entre dificultades: alianzas de dos tipos distintos (como juegan los
- * robots de la IA en el juego, `ai/lineup.ts`). Ids `<versión>:<tipo>+<tipo>` con versión `old` (IA
- * anterior, con los papeles que le daba `allianceRoles`), `hard`, `normal` o `easy`.
- * `npm run batch -- --set ai --a hard --b old` enfrenta cada alianza `hard:` con cada `old:`.
+ * Entre dificultades: alianzas de los dos tipos (como juegan los robots de la IA en el juego,
+ * `ai/lineup.ts`). Ids `<dificultad>:<tipo>+<tipo>`.
+ * `npm run batch -- --set ai --a hard --b normal` enfrenta cada alianza `hard:` con cada `normal:`.
  */
-const AI_KINDS: readonly MechanismKind[] = ['generic', 'elevator', 'pivot', 'pivotHopper', 'tower'];
-/** Quién llevaba la Crítica con la IA anterior (el elevador nunca: no la alcanzaba). */
-const OLD_CRIT: Record<MechanismKind, number> = { pivot: 3, pivotHopper: 3, tower: 2, generic: 1, elevator: 0, chassis: 0 };
 function aiPlans(): AlliancePlan[] {
   const out: AlliancePlan[] = [];
-  for (let i = 0; i < AI_KINDS.length; i++)
-    for (let j = i + 1; j < AI_KINDS.length; j++) {
-      const ks = [AI_KINDS[i], AI_KINDS[j]];
-      for (const v of ['old', 'hard', 'normal', 'easy'] as const) {
-        const critFirst = OLD_CRIT[ks[0]] >= OLD_CRIT[ks[1]];
-        const robots = ks.map((k, n): RobotPlan => {
-          const crit = (n === 0) === critFirst && OLD_CRIT[k] > 0;
-          return {
-            id: `${v}:${k}`,
-            name: `${k} (${v})`,
-            spec: ROBOT_PRESETS[k],
-            auto: COLLECT_HOME,
-            bot: v === 'old' ? {} : { ai: v as AiLevel },
-            legacy: v === 'old' ? { level: 3, endgame: crit ? 'critical' : 'platform' } : undefined,
-          };
-        }) as [RobotPlan, RobotPlan];
-        out.push({ id: `${v}:${ks[0]}+${ks[1]}`, name: `${ks[0]} + ${ks[1]} (${v})`, robots });
-      }
+  const pairs = [
+    [MECHANISM_KINDS[0], MECHANISM_KINDS[0]],
+    [MECHANISM_KINDS[0], MECHANISM_KINDS[1]],
+    [MECHANISM_KINDS[1], MECHANISM_KINDS[1]],
+  ];
+  for (const ks of pairs)
+    for (const v of AI_LEVELS) {
+      const robots = ks.map((k): RobotPlan => ({ id: `${v}:${k}`, name: `${k} (${v})`, spec: ROBOT_PRESETS[k], auto: COLLECT_HOME, bot: { ai: v as AiLevel } })) as [RobotPlan, RobotPlan];
+      out.push({ id: `${v}:${ks[0]}+${ks[1]}`, name: `${ks[0]} + ${ks[1]} (${v})`, robots });
     }
   return out;
 }
@@ -194,22 +116,6 @@ export const AI_ALLIANCE_PLANS = aiPlans();
 
 /** Conjuntos de estrategias para `npm run batch -- --set <id>`. */
 export const PLAN_SETS: Record<string, AlliancePlan[]> = { all: ALLIANCE_PLANS, mech: MECH_ALLIANCE_PLANS, ai: AI_ALLIANCE_PLANS };
-
-/** La IA anterior para los robots con `legacy` (una para el AUTO, como la usaba la sesión, y otra para el TELEOP). */
-function legacyDriver(plans: RobotPlan[]) {
-  return (r: { index: number }, o: { auto: BotDriver['opts']['auto']; teleop: boolean }, all: unknown[], pieces: unknown): BotDriver | null => {
-    const plan = plans[r.index];
-    if (!plan.legacy) return null;
-    type Args = ConstructorParameters<typeof LegacyBot>;
-    const make = (opts: Partial<LegacyBotOptions>) => new LegacyBot(r as Args[0], pieces as Args[1], all as Args[2], opts);
-    const auto = o.auto !== 'none' ? make({ level: plan.legacy.level ?? 3, scoreOnly: o.auto === 'preload', stayHome: true }) : null;
-    const tele = o.teleop ? make(plan.legacy) : null;
-    return {
-      opts: { auto: o.auto, teleop: o.teleop },
-      step: (dt, phase, timeLeft) => (phase === 'AUTO' ? auto : tele)?.step(dt, phase, timeLeft) ?? { forward: 0, turn: 0, intake: false, elevator: 0, release: false },
-    };
-  };
-}
 
 /** Lo que hizo cada robot (del scouting del match, `core/scouting.ts`). */
 export interface RobotResult {
@@ -273,7 +179,6 @@ export function runMatch(red: AlliancePlan, blue: AlliancePlan, seed = 1): Match
     autos: plans.map((p) => p.auto),
     bots: plans.map((p) => p.bot),
     hp: { enabled: true, interval: 2.5 + rand() * 1.5 },
-    makeBot: plans.some((p) => p.legacy) ? legacyDriver(plans) : undefined,
   });
   try {
     g.startMatch();

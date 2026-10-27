@@ -65,21 +65,14 @@ export const kbds = (labels: string[]): string => labels.map((l) => `<kbd>${l}</
  * y su mecanismo (`config/robot.ts`). Solo ilustra; no es a escala exacta.
  */
 export function robotSilhouette(kind: MechanismKind): string {
-  const base = `<rect x="40" y="96" width="130" height="26" rx="3"/><circle cx="62" cy="126" r="11"/><circle cx="148" cy="126" r="11"/>
-    ${kind === 'chassis' ? '' : '<path class="intake" d="M170 112h14l8 10"/>'}`;
+  const base = `<rect x="40" y="96" width="130" height="26" rx="3"/><circle cx="62" cy="126" r="11"/><circle cx="148" cy="126" r="11"/>`;
+  // Paredes altas del hopper atrás (Muestras dentro) y el eje del brazo al frente
+  const hopper = `<path d="M48 96V20M118 96V20"/><path d="M66 96V58M100 96V58"/><rect class="soft" x="52" y="66" width="12" height="28"/><rect class="soft" x="102" y="66" width="12" height="28"/><path d="M136 96V72"/><circle cx="136" cy="68" r="6"/>`;
   const mech: Record<MechanismKind, string> = {
-    // Elevador con depósito que suelta al frente
-    generic: `<path d="M130 96V30M146 96V30"/><path class="hot" d="M126 52h44l8-8"/><rect class="soft" x="60" y="72" width="56" height="24"/>`,
-    // Plataforma que sube y empuja por atrás
-    elevator: `<path d="M64 96V26M80 96V26"/><path class="hot" d="M34 46h50"/><path class="soft" d="M90 96V70h56v26"/>`,
-    // Brazo pivotante con garra
-    pivot: `<path d="M100 96V70"/><circle cx="100" cy="66" r="6"/><path class="hot" d="M100 66 178 34"/><path class="hot" d="M178 34l10 2M178 34l4 10"/>`,
-    // Pivote con hopper: paredes altas del hopper atrás (Muestras dentro) y el brazo con garra al frente
-    pivotHopper: `<path d="M48 96V20M118 96V20"/><path d="M66 96V58M100 96V58"/><rect class="soft" x="52" y="66" width="12" height="28"/><rect class="soft" x="102" y="66" width="12" height="28"/><path d="M136 96V72"/><circle cx="136" cy="68" r="6"/><path class="hot" d="M136 68 184 30"/><path class="hot" d="M184 30l10 2M184 30l4 10"/>`,
-    // Torre fija de ruedas (saca por atrás a N3) y pala al frente
-    tower: `<rect x="48" y="22" width="40" height="74"/><circle cx="68" cy="40" r="7"/><circle cx="68" cy="62" r="7"/><path class="hot" d="M48 30H32"/><path class="soft" d="M170 96l14-16h12"/>`,
-    // Chasis solo (base común): caja de la batería con la precarga encima y la rueda central baja
-    chassis: `<rect class="soft" x="76" y="78" width="40" height="18"/><rect class="hot" x="122" y="72" width="24" height="24"/><circle cx="105" cy="128" r="11"/>`,
+    // Brazo con garra al frente
+    pivotHopper: `${hopper}<path class="hot" d="M136 68 184 30"/><path class="hot" d="M184 30l10 2M184 30l4 10"/>`,
+    // Brazo de 180°: media vuelta del piso (adelante) a la boca del hopper (arriba del centro)
+    pivotHopper180: `${hopper}<path class="soft" d="M164 106A40 40 0 0 0 108 30"/><path class="hot" d="M136 68 184 30"/><path class="hot" d="M184 30l10 2M184 30l4 10"/>`,
   };
   return `<svg class="silhouette" viewBox="0 0 220 150" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
     <path class="floor" d="M10 137h200"/>${base}${mech[kind]}</svg>`;

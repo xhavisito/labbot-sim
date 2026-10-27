@@ -1,7 +1,7 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 import { DO_NOTHING } from '../src/auto/AutoRoutine';
 import * as F from '../src/config/field';
-import { DEFAULT_ROBOT } from '../src/config/robot';
+import { armAngle, armTip, DEFAULT_ROBOT } from '../src/config/robot';
 import { GameSession } from '../src/game/GameSession';
 import { emptyInput, type PlayerInput } from '../src/input/InputManager';
 import { initRapier } from '../src/physics/PhysicsWorld';
@@ -101,9 +101,12 @@ describe('match completo en la física', () => {
       const g = session();
       g.startMatch();
       skipTo(g, t);
+      // La precarga va al hopper (con algo en la garra no toma la Crítica)
+      steps(g, 2.5, { toggleIntake: true });
       const c = F.CRITICAL_HOLDER_RED;
-      g.player.phys.teleport(c.x, -F.HALF_W + DEFAULT_ROBOT.length / 2 + 0.05, Math.PI / 2);
-      steps(g, 1, { elevator: 4 });
+      const a = DEFAULT_ROBOT.arm;
+      g.player.phys.teleport(c.x, c.z + armTip(a, armAngle(a, DEFAULT_ROBOT.elevatorHeights[4])).x - 0.05, Math.PI / 2);
+      steps(g, 1.5, { elevator: 4 });
       steps(g, 0.1, { grabCritical: true });
       expect(g.player.mech.critical).not.toBeNull();
       return g.match!.fouls.map((f) => f.rule);
