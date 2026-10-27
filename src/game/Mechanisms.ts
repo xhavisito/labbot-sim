@@ -1,11 +1,9 @@
 /**
- * Mecanismos del pivote con hopper (`RobotSpec.arm`; los dos tipos del simulador, `config/robot.ts`):
- * brazo con garra y un hopper. Agarra una pieza del piso con el brazo abajo y la suelta en la punta.
- * Empieza guardado (`ArmSpec.stowAngle`) y sale de ahí al primer mando. Con la garra encendida, cada
- * Muestra que agarra del piso la lleva a la boca del hopper (`ArmSpec.hopperAngle`: atrás a 180°, o
- * arriba a 117° en la variante de 180°) y regresa al piso; con la garra apagada y vacía, el brazo saca
- * la siguiente del hopper y vuelve a la posición pedida. La Crítica va en la garra aunque el hopper
- * tenga Muestras.
+ * Mecanismos del pivote (`RobotSpec.arm`; los dos tipos del simulador, `config/robot.ts`): brazo con
+ * garra. Agarra una pieza del piso con el brazo abajo y la suelta en la punta. Empieza guardado
+ * (`ArmSpec.stowAngle`) y sale de ahí al primer mando. Lleva una pieza a la vez (capacidad 1); con
+ * capacidad > 1 (un hopper, ya sin tipo que lo use) la garra pasa cada Muestra a la boca del hopper
+ * (`ArmSpec.hopperAngle`) y la saca de ahí para anotar.
  * Las piezas guardadas son lógicas (cuerpo deshabilitado); al soltarlas vuelven a la física en la
  * punta del mecanismo, así que anotar depende de dónde caen (lo detecta la sesión).
  */

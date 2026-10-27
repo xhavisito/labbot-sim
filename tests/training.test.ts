@@ -40,23 +40,23 @@ describe('retos (lógica pura)', () => {
   it('medallas de tiempo: menos es mejor; sin cumplir la meta no hay medalla', () => {
     const d = D('level3');
     // Al ritmo del pivote (×1.5): oro ≤ 52.5 s, plata ≤ 82.5 s, bronce ≤ 180 s
-    expect(medalFor(d, 'pivotHopper', 30)).toBe('gold');
-    expect(medalFor(d, 'pivotHopper', 52.5)).toBe('gold');
-    expect(medalFor(d, 'pivotHopper', 70)).toBe('silver');
-    expect(medalFor(d, 'pivotHopper', 150)).toBe('bronze');
-    expect(medalFor(d, 'pivotHopper', null)).toBeNull();
+    expect(medalFor(d, 'pivot', 30)).toBe('gold');
+    expect(medalFor(d, 'pivot', 52.5)).toBe('gold');
+    expect(medalFor(d, 'pivot', 70)).toBe('silver');
+    expect(medalFor(d, 'pivot', 150)).toBe('bronze');
+    expect(medalFor(d, 'pivot', null)).toBeNull();
   });
 
   it('medallas de puntos: más es mejor', () => {
     const d = D('endgame');
-    expect(medalFor(d, 'pivotHopper', 5)).toBeNull();
-    expect(medalFor(d, 'pivotHopper', 10)).toBe('bronze');
-    expect(medalFor(d, 'pivotHopper', 25)).toBe('silver');
-    expect(medalFor(d, 'pivotHopper', 40)).toBe('gold');
+    expect(medalFor(d, 'pivot', 5)).toBeNull();
+    expect(medalFor(d, 'pivot', 10)).toBe('bronze');
+    expect(medalFor(d, 'pivot', 25)).toBe('silver');
+    expect(medalFor(d, 'pivot', 40)).toBe('gold');
   });
 
   it('los retos de Muestras se ajustan al ritmo del pivote (los dos tipos); los de manejo no', () => {
-    for (const k of ['pivotHopper', 'pivotHopper180'] as const) {
+    for (const k of ['pivot', 'pivot180'] as const) {
       expect(drillTargets(D('level3'), k).medals[2]).toBeCloseTo(35 * 1.5);
       expect(drillTargets(D('level3'), k).limit).toBeCloseTo(120 * 1.5);
       expect(drillTargets(D('cycles'), k).medals[2]).toBe(70);
@@ -72,27 +72,27 @@ describe('retos (lógica pura)', () => {
   it('récord personal: guarda la mejor marca y cuenta las corridas', () => {
     const p = emptyProgress();
     const d = D('level3');
-    const a = recordRun(p, d, 'pivotHopper', 'pivotHopper', { completed: false, time: 120, points: 45 });
+    const a = recordRun(p, d, 'pivot', 'pivot', { completed: false, time: 120, points: 45 });
     expect(a).toMatchObject({ value: null, medal: null, improved: false, prev: null });
-    expect(bestOf(p, 'level3', 'pivotHopper')).toBeNull();
-    const b = recordRun(p, d, 'pivotHopper', 'pivotHopper', { completed: true, time: 60.123, points: 75 });
+    expect(bestOf(p, 'level3', 'pivot')).toBeNull();
+    const b = recordRun(p, d, 'pivot', 'pivot', { completed: true, time: 60.123, points: 75 });
     expect(b).toMatchObject({ value: 60.12, medal: 'silver', improved: true, prev: null });
-    const c = recordRun(p, d, 'pivotHopper', 'pivotHopper', { completed: true, time: 70, points: 75 });
+    const c = recordRun(p, d, 'pivot', 'pivot', { completed: true, time: 70, points: 75 });
     expect(c.improved).toBe(false);
-    const e = recordRun(p, d, 'pivotHopper', 'pivotHopper', { completed: true, time: 34, points: 75 });
+    const e = recordRun(p, d, 'pivot', 'pivot', { completed: true, time: 34, points: 75 });
     expect(e).toMatchObject({ improved: true, medal: 'gold' });
     expect(e.prev?.best).toBe(60.12);
-    expect(bestOf(p, 'level3', 'pivotHopper')).toMatchObject({ best: 34, medal: 'gold', runs: 4 });
+    expect(bestOf(p, 'level3', 'pivot')).toMatchObject({ best: 34, medal: 'gold', runs: 4 });
     // Cada robot lleva su propio récord
-    expect(bestOf(p, 'level3', 'pivotHopper180')).toBeNull();
-    expect(medalCount(p, 'pivotHopper')).toEqual({ bronze: 0, silver: 0, gold: 1 });
+    expect(bestOf(p, 'level3', 'pivot180')).toBeNull();
+    expect(medalCount(p, 'pivot')).toEqual({ bronze: 0, silver: 0, gold: 1 });
   });
 
   it('el progreso se guarda y se lee; lo que no tiene forma se descarta', () => {
     const p = emptyProgress();
-    recordRun(p, D('cycles'), 'pivotHopper180', 'pivotHopper180', { completed: true, time: 60, points: 45 });
+    recordRun(p, D('cycles'), 'pivot180', 'pivot180', { completed: true, time: 60, points: 45 });
     const back = parseProgress(JSON.stringify(p));
-    expect(bestOf(back, 'cycles', 'pivotHopper180')).toMatchObject({ best: 45, medal: 'silver' });
+    expect(bestOf(back, 'cycles', 'pivot180')).toMatchObject({ best: 45, medal: 'silver' });
     expect(parseProgress('{malo')).toEqual(emptyProgress());
     expect(parseProgress(JSON.stringify({ v: 1, records: { 'nada:x': { best: 1, runs: 1 }, 'line:g': { best: 'x' } } })).records).toEqual({});
   });
@@ -145,7 +145,7 @@ describe('retos en la física', () => {
     expect(o.completed).toBe(true);
     expect(o.time).toBeLessThan(1);
     expect(o.points).toBe(GAME.points.autoLine);
-    expect(medalFor(D('line'), 'pivotHopper', o.time)).toBe('gold');
+    expect(medalFor(D('line'), 'pivot', o.time)).toBe('gold');
   });
 
   it('sin moverse: el reto se acaba al límite y sin medalla', () => {
@@ -210,7 +210,7 @@ describe('retos en la física', () => {
   });
 
   it('la variante de 180° empieza su reto de Muestras con la precarga', () => {
-    const { g } = drill('level3', ROBOT_PRESETS.pivotHopper180);
+    const { g } = drill('level3', ROBOT_PRESETS.pivot180);
     expect(g.player.mech.stored.length).toBe(1);
   });
 });

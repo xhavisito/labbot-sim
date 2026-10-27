@@ -38,9 +38,8 @@ export interface Settings {
   match: MatchSetup;
   /** Tipo de tu robot (`config/robot.ts`). */
   robotType: RobotId;
-  /** Tu robot: velocidad máxima (m/s) y Muestras que guarda (1 en la garra y el resto en el hopper). */
+  /** Tu robot: velocidad máxima (m/s). El pivote lleva una pieza a la vez (no se ajusta). */
   maxSpeed: number;
-  capacity: number;
   /** Human Player automático (§3.2.4) y cada cuántos segundos mete una Muestra (SUPUESTO). */
   hpEnabled: boolean;
   hpInterval: number;
@@ -58,7 +57,6 @@ export const DEFAULT_SETTINGS: Settings = {
   match: { robots: [botDefault(), botDefault(), botDefault(), botDefault()], start: { ...CENTER_SPOT } },
   robotType: DEFAULT_ROBOT.mechanism,
   maxSpeed: DEFAULT_ROBOT.maxSpeed,
-  capacity: DEFAULT_ROBOT.capacity,
   hpEnabled: true,
   hpInterval: 3,
   touch: 'auto',
@@ -67,7 +65,6 @@ export const DEFAULT_SETTINGS: Settings = {
 
 export const SETTINGS_RANGE = {
   maxSpeed: { min: 1, max: 4.5, step: 0.25 },
-  capacity: { min: 2, max: 10, step: 1 },
   hpInterval: { min: 1, max: 10, step: 0.5 },
 } as const;
 
@@ -101,10 +98,9 @@ export function sanitizeSettings(raw: unknown, autoIds: readonly string[]): Sett
     ai: typeof o.ai === 'boolean' ? o.ai : d.ai,
     playerAuto: auto(o.playerAuto, d.playerAuto),
     match: { robots: [robot(0), robot(1), robot(2), robot(3)], start: m.start === undefined ? { ...CENTER_SPOT } : sanitizeSpot(m.start) },
-    // Un tipo quitado (genérico, elevador, pivote, torre, chasis) vuelve al pivote con hopper
+    // Un tipo quitado (genérico, elevador, torre, chasis, pivote con hopper) vuelve al pivote
     robotType: kind(o.robotType, d.robotType),
     maxSpeed: num(o.maxSpeed, d.maxSpeed, SETTINGS_RANGE.maxSpeed),
-    capacity: Math.round(num(o.capacity, d.capacity, SETTINGS_RANGE.capacity)),
     hpEnabled: typeof o.hpEnabled === 'boolean' ? o.hpEnabled : d.hpEnabled,
     hpInterval: num(o.hpInterval, d.hpInterval, SETTINGS_RANGE.hpInterval),
     touch: o.touch === 'on' || o.touch === 'off' ? o.touch : d.touch,

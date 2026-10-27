@@ -1,6 +1,6 @@
 /**
  * HUD en DOM con el estilo de rebuilt-sim: marcador (rojo · timer, fase y avance · azul) con el
- * medidor de Dominio de Cámara, panel del robot propio (Muestras guardadas, garra, hopper, Crítica,
+ * medidor de Dominio de Cámara, panel del robot propio (Muestra en la garra, Crítica,
  * brazo), botones de cámara / reacomodar / pausa, ayuda de teclas y avisos del match.
  * En práctica libre el marcador se cambia por una píldora con las Muestras anotadas.
  */
@@ -184,7 +184,7 @@ export class Hud {
         <div class="hbar">${Array.from({ length: mech.capacity }, (_, i) => `<i class="${i < mech.stored.length ? 'on' : ''}"></i>`).join('')}</div></div>
       <div class="chips"><span class="${mech.intakeOn ? 'on' : 'off'}">${t('intake')} ${mech.intakeOn ? t('on') : t('off')}</span>
         <span class="${mech.critical ? 'on' : 'off'}">${t('critical')} ${mech.critical ? '■' : '–'}</span>
-        <span class="${mech.inClaw ? 'on' : 'off'}">${t('claw')} ${mech.inClaw ? '■' : '–'} · ${t('hopper')} ${mech.inHopper}</span>
+        <span class="${mech.inClaw ? 'on' : 'off'}">${t('claw')} ${mech.inClaw ? '■' : '–'}</span>
         <span>${t('arm')}: ${elev}</span></div>`;
     this.camLabel.querySelector('span')!.textContent = t(`cam_${cam}` as Key);
   }

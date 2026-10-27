@@ -53,7 +53,7 @@ export interface CustomRobot {
   wheels: number;
   /** Motores de los mecanismos (cuentan para el límite de §7.3). */
   mechMotors: Record<MotorKind, number>;
-  /** Muestras que guarda (1 en la garra y el resto en el hopper). */
+  /** Piezas que lleva: la del tipo (el pivote, 1 en la garra); no se edita. */
   capacity: number;
   /** Velocidad del brazo (rad/s). */
   liftSpeed: number;
@@ -90,8 +90,8 @@ export function customFromSpec(s: RobotSpec, name: string, id = newId()): Custom
     gearRatio: 12.75,
     wheelIn: 6,
     wheels: 6,
-    // 2 X60 en el brazo, X44 en la garra y NEO en el indexador del hopper (§7.3)
-    mechMotors: { cim: 0, x60: 2, x44: 1, neo: 1 },
+    // 2 X60 en el brazo y NEO en la garra (§7.3)
+    mechMotors: { cim: 0, x60: 2, x44: 0, neo: 1 },
     capacity: s.capacity,
     liftSpeed: s.arm.speed,
     maxLevel: s.maxLevel ?? 3,
@@ -111,10 +111,9 @@ export const newId = (): string => Math.random().toString(36).slice(2, 9);
 export function estimateMdf(c: CustomRobot): number {
   const L = c.lengthCm / 100;
   const W = c.widthCm / 100;
-  const H = c.heightCm / 100;
   const chassis = 2 * L * W + 2 * (L + W) * 0.12;
-  // Torres del pivote, brazo, y el hopper: 4 paredes (2 altas por fuera, 2 bajas junto al canal), pisos inclinados y fondo
-  const mech = 2 * 0.3 * (c.armPivotYCm / 100) + 2 * 0.06 * (c.armLengthCm / 100) + 2 * 0.6 * L * H + 2 * 0.6 * L * 0.35 + 2 * 0.6 * L * 0.2 + W * 0.3;
+  // Torres del pivote, brazo y una cubierta sobre el chasis
+  const mech = 2 * 0.3 * (c.armPivotYCm / 100) + 2 * 0.06 * (c.armLengthCm / 100) + 0.35 * L * W;
   return chassis + mech;
 }
 
@@ -165,7 +164,7 @@ export function driveAccel(c: CustomRobot, traction = 1): number {
   return Math.min(force / robotMass(c), traction * 9.81 * 0.62);
 }
 
-/** `RobotSpec` para la simulación. Las alturas de los niveles y la boca del hopper salen del preset de su tipo. */
+/** `RobotSpec` para la simulación. Las alturas de los niveles y la capacidad salen del preset de su tipo. */
 export function customSpec(c: CustomRobot): RobotSpec {
   const base = ROBOT_PRESETS[c.mechanism];
   const L = mm(c.lengthCm * 10);
@@ -184,7 +183,7 @@ export function customSpec(c: CustomRobot): RobotSpec {
     // Giro: un tanque gira a ≈ v / (media trocha) limitado por el derrape de las ruedas (SUPUESTO)
     maxOmega: Math.min(7, (2 * speed) / Math.max(0.3, mm(c.widthCm * 10))),
     traction: base.traction,
-    capacity: Math.max(2, Math.round(c.capacity)),
+    capacity: base.capacity,
     arm: { ...base.arm, pivotX: mm(c.armPivotXCm * 10), pivotY: mm(c.armPivotYCm * 10), length: mm(c.armLengthCm * 10), speed: c.liftSpeed },
     maxLevel: c.maxLevel,
   };
@@ -219,9 +218,9 @@ const finite = (v: unknown, d: number, lo: number, hi: number): number => (typeo
 
 /**
  * Robot válido a partir de cualquier valor guardado (lo raro toma el valor del preset).
- * Robots propios de tipos que ya no existen (genérico, elevador, pivote, torre, chasis; quitados el
- * 27-oct): se convierten en pivote con hopper con su nombre, chasis, tracción y masa, y el brazo,
- * la capacidad y los motores de los mecanismos del preset (los suyos eran de otro mecanismo).
+ * Robots propios de tipos que ya no existen (genérico, elevador, torre, chasis, pivote con hopper;
+ * quitados el 27-oct): se convierten en pivote con su nombre, chasis, tracción y masa, y el brazo y
+ * los motores de los mecanismos del preset (los suyos eran de otro mecanismo).
  */
 export function sanitizeCustom(raw: unknown): CustomRobot | null {
   if (!raw || typeof raw !== 'object') return null;
@@ -248,7 +247,7 @@ export function sanitizeCustom(raw: unknown): CustomRobot | null {
     mechMotors: known
       ? { cim: Math.round(finite(mm0.cim, 0, 0, 8)), x60: Math.round(finite(mm0.x60, 0, 0, 8)), x44: Math.round(finite(mm0.x44, 0, 0, 8)), neo: Math.round(finite(mm0.neo, 0, 0, 8)) }
       : d.mechMotors,
-    capacity: Math.round(arm(o.capacity, d.capacity, 2, 10)),
+    capacity: d.capacity,
     liftSpeed: arm(o.liftSpeed, d.liftSpeed, 0.2, 8),
     maxLevel: o.maxLevel === 1 || o.maxLevel === 2 ? o.maxLevel : 3,
     armPivotXCm: arm(o.armPivotXCm, d.armPivotXCm, -40, 40),

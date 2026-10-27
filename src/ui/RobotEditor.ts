@@ -34,7 +34,7 @@ import { t, type Key } from './i18n';
 
 const esc = (s: string): string => s.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
 
-type NumKey = 'lengthCm' | 'widthCm' | 'heightCm' | 'driveCount' | 'gearRatio' | 'wheelIn' | 'wheels' | 'capacity' | 'liftSpeed' | 'armPivotXCm' | 'armPivotYCm' | 'armLengthCm' | 'plaG' | 'extraKg';
+type NumKey = 'lengthCm' | 'widthCm' | 'heightCm' | 'driveCount' | 'gearRatio' | 'wheelIn' | 'wheels' | 'liftSpeed' | 'armPivotXCm' | 'armPivotYCm' | 'armLengthCm' | 'plaG' | 'extraKg';
 
 interface NumField {
   k: NumKey;
@@ -55,7 +55,6 @@ const DRIVE: NumField[] = [
   { k: 'wheels', label: 'ed_wheels', unit: '', step: 1 },
 ];
 const MECH: NumField[] = [
-  { k: 'capacity', label: 'ed_capacity', unit: '', step: 1 },
   { k: 'liftSpeed', label: 'ed_armSpeed', unit: 'rad/s', step: 0.1 },
   { k: 'armPivotXCm', label: 'ed_pivotX', unit: 'cm', step: 1 },
   { k: 'armPivotYCm', label: 'ed_pivotY', unit: 'cm', step: 1 },

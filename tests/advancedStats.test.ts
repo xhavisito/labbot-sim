@@ -138,16 +138,16 @@ describe('desempeño por robot', () => {
 
   it('por tipo de robot: promedio pesado por matches', () => {
     const es = [entry('A', 'Q1', 'red', { samplesTeleop: [0, 0, 2] }), entry('A', 'Q2', 'red', { samplesTeleop: [0, 0, 2] }), entry('B', 'Q1', 'red')];
-    const kinds: Record<string, MechanismKind> = { A: 'pivotHopper180', B: 'pivotHopper180' };
+    const kinds: Record<string, MechanismKind> = { A: 'pivot180', B: 'pivot180' };
     const [k] = byRobotKind(summarize(es, GAME), (t) => kinds[t]);
-    expect(k.robot).toBe('pivotHopper180');
+    expect(k.robot).toBe('pivot180');
     expect(k.teams).toBe(2);
     expect(k.matches).toBe(3);
     expect(k.n3).toBeCloseTo(4 / 3, 9);
   });
 });
 
-const KINDS: MechanismKind[] = ['pivotHopper', 'pivotHopper180', 'pivotHopper', 'pivotHopper180', 'pivotHopper', 'pivotHopper180', 'pivotHopper', 'pivotHopper180'];
+const KINDS: MechanismKind[] = ['pivot', 'pivot180', 'pivot', 'pivot180', 'pivot', 'pivot180', 'pivot', 'pivot180'];
 const teams = (): TeamEntry[] => KINDS.map((robot, i) => ({ id: `E${i + 1}`, name: `Equipo ${i + 1}`, robot, strength: 0.3 + i * 0.07, isPlayer: i === 0 }));
 
 function fullTournament(seed: number): Tournament {
@@ -214,7 +214,7 @@ describe('historial entre eventos y temporadas', () => {
 
   it('foto del Scouting: ranking por puntos netos y OPR de los matches completos', () => {
     const es = [entry('A', 'Q1', 'red', { samplesTeleop: [0, 0, 3] }), entry('B', 'Q1', 'red'), entry('C', 'Q1', 'blue'), entry('D', 'Q1', 'blue')];
-    const tm = ['A', 'B', 'C', 'D'].map((id) => ({ id, name: id, robot: 'pivotHopper' as MechanismKind }));
+    const tm = ['A', 'B', 'C', 'D'].map((id) => ({ id, name: id, robot: 'pivot' as MechanismKind }));
     const ev = eventFromScouting(tm, es, 'Regional', GAME, new Date('2026-05-01T00:00:00Z'));
     expect(ev.ranking[0]).toBe('A');
     expect(ev.matches).toHaveLength(1);
@@ -223,7 +223,7 @@ describe('historial entre eventos y temporadas', () => {
 
   it('se queda con los eventos más nuevos y sanea lo guardado', () => {
     let h = emptyHistory();
-    const tm = [{ id: 'A', name: 'A', robot: 'pivotHopper' as MechanismKind }];
+    const tm = [{ id: 'A', name: 'A', robot: 'pivot' as MechanismKind }];
     for (let i = 0; i < MAX_EVENTS + 5; i++) h = addEvent(h, eventFromScouting(tm, [], `E${i}`, GAME, new Date(Date.UTC(2026, 0, 1 + i))));
     expect(h.events).toHaveLength(MAX_EVENTS);
     expect(h.events[0].name).toBe('E5');

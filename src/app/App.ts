@@ -281,7 +281,7 @@ export class App {
   /** Tu robot según los ajustes (tipo, velocidad y capacidad). */
   private playerSpec(): RobotSpec {
     const s = this.settings;
-    return { ...robotSpec(s.robotType), maxSpeed: s.maxSpeed, capacity: s.capacity };
+    return { ...robotSpec(s.robotType), maxSpeed: s.maxSpeed };
   }
 
   /** Calidad gráfica: `?quality=` manda; si no, el ajuste (o la automática). */

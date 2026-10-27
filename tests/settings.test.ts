@@ -14,12 +14,12 @@ describe('ajustes', () => {
     expect(sanitizeSettings({ ai: 'si', playerAuto: 'volar', maxSpeed: 'rápido', capacity: NaN }, ids)).toEqual(DEFAULT_SETTINGS);
   });
 
-  it('recorta a los rangos y redondea la capacidad', () => {
+  it('recorta a los rangos (la capacidad ya no se ajusta: el pivote lleva una pieza)', () => {
     const s = sanitizeSettings({ maxSpeed: 99, capacity: 3.6, hpInterval: 0, ai: false, playerAuto: 'collect' }, ids);
     expect(s.maxSpeed).toBe(SETTINGS_RANGE.maxSpeed.max);
-    expect(s.capacity).toBe(4);
     expect(s.hpInterval).toBe(SETTINGS_RANGE.hpInterval.min);
     expect(s.ai).toBe(false);
+    expect('capacity' in s).toBe(false);
     expect(s.playerAuto).toBe('collect');
   });
 
