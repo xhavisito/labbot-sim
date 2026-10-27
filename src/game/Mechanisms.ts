@@ -1,6 +1,7 @@
 /**
  * Mecanismos del pivote (`RobotSpec.arm`; los dos tipos del simulador, `config/robot.ts`): brazo con
- * garra. Agarra una pieza del piso con el brazo abajo y la suelta en la punta. Empieza guardado
+ * garra. Agarra una pieza del piso con el brazo abajo y la suelta en la punta (atrás en N1–N3 si el
+ * brazo voltea, `ArmSpec.scoreBack`: la punta queda detrás del robot). Empieza guardado
  * (`ArmSpec.stowAngle`) y sale de ahí al primer mando. Lleva una pieza a la vez (capacidad 1); con
  * capacidad > 1 (un hopper, ya sin tipo que lo use) la garra pasa cada Muestra a la boca del hopper
  * (`ArmSpec.hopperAngle`) y la saca de ahí para anotar.
@@ -8,7 +9,7 @@
  * punta del mecanismo, así que anotar depende de dónde caen (lo detecta la sesión).
  */
 import { inCamara } from '../config/field';
-import { armAngle, armTip, type ElevatorPos } from '../config/robot';
+import { armTip, posAngle, type ElevatorPos } from '../config/robot';
 import type { Alliance } from '../core/types';
 import type { Piece, Pieces } from '../physics/Pieces';
 import type { RobotPhysics } from '../physics/RobotPhysics';
@@ -54,7 +55,7 @@ export class Mechanisms {
   /** ¿Puede soltar una Muestra ya? (brazo en su posición, comparado por ángulo: de camino al hopper pasa por las mismas alturas) */
   get atTarget(): boolean {
     const s = this.phys.spec;
-    return !this.stowed && this.hopperTask() === null && Math.abs(this.angle - armAngle(s.arm, s.elevatorHeights[this.target])) < 0.01;
+    return !this.stowed && this.hopperTask() === null && Math.abs(this.angle - posAngle(s, this.target)) < 0.01;
   }
 
   /** Muestras en el hopper (las guardadas que no van en la garra). */
@@ -86,7 +87,7 @@ export class Mechanisms {
     if (this.stowed && (this.target !== 0 || this.intakeOn)) this.stowed = false;
     if (!this.stowed) {
       const task = this.hopperTask();
-      const g = task ? (s.arm.hopperAngle ?? Math.PI) : armAngle(s.arm, goal);
+      const g = task ? (s.arm.hopperAngle ?? Math.PI) : posAngle(s, this.target);
       const d = g - this.angle;
       const stepA = s.arm.speed * dt;
       this.angle = Math.abs(d) <= stepA ? g : this.angle + Math.sign(d) * stepA;
@@ -108,7 +109,7 @@ export class Mechanisms {
     const s = this.phys.spec;
     this.stowed = s.arm.stowAngle !== undefined;
     this.transferT = 0;
-    this.angle = s.arm.stowAngle ?? armAngle(s.arm, s.elevatorHeights[0]);
+    this.angle = s.arm.stowAngle ?? posAngle(s, 0);
     this.height = armTip(s.arm, this.angle).y;
   }
 

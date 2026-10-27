@@ -17,7 +17,7 @@
  */
 import * as F from '../config/field';
 import { GAME } from '../config/game';
-import { armAngle, armTip, type ElevatorPos } from '../config/robot';
+import { armAngle, armTip, posTip, type ElevatorPos } from '../config/robot';
 import type { Phase } from '../core/clock';
 import { opponent, type Alliance, type Level } from '../core/types';
 import type { Robot } from '../game/Robot';
@@ -164,7 +164,10 @@ export class Bot {
     return this.opts.endgame !== 'none';
   }
 
-  /** Punto de anotación: frente a la pared de la Cámara propia, al centro del nivel, viendo hacia ella. */
+  /**
+   * Punto de anotación: frente a la pared de la Cámara propia, al centro del nivel, viendo hacia ella
+   * (o de espaldas si el brazo anota atrás, `ArmSpec.scoreBack`).
+   */
   scoringPose(level: Level): { x: number; z: number; heading: number } {
     const w = F.camaraWells()[level];
     // Que la pieza caiga lo más al fondo del pozo que se pueda sin chocar con la Cámara, y cada
@@ -174,13 +177,18 @@ export class Bot {
     const spread = (w.x1 - w.x0) / 2 - 0.14;
     const dx = [0, -1, 1, -0.5, 0.5][this.visits % 5] * spread;
     const p = F.forAlliance(this.robot.alliance, { x: (w.x0 + w.x1) / 2 + dx, z });
-    return { ...p, heading: this.robot.alliance === 'red' ? -Math.PI / 2 : Math.PI / 2 };
+    const back = this.robot.spec.arm.scoreBack ? Math.PI : 0;
+    return { ...p, heading: wrap((this.robot.alliance === 'red' ? -Math.PI / 2 : Math.PI / 2) + back) };
+  }
+
+  /** +1 si anota al frente, −1 si anota atrás (llega a la Cámara de reversa). */
+  private get scoreDir(): number {
+    return this.robot.spec.arm.scoreBack ? -1 : 1;
   }
 
   /** Distancia (centro del robot → centro de la Muestra al soltarla) en ese nivel. */
   private tipDistance(level: Level): number {
-    const s = this.robot.spec;
-    return armTip(s.arm, armAngle(s.arm, s.elevatorHeights[level])).x;
+    return Math.abs(posTip(this.robot.spec, level).x);
   }
 
   /** `timeLeft`: segundos para el final del match (para calcular el AUTO y el ENDGAME). */
@@ -641,7 +649,7 @@ export class Bot {
     const near = Math.hypot(pose.x - pos.x, pose.z - pos.z) < 1.6;
     if (level === 3 && near) this.team.n3By = r.index;
     out.elevator = near ? level : 0;
-    const st = this.dock(pose, this.side, 1, out, phase, { stage: 0.55, tol: 0.1 + this.profile.sloppy, edge: EDGE_CLEAR });
+    const st = this.dock(pose, this.side, this.scoreDir, out, phase, { stage: 0.55, tol: 0.1 + this.profile.sloppy, edge: EDGE_CLEAR });
     // Ya se está arrimando: se queda con ese nivel hasta soltar todo
     if (st === 'creep' || st === 'docked') this.lockedLevel = level;
     if (st === 'docked') out.release = m.atTarget;
@@ -692,7 +700,8 @@ export class Bot {
     const stage = { x: pose.x, z: pose.z - faceZ * o.stage };
     if (Math.abs(lateral) > o.tol + 0.06 || depth > o.stage + 0.3 || depth < -0.06) {
       this.dockT = 0;
-      if (Math.hypot(stage.x - pos.x, stage.z - pos.z) > 0.12) this.drive(stage, out, true, phase, false, false, undefined, o.edge);
+      // Con el mecanismo atrás va de reversa todo el camino: llega ya de espaldas, sin dar la vuelta
+      if (Math.hypot(stage.x - pos.x, stage.z - pos.z) > 0.12) this.drive(stage, out, true, phase, false, dir < 0, undefined, o.edge);
       else out.turn = clamp1(err * 2.5);
       return 'travel';
     }

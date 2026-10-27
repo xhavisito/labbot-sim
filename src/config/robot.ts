@@ -20,9 +20,9 @@ export const ROBOT_LIMITS = {
  * mecanismos, §7.2):
  * - pivot: pivote con garra (sugerencia de CAD en MDF): brazo de 50 cm que agarra una Muestra del
  *   piso y la suelta al frente en N1–N3, o lleva la Muestra Crítica. Una pieza a la vez.
- * - pivot180: el mismo pivote con el brazo limitado a 180° de giro (del piso hasta guardado arriba
- *   y atrás); para que quepa guardado con la precarga (§4.1, §7.2) el eje va un poco más bajo y
- *   adelante (SUPUESTO de diseño).
+ * - pivot180: pivote que voltea el brazo 180° por arriba (como Jack in the Bot, FRC 2025): recoge del
+ *   piso al frente y anota atrás en N1–N3 sin girar el chasis. Eje bajo y atrás del centro, brazo
+ *   largo (SUPUESTO de diseño, ver `PIVOT_180_ROBOT`).
  */
 export type MechanismKind = 'pivot' | 'pivot180';
 export const MECHANISM_KINDS: readonly MechanismKind[] = ['pivot', 'pivot180'];
@@ -47,6 +47,11 @@ export interface ArmSpec {
   hopperAngle?: number;
   /** Segundos con la garra en la boca del hopper para pasar una Muestra. */
   transferTime?: number;
+  /**
+   * Anota atrás: en N1–N3 el brazo voltea por arriba y suelta detrás del robot (el piso y la
+   * posición 4, la de la Crítica, siguen al frente).
+   */
+  scoreBack?: boolean;
 }
 
 export interface RobotSpec {
@@ -108,21 +113,28 @@ export const PIVOT_ROBOT: RobotSpec = {
   elevatorHeights: [0, mm(260), mm(560), mm(830), mm(600)],
 };
 
-/** Eje y brazo de la variante de 180° (SUPUESTOS de diseño, ver `PIVOT_180_ROBOT`). */
-const ARM_180 = { pivotX: mm(120), pivotY: mm(420), length: mm(500) };
-
 /**
- * Pivote 180° (variante pedida por Xhavi, 27-oct): el mismo pivote, pero el brazo solo gira 180°, del
- * piso (−57°) a guardado arriba y atrás (123°). Con el eje del pivote original (440 mm) la precarga
- * guardada a ese ángulo pasaría de 100 cm (§7.2), así que el eje baja a 420 mm y se adelanta a
- * 120 mm del centro: guardado, la Muestra llega a 99 cm y queda dentro del perímetro (§4.1), y sigue
- * alcanzando N3 y la Repisa sin salir más de 40 cm. Alturas de cada posición: las del pivote.
+ * Pivote 180° (variante pedida por Xhavi, 27-oct, "como Jack in the Bot 2025"): recoge del piso al
+ * frente y voltea el brazo por arriba para anotar atrás, sin girar el chasis entre recoger y anotar.
+ * Geometría (SUPUESTOS de diseño, buscada para cumplir §7.2 en cada posición):
+ * - eje 150 mm detrás del centro y a 170 mm de la base; brazo de 710 mm;
+ * - piso (−14°): la Muestra 24 cm delante del chasis;
+ * - N1 y N2 (780 mm) y N3 (820 mm), atrás: la Muestra cae al pozo desde arriba, 21 y 14 cm detrás
+ *   del chasis (como el pivote con hopper, N1 y N2 se sueltan desde arriba: más abajo la garra
+ *   saldría más de 40 cm);
+ * - posición 4 (600 mm, Crítica y Repisa) al frente, 11 cm fuera del chasis;
+ * - guardado a 73° con la precarga: dentro del perímetro y a 99.9 cm (§4.1).
+ * Al pasar por la vertical con una Muestra llega a 103 cm. Con un brazo que voltea no hay forma de
+ * recoger de un lado, anotar en N3 del otro y llegar a la Crítica sin pasar de 100 cm en ese
+ * instante; el manual no aclara si §7.2 vale con mecanismos en movimiento (D24): SUPUESTO de que
+ * se permite al voltear (verificar con los jueces antes de construirlo).
  */
 export const PIVOT_180_ROBOT: RobotSpec = {
   ...PIVOT_ROBOT,
   name: 'Pivote 180°',
   mechanism: 'pivot180',
-  arm: { ...PIVOT_ROBOT.arm, ...ARM_180, stowAngle: Math.asin(-ARM_180.pivotY / ARM_180.length) + Math.PI },
+  arm: { pivotX: mm(-150), pivotY: mm(170), length: mm(710), speed: 4, stowAngle: (73 * Math.PI) / 180, scoreBack: true },
+  elevatorHeights: [0, mm(780), mm(780), mm(820), mm(600)],
 };
 
 /** Robot por defecto (el del menú la primera vez). */
@@ -142,8 +154,17 @@ export function knownSpec(s: RobotSpec): RobotSpec {
   return { ...PIVOT_ROBOT, label: s.label ?? s.name };
 }
 
-/** Grados que recorre el brazo del piso a guardado (189° el pivote, 180° la variante). */
-export const armTravelDeg = (s: RobotSpec): number => Math.round(((s.arm.stowAngle ?? s.arm.hopperAngle ?? Math.PI) - armAngle(s.arm, s.elevatorHeights[0])) * (180 / Math.PI));
+/**
+ * Ángulo del brazo en una posición: el que deja la punta a esa altura al frente, o atrás (volteado
+ * por arriba) en N1–N3 si el brazo anota atrás (`ArmSpec.scoreBack`).
+ */
+export function posAngle(s: RobotSpec, pos: ElevatorPos): number {
+  const a = armAngle(s.arm, s.elevatorHeights[pos]);
+  return s.arm.scoreBack && pos >= 1 && pos <= 3 ? Math.PI - a : a;
+}
+
+/** Punta del brazo (local x, y) en una posición. */
+export const posTip = (s: RobotSpec, pos: ElevatorPos): { x: number; y: number } => armTip(s.arm, posAngle(s, pos));
 
 /** Ángulo del brazo (rad, 0 = horizontal hacia adelante) para que la punta quede a la altura `h`. */
 export function armAngle(arm: ArmSpec, h: number): number {
@@ -161,10 +182,10 @@ export function validateRobot(s: RobotSpec, pieceSize = mm(200)): string[] {
   if (s.length > ROBOT_LIMITS.maxChassis + 1e-9 || s.width > ROBOT_LIMITS.maxChassis + 1e-9) out.push('chasis mayor a 65 × 65 cm (§7.2)');
   if (s.baseHeight > ROBOT_LIMITS.maxHeight + 1e-9) out.push('más alto que 100 cm (§7.2)');
   if (s.capacity < 1) out.push('la garra lleva al menos una pieza');
-  for (const h of s.elevatorHeights) {
-    const tip = armTip(s.arm, armAngle(s.arm, h));
+  for (const pos of [0, 1, 2, 3, 4] as const) {
+    const tip = posTip(s, pos);
     // La pieza agarrada (hasta la Crítica, 200 mm) cuenta como parte del robot
-    if (tip.x + pieceSize / 2 - s.length / 2 > ROBOT_LIMITS.maxExtension + 1e-9) {
+    if (Math.abs(tip.x) + pieceSize / 2 - s.length / 2 > ROBOT_LIMITS.maxExtension + 1e-9) {
       out.push('la garra sale más de 40 cm (§7.2)');
       break;
     }
