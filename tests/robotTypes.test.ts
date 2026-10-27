@@ -2,7 +2,7 @@ import { beforeAll, describe, expect, it } from 'vitest';
 import { STRATEGY_OPTIONS } from '../src/ai/strategy';
 import { COLLECT_HOME, LEAVE_ZONE } from '../src/auto/AutoRoutine';
 import * as F from '../src/config/field';
-import { armAngle, armTip, armTravelDeg, knownSpec, MECHANISM_KINDS, PIVOT_180_ROBOT, PIVOT_ROBOT, ROBOT_PRESETS, validateRobot, type RobotSpec } from '../src/config/robot';
+import { armTip, knownSpec, posTip, MECHANISM_KINDS, PIVOT_180_ROBOT, PIVOT_ROBOT, ROBOT_PRESETS, validateRobot, type RobotSpec } from '../src/config/robot';
 import { GameSession } from '../src/game/GameSession';
 import { emptyInput, type PlayerInput } from '../src/input/InputManager';
 import { initRapier } from '../src/physics/PhysicsWorld';
@@ -31,23 +31,49 @@ describe('tipos de robot: solo el pivote y su variante de 180° (27-oct)', () =>
     for (const s of Object.values(ROBOT_PRESETS)) expect(s.capacity).toBe(1);
   });
 
-  it('180°: el brazo recorre media vuelta del piso a guardado (el pivote, 189°)', () => {
-    expect(armTravelDeg(S180)).toBe(180);
-    expect(armTravelDeg(PIVOT_ROBOT)).toBe(189);
-    const a = S180.arm;
-    // Guardado arriba y atrás con la precarga: dentro del perímetro y bajo 100 cm (§4.1, §7.2)
-    const tip = armTip(a, a.stowAngle!);
-    expect(Math.abs(tip.x) + 0.075).toBeLessThanOrEqual(S180.length / 2);
-    expect(tip.y + 0.15).toBeLessThanOrEqual(1.0 + 1e-9);
-    // Con el eje del pivote original, a 180° del piso la precarga pasaría de 100 cm
-    const orig = { ...PIVOT_ROBOT.arm, stowAngle: armAngle(PIVOT_ROBOT.arm, 0) + Math.PI };
-    expect(armTip(orig, orig.stowAngle).y + 0.15).toBeGreaterThan(1.0);
-    // Mismas alturas en cada posición
-    for (const h of S180.elevatorHeights) expect(armTip(a, armAngle(a, h)).y).toBeCloseTo(h, 6);
-    expect(S180.elevatorHeights).toEqual(PIVOT_ROBOT.elevatorHeights);
+  it('180°: recoge al frente y voltea el brazo para anotar atrás; todo dentro de §7.2', () => {
+    const half = S180.length / 2;
+    // Piso al frente, la Muestra fuera del chasis
+    expect(posTip(S180, 0).x - 0.075).toBeGreaterThan(half);
+    // N1–N3 atrás: la Muestra detrás del chasis, con el fondo arriba de la apertura (§3.2.3)
+    for (const l of [1, 2, 3] as const) {
+      const t = posTip(S180, l);
+      expect(-t.x - 0.075).toBeGreaterThan(half);
+      expect(t.y).toBeCloseTo(S180.elevatorHeights[l], 6);
+    }
+    expect(S180.elevatorHeights[3]).toBeGreaterThan(0.8);
+    // La Crítica (posición 4) al frente
+    expect(posTip(S180, 4).x - 0.1).toBeGreaterThan(half);
+    // Guardado con la precarga dentro del perímetro y bajo 100 cm (§4.1)
+    const st = armTip(S180.arm, S180.arm.stowAngle!);
+    expect(Math.abs(st.x) + 0.075).toBeLessThanOrEqual(half);
+    expect(st.y + 0.15).toBeLessThanOrEqual(1.0 + 1e-9);
+    // Al voltear con una Muestra pasa poco de 100 cm (SUPUESTO D24): se documenta, no se esconde
+    expect(S180.arm.pivotY + S180.arm.length + 0.15).toBeCloseTo(1.03, 6);
   });
 
-  for (const spec of [PIVOT_ROBOT, S180]) {
+  it('180°: agarra al frente y anota en N3 de espaldas a la Cámara, sin girar el chasis', () => {
+    const g = session(S180, false);
+    const m = g.player.mech;
+    const w = F.camaraWells()[3];
+    // De espaldas a la Cámara (viendo hacia −Z) con una Muestra en el piso enfrente
+    const z = F.CAMARA_Z_RED[0] - S180.length / 2 - 0.02;
+    const x = (w.x0 + w.x1) / 2;
+    g.player.phys.teleport(x, z, Math.PI / 2);
+    g.pieces.place(g.pieces.list.find((p) => p.kind === 'sample' && p.state.at === 'field')!, x, F.SAMPLE_SIZE / 2, z - posTip(S180, 0).x, 0);
+    const h0 = g.player.phys.heading();
+    run(g, 1.5, { toggleIntake: true });
+    expect(m.inClaw).toBe(true);
+    run(g, 2.0, { elevator: 3 });
+    expect(m.atTarget).toBe(true);
+    run(g, 0.4, { releaseSample: true });
+    run(g, 1.5);
+    expect(m.stored).toHaveLength(0);
+    expect(g.practiceCount.red).toBe(1);
+    expect(Math.abs(g.player.phys.heading() - h0)).toBeLessThan(0.05);
+  });
+
+  for (const spec of [PIVOT_ROBOT]) {
     it(`${spec.name}: agarra una Muestra del piso y la anota en el Nivel 3 de frente`, () => {
       const g = session(spec, false);
       const m = g.player.mech;

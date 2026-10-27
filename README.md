@@ -118,9 +118,13 @@ En el menú eliges tu robot (Rojo 1–2, Azul 1–2) y el modo:
   - *Pivote* (sugerencia de CAD en MDF): chasis 60×60 cm, brazo de 50 cm con garra y eje a 44 cm.
     Empieza guardado con la precarga; con el brazo en el piso (tecla 0) y la garra encendida agarra
     una Muestra y la suelta al frente en N1–N3. Lleva una sola pieza (Muestra o Crítica).
-  - *Pivote 180°:* el mismo pivote con el brazo limitado a 180° de giro, del piso (−57°) a guardado
-    arriba y atrás (123°). Para que la precarga guardada quede bajo 100 cm (§7.2) el eje va 2 cm más
-    bajo (42 cm) y 1 cm más adelante (SUPUESTO de diseño); mismas alturas en N1–N3 y la Repisa.
+  - *Pivote 180°* (estilo Jack in the Bot 2025): recoge al frente y anota **atrás** sin girar el
+    chasis. Eje bajo (17 cm) y 15 cm detrás del centro, brazo de 71 cm: agarra del piso al frente,
+    voltea por arriba y suelta detrás del robot en N1–N3 (desde 78/78/82 cm). La IA llega de reversa
+    a la Cámara. La Crítica (posición 4, 60 cm) y la Repisa siguen al frente. Al voltear con una
+    Muestra la punta llega a ~103 cm: excede 100 cm solo durante el giro (SUPUESTO D24, a confirmar
+    con los jueces). En simulación (`--set mech`, 3 semillas) rinde parecido al Pivote: 235 vs 228
+    puntos por alianza con dos iguales y más en AUTO (61 vs 53).
   Los dos cumplen §7.2 (65×65 cm, ≤40 cm fuera del chasis, ≤100 cm de alto guardados con la precarga)
   y caben guardados al inicio (§4.1); lo revisa `validateRobot`. Los robots guardados de tipos que se
   quitaron (genérico, elevador, torre, chasis, pivote con hopper) se abren como Pivote con su chasis.

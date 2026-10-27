@@ -82,7 +82,9 @@ export class RobotView {
     const critMat = criticalMaterial(robot.alliance);
     // Torre del pivote, brazo y garra; la pieza agarrada va en la punta
     const a = s.arm;
-    add(new THREE.BoxGeometry(0.12, a.pivotY - 0.23, 0.3), dark, a.pivotX, (a.pivotY + 0.23) / 2, 0);
+    if (a.pivotY > 0.29) add(new THREE.BoxGeometry(0.12, a.pivotY - 0.23, 0.3), dark, a.pivotX, (a.pivotY + 0.23) / 2, 0);
+    // Eje bajo (el brazo que voltea): soportes a los lados del canal por donde pasa el brazo
+    else for (const z of [-1, 1]) add(new THREE.BoxGeometry(0.14, 0.16, 0.03), dark, a.pivotX, 0.25, z * 0.13);
     this.group.add(this.arm);
     this.arm.position.set(a.pivotX, a.pivotY, 0);
     for (const z of [-0.09, 0.09]) add(new THREE.BoxGeometry(a.length, 0.04, 0.03), alu, a.length / 2, 0, z, this.arm);

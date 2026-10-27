@@ -70,8 +70,9 @@ export function robotSilhouette(kind: MechanismKind): string {
   const post = `<path d="M110 96V70"/><circle cx="110" cy="66" r="6"/>`;
   const mech: Record<MechanismKind, string> = {
     pivot: `${post}<path class="hot" d="M110 66 182 34"/><path class="hot" d="M182 34l10 2M182 34l4 10"/>`,
-    // Brazo de 180°: media vuelta del piso (adelante) a guardado (arriba y atrás)
-    pivot180: `${post}<path class="soft" d="M150 104A44 44 0 0 0 80 30"/><path class="hot" d="M110 66 182 34"/><path class="hot" d="M182 34l10 2M182 34l4 10"/>`,
+    // Pivote 180° (Jack in the Bot): eje bajo detrás del centro; recoge al frente (gris) y voltea
+    // por arriba para soltar atrás en N1–N3
+    pivot180: `<circle cx="78" cy="92" r="6"/><path class="soft" d="M78 92 176 126M176 126l8-6"/><path class="soft" d="M176 120A100 100 0 0 0 26 18"/><path class="hot" d="M78 92 30 20"/><path class="hot" d="M30 20l-9 1M30 20l-1 10"/>`,
   };
   return `<svg class="silhouette" viewBox="0 0 220 150" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
     <path class="floor" d="M10 137h200"/>${base}${mech[kind]}</svg>`;

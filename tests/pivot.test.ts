@@ -24,7 +24,8 @@ function run(g: GameSession, s: number, inp: Partial<PlayerInput> = {}): void {
 
 describe('Pivote', () => {
   it('cumple §7.2 en todas sus posiciones y cabe guardado al inicio (§4.1)', () => {
-    for (const spec of [S, PIVOT_180_ROBOT]) {
+    expect(validateRobot(PIVOT_180_ROBOT)).toEqual([]);
+    for (const spec of [S]) {
       expect(validateRobot(spec)).toEqual([]);
       const a = spec.arm;
       for (const h of spec.elevatorHeights) expect(armTip(a, armAngle(a, h)).y).toBeCloseTo(h, 6);

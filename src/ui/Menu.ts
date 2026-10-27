@@ -6,7 +6,7 @@ import { AUTO_ROUTINES } from '../auto/AutoRoutine';
 import { routeRoutine, savedRoutes } from '../auto/recorded';
 import { customById } from '../config/customRobots';
 import { allRobotIds, robotSpec, type RobotId } from '../config/robotIds';
-import { armTravelDeg, MECHANISM_KINDS } from '../config/robot';
+import { MECHANISM_KINDS } from '../config/robot';
 import { GAME } from '../config/game';
 import { DEFAULT_SETTINGS, SETTINGS_RANGE, type Settings } from '../config/settings';
 import { RULES } from '../core/fouls';
@@ -261,7 +261,7 @@ export class Menu {
       <div class="ri-plate"><div class="num">${robotName(id)}</div><p>${robotDesc(id)}</p></div>
       <div class="ri-stats">
         ${bar(t('statSpeed'), s.maxSpeed / SETTINGS_RANGE.maxSpeed.max, `${s.maxSpeed.toFixed(2).replace(/0$/, '')} m/s`)}
-        <div class="ri-flags"><span>${t('scoresFront')}</span><span>${t('armTravel', { d: armTravelDeg(spec) })}</span><span>${levels}</span></div>
+        <div class="ri-flags"><span>${t(spec.arm.scoreBack ? 'scoresBack' : 'scoresFront')}</span><span>${levels}</span></div>
       </div>
       <div class="nav"><button class="arrowbtn" data-step="-1" aria-label="‹">‹</button>
         <div class="track"><i style="width:${100 / n}%;margin-left:${(100 * i) / n}%"></i></div>
