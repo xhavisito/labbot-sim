@@ -61,6 +61,8 @@ export class App {
   private choice: MenuChoice = { mode: 'match', player: 0 };
   readonly settings: Settings = loadSettings(autoRoutineIds());
   private last = performance.now();
+  /** Último cuadro dibujado detrás de una pantalla opaca (ver `loop`). */
+  private lastBehind = 0;
   readonly touch: TouchControls;
   /** Repetición: grabadora del match en curso, la del último match y el reproductor abierto. */
   private recorder: Recorder | null = null;
@@ -499,7 +501,13 @@ export class App {
     const p = this.session.player.phys;
     const pt = p.position();
     this.cam.update(dt, this.replay?.focusPose ?? { x: pt.x, y: pt.y, z: pt.z, heading: p.heading() });
-    this.renderer.render(this.cam.camera);
+    // Detrás de una pantalla opaca (Scouting, Torneo, Editor, Estadísticas…) la cancha casi no se ve:
+    // 8 cuadros por segundo bastan y la pantalla responde mejor en celulares
+    const behind = this.menu.root.style.display !== 'none' && this.menu.root.classList.contains('solid');
+    if (!behind || now - this.lastBehind > 125) {
+      this.lastBehind = now;
+      this.renderer.render(this.cam.camera);
+    }
     requestAnimationFrame(this.loop);
   };
 }

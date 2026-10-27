@@ -37,7 +37,7 @@ export class TouchControls {
     this.root = document.createElement('div');
     this.root.className = 'touch';
     this.root.innerHTML = `
-      <div class="stick"><div class="knob"></div><span>${t('help_drive')}</span></div>
+      <div class="stick"><div class="knob"></div><span>${t('touchStick')}</span></div>
       <div class="pad">${BUTTONS.map((b) => `<button class="tbtn ${b.cls}" data-a="${b.action}">${b.label.length <= 2 ? b.label : t(b.label as Key)}</button>`).join('')}</div>`;
     host.appendChild(this.root);
     this.stick = this.root.querySelector('.stick')!;

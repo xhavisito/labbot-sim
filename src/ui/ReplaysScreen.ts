@@ -5,7 +5,7 @@
 import type { Replay } from '../replay/format';
 import { deleteReplay, downloadReplay, KEEP, listReplays, loadReplay, readReplayFile, setStarred, type SavedReplay } from '../replay/store';
 import { backBtn, brandbar, ic } from './chrome';
-import { t } from './i18n';
+import { dateTime, t } from './i18n';
 import { stationTag } from './StatsPanel';
 
 const esc = (s: string): string => s.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
@@ -33,7 +33,7 @@ export class ReplaysScreen {
       const kb = Math.max(1, Math.round(s.bytes.length / 1024));
       return `<div class="rp-card" data-id="${esc(s.id)}">
         <div class="rp-score"><b class="red ${win === 'red' ? 'win' : ''}">${h.final.red}</b><span>–</span><b class="blue ${win === 'blue' ? 'win' : ''}">${h.final.blue}</b></div>
-        <div class="rp-info"><b>${new Date(h.createdAt).toLocaleString()}</b>
+        <div class="rp-info"><b>${dateTime(h.createdAt)}</b>
           <small>${me ? `${t('yourRobot')}: ${stationTag(me.alliance, me.station)} · ${esc(me.label)}` : t('rp_aiOnly')} · ${kb} KB</small>
           <small class="rp-robots">${h.robots.map((r) => `<span class="${r.alliance}">${stationTag(r.alliance, r.station)} ${esc(r.label)}</span>`).join('')}</small></div>
         <div class="rp-btns">

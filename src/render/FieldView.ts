@@ -4,6 +4,7 @@
  */
 import * as THREE from 'three';
 import { ConvexGeometry } from 'three/examples/jsm/geometries/ConvexGeometry.js';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import * as F from '../config/field';
 import { fieldSolids, startTape, type FieldMaterial } from '../config/fieldLayout';
 import { ALLIANCES, type Alliance } from '../core/types';
@@ -32,10 +33,14 @@ function materials(): Mats {
   return mats;
 }
 
+/** Un material por color de cinta (así las cintas se fusionan en pocas mallas). */
+const tapeMats = new Map<number, THREE.MeshStandardMaterial>();
+const tapeMat = (color: number) => tapeMats.get(color) ?? tapeMats.set(color, new THREE.MeshStandardMaterial({ color, roughness: 0.7 })).get(color)!;
+
 /** Segmento de cinta en el piso. */
 function tape(x0: number, z0: number, x1: number, z1: number, color: number, w = F.TAPE_WIDTH): THREE.Mesh {
   const len = Math.hypot(x1 - x0, z1 - z0) + w;
-  const m = new THREE.Mesh(new THREE.PlaneGeometry(len, w), new THREE.MeshStandardMaterial({ color, roughness: 0.7 }));
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(len, w), tapeMat(color));
   m.rotation.x = -Math.PI / 2;
   m.rotation.z = -Math.atan2(z1 - z0, x1 - x0);
   m.position.set((x0 + x1) / 2, 0.002, (z0 + z1) / 2);
@@ -147,7 +152,39 @@ export function buildFieldView(): THREE.Group {
     }
   }
 
-  // Aficionada en silla de ruedas junto a la cancha (decorativa)
+  mergeStatic(g);
+  // Aficionada en silla de ruedas junto a la cancha (decorativa; ya viene fusionada)
   g.add(placeWheelchairFan());
   return g;
+}
+
+/**
+ * Fusiona las mallas fijas del grupo que comparten material y sombras: la cancha pasa de ~100 draw
+ * calls a ~15 (en celulares lentos cada draw call cuesta). Nada de la cancha se mueve.
+ */
+function mergeStatic(g: THREE.Group): void {
+  g.updateMatrixWorld(true);
+  const groups = new Map<string, THREE.Mesh[]>();
+  for (const o of g.children) {
+    const m = o as THREE.Mesh;
+    if (!m.isMesh || Array.isArray(m.material)) continue;
+    const k = `${m.material.uuid}|${m.castShadow}|${m.receiveShadow}`;
+    groups.set(k, [...(groups.get(k) ?? []), m]);
+  }
+  for (const list of groups.values()) {
+    if (list.length < 2) continue;
+    const geos = list.map((m) => {
+      const geo = m.geometry.index ? m.geometry.toNonIndexed() : m.geometry.clone();
+      return geo.applyMatrix4(m.matrix);
+    });
+    const merged = mergeGeometries(geos);
+    if (!merged) continue;
+    const first = list[0];
+    const out = new THREE.Mesh(merged, first.material);
+    out.castShadow = first.castShadow;
+    out.receiveShadow = first.receiveShadow;
+    for (const m of list) g.remove(m);
+    for (const geo of new Set([...list.map((m) => m.geometry), ...geos])) geo.dispose();
+    g.add(out);
+  }
 }

@@ -10,7 +10,7 @@ import { ALLIANCES } from '../core/types';
 import { replayDuration, type Replay } from '../replay/format';
 import { HEAT_CELL, HEAT_COLS, HEAT_ROWS, robotStats, totalSamples, type RobotStats } from '../replay/stats';
 import { backBtn, brandbar, ic } from './chrome';
-import { t } from './i18n';
+import { dateTime, t } from './i18n';
 
 const esc = (s: string): string => s.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
 const COLORS = { red: [229, 65, 58], blue: [47, 125, 246] } as const;
@@ -108,7 +108,7 @@ export class StatsPanel {
           .join('')}</div><em>${totalSamples(st[i])}</em></div>`,
       )
       .join('');
-    const date = new Date(h.createdAt).toLocaleString();
+    const date = dateTime(h.createdAt);
     this.root.className = 'screen solid';
     this.root.innerHTML = `<div class="inner">
       ${brandbar(t('st_title'))}
