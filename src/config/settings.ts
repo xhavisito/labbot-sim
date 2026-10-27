@@ -4,21 +4,41 @@
  * válidos (un valor raro guardado en el navegador no rompe el juego).
  */
 import { AI_LEVELS, type AiLevel } from '../ai/difficulty';
-import { DEFAULT_ROBOT } from './robot';
+import { isStrategy, type StrategyId } from '../ai/strategy';
+import { DEFAULT_ROBOT, MECHANISM_KINDS, type MechanismKind } from './robot';
 import { allRobotIds, type RobotId } from './robotIds';
+import { CENTER_SPOT, sanitizeSpot, type StartSpot } from './startSpot';
+
+/** Un robot en la configuración del match (los de la IA; del tuyo solo cuenta tu rutina de AUTO). */
+export interface MatchRobot {
+  /** Tipo de robot de la IA ('random' = al azar en cada match, `ai/lineup.ts`). */
+  kind: MechanismKind | 'random';
+  /** Estrategia de la IA (`ai/strategy.ts`). */
+  strategy: StrategyId;
+  /** Dificultad de la IA (`ai/difficulty.ts`). */
+  ai: AiLevel;
+  /** Rutina de AUTO (id de `AUTO_ROUTINES`). */
+  auto: string;
+}
+
+/** Configuración del match que se elige antes de empezar ("Preparar match"); se recuerda para el siguiente. */
+export interface MatchSetup {
+  /** Por robot: 0–1 rojo, 2–3 azul. */
+  robots: [MatchRobot, MatchRobot, MatchRobot, MatchRobot];
+  /** Lugar de tu robot dentro de su Zona de Inicio (§3.2.1, §4.1; `config/startSpot.ts`). */
+  start: StartSpot;
+}
 
 export interface Settings {
   /** La IA maneja los otros 3 robots en el TELEOP. */
   ai: boolean;
-  /** Dificultad de la IA (`ai/difficulty.ts`). Los 3 robots de la IA usan tipos distintos en cada match. */
-  aiLevel: AiLevel;
   /** Rutina de AUTO de tu robot (id de `AUTO_ROUTINES`). */
   playerAuto: string;
-  /** Rutina de AUTO de los otros robots. */
-  botAuto: string;
+  /** Tipo, estrategia, dificultad y AUTO de cada robot de la IA, y tu posición inicial. */
+  match: MatchSetup;
   /** Tipo de tu robot (`config/robot.ts`). */
   robotType: RobotId;
-  /** Tu robot: velocidad máxima (m/s) y Muestras que guarda (el pivote siempre lleva 1). */
+  /** Tu robot: velocidad máxima (m/s) y Muestras que guarda (1 en la garra y el resto en el hopper). */
   maxSpeed: number;
   capacity: number;
   /** Human Player automático (§3.2.4) y cada cuántos segundos mete una Muestra (SUPUESTO). */
@@ -30,12 +50,13 @@ export interface Settings {
   quality: 'auto' | 'low' | 'medium' | 'high';
 }
 
+const botDefault = (): MatchRobot => ({ kind: 'random', strategy: 'auto', ai: 'hard', auto: 'preload' });
+
 export const DEFAULT_SETTINGS: Settings = {
   ai: true,
-  aiLevel: 'hard',
   playerAuto: 'leave',
-  botAuto: 'preload',
-  robotType: 'generic',
+  match: { robots: [botDefault(), botDefault(), botDefault(), botDefault()], start: { ...CENTER_SPOT } },
+  robotType: DEFAULT_ROBOT.mechanism,
   maxSpeed: DEFAULT_ROBOT.maxSpeed,
   capacity: DEFAULT_ROBOT.capacity,
   hpEnabled: true,
@@ -46,7 +67,7 @@ export const DEFAULT_SETTINGS: Settings = {
 
 export const SETTINGS_RANGE = {
   maxSpeed: { min: 1, max: 4.5, step: 0.25 },
-  capacity: { min: 1, max: 10, step: 1 },
+  capacity: { min: 2, max: 10, step: 1 },
   hpInterval: { min: 1, max: 10, step: 0.5 },
 } as const;
 
@@ -62,11 +83,25 @@ export function sanitizeSettings(raw: unknown, autoIds: readonly string[]): Sett
   const auto = (v: unknown, def: string) => (typeof v === 'string' && autoIds.includes(v) ? v : def);
   const ids = allRobotIds();
   const kind = (v: unknown, def: RobotId) => ids.find((k) => k === v) ?? def;
+  // Ajustes de antes (una dificultad y una rutina para todos los robots de la IA) siguen valiendo
+  const oldAi = AI_LEVELS.find((l) => l === o.aiLevel);
+  const oldAuto = auto(o.botAuto, botDefault().auto);
+  const m = (o.match && typeof o.match === 'object' ? o.match : {}) as Record<string, unknown>;
+  const list = Array.isArray(m.robots) ? m.robots : [];
+  const robot = (i: number): MatchRobot => {
+    const r = (list[i] && typeof list[i] === 'object' ? list[i] : {}) as Record<string, unknown>;
+    return {
+      kind: r.kind === 'random' ? 'random' : (MECHANISM_KINDS.find((k) => k === r.kind) ?? 'random'),
+      strategy: isStrategy(r.strategy) ? r.strategy : 'auto',
+      ai: AI_LEVELS.find((l) => l === r.ai) ?? oldAi ?? botDefault().ai,
+      auto: auto(r.auto, oldAuto),
+    };
+  };
   return {
     ai: typeof o.ai === 'boolean' ? o.ai : d.ai,
-    aiLevel: AI_LEVELS.find((l) => l === o.aiLevel) ?? d.aiLevel,
     playerAuto: auto(o.playerAuto, d.playerAuto),
-    botAuto: auto(o.botAuto, d.botAuto),
+    match: { robots: [robot(0), robot(1), robot(2), robot(3)], start: m.start === undefined ? { ...CENTER_SPOT } : sanitizeSpot(m.start) },
+    // Un tipo quitado (genérico, elevador, pivote, torre, chasis) vuelve al pivote con hopper
     robotType: kind(o.robotType, d.robotType),
     maxSpeed: num(o.maxSpeed, d.maxSpeed, SETTINGS_RANGE.maxSpeed),
     capacity: Math.round(num(o.capacity, d.capacity, SETTINGS_RANGE.capacity)),
@@ -81,7 +116,7 @@ export function loadSettings(autoIds: readonly string[]): Settings {
   try {
     return sanitizeSettings(JSON.parse(localStorage.getItem(KEY) ?? 'null'), autoIds);
   } catch {
-    return { ...DEFAULT_SETTINGS };
+    return structuredClone(DEFAULT_SETTINGS);
   }
 }
 

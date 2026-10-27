@@ -27,23 +27,20 @@ import {
   type CustomRobot,
   type MotorKind,
 } from '../config/customRobots';
-import { MECHANISM_KINDS, type MechanismKind } from '../config/robot';
+import { DEFAULT_ROBOT, MECHANISM_KINDS, type MechanismKind } from '../config/robot';
 import { botFor, compareAlliance, type CompareResult } from '../sim/compare';
 import { backBtn, brandbar, ic, robotSilhouette } from './chrome';
 import { t, type Key } from './i18n';
 
 const esc = (s: string): string => s.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
 
-type NumKey = 'lengthCm' | 'widthCm' | 'heightCm' | 'driveCount' | 'gearRatio' | 'wheelIn' | 'wheels' | 'intakeCm' | 'intakeWidthCm' | 'reachCm' | 'capacity' | 'liftSpeed' | 'armPivotXCm' | 'armPivotYCm' | 'armLengthCm' | 'exitCm' | 'plaG' | 'extraKg';
+type NumKey = 'lengthCm' | 'widthCm' | 'heightCm' | 'driveCount' | 'gearRatio' | 'wheelIn' | 'wheels' | 'capacity' | 'liftSpeed' | 'armPivotXCm' | 'armPivotYCm' | 'armLengthCm' | 'plaG' | 'extraKg';
 
 interface NumField {
   k: NumKey;
   label: Key;
   unit: string;
   step: number;
-  /** Solo para algunos tipos. */
-  only?: MechanismKind[];
-  not?: MechanismKind[];
 }
 
 const CHASSIS: NumField[] = [
@@ -58,23 +55,16 @@ const DRIVE: NumField[] = [
   { k: 'wheels', label: 'ed_wheels', unit: '', step: 1 },
 ];
 const MECH: NumField[] = [
-  { k: 'intakeCm', label: 'ed_intake', unit: 'cm', step: 1, not: ['pivot', 'pivotHopper', 'chassis'] },
-  { k: 'intakeWidthCm', label: 'ed_intakeWidth', unit: 'cm', step: 1, not: ['pivot', 'pivotHopper', 'chassis'] },
-  { k: 'reachCm', label: 'ed_reach', unit: 'cm', step: 1, not: ['pivot', 'pivotHopper', 'chassis'] },
-  { k: 'capacity', label: 'ed_capacity', unit: '', step: 1, not: ['pivot', 'chassis'] },
-  { k: 'liftSpeed', label: 'ed_liftSpeed', unit: 'm/s', step: 0.1, not: ['pivot', 'pivotHopper', 'chassis'] },
-  { k: 'liftSpeed', label: 'ed_armSpeed', unit: 'rad/s', step: 0.1, only: ['pivot', 'pivotHopper'] },
-  { k: 'armPivotXCm', label: 'ed_pivotX', unit: 'cm', step: 1, only: ['pivot', 'pivotHopper'] },
-  { k: 'armPivotYCm', label: 'ed_pivotY', unit: 'cm', step: 1, only: ['pivot', 'pivotHopper'] },
-  { k: 'armLengthCm', label: 'ed_armLength', unit: 'cm', step: 1, only: ['pivot', 'pivotHopper'] },
-  { k: 'exitCm', label: 'ed_exit', unit: 'cm', step: 1, only: ['tower'] },
+  { k: 'capacity', label: 'ed_capacity', unit: '', step: 1 },
+  { k: 'liftSpeed', label: 'ed_armSpeed', unit: 'rad/s', step: 0.1 },
+  { k: 'armPivotXCm', label: 'ed_pivotX', unit: 'cm', step: 1 },
+  { k: 'armPivotYCm', label: 'ed_pivotY', unit: 'cm', step: 1 },
+  { k: 'armLengthCm', label: 'ed_armLength', unit: 'cm', step: 1 },
 ];
 const MATERIAL: NumField[] = [
   { k: 'plaG', label: 'ed_pla', unit: 'g', step: 5 },
   { k: 'extraKg', label: 'ed_extra', unit: 'kg', step: 0.1 },
 ];
-
-const shows = (f: NumField, m: MechanismKind) => (!f.only || f.only.includes(m)) && (!f.not || !f.not.includes(m));
 
 /** Robots con los que se puede comparar (los presets, no los propios). */
 const baselines = (): RobotId[] => [...MECHANISM_KINDS];
@@ -84,8 +74,8 @@ export class RobotEditor {
   /** Robot que se edita (copia; se guarda con el botón). */
   private c: CustomRobot | null = null;
   private compare: { base: RobotId; rival: RobotId; n: number; busy: boolean; progress: number; mine?: CompareResult; ref?: CompareResult; cancel: boolean } = {
-    base: 'tower',
-    rival: 'tower',
+    base: DEFAULT_ROBOT.mechanism,
+    rival: DEFAULT_ROBOT.mechanism,
     n: 3,
     busy: false,
     progress: 0,
@@ -151,17 +141,14 @@ export class RobotEditor {
 
   // ------------------------------------------------------------------ formulario
   private formHtml(c: CustomRobot): string {
-    const num = (f: NumField) =>
-      shows(f, c.mechanism)
-        ? `<label>${t(f.label)}</label><div class="numin"><input type="number" inputmode="decimal" step="${f.step}" data-n="${f.k}" value="${c[f.k]}"><span>${f.unit}</span></div>`
-        : '';
+    const num = (f: NumField) => `<label>${t(f.label)}</label><div class="numin"><input type="number" inputmode="decimal" step="${f.step}" data-n="${f.k}" value="${c[f.k]}"><span>${f.unit}</span></div>`;
     const motorSel = `<select data-drive>${MOTOR_KINDS.map((k) => `<option value="${k}" ${k === c.driveMotor ? 'selected' : ''}>${MOTORS[k].name}</option>`).join('')}</select>`;
     const mechMotors = MOTOR_KINDS.map(
       (k) => `<label>${MOTORS[k].name}</label><div class="numin"><input type="number" min="0" step="1" data-m="${k}" value="${c.mechMotors[k]}"><span>/ ${MOTOR_LIMITS[k]} (§7.3)</span></div>`,
     ).join('');
     const seg = (k: string, cur: string | number, opts: Array<[string | number, string]>) =>
       `<div class="seg" data-seg="${k}">${opts.map(([v, l]) => `<button class="${v === cur ? 'on' : ''}" data-v="${v}">${l}</button>`).join('')}</div>`;
-    const levelSeg = c.mechanism === 'chassis' ? '' : `<label>${t('ed_maxLevel')}</label>${seg('maxLevel', c.maxLevel, [[1, 'N1'], [2, 'N2'], [3, 'N3']])}`;
+    const levelSeg = `<label>${t('ed_maxLevel')}</label>${seg('maxLevel', c.maxLevel, [[1, 'N1'], [2, 'N2'], [3, 'N3']])}`;
     return `<div class="panels editor">
       <div class="panel"><div class="form">
         <h3>${t('ed_identity')}</h3>

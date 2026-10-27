@@ -1,6 +1,9 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 import * as F from '../src/config/field';
-import { DEFAULT_ROBOT, validateRobot } from '../src/config/robot';
+import { armAngle, armTip, DEFAULT_ROBOT, validateRobot } from '../src/config/robot';
+
+/** Distancia del centro del robot a la rendija con el brazo en N4 (como la IA, `critDistance`). */
+const critReach = () => armTip(DEFAULT_ROBOT.arm, armAngle(DEFAULT_ROBOT.arm, DEFAULT_ROBOT.elevatorHeights[4])).x - 0.05;
 import { GameSession } from '../src/game/GameSession';
 import { emptyInput, type PlayerInput } from '../src/input/InputManager';
 import { initRapier } from '../src/physics/PhysicsWorld';
@@ -30,7 +33,6 @@ describe('robot (§7.2)', () => {
   it('el robot por defecto cumple los límites del manual', () => {
     expect(validateRobot(DEFAULT_ROBOT)).toEqual([]);
     expect(validateRobot({ ...DEFAULT_ROBOT, length: 0.7 })).toContain('chasis mayor a 65 × 65 cm (§7.2)');
-    expect(validateRobot({ ...DEFAULT_ROBOT, reach: 0.45 })).toContain('depósito sale más de 40 cm (§7.2)');
   });
 
   it('arranca dentro de su Zona de Inicio con la precarga (§4.1)', () => {
@@ -68,11 +70,11 @@ describe('robot (§7.2)', () => {
     expect(p.wheelsOnCarpet).toBe(0);
   });
 
-  it('la intake toma Muestras del piso y respeta la capacidad', () => {
+  it('la garra toma Muestras del piso y las cuenta como del robot', () => {
     const g = session();
     const spot = F.labSpots()[0]; // (0.46, −2.4)
     put(g, spot.x + 1.0, spot.z, Math.PI);
-    run(g, 1.5, { toggleIntake: true, forward: 0.3 });
+    run(g, 3.0, { toggleIntake: true, forward: 0.2 });
     expect(g.player.mech.stored.length).toBeGreaterThanOrEqual(1);
     expect(g.pieces.list.filter((p) => p.state.at === 'robot' && p.state.robot === 0)).toHaveLength(g.player.mech.stored.length);
   });
@@ -95,9 +97,9 @@ describe('robot (§7.2)', () => {
   it('toma su Muestra Crítica de la rendija de la Campana y la deja en la Repisa', () => {
     const g = session();
     const c = F.CRITICAL_HOLDER_RED;
-    // De frente a la Campana (viendo hacia −Z), con el elevador a la altura de la rendija
-    put(g, c.x, -F.HALF_W + DEFAULT_ROBOT.length / 2 + 0.05, Math.PI / 2);
-    run(g, 1.0, { elevator: 4 });
+    // De frente a la Campana (viendo hacia −Z), a la distancia de la punta del brazo a la altura de la rendija
+    put(g, c.x, c.z + critReach(), Math.PI / 2);
+    run(g, 1.5, { elevator: 4 });
     run(g, 0.2, { grabCritical: true });
     expect(g.player.mech.critical?.owner).toBe('red');
     // En la plataforma superior, de frente a la Repisa

@@ -30,7 +30,7 @@ describe('ajustes', () => {
 
   it('las rutinas por defecto existen', () => {
     expect(ids).toContain(DEFAULT_SETTINGS.playerAuto);
-    expect(ids).toContain(DEFAULT_SETTINGS.botAuto);
+    for (const r of DEFAULT_SETTINGS.match.robots) expect(ids).toContain(r.auto);
   });
 });
 

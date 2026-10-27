@@ -1,5 +1,5 @@
 /**
- * Robots elegibles: los tipos de las sugerencias de LabBot (`ROBOT_PRESETS`) y los robots propios
+ * Robots elegibles: los dos pivotes con hopper (`ROBOT_PRESETS`) y los robots propios
  * del editor (`customRobots.ts`, guardados en este navegador).
  */
 import { CUSTOM_PREFIX, customById, customRobots, customSpec } from './customRobots';
@@ -13,7 +13,7 @@ export const ROBOT_IDS: readonly RobotId[] = MECHANISM_KINDS;
 /** Ids elegibles ahora: los fijos y los robots propios guardados en este navegador. */
 export const allRobotIds = (): RobotId[] => [...ROBOT_IDS, ...customRobots.map((c): RobotId => `${CUSTOM_PREFIX}${c.id}`)];
 
-/** El `RobotSpec` de cualquier robot elegible (uno propio que ya no existe cae al genérico). */
+/** El `RobotSpec` de cualquier robot elegible (uno propio que ya no existe cae al pivote con hopper). */
 export function robotSpec(id: RobotId): RobotSpec {
   const c = customById(id);
   if (c) return customSpec(c);

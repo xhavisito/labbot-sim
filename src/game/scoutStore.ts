@@ -5,7 +5,7 @@
  * los registros también como CSV (para una hoja de cálculo).
  */
 import type { GameConfig } from '../config/game';
-import { MECHANISM_KINDS, type MechanismKind } from '../config/robot';
+import { DEFAULT_ROBOT, MECHANISM_KINDS, type MechanismKind } from '../config/robot';
 import { entryPoints, type LevelCounts, type ScoutEntry, type Team } from '../core/scouting';
 import { DEFAULT_FORMAT, type QualMatch, type TournamentFormat } from '../core/tournament';
 
@@ -18,9 +18,9 @@ export interface ScoutData {
   schedule: QualMatch[];
 }
 
-/** 8 equipos en el reto interno; tipos repartidos entre las sugerencias de CAD (se editan en la pantalla). */
+/** 8 equipos en el reto interno; mitad con cada versión del pivote con hopper (se editan en la pantalla). */
 export function defaultTeams(): Team[] {
-  const kinds: MechanismKind[] = ['tower', 'pivot', 'tower', 'pivot', 'elevator', 'tower', 'pivot', 'elevator'];
+  const kinds: MechanismKind[] = ['pivotHopper', 'pivotHopper180', 'pivotHopper', 'pivotHopper180', 'pivotHopper', 'pivotHopper180', 'pivotHopper', 'pivotHopper180'];
   return kinds.map((robot, i) => ({ id: `E${i + 1}`, name: `Equipo ${i + 1}`, robot }));
 }
 
@@ -43,7 +43,8 @@ export function sanitizeScout(raw: unknown): ScoutData {
       const t = (x ?? {}) as Record<string, unknown>;
       const id = str(t.id, '', 12);
       if (!id || teams.some((y) => y.id === id)) continue;
-      teams.push({ id, name: str(t.name, id), robot: MECHANISM_KINDS.find((k) => k === t.robot) ?? 'tower' });
+      // Un tipo quitado (genérico, elevador, pivote, torre, chasis) pasa a pivote con hopper
+      teams.push({ id, name: str(t.name, id), robot: MECHANISM_KINDS.find((k) => k === t.robot) ?? DEFAULT_ROBOT.mechanism });
     }
   const ids = new Set((teams.length ? teams : d.teams).map((t) => t.id));
   const entries: ScoutEntry[] = [];

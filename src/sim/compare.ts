@@ -28,8 +28,8 @@ export interface CompareResult {
   rival: number;
 }
 
-/** Cómo juega la IA un robot: a su nivel máximo y a la Plataforma; el chasis solo se estaciona. */
-export const botFor = (s: RobotSpec): Partial<BotOptions> => (s.mechanism === 'chassis' ? { role: 'park' } : { level: s.maxLevel ?? 3, endgame: 'platform' });
+/** Cómo juega la IA un robot: a su nivel máximo y a la Plataforma. */
+export const botFor = (s: RobotSpec): Partial<BotOptions> => ({ level: s.maxLevel ?? 3, endgame: 'platform' });
 
 const STEPS = 152 * 120;
 const SLICE = 1500;

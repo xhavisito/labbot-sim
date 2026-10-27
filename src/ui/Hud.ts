@@ -1,7 +1,7 @@
 /**
  * HUD en DOM con el estilo de rebuilt-sim: marcador (rojo · timer, fase y avance · azul) con el
- * medidor de Dominio de Cámara, panel del robot propio (Muestras guardadas, intake, Crítica,
- * elevador), botones de cámara / reacomodar / pausa, ayuda de teclas y avisos del match.
+ * medidor de Dominio de Cámara, panel del robot propio (Muestras guardadas, garra, hopper, Crítica,
+ * brazo), botones de cámara / reacomodar / pausa, ayuda de teclas y avisos del match.
  * En práctica libre el marcador se cambia por una píldora con las Muestras anotadas.
  */
 import { GAME } from '../config/game';
@@ -139,7 +139,6 @@ export class Hud {
     const me = s.player;
     const mech = me.mech;
     const kind = me.spec.mechanism;
-    const elevLabel = t(kind === 'pivot' || kind === 'pivotHopper' ? 'arm' : kind === 'tower' ? 'scoop' : 'elevator');
     const elev = mech.stowed ? t('stowed') : t('elevatorNames').split('|')[mech.target];
     const time = m ? formatTimer(timerSeconds(m.t, s.game)) : '';
     const score = { red: m ? m.score('red') : s.practiceCount.red, blue: m ? m.score('blue') : s.practiceCount.blue };
@@ -183,15 +182,10 @@ export class Hud {
       <div class="p-head"><span class="p-num">${t(me.alliance).slice(0, 1)}${me.station + 1}</span><span class="p-name">${t(`type_${kind}` as Key)}</span><span class="p-tag">${t('you')}</span></div>
       <div class="p-hopper"><div class="p-fuel"><b>${mech.stored.length}</b><small>/${mech.capacity}</small><span>${t('stored')}</span></div>
         <div class="hbar">${Array.from({ length: mech.capacity }, (_, i) => `<i class="${i < mech.stored.length ? 'on' : ''}"></i>`).join('')}</div></div>
-      <div class="chips">${
-        kind === 'chassis'
-          ? `<span class="off">${t('noMechanism')}</span>`
-          : `<span class="${mech.intakeOn ? 'on' : 'off'}">${t('intake')} ${mech.intakeOn ? t('on') : t('off')}</span>
-        <span class="${mech.critical ? 'on' : 'off'}">${t('critical')} ${mech.critical ? '■' : '–'}</span>${
-          kind === 'pivotHopper' ? `<span class="${mech.inClaw ? 'on' : 'off'}">${t('claw')} ${mech.inClaw ? '■' : '–'} · ${t('hopper')} ${mech.inHopper}</span>` : ''
-        }
-        <span>${elevLabel}: ${elev}</span>`
-      }</div>`;
+      <div class="chips"><span class="${mech.intakeOn ? 'on' : 'off'}">${t('intake')} ${mech.intakeOn ? t('on') : t('off')}</span>
+        <span class="${mech.critical ? 'on' : 'off'}">${t('critical')} ${mech.critical ? '■' : '–'}</span>
+        <span class="${mech.inClaw ? 'on' : 'off'}">${t('claw')} ${mech.inClaw ? '■' : '–'} · ${t('hopper')} ${mech.inHopper}</span>
+        <span>${t('arm')}: ${elev}</span></div>`;
     this.camLabel.querySelector('span')!.textContent = t(`cam_${cam}` as Key);
   }
 }

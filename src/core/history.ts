@@ -8,7 +8,7 @@
  * de nombre o de robot; la temporada es el año del evento salvo que se le ponga otra.
  */
 import type { GameConfig } from '../config/game';
-import { MECHANISM_KINDS, type MechanismKind } from '../config/robot';
+import { DEFAULT_ROBOT, MECHANISM_KINDS, type MechanismKind } from '../config/robot';
 import { computeOpr, oprMatchesFromEntries, oprMatchesFromTournament, type OprMatch } from './opr';
 import { summarize, type ScoutEntry, type Team, type TeamSummary } from './scouting';
 import { placements, rankings, tournamentEntries, type Tournament } from './tournament';
@@ -220,7 +220,7 @@ export function sanitizeHistory(raw: unknown): HistoryData {
     const teams: Team[] = e.teams
       .map((t) => (t ?? {}) as Record<string, unknown>)
       .filter((t) => typeof t.id === 'string' && t.id)
-      .map((t) => ({ id: String(t.id).slice(0, 12), name: str(t.name, String(t.id), 40), robot: MECHANISM_KINDS.find((k) => k === t.robot) ?? 'tower' }));
+      .map((t) => ({ id: String(t.id).slice(0, 12), name: str(t.name, String(t.id), 40), robot: MECHANISM_KINDS.find((k) => k === t.robot) ?? DEFAULT_ROBOT.mechanism }));
     const ids = new Set(teams.map((t) => t.id));
     const idList = (v: unknown) => (Array.isArray(v) ? v.filter((t): t is string => typeof t === 'string' && ids.has(t)) : []);
     const place: Record<string, number> = {};

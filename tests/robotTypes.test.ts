@@ -1,7 +1,8 @@
 import { beforeAll, describe, expect, it } from 'vitest';
-import { COLLECT_HOME, SCORE_PRELOAD } from '../src/auto/AutoRoutine';
+import { STRATEGY_OPTIONS } from '../src/ai/strategy';
+import { COLLECT_HOME, LEAVE_ZONE } from '../src/auto/AutoRoutine';
 import * as F from '../src/config/field';
-import { armAngle, armTip, CHASSIS_ROBOT, ELEVATOR_ROBOT, PIVOT_ROBOT, ROBOT_PRESETS, TOWER_ROBOT, validateRobot, type RobotSpec } from '../src/config/robot';
+import { armAngle, armTip, armTravelDeg, knownSpec, MECHANISM_KINDS, PIVOT_HOPPER_180_ROBOT, PIVOT_HOPPER_ROBOT, ROBOT_PRESETS, validateRobot, type RobotSpec } from '../src/config/robot';
 import { GameSession } from '../src/game/GameSession';
 import { emptyInput, type PlayerInput } from '../src/input/InputManager';
 import { initRapier } from '../src/physics/PhysicsWorld';
@@ -10,6 +11,7 @@ beforeAll(async () => {
   await initRapier();
 });
 
+const S180 = PIVOT_HOPPER_180_ROBOT;
 const session = (spec: RobotSpec, preload = true) => new GameSession({ player: 0, preload, specs: [spec] });
 
 function run(g: GameSession, s: number, inp: Partial<PlayerInput> = {}): void {
@@ -21,169 +23,119 @@ function run(g: GameSession, s: number, inp: Partial<PlayerInput> = {}): void {
   }
 }
 
-describe('tipos de robot (§7.2)', () => {
-  it('todos cumplen los límites del manual', () => {
-    for (const s of Object.values(ROBOT_PRESETS)) expect(validateRobot(s)).toEqual([]);
-    // Un brazo más largo saca la garra más de 40 cm
-    expect(validateRobot({ ...PIVOT_ROBOT, arm: { ...PIVOT_ROBOT.arm!, length: 0.85 } })).toContain('la garra sale más de 40 cm (§7.2)');
-  });
-
-  it('Pivote: guardado con la precarga cabe en el perímetro y bajo 100 cm (§4.1)', () => {
-    // El brazo anterior (68 cm, pivote a 45 cm) no cabía guardado
-    const old = { ...PIVOT_ROBOT, length: 0.65, width: 0.65, arm: { pivotX: -0.05, pivotY: 0.45, length: 0.68, speed: 4, stowAngle: (127 * Math.PI) / 180 } };
-    expect(validateRobot(old)).toContain('el brazo guardado no cabe en el perímetro al inicio (§4.1)');
-    const g = session(PIVOT_ROBOT);
-    const m = g.player.mech;
-    expect(m.stowed).toBe(true);
-    run(g, 1.0);
-    expect(m.stowed).toBe(true);
-    run(g, 1.0, { elevator: 3 });
-    expect(m.stowed).toBe(false);
-    expect(m.height).toBeCloseTo(PIVOT_ROBOT.elevatorHeights[3], 6);
-  });
-
-  it('la garra del pivote llega al piso y al Nivel 3 a la altura pedida', () => {
-    const a = PIVOT_ROBOT.arm!;
-    for (const h of PIVOT_ROBOT.elevatorHeights) expect(armTip(a, armAngle(a, h)).y).toBeCloseTo(h, 6);
-  });
-
-  it('Elevador: anota en el Nivel 3 de reversa, empujando por atrás', () => {
-    const g = session(ELEVATOR_ROBOT);
-    const w = F.camaraWells()[3];
-    // De espaldas a la pared de la Cámara (viendo hacia −Z)
-    g.player.phys.teleport((w.x0 + w.x1) / 2, F.CAMARA_Z_RED[0] - ELEVATOR_ROBOT.length / 2 - 0.02, Math.PI / 2);
-    run(g, 1.0, { elevator: 3 });
-    const piece = g.player.mech.stored[0];
-    run(g, 2.0, { releaseSample: true });
-    const t = piece.body.translation();
-    expect(F.inRect(w, t.x, t.z)).toBe(true);
-    expect(g.practiceCount.red).toBe(1);
-  });
-
-  it('Pivote: agarra una sola Muestra del piso y la anota en el Nivel 3', () => {
-    const g = session(PIVOT_ROBOT, false);
-    const spot = F.labSpots()[0];
-    g.player.phys.teleport(spot.x + 1.0, spot.z, Math.PI);
-    run(g, 2.0, { toggleIntake: true, forward: 0.25 });
-    expect(g.player.mech.stored).toHaveLength(1);
-    const piece = g.player.mech.stored[0];
-    const w = F.camaraWells()[3];
-    g.player.phys.teleport((w.x0 + w.x1) / 2, F.CAMARA_Z_RED[0] - PIVOT_ROBOT.length / 2 - 0.02, -Math.PI / 2);
-    run(g, 1.0, { elevator: 3 });
-    run(g, 2.0, { releaseSample: true });
-    const t = piece.body.translation();
-    expect(F.inRect(w, t.x, t.z)).toBe(true);
-    expect(g.practiceCount.red).toBe(1);
-  });
-
-  it('Pivote: con una Muestra en la garra no puede tomar la Crítica', () => {
-    const g = session(PIVOT_ROBOT, true);
-    const c = F.CRITICAL_HOLDER_RED;
-    g.player.phys.teleport(c.x, -F.HALF_W + PIVOT_ROBOT.length / 2 + 0.05, Math.PI / 2);
-    run(g, 1.0, { elevator: 4 });
-    run(g, 0.2, { grabCritical: true });
-    expect(g.player.mech.critical).toBeNull();
-  });
-
-  it('Torre: junta varias Muestras y las anota todas en el Nivel 3 de reversa', () => {
-    const g = session(TOWER_ROBOT, false);
-    const spots = F.labSpots();
-    for (const spot of spots.slice(0, 3)) {
-      g.player.phys.teleport(spot.x + 0.75, spot.z, Math.PI);
-      run(g, 1.5, { toggleIntake: g.player.mech.intakeOn ? false : true, forward: 0.3 });
+/** Segundos hasta que la Muestra de la garra queda en el hopper (garra encendida desde el piso). */
+function storeTime(spec: RobotSpec): number {
+  const g = session(spec, false);
+  const m = g.player.mech;
+  const spot = F.labSpots()[0];
+  g.player.phys.teleport(spot.x + 1.0, spot.z, Math.PI);
+  g.setInput({ ...emptyInput(), toggleIntake: true });
+  let grabbed = -1;
+  for (let i = 0; i < 8 * 120; i++) {
+    if (i === 1) g.setInput({ ...emptyInput(), forward: 0.2 });
+    g.step();
+    if (grabbed < 0 && m.inClaw) {
+      grabbed = i;
+      g.setInput(emptyInput());
     }
-    const n = g.player.mech.stored.length;
-    expect(n).toBeGreaterThanOrEqual(3);
-    expect(n).toBeLessThanOrEqual(TOWER_ROBOT.capacity);
+    if (grabbed >= 0 && m.inHopper === 1) return (i - grabbed) / 120;
+  }
+  return Infinity;
+}
+
+describe('tipos de robot: solo pivotes con hopper (27-oct)', () => {
+  it('quedan el pivote con hopper y su variante de 180°, y los dos cumplen §7.2 y §4.1', () => {
+    expect([...MECHANISM_KINDS]).toEqual(['pivotHopper', 'pivotHopper180']);
+    for (const s of Object.values(ROBOT_PRESETS)) expect(validateRobot(s)).toEqual([]);
+  });
+
+  it('180°: el brazo recorre media vuelta del piso a la boca del hopper (el otro, 243°)', () => {
+    expect(armTravelDeg(S180)).toBe(180);
+    expect(armTravelDeg(PIVOT_HOPPER_ROBOT)).toBe(243);
+    const a = S180.arm;
+    // Boca arriba del centro: la Muestra en la garra cabe en el perímetro y bajo 100 cm (§4.1, §7.2)
+    const tip = armTip(a, a.hopperAngle!);
+    expect(Math.abs(tip.x) + 0.075).toBeLessThanOrEqual(S180.length / 2);
+    expect(tip.y + 0.15).toBeLessThanOrEqual(1.0 + 1e-9);
+    // Mismo chasis, alturas y alcance que el original
+    for (const h of S180.elevatorHeights) expect(armTip(a, armAngle(a, h)).y).toBeCloseTo(h, 6);
+    expect(S180.elevatorHeights).toEqual(PIVOT_HOPPER_ROBOT.elevatorHeights);
+  });
+
+  it('180°: guarda cada Muestra en el hopper más rápido', () => {
+    const t180 = storeTime(S180);
+    const t243 = storeTime(PIVOT_HOPPER_ROBOT);
+    expect(t180).toBeLessThan(t243 - 0.15);
+    expect(t180).toBeLessThan(1.5);
+  });
+
+  it('180°: junta en el hopper y anota en el Nivel 3 de frente', () => {
+    const g = session(S180, false);
+    const m = g.player.mech;
+    let intake = false;
+    for (const spot of F.labSpots().slice(0, 2)) {
+      g.player.phys.teleport(spot.x + 1.0, spot.z, Math.PI);
+      run(g, 3.0, { toggleIntake: !intake, forward: 0.2 });
+      intake = true;
+    }
+    // Puede llevarse también una vecina al pasar
+    const n = m.stored.length;
+    expect(n).toBeGreaterThanOrEqual(2);
+    expect(m.inHopper).toBeGreaterThanOrEqual(2);
+    run(g, 0.1, { toggleIntake: true });
     const w = F.camaraWells()[3];
-    g.player.phys.teleport((w.x0 + w.x1) / 2, F.CAMARA_Z_RED[0] - TOWER_ROBOT.length / 2 - 0.02, Math.PI / 2);
-    for (let i = 0; i < n; i++) run(g, 0.6, { releaseSample: true });
+    g.player.phys.teleport((w.x0 + w.x1) / 2, F.CAMARA_Z_RED[0] - S180.length / 2 - 0.02, -Math.PI / 2);
+    run(g, 2.0, { elevator: 3 });
+    for (let i = 0; i < n; i++) {
+      for (let k = 0; k < 400 && !(m.inClaw && m.atTarget); k++) run(g, 1 / 120);
+      run(g, 0.4, { releaseSample: true });
+    }
     run(g, 1.5);
-    expect(g.player.mech.stored).toHaveLength(0);
+    expect(m.stored).toHaveLength(0);
     expect(g.practiceCount.red).toBe(n);
   });
 
-  it('Torre: la pala toma la Crítica de la rendija con la columna llena', () => {
-    const g = session(TOWER_ROBOT, true);
-    const c = F.CRITICAL_HOLDER_RED;
-    g.player.phys.teleport(c.x, -F.HALF_W + TOWER_ROBOT.length / 2 + 0.05, Math.PI / 2);
-    run(g, 1.0, { elevator: 4 });
-    run(g, 0.2, { grabCritical: true });
-    expect(g.player.mech.critical).not.toBeNull();
-    expect(g.player.mech.stored).toHaveLength(1);
+  it('una repetición vieja con un robot quitado se dibuja como pivote con hopper', () => {
+    const old = { ...PIVOT_HOPPER_ROBOT, name: 'Torre', mechanism: 'tower', arm: undefined } as unknown as RobotSpec;
+    const s = knownSpec(old);
+    expect(s.mechanism).toBe('pivotHopper');
+    expect(s.label).toBe('Torre');
+    expect(knownSpec(S180)).toBe(S180);
   });
+});
 
-  it('IA con elevadores y pivotes: anota y no pisa la Plataforma ni sale de la cancha', () => {
-    const specs = [ELEVATOR_ROBOT, PIVOT_ROBOT, PIVOT_ROBOT, ELEVATOR_ROBOT];
-    const g = new GameSession({ player: 0, preload: true, ai: true, specs, autos: [SCORE_PRELOAD, SCORE_PRELOAD, SCORE_PRELOAD, SCORE_PRELOAD] });
-    g.startMatch();
-    for (let i = 0; i < 151 * 120 && !g.match!.finished; i++) {
-      g.setInput(emptyInput());
-      g.step();
-    }
-    const m = g.match!;
-    for (const a of ['red', 'blue'] as const) expect(m.breakdown(a).samplesAuto + m.breakdown(a).samplesTeleop).toBeGreaterThan(18);
-    expect(m.fouls.filter((f) => f.rule === 'PLATFORM_EARLY' || f.rule === 'OUT_OF_BOUNDS' || f.rule === 'AUTO_CENTER')).toEqual([]);
-  }, 120_000);
-
-  it('IA: dos elevadores del mismo carril dejan cada uno su Crítica en la Repisa (§4.3.1)', () => {
-    // Rojo 2 y Azul 1 suben por el mismo lado de la Plataforma y sueltan de reversa, cara a cara
-    const specs = [PIVOT_ROBOT, ELEVATOR_ROBOT, ELEVATOR_ROBOT, TOWER_ROBOT];
-    const bots = [{}, { endgame: 'critical' as const }, { endgame: 'critical' as const }, {}];
-    const g = new GameSession({ player: -1, preload: true, ai: true, specs, bots, autos: [COLLECT_HOME, COLLECT_HOME, COLLECT_HOME, COLLECT_HOME] });
+describe('estrategias por robot', () => {
+  it('"Solo línea y Plataforma": cruzan la línea en AUTO y suben los dos a la Plataforma (§4.4)', () => {
+    const specs = [PIVOT_HOPPER_ROBOT, S180, PIVOT_HOPPER_ROBOT, S180];
+    const park = STRATEGY_OPTIONS.park;
+    const g = new GameSession({ player: -1, preload: true, ai: true, specs, bots: [park, park, {}, {}], autos: [LEAVE_ZONE, LEAVE_ZONE, COLLECT_HOME, COLLECT_HOME] });
     g.startMatch();
     for (let i = 0; i < 151 * 120 && !g.match!.finished; i++) g.step();
-    const m = g.match!;
-    for (const a of ['red', 'blue'] as const) {
-      expect(m.breakdown(a).critical).toBe(15);
-      expect(m.rankingPoints(a).critical).toBe(true);
-    }
-    expect(m.fouls.filter((f) => f.rule === 'PLATFORM_EARLY' || f.rule === 'OUT_OF_BOUNDS' || f.rule === 'AUTO_CENTER')).toEqual([]);
-  }, 120_000);
-
-  it('IA con torres y pivotes: anota y no pisa la Plataforma ni sale de la cancha', () => {
-    const specs = [TOWER_ROBOT, PIVOT_ROBOT, PIVOT_ROBOT, TOWER_ROBOT];
-    const g = new GameSession({ player: 0, preload: true, ai: true, specs, autos: [SCORE_PRELOAD, SCORE_PRELOAD, SCORE_PRELOAD, SCORE_PRELOAD] });
-    g.startMatch();
-    for (let i = 0; i < 151 * 120 && !g.match!.finished; i++) {
-      g.setInput(emptyInput());
-      g.step();
-    }
-    const m = g.match!;
-    for (const a of ['red', 'blue'] as const) expect(m.breakdown(a).samplesAuto + m.breakdown(a).samplesTeleop).toBeGreaterThan(18);
-    expect(m.fouls.filter((f) => f.rule === 'PLATFORM_EARLY' || f.rule === 'OUT_OF_BOUNDS' || f.rule === 'AUTO_CENTER')).toEqual([]);
-  }, 120_000);
-
-  it('Chasis: lleva la precarga y no toma ni suelta piezas', () => {
-    const g = session(CHASSIS_ROBOT, true);
-    const m = g.player.mech;
-    expect(m.stored).toHaveLength(1);
-    run(g, 0.5, { releaseSample: true });
-    expect(m.stored).toHaveLength(1);
-    const spot = F.labSpots()[0];
-    g.player.phys.teleport(spot.x + 0.75, spot.z, Math.PI);
-    run(g, 1.5, { toggleIntake: true, forward: 0.3 });
-    expect(m.stored).toHaveLength(1);
-    const c = F.CRITICAL_HOLDER_RED;
-    g.player.phys.teleport(c.x, -F.HALF_W + CHASSIS_ROBOT.length / 2 + 0.05, Math.PI / 2);
-    run(g, 0.2, { grabCritical: true });
-    expect(m.critical).toBeNull();
-  });
-
-  it('IA con chasis: cruzan la línea en AUTO y suben los dos a la Plataforma (§4.4)', () => {
-    const specs = [CHASSIS_ROBOT, CHASSIS_ROBOT, TOWER_ROBOT, PIVOT_ROBOT];
-    // Aunque les toque una rutina de IA, el chasis sale de la zona
-    const g = new GameSession({ player: 3, preload: true, ai: true, specs, autos: [COLLECT_HOME, SCORE_PRELOAD, COLLECT_HOME, COLLECT_HOME] });
-    g.startMatch();
-    for (let i = 0; i < 151 * 120 && !g.match!.finished; i++) {
-      g.setInput(emptyInput());
-      g.step();
-    }
     const m = g.match!;
     const red = m.breakdown('red');
     expect(red.autoLine).toBe(10);
     expect(red.platform).toBe(20);
     expect(red.samplesAuto + red.samplesTeleop).toBe(0);
-    expect(m.fouls.filter((f) => f.offender === 'red')).toEqual([]);
+    // La otra alianza sí anota
+    expect(m.breakdown('blue').samplesAuto + m.breakdown('blue').samplesTeleop).toBeGreaterThan(5);
+    expect(m.fouls.filter((f) => f.rule === 'PLATFORM_EARLY' || f.rule === 'OUT_OF_BOUNDS' || f.rule === 'AUTO_CENTER')).toEqual([]);
+  }, 120_000);
+
+  it('"N3 + Muestra Crítica" la deja en la Repisa (§4.3.1) y la dificultad se elige por robot', () => {
+    const specs = [PIVOT_HOPPER_ROBOT, S180, S180, PIVOT_HOPPER_ROBOT];
+    const bots = [
+      { ...STRATEGY_OPTIONS.critical, ai: 'hard' as const },
+      { ...STRATEGY_OPTIONS.n3, ai: 'hard' as const },
+      { ...STRATEGY_OPTIONS.n3, ai: 'easy' as const },
+      { ...STRATEGY_OPTIONS.n3, ai: 'easy' as const },
+    ];
+    const g = new GameSession({ player: -1, preload: true, ai: true, specs, bots, autos: specs.map(() => COLLECT_HOME) });
+    g.startMatch();
+    expect(g.bots.map((b) => (b as unknown as { opts: { ai: string } }).opts.ai)).toEqual(['hard', 'hard', 'easy', 'easy']);
+    for (let i = 0; i < 151 * 120 && !g.match!.finished; i++) g.step();
+    const m = g.match!;
+    expect(m.breakdown('red').critical).toBe(15);
+    // La IA difícil le gana a la fácil
+    expect(m.score('red')).toBeGreaterThan(m.score('blue'));
   }, 120_000);
 });

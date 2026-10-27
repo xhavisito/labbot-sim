@@ -4,7 +4,7 @@
  * con su pronóstico. El formato del torneo no está en el manual: es SUPUESTO y se configura aquí.
  */
 import { GAME } from '../config/game';
-import { MECHANISM_KINDS, type MechanismKind } from '../config/robot';
+import { DEFAULT_ROBOT, MECHANISM_KINDS, type MechanismKind } from '../config/robot';
 import type { Match } from '../core/match';
 import { bestPartners, entriesFromMatch, entryPoints, summarize, type LevelCounts, type Role, type ScoutEntry, type TeamSummary } from '../core/scouting';
 import { addEvent, byRobotKind, careers, eventFromScouting, sanitizeHistory, seasons, teamEventRows, type HistoryData, type HistoryEvent } from '../core/history';
@@ -86,7 +86,7 @@ export class ScoutingScreen {
   }
 
   private kind(id: string): MechanismKind {
-    return this.data.teams.find((x) => x.id === id)?.robot ?? 'tower';
+    return this.data.teams.find((x) => x.id === id)?.robot ?? DEFAULT_ROBOT.mechanism;
   }
 
   private chip(id: string, cls = ''): string {
@@ -215,7 +215,7 @@ export class ScoutingScreen {
     this.on('[data-act="addTeam"]', () => {
       let n = this.data.teams.length + 1;
       while (this.data.teams.some((x) => x.id === `E${n}`)) n++;
-      this.data.teams.push({ id: `E${n}`, name: `Equipo ${n}`, robot: 'tower' });
+      this.data.teams.push({ id: `E${n}`, name: `Equipo ${n}`, robot: DEFAULT_ROBOT.mechanism });
       this.save();
       this.show();
     });

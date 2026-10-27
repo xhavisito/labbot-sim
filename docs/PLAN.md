@@ -116,3 +116,11 @@ Cada hito: `npm test`, `npm run build` y captura con Playwright; resumen corto a
 Las dudas D1–D12 de `docs/reglas-reto.md`. Puedo avanzar H1 y H2 con los supuestos marcados;
 las más urgentes son **D1** (línea de autónomo), **D4** (cuándo cuenta una muestra) y **D5**
 (qué es estar sobre la Plataforma).
+
+## 6. Cambio del 27-oct: solo el Pivote con hopper
+Por pedido de Xhavi se quitaron los demás robots (genérico, elevador, pivote, torre, chasis): quedan
+el **Pivote con hopper** y su variante con el brazo limitado a **180°** (`config/robot.ts`,
+`docs/pivote-hopper.md`). Lo que arriba dice "intake/elevador/depósito" hoy es el brazo con garra y
+hopper (`game/Mechanisms.ts`). Los datos guardados de tipos quitados se abren como Pivote con hopper.
+Antes de cada match, **Preparar match** (`ui/MatchSetup.ts`) elige tu posición de inicio (D31,
+`config/startSpot.ts`) y, por robot de la IA, tipo, estrategia (`ai/strategy.ts`), dificultad y AUTO.

@@ -1,14 +1,11 @@
 /**
- * Robot visual: chasis tanque con placa del color de la alianza (no lleva bumpers, §7.2) y el
- * mecanismo de su tipo: elevador con depósito al frente (genérico), plataforma que empuja por atrás
- * (elevador), brazo con garra (pivote; con hopper, entre las dos paredes altas del hopper) o torre fija con su rampa atrás y la pala de la Crítica al
- * frente (torre). Intake visible al desplegarse, Muestras guardadas y Muestra Crítica en la pinza, la
- * garra o la pala.
+ * Robot visual: chasis tanque con placa del color de la alianza (no lleva bumpers, §7.2), el hopper
+ * (paredes altas por fuera y bajas junto al canal) y el brazo con garra entre ellas. Muestras
+ * guardadas en el hopper y Muestra Crítica o Muestra en la garra.
  */
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
 import { CRITICAL_SIZE, SAMPLE_SIZE } from '../config/field';
-import { hasArm } from '../config/robot';
 import type { Robot } from '../game/Robot';
 import { ALLIANCE_COLOR } from './FieldView';
 import { criticalMaterial, sampleMaterial } from './PieceView';
@@ -24,13 +21,11 @@ const WHEEL_R = 0.05;
 
 export class RobotView {
   readonly group = new THREE.Group();
-  private carriage = new THREE.Group();
   private arm = new THREE.Group();
-  private intake: THREE.Mesh | null = null;
   private storedMeshes: THREE.Mesh[] = [];
   private criticalMesh: THREE.Mesh;
-  /** Muestra en la garra del pivote. */
-  private clawSample: THREE.Mesh | null = null;
+  /** Muestra en la garra. */
+  private clawSample: THREE.Mesh;
   private wheels: Array<{ mesh: THREE.Object3D; side: number }> = [];
   private lastP = new THREE.Vector3();
   private lastYaw = 0;
@@ -87,98 +82,49 @@ export class RobotView {
     const sz = SAMPLE_SIZE * 0.95;
     const c = CRITICAL_SIZE;
     const critMat = criticalMaterial(robot.alliance);
-    if (hasArm(s.mechanism) && s.arm) {
-      // Torre del pivote, brazo y garra; la pieza agarrada va en la punta
-      const a = s.arm;
-      add(new THREE.BoxGeometry(0.12, a.pivotY - 0.23, 0.3), dark, a.pivotX, (a.pivotY + 0.23) / 2, 0);
-      if (s.mechanism === 'pivotHopper') {
-        // Hopper: paredes altas por fuera y bajas junto al canal del brazo, piso inclinado hacia el
-        // canal (la Muestra que sigue espera junto a la boca, atrás) y las Muestras guardadas
-        const x0 = -L / 2 + 0.02;
-        const x1 = a.pivotX - 0.09;
-        const len = x1 - x0;
-        const cx = (x0 + x1) / 2;
-        const chan = 0.115;
-        const outer = W / 2 - 0.03;
-        const walls = new THREE.MeshStandardMaterial({ color: 0x8a6a45, roughness: 0.8 });
-        for (const z of [-1, 1]) {
-          add(new THREE.BoxGeometry(len, s.baseHeight - 0.23, 0.0055), walls, cx, (s.baseHeight + 0.23) / 2, z * outer);
-          add(new THREE.BoxGeometry(len, 0.32, 0.0055), walls, cx, 0.23 + 0.16, z * chan);
-          const floor = add(new THREE.BoxGeometry(len, 0.0055, outer - chan), walls, cx, 0.3, z * (outer + chan) / 2);
-          floor.rotation.x = z * 0.25;
-        }
-        // Fondo bajo: la garra descansa justo adentro, en la boca del hopper (180°)
-        add(new THREE.BoxGeometry(0.0055, 0.14, 2 * outer), walls, x0, 0.23 + 0.07, 0);
-        for (let i = 0; i < s.capacity - 1; i++) {
-          const side = i % 2 ? -1 : 1;
-          const j = Math.floor(i / 2);
-          const col = j % 2;
-          const row = Math.floor(j / 2);
-          const m = add(new THREE.BoxGeometry(sz, sz, sz), sampleMat, x0 + 0.1 + col * (sz + 0.02), 0.33 + sz / 2 + row * sz, side * (outer + chan) / 2);
-          m.visible = false;
-          this.storedMeshes.push(m);
-        }
-      } else add(new THREE.BoxGeometry(L * 0.35, 0.2, W * 0.7), dark, -L * 0.3, 0.33, 0);
-      this.group.add(this.arm);
-      this.arm.position.set(a.pivotX, a.pivotY, 0);
-      for (const z of [-0.09, 0.09]) add(new THREE.BoxGeometry(a.length, 0.04, 0.03), alu, a.length / 2, 0, z, this.arm);
-      // Garra: dedos a los lados de la pieza (el sistema local del brazo gira con él)
-      const claw = new THREE.Group();
-      claw.position.set(a.length, 0, 0);
-      this.arm.add(claw);
-      for (const z of [-1, 1]) add(new THREE.BoxGeometry(0.2, 0.16, 0.02), alu, 0, 0.08, z * 0.11, claw);
-      this.clawSample = add(new THREE.BoxGeometry(sz, sz, sz), sampleMat, 0, sz / 2, 0, claw);
-      this.criticalMesh = add(new THREE.BoxGeometry(c, c, c), critMat, 0, c / 2, 0, claw);
-      // La garra queda nivelada aunque el brazo gire (se corrige en sync)
-      claw.name = 'claw';
-    } else if (s.mechanism === 'tower') {
-      // Torre fija: dos paredes laterales con la columna de Muestras en medio y la rampa de salida atrás
-      const exit = s.sampleExit ?? s.baseHeight - sz;
-      for (const z of [-1, 1]) add(new THREE.BoxGeometry(L * 0.42, s.baseHeight - 0.23, 0.03), dark, -L * 0.08, (s.baseHeight + 0.23) / 2, z * 0.11);
-      add(new THREE.BoxGeometry(0.03, s.baseHeight - 0.23, 0.25), dark, L * 0.13, (s.baseHeight + 0.23) / 2, 0);
-      add(new THREE.BoxGeometry(L / 2 + s.reach - L * 0.08, 0.02, 0.22), alu, -(L * 0.08 + L / 2 + s.reach) / 2, exit - 0.01, 0);
-      for (let i = 0; i < s.capacity; i++) {
-        const m = add(new THREE.BoxGeometry(sz, sz, sz), sampleMat, -L * 0.08, Math.min(exit, 0.23 + i * (sz + 0.01)) + sz / 2, 0);
-        m.visible = false;
-        this.storedMeshes.push(m);
-      }
-      // Pala de la Crítica al frente (sube con `height`)
-      this.group.add(this.carriage);
-      this.carriage.position.set(L / 2 - 0.05, 0, 0);
-      const reach = (s.critReach ?? 0) + 0.05;
-      add(new THREE.BoxGeometry(reach, 0.02, 0.24), alu, reach / 2, -0.01, 0, this.carriage);
-      add(new THREE.BoxGeometry(0.03, 0.12, 0.24), alu, 0, 0.06, 0, this.carriage);
-      for (const z of [-0.1, 0.1]) add(new THREE.BoxGeometry(0.03, 0.6, 0.03), alu, L / 2 - 0.06, 0.5, z);
-      this.criticalMesh = add(new THREE.BoxGeometry(c, c, c), critMat, reach - c / 2, c / 2, 0, this.carriage);
-    } else if (s.mechanism === 'chassis') {
-      // Base común sin mecanismo: caja de la batería al centro, main breaker arriba (§7.1) y la precarga encima
-      add(new THREE.BoxGeometry(L * 0.35, s.baseHeight - 0.23, W * 0.45), dark, -L * 0.15, (s.baseHeight + 0.23) / 2, 0);
-      add(new THREE.BoxGeometry(0.05, 0.03, 0.05), new THREE.MeshStandardMaterial({ color: 0xd02020, roughness: 0.6 }), -L * 0.15, s.baseHeight + 0.015, W * 0.15);
-      const m = add(new THREE.BoxGeometry(sz, sz, sz), sampleMat, L * 0.2, 0.23 + sz / 2, 0);
+    // Torre del pivote, brazo y garra; la pieza agarrada va en la punta
+    const a = s.arm;
+    add(new THREE.BoxGeometry(0.12, a.pivotY - 0.23, 0.3), dark, a.pivotX, (a.pivotY + 0.23) / 2, 0);
+    // Hopper: paredes altas por fuera y bajas junto al canal del brazo, piso inclinado hacia el
+    // canal (la Muestra que sigue espera junto a la boca, atrás) y las Muestras guardadas
+    const x0 = -L / 2 + 0.02;
+    const x1 = a.pivotX - 0.09;
+    const len = x1 - x0;
+    const cx = (x0 + x1) / 2;
+    const chan = 0.115;
+    const outer = W / 2 - 0.03;
+    const walls = new THREE.MeshStandardMaterial({ color: 0x8a6a45, roughness: 0.8 });
+    for (const z of [-1, 1]) {
+      add(new THREE.BoxGeometry(len, s.baseHeight - 0.23, 0.0055), walls, cx, (s.baseHeight + 0.23) / 2, z * outer);
+      add(new THREE.BoxGeometry(len, 0.32, 0.0055), walls, cx, 0.23 + 0.16, z * chan);
+      const floor = add(new THREE.BoxGeometry(len, 0.0055, outer - chan), walls, cx, 0.3, z * (outer + chan) / 2);
+      floor.rotation.x = z * 0.25;
+    }
+    // Fondo bajo: la garra descansa justo adentro, en la boca del hopper (180°; en la variante de
+    // 180° la boca queda arriba del centro, a 117°)
+    add(new THREE.BoxGeometry(0.0055, 0.14, 2 * outer), walls, x0, 0.23 + 0.07, 0);
+    for (let i = 0; i < s.capacity - 1; i++) {
+      const side = i % 2 ? -1 : 1;
+      const j = Math.floor(i / 2);
+      const col = j % 2;
+      const row = Math.floor(j / 2);
+      const m = add(new THREE.BoxGeometry(sz, sz, sz), sampleMat, x0 + 0.1 + col * (sz + 0.02), 0.33 + sz / 2 + row * sz, side * (outer + chan) / 2);
       m.visible = false;
       this.storedMeshes.push(m);
-      this.criticalMesh = add(new THREE.BoxGeometry(c, c, c), critMat, 0, 0, 0);
-    } else {
-      // Mástil del elevador y carro con la plataforma/depósito: al frente (genérico) o atrás (elevador)
-      const side = s.mechanism === 'elevator' ? -1 : 1;
-      add(new THREE.BoxGeometry(L * 0.4, s.baseHeight - 0.23, W * 0.8), dark, -side * L * 0.25, (s.baseHeight + 0.23) / 2, 0);
-      for (const z of [-0.12, 0.12]) add(new THREE.BoxGeometry(0.04, s.baseHeight - 0.2, 0.04), alu, side * L * 0.25, (s.baseHeight + 0.2) / 2, z);
-      this.group.add(this.carriage);
-      this.carriage.position.set(side * L * 0.25, 0, 0);
-      const trayLen = L / 2 - L * 0.25 + s.reach;
-      add(new THREE.BoxGeometry(trayLen, 0.02, 0.3), alu, (side * trayLen) / 2, -0.01, 0, this.carriage);
-      add(new THREE.BoxGeometry(0.05, 0.2, 0.3), alu, 0, 0.1, 0, this.carriage);
-      // Muestras guardadas (en la tolva) y Muestra Crítica (en la pinza)
-      for (let i = 0; i < s.capacity; i++) {
-        const m = add(new THREE.BoxGeometry(sz, sz, sz), sampleMat, -side * L * 0.05 - side * (i % 2) * 0.16, 0.23 + sz / 2 + Math.floor(i / 2) * sz, (i % 2 ? -1 : 1) * 0.08);
-        m.visible = false;
-        this.storedMeshes.push(m);
-      }
-      this.criticalMesh = add(new THREE.BoxGeometry(c, c, c), critMat, side * (trayLen - c / 2), c / 2, 0, this.carriage);
     }
+    this.group.add(this.arm);
+    this.arm.position.set(a.pivotX, a.pivotY, 0);
+    for (const z of [-0.09, 0.09]) add(new THREE.BoxGeometry(a.length, 0.04, 0.03), alu, a.length / 2, 0, z, this.arm);
+    // Garra: dedos a los lados de la pieza (el sistema local del brazo gira con él)
+    const claw = new THREE.Group();
+    claw.position.set(a.length, 0, 0);
+    this.arm.add(claw);
+    for (const z of [-1, 1]) add(new THREE.BoxGeometry(0.2, 0.16, 0.02), alu, 0, 0.08, z * 0.11, claw);
+    this.clawSample = add(new THREE.BoxGeometry(sz, sz, sz), sampleMat, 0, sz / 2, 0, claw);
+    this.criticalMesh = add(new THREE.BoxGeometry(c, c, c), critMat, 0, c / 2, 0, claw);
+    // La garra queda nivelada aunque el brazo gire (se corrige en sync)
+    claw.name = 'claw';
     this.criticalMesh.visible = false;
-    // Intake (barra con rodillo al frente)
-    if (s.intake.extension > 0) this.intake = add(new THREE.BoxGeometry(s.intake.extension, 0.08, s.intake.width), alu, L / 2 + s.intake.extension / 2, 0.06, 0);
     this.capture();
     this.capture();
   }
@@ -209,19 +155,12 @@ export class RobotView {
     this.lastYaw = yaw;
     for (const w of this.wheels) w.mesh.rotation.z = -this.spin[w.side];
     const m = this.robot.mech;
-    this.carriage.position.y = m.height;
-    if (this.intake) this.intake.visible = m.intakeOn;
-    this.storedMeshes.forEach((mesh, i) => (mesh.visible = i < m.stored.length));
     this.criticalMesh.visible = m.critical !== null;
-    // Columna de la torre: la última Muestra en entrar queda abajo, junto a la intake
-    if (this.robot.spec.mechanism === 'tower') this.storedMeshes.forEach((mesh, i) => (mesh.visible = i >= this.storedMeshes.length - m.stored.length));
-    if (this.clawSample) {
-      this.arm.rotation.z = m.angle;
-      const claw = this.arm.getObjectByName('claw');
-      if (claw) claw.rotation.z = -m.angle;
-      this.clawSample.visible = m.inClaw;
-      // Hopper: las que no van en la garra
-      this.storedMeshes.forEach((mesh, i) => (mesh.visible = i < m.inHopper));
-    }
+    this.arm.rotation.z = m.angle;
+    const claw = this.arm.getObjectByName('claw');
+    if (claw) claw.rotation.z = -m.angle;
+    this.clawSample.visible = m.inClaw;
+    // Hopper: las que no van en la garra
+    this.storedMeshes.forEach((mesh, i) => (mesh.visible = i < m.inHopper));
   }
 }

@@ -13,6 +13,7 @@ import { AUTO_REF_SPEED, AutoRunner, LEAVE_ZONE, type AutoOutput, type AutoRouti
 import * as F from '../config/field';
 import { GAME, type GameConfig } from '../config/game';
 import { DEFAULT_ROBOT, type RobotSpec } from '../config/robot';
+import type { StartSpot } from '../config/startSpot';
 import { isTeleop, robotsEnabled, type Phase } from '../core/clock';
 import { Match, type MatchEvent } from '../core/match';
 import type { TimedEvent } from '../core/matchLog';
@@ -65,10 +66,12 @@ export interface SessionOptions {
    * llenan). Nada de esto aplica al match (§4.1.1: 10 Muestras por HP).
    */
   solo?: boolean;
-  /** Estrategia de la IA de cada robot (nivel, de dónde junta, papel, ENDGAME). */
+  /** Estrategia de la IA de cada robot (nivel, de dónde junta, papel, ENDGAME; `ai` = su dificultad). */
   bots?: Array<Partial<BotOptions> | undefined>;
-  /** Dificultad de la IA (`ai/difficulty.ts`; por defecto difícil). */
+  /** Dificultad de la IA de los robots que no la traen en `bots` (`ai/difficulty.ts`; por defecto difícil). */
   aiLevel?: AiLevel;
+  /** Lugar de cada robot en su Zona de Inicio (§4.1, `config/startSpot.ts`); por defecto centrado. */
+  starts?: Array<StartSpot | undefined>;
   /** Otra IA para algunos robots (comparar versiones en `sim/batch.ts`); null = la de siempre. */
   makeBot?: (r: Robot, opts: Partial<BotOptions> & { auto: AutoPlan; teleop: boolean }, all: Robot[], pieces: Pieces) => BotDriver | null;
 }
@@ -139,7 +142,7 @@ export class GameSession {
     this.root.add(this.pieceView.group);
     for (let i = 0; i < 2 * F.ROBOTS_PER_ALLIANCE; i++) {
       if (opts.solo && i !== opts.player) continue;
-      const r = new Robot(this.pw, this.pieces, i, i < 2 ? 'red' : 'blue', (i % 2) as 0 | 1, opts.specs?.[i] ?? DEFAULT_ROBOT);
+      const r = new Robot(this.pw, this.pieces, i, i < 2 ? 'red' : 'blue', (i % 2) as 0 | 1, opts.specs?.[i] ?? DEFAULT_ROBOT, opts.starts?.[i]);
       this.robots.push(r);
       const v = new RobotView(r);
       this.robotViews.push(v);
@@ -194,11 +197,7 @@ export class GameSession {
     this.resetField();
     this.match = new Match(this.game, F.ROBOTS_PER_ALLIANCE);
     this.log.length = 0;
-    // El chasis no anota: una rutina de IA (anotar la precarga) se cambia por salir de la zona
-    this.autos = this.robots.map((r) => {
-      const a = this.opts.autos?.[r.index] ?? LEAVE_ZONE;
-      return new AutoRunner(a.bot && r.spec.mechanism === 'chassis' ? LEAVE_ZONE : a);
-    });
+    this.autos = this.robots.map((r) => new AutoRunner(this.opts.autos?.[r.index] ?? LEAVE_ZONE));
     const teams = { red: new Team('red', this.hps.red), blue: new Team('blue', this.hps.blue) };
     this.bots = this.robots.map((r) => {
       const routine = this.autos[r.index].routine.bot;

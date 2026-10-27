@@ -17,7 +17,7 @@
  */
 import * as F from '../config/field';
 import { GAME } from '../config/game';
-import { armAngle, armTip, hasArm, type ElevatorPos } from '../config/robot';
+import { armAngle, armTip, type ElevatorPos } from '../config/robot';
 import type { Phase } from '../core/clock';
 import { opponent, type Alliance, type Level } from '../core/types';
 import type { Robot } from '../game/Robot';
@@ -43,7 +43,7 @@ export type SampleSource = 'any' | 'lab' | 'hp';
 /**
  * Papel del robot en el TELEOP:
  * - score: junta y anota.
- * - park: no anota (chasis sin mecanismo); espera junto a su rampa.
+ * - park: no anota; cruza la línea, espera junto a su rampa y sube a la Plataforma (estrategia).
  * - block: se estaciona frente al Nivel 3 de la Cámara rival. OJO: §6.1 dice "no hay defensa" y
  *   §4.6 cobra Tech Foul por obstruir las zonas del contrario; existe para medir cuánto cuesta.
  */
@@ -138,11 +138,6 @@ export class Bot {
   ) {
     this.opts = { auto: 'collect', teleop: true, role: 'score', ai: 'hard', ...opts };
     this.profile = AI_PROFILES[this.opts.ai];
-    // El chasis sin mecanismo no anota ni toma la Crítica: espera y sube a la Plataforma
-    if (robot.spec.mechanism === 'chassis') {
-      if (this.opts.role === 'score') this.opts.role = 'park';
-      if (this.opts.endgame === 'critical') this.opts.endgame = 'platform';
-    }
     this.team = team ?? new Team(robot.alliance);
     this.team.join(this);
   }
@@ -185,8 +180,7 @@ export class Bot {
   /** Distancia (centro del robot → centro de la Muestra al soltarla) en ese nivel. */
   private tipDistance(level: Level): number {
     const s = this.robot.spec;
-    if (hasArm(s.mechanism) && s.arm) return armTip(s.arm, armAngle(s.arm, s.elevatorHeights[level])).x;
-    return this.robot.phys.halfL + s.reach - F.SAMPLE_SIZE / 2;
+    return armTip(s.arm, armAngle(s.arm, s.elevatorHeights[level])).x;
   }
 
   /** `timeLeft`: segundos para el final del match (para calcular el AUTO y el ENDGAME). */
@@ -445,11 +439,6 @@ export class Bot {
     if (src === 'lab') return false;
     const stock = this.pieces.hpStock(this.robot.alliance).length;
     if (stock === 0) return false;
-    // El pivote lleva una pieza a la vez: solo si no hay nada más que hacer y la Campana está libre
-    if (this.robot.spec.mechanism === 'pivot') {
-      const busy = this.team.members.some((b) => b !== this && b.mode === 'hp');
-      return !busy && (this.mode === 'hp' || !this.bestCandidate(phase, true));
-    }
     if (src === 'hp') return true;
     const mine = this.team.hpBy === null ? this.team.members.filter((b) => b.opts.teleop && b.opts.role === 'score').length <= 1 : this.team.hpBy === this.robot.index;
     if (!mine) return false;
@@ -508,7 +497,7 @@ export class Bot {
   /** ¿Se puede (y conviene) tomar una Muestra en ese punto? */
   private reachable(t: { x: number; z: number }, phase: Phase, labOnly: boolean): boolean {
     const s = this.side;
-    // Pegadas a un borde o junto a una Cámara: la intake no llega sin sacar una esquina
+    // Pegadas a un borde o junto a una Cámara: la garra no llega sin sacar una esquina
     // (salvo frente a la Campana: ahí deja el Human Player las suyas y se llega de frente a la pared)
     const atCampana = Math.abs(t.x) > F.HALF_L - F.CAMPANA_LENGTH + 0.3 && Math.abs(t.x) < F.HALF_L - 0.35 && Math.sign(t.x) * t.z < 0;
     if (Math.abs(t.x) > F.HALF_L - 0.35 || Math.abs(t.z) > F.HALF_W - (atCampana ? 0.27 : 0.5)) return false;
@@ -530,6 +519,14 @@ export class Bot {
       if (b === this || b.mode !== 'score' || !this.isActive(b)) continue;
       const q = b.robot.phys.position();
       if (Math.hypot(q.x - t.x, q.z - t.z) < 1.1 && s * q.z > 1.2) return false;
+    }
+    // Pegadas a un robot parado (el del jugador que no se mueve, uno trabado): con la garra abajo lo
+    // empujaría (a la Plataforma o fuera de la cancha) en vez de tomarla
+    for (const o of this.others) {
+      if (o === this.robot) continue;
+      const q = o.phys.position();
+      const v = o.phys.body.linvel();
+      if (Math.hypot(v.x, v.z) < 0.3 && Math.hypot(q.x - t.x, q.z - t.z) < Math.hypot(o.spec.length, o.spec.width) / 2 + 0.15) return false;
     }
     // Las del Human Player rival: quedan detrás de su barrera, en una zona de su color (D8)
     if (s * t.x < -2.0 && s * t.z > 1.5) return false;
@@ -555,15 +552,15 @@ export class Bot {
     return { ...c.at, i: c.i };
   }
 
-  /** Va hacia una Muestra con la intake (o la garra abajo) para que entre de frente. */
+  /** Va hacia una Muestra con la garra abajo para que entre de frente. */
   private driveToPiece(p: { x: number; z: number }, out: BotOutput, phase: Phase): void {
     const r = this.robot;
     const pos = r.phys.position();
     const s = r.spec;
     // Distancia del centro del robot a la que la toma
-    const grab = hasArm(s.mechanism) && s.arm ? armTip(s.arm, armAngle(s.arm, 0)).x : r.phys.halfL + s.intake.extension * 0.5;
+    const grab = armTip(s.arm, armAngle(s.arm, 0)).x;
     const dist = Math.hypot(p.x - pos.x, p.z - pos.z);
-    this.drive(p, out, hasArm(s.mechanism), phase, false, false, Math.max(0, dist - grab));
+    this.drive(p, out, true, phase, false, false, Math.max(0, dist - grab));
   }
 
   /**
@@ -578,13 +575,13 @@ export class Bot {
   }
 
   // ------------------------------------------------------------------ Human Player
-  /** Frente a la ranura de su Campana, con la intake donde salen las Muestras (§3.2.4). */
+  /** Frente a la ranura de su Campana, con la garra donde salen las Muestras (§3.2.4). */
   private hpPose(): { x: number; z: number } {
     const r = this.robot;
     const hp = this.team.hp;
     const slot = hp ? hp.slot() : { ...F.forAlliance(r.alliance, { x: 3.5, z: -F.HALF_W + 0.085 }), dz: this.side };
-    const reach = r.phys.halfL + r.spec.intake.extension - 0.06;
-    // Una Muestra que quedó junto a la ranura (fuera del alcance de la intake) no deja que el Human
+    const reach = r.phys.halfL - 0.06;
+    // Una Muestra que quedó junto a la ranura (fuera del alcance de la garra) no deja que el Human
     // Player meta la siguiente: se alinea con ella para tragársela
     let x = slot.x;
     for (const p of this.pieces.list) {
@@ -644,7 +641,7 @@ export class Bot {
     const near = Math.hypot(pose.x - pos.x, pose.z - pos.z) < 1.6;
     if (level === 3 && near) this.team.n3By = r.index;
     out.elevator = near ? level : 0;
-    const st = this.dock(pose, this.side, m.side, out, phase, { stage: 0.55, tol: 0.1 + this.profile.sloppy, edge: EDGE_CLEAR });
+    const st = this.dock(pose, this.side, 1, out, phase, { stage: 0.55, tol: 0.1 + this.profile.sloppy, edge: EDGE_CLEAR });
     // Ya se está arrimando: se queda con ese nivel hasta soltar todo
     if (st === 'creep' || st === 'docked') this.lockedLevel = level;
     if (st === 'docked') out.release = m.atTarget;
@@ -733,25 +730,20 @@ export class Bot {
     return F.forAlliance(this.robot.alliance, { x: h.x, z: h.z + this.critDistance() + 0.55 });
   }
 
-  /** −1 si la Crítica se toma y suelta por atrás (elevador), +1 al frente. */
-  private get critDir(): number {
-    return this.robot.spec.mechanism === 'elevator' ? -1 : 1;
-  }
+  /** La garra toma y suelta la Crítica al frente. */
+  private readonly critDir = 1;
 
-  /** Distancia (centro del robot → pieza) a la que su pinza, pala o garra alcanza la Crítica. */
+  /** Distancia (centro del robot → pieza) a la que su garra alcanza la Crítica. */
   private critDistance(): number {
     const s = this.robot.spec;
-    const hl = this.robot.phys.halfL;
-    if (hasArm(s.mechanism) && s.arm) return armTip(s.arm, armAngle(s.arm, s.elevatorHeights[4])).x - 0.05;
-    const reach = s.mechanism === 'tower' ? (s.critReach ?? 0) : s.reach;
-    return Math.max(hl + 0.05, hl + reach - 0.2);
+    return armTip(s.arm, armAngle(s.arm, s.elevatorHeights[4])).x - 0.05;
   }
 
   /**
    * Distancia del centro del robot a la mitad de la Plataforma para soltar la Crítica sobre la Repisa
    * (§3.2.5). La pieza sale de la punta con el empujón del mecanismo y vuela mientras cae desde el
-   * elevador hasta la Repisa: se suelta antes para que no se pase del otro lado (con la punta sobre
-   * el centro, la del elevador caía a 15 cm de la orilla lejana, y si el robot aún se movía, afuera).
+   * brazo hasta la Repisa: se suelta antes para que no se pase del otro lado (con la punta sobre el
+   * centro caía a 15 cm de la orilla lejana, y si el robot aún se movía, afuera).
    * Apunta a su mitad de la Repisa: el robot rival de su mismo carril suelta la suya enfrente y las
    * dos piezas chocaban en el centro. No se puede acercar más que con el chasis contra el escalón.
    */
@@ -760,10 +752,9 @@ export class Bot {
     const s = r.spec;
     const hl = r.phys.halfL;
     const lift = s.elevatorHeights[4];
-    const tip = hasArm(s.mechanism) && s.arm ? armTip(s.arm, armAngle(s.arm, lift)).x : Math.abs(r.mech.tipX(F.CRITICAL_SIZE, 'critical'));
-    const fall = Math.max(0, F.PLATFORM_HEIGHT + lift - F.REPISA_TOP);
-    // Vuelo al caer más lo que se desliza al tocar la Repisa (medido ≈ 2 cm)
-    const drift = Math.abs(r.mech.ejectSpeed('critical')) * Math.sqrt((2 * fall) / 9.81) + 0.02;
+    const tip = armTip(s.arm, armAngle(s.arm, lift)).x;
+    // La garra solo abre (sin empujón): lo que se desliza al tocar la Repisa (medido ≈ 2 cm)
+    const drift = 0.02;
     return Math.max(F.REPISA_DEPTH / 2 + hl + 0.01, this.critLanding() + tip + drift);
   }
 
@@ -799,15 +790,9 @@ export class Bot {
         this.mode = 'climb';
         return;
       }
-      // El pivote lleva una sola pieza: si trae una Muestra, la suelta
-      if (r.spec.mechanism === 'pivot' && m.stored.length > 0) {
-        out.release = true;
-        return;
-      }
-      // Con hopper, la garra va vacía: la garra encendida guarda lo que traiga (y no saca nada del
-      // hopper); si el hopper está lleno, suelta la de la garra
-      const hopper = r.spec.mechanism === 'pivotHopper';
-      if (hopper && m.inClaw && m.inHopper >= m.capacity - 1) {
+      // La garra va vacía: encendida guarda lo que traiga (y no saca nada del hopper); si el hopper
+      // está lleno, suelta la de la garra
+      if (m.inClaw && m.inHopper >= m.capacity - 1) {
         out.release = true;
         return;
       }
@@ -817,10 +802,8 @@ export class Bot {
       const near = Math.hypot(pose.x - pos.x, pose.z - pos.z) < 1.4;
       out.elevator = near ? 4 : 0;
       const st = this.dock(pose, faceZ, dir, out, phase, { stage: 0.55, tol: 0.08, edge: 0.25, hold: !endgame });
-      // Se arrima mientras intenta tomarla (la pinza la toma en cuanto queda a su alcance); la
-      // intake se traga las Muestras que el Human Player dejó frente a la Campana
+      // Se arrima mientras intenta tomarla (la garra la toma en cuanto queda a su alcance)
       if (endgame && (st === 'creep' || st === 'docked')) {
-        out.intake = !hasArm(r.spec.mechanism) && dir > 0;
         if (m.atTarget) {
           out.grabCritical = true;
           this.critTries += 1 / HZ;
@@ -830,8 +813,8 @@ export class Bot {
           out.forward = dir * 0.12;
         }
       }
-      // Con hopper: garra encendida todo el camino, para que el brazo no saque Muestras del hopper
-      if (hopper) out.intake = true;
+      // Garra encendida todo el camino, para que el brazo no saque Muestras del hopper
+      out.intake = true;
       return;
     }
     // Con la Crítica: a su rampa y arriba hasta que la punta quede sobre la Repisa
@@ -951,12 +934,16 @@ export class Bot {
         const rival = o.alliance !== r.alliance;
         // En la Plataforma cada quien va por su carril: el compañero no estorba
         if (!rival && allowPlatform) continue;
-        const R = rival ? 1.3 : precise ? 0.8 : 1.0;
+        // Un robot parado (el del jugador sin moverse, uno trabado) no se aparta: más margen, porque
+        // con la garra abajo lo empujaría al pasar rozándolo (a la Plataforma o fuera de la cancha)
+        const v = o.phys.body.linvel();
+        const still = Math.hypot(v.x, v.z) < 0.3;
+        const R = rival ? 1.3 : still ? 1.1 : precise ? 0.8 : 1.0;
         if (od > R || od < 1e-3 || od > dist + 0.4) continue;
         // Solo si el otro queda hacia donde va
         const ahead = -(ox * ax + oz * az) / od;
         if (ahead < -0.2) continue;
-        const w = ((R - od) / R) * (rival ? 1.8 : 1.0);
+        const w = ((R - od) / R) * (rival ? 1.8 : still ? 1.5 : 1.0);
         // Empuje lateral (pasar por un lado) más uno hacia atrás
         const tx = -az;
         const tz = ax;
