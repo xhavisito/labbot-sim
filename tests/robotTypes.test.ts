@@ -126,6 +126,21 @@ describe('tipos de robot (§7.2)', () => {
     expect(m.fouls.filter((f) => f.rule === 'PLATFORM_EARLY' || f.rule === 'OUT_OF_BOUNDS' || f.rule === 'AUTO_CENTER')).toEqual([]);
   }, 120_000);
 
+  it('IA: dos elevadores del mismo carril dejan cada uno su Crítica en la Repisa (§4.3.1)', () => {
+    // Rojo 2 y Azul 1 suben por el mismo lado de la Plataforma y sueltan de reversa, cara a cara
+    const specs = [PIVOT_ROBOT, ELEVATOR_ROBOT, ELEVATOR_ROBOT, TOWER_ROBOT];
+    const bots = [{}, { endgame: 'critical' as const }, { endgame: 'critical' as const }, {}];
+    const g = new GameSession({ player: -1, preload: true, ai: true, specs, bots, autos: [COLLECT_HOME, COLLECT_HOME, COLLECT_HOME, COLLECT_HOME] });
+    g.startMatch();
+    for (let i = 0; i < 151 * 120 && !g.match!.finished; i++) g.step();
+    const m = g.match!;
+    for (const a of ['red', 'blue'] as const) {
+      expect(m.breakdown(a).critical).toBe(15);
+      expect(m.rankingPoints(a).critical).toBe(true);
+    }
+    expect(m.fouls.filter((f) => f.rule === 'PLATFORM_EARLY' || f.rule === 'OUT_OF_BOUNDS' || f.rule === 'AUTO_CENTER')).toEqual([]);
+  }, 120_000);
+
   it('IA con torres y pivotes: anota y no pisa la Plataforma ni sale de la cancha', () => {
     const specs = [TOWER_ROBOT, PIVOT_ROBOT, PIVOT_ROBOT, TOWER_ROBOT];
     const g = new GameSession({ player: 0, preload: true, ai: true, specs, autos: [SCORE_PRELOAD, SCORE_PRELOAD, SCORE_PRELOAD, SCORE_PRELOAD] });

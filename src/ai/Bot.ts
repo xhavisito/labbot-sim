@@ -110,6 +110,9 @@ export class Bot {
   /** Ya dejó (o intentó dejar) la Crítica: sigue como si fuera a la Plataforma. */
   private criticalDone = false;
   private critTries = 0;
+  /** Soltó la Crítica desde la Plataforma: ya está arriba y se queda quieto (si gira, la tira). */
+  private critParked = false;
+  private critParkX = 0;
   /** Segundos esperando que su compañero desocupe el Nivel 3. */
   private n3Wait = 0;
   /** Nivel al que ya se está arrimando (no cambia hasta soltar todo). */
@@ -568,7 +571,10 @@ export class Bot {
    * en el pasillo entre la Plataforma y la Driver Station, que es el camino a la Campana).
    */
   private waitSpot(): { x: number; z: number } {
-    return F.forAlliance(this.robot.alliance, { x: 0.6, z: 1.95 });
+    // Si su compañero va por la Crítica o a la Plataforma, se pega a la orilla: a 1.95 m le cerraba
+    // el pasillo junto a la Plataforma y el de la Crítica se quedaba atorado ahí el resto del match
+    const busy = this.team.members.some((b) => b !== this && (b.mode === 'critical' || b.mode === 'climb'));
+    return F.forAlliance(this.robot.alliance, { x: 0.6, z: busy ? 2.6 : 1.95 });
   }
 
   // ------------------------------------------------------------------ Human Player
@@ -741,6 +747,44 @@ export class Bot {
     return Math.max(hl + 0.05, hl + reach - 0.2);
   }
 
+  /**
+   * Distancia del centro del robot a la mitad de la Plataforma para soltar la Crítica sobre la Repisa
+   * (§3.2.5). La pieza sale de la punta con el empujón del mecanismo y vuela mientras cae desde el
+   * elevador hasta la Repisa: se suelta antes para que no se pase del otro lado (con la punta sobre
+   * el centro, la del elevador caía a 15 cm de la orilla lejana, y si el robot aún se movía, afuera).
+   * Apunta a su mitad de la Repisa: el robot rival de su mismo carril suelta la suya enfrente y las
+   * dos piezas chocaban en el centro. No se puede acercar más que con el chasis contra el escalón.
+   */
+  private critDropX(): number {
+    const r = this.robot;
+    const s = r.spec;
+    const hl = r.phys.halfL;
+    const lift = s.elevatorHeights[4];
+    const tip = hasArm(s.mechanism) && s.arm ? armTip(s.arm, armAngle(s.arm, lift)).x : Math.abs(r.mech.tipX(F.CRITICAL_SIZE, 'critical'));
+    const fall = Math.max(0, F.PLATFORM_HEIGHT + lift - F.REPISA_TOP);
+    // Vuelo al caer más lo que se desliza al tocar la Repisa (medido ≈ 2 cm)
+    const drift = Math.abs(r.mech.ejectSpeed('critical')) * Math.sqrt((2 * fall) / 9.81) + 0.02;
+    return Math.max(F.REPISA_DEPTH / 2 + hl + 0.01, this.critLanding() + tip + drift);
+  }
+
+  /**
+   * Dónde quiere que caiga el centro de la Crítica (m desde la mitad de la Repisa, + hacia su lado).
+   * Apunta a 5 cm de la mitad, de su lado; como suelta unos centímetros antes de llegar (frena), cae
+   * entre 10 y 14 cm. Si la Crítica rival ya cayó en su mitad frente a su carril (el robot rival de
+   * su carril la suelta de frente y a veces se le pasa), la deja en la otra mitad: encima no cuenta
+   * y tirar la rival de la Repisa es Tech Foul (§4.6).
+   */
+  private critLanding(): number {
+    const want = 0.05;
+    const c = this.pieces.critical(opponent(this.robot.alliance));
+    const t = c.body.translation();
+    const onRepisa = c.state.at === 'field' && Math.abs(t.x) < F.REPISA_DEPTH / 2 + 0.05 && t.y > F.REPISA_TOP;
+    if (!onRepisa || Math.abs(t.z - this.lane()) > F.CRITICAL_SIZE + 0.1) return want;
+    const xo = this.side * t.x;
+    // Solo si estorba a la suya y cabe del otro lado (lo más lejos: −16 cm, que caen en −10)
+    return xo > 0.04 ? Math.max(-0.16, xo - 0.26) : want;
+  }
+
   /** ENDGAME con la Crítica: tomarla de la rendija de la Campana (§3.2.4) y dejarla en la Repisa desde la plataforma superior (§4.3.1). */
   private critical(out: BotOutput, phase: Phase): void {
     const r = this.robot;
@@ -794,7 +838,7 @@ export class Bot {
     const lane = this.lane();
     const onTop = r.phys.wheelsOnPlatform > 0 && r.phys.wheelsOnCarpet === 0 && this.side * pos.x < 1.0;
     const st = this.footState(pos, dir);
-    const stop = F.REPISA_DEPTH / 2 + this.critDistance() - 0.1;
+    const stop = this.critDropX();
     if (!onTop && st === 'away') {
       this.drive(this.foot(), out, true, phase, false, dir < 0);
       return;
@@ -807,9 +851,13 @@ export class Bot {
     if (this.side * pos.x > stop + 0.02) this.drive({ x: this.side * (stop - 0.05), z: lane }, out, true, phase, true, dir < 0);
     if (onTop && this.side * pos.x <= stop + 0.06) {
       out.forward = 0;
-      if (m.atTarget) {
+      // Suelta ya quieto: lo que traiga de vuelo se le suma a la pieza y la pasa de la Repisa
+      const v = r.phys.body.linvel();
+      if (m.atTarget && Math.hypot(v.x, v.z) < 0.08) {
         out.releaseCritical = true;
         this.criticalDone = true;
+        this.critParked = true;
+        this.critParkX = this.side * pos.x;
         this.mode = 'climb';
       }
     }
@@ -821,8 +869,14 @@ export class Bot {
     const pos = r.phys.position();
     const endgame = phase === 'ENDGAME';
     const lane = this.lane();
-    const onTop = r.phys.wheelsOnPlatform > 0 && r.phys.wheelsOnCarpet === 0 && this.side * pos.x < 0.75;
-    if (onTop) return;
+    // Después de soltar la Crítica se queda donde la soltó (más atrás que 0.75 para que caiga al
+    // centro de la Repisa): girar para acomodarse barría la pieza con el mecanismo
+    const onTop = r.phys.wheelsOnPlatform > 0 && r.phys.wheelsOnCarpet === 0 && this.side * pos.x < (this.critParked ? 1.0 : 0.75);
+    if (onTop) {
+      // Soltó lejos de la Repisa con la cola en la rampa: no dejar que se resbale hacia abajo
+      if (this.critParked && this.side * pos.x > this.critParkX + 0.04) out.forward = this.critDir * 0.15;
+      return;
+    }
     const st = this.footState(pos, 1);
     if (st === 'away') this.drive(this.foot(), out, true, phase);
     else if (endgame && st === 'ready') this.drive({ x: this.side * 0.6, z: lane }, out, true, phase, true);

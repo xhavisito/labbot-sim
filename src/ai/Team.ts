@@ -14,7 +14,8 @@ import type { Bot } from './Bot';
 /**
  * Quién lleva la Muestra Crítica (medido con `npm run batch`): el pivote la toma y suelta con la
  * garra (con hopper, igual: la garra va vacía aunque traiga Muestras); la torre con su pala al frente; el genérico con su depósito; el elevador la saca por
- * atrás (sube la rampa de reversa). El chasis no tiene con qué.
+ * atrás (sube la rampa de reversa). El chasis no tiene con qué. Todos la dejan casi siempre; el orden
+ * es por lo que cuesta a la alianza: con un elevador, que la lleve el otro da más RP (`--set mech`).
  */
 export const CRIT_PREF: Record<MechanismKind, number> = { pivotHopper: 4, pivot: 4, tower: 3, generic: 2, elevator: 1, chassis: 0 };
 
