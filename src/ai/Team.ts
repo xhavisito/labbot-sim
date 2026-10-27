@@ -12,11 +12,10 @@ import type { HumanPlayer } from '../game/HumanPlayer';
 import type { Bot } from './Bot';
 
 /**
- * Quién lleva la Muestra Crítica: el pivote con hopper la toma y suelta con la garra (la garra va
- * vacía aunque traiga Muestras en el hopper). Con dos iguales, la lleva el primero; con la variante
- * de 180°, la lleva el de 243° (el de 180° guarda Muestras más rápido y sigue anotando).
+ * Quién lleva la Muestra Crítica: el pivote la toma y suelta con la garra (vacía). Con dos iguales,
+ * la lleva el primero; con la variante de 180°, el pivote (juegan igual; SUPUESTO para repartir).
  */
-export const CRIT_PREF: Record<MechanismKind, number> = { pivotHopper: 2, pivotHopper180: 1 };
+export const CRIT_PREF: Record<MechanismKind, number> = { pivot: 2, pivot180: 1 };
 
 export class Team {
   readonly members: Bot[] = [];

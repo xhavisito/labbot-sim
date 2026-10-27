@@ -790,8 +790,7 @@ export class Bot {
         this.mode = 'climb';
         return;
       }
-      // La garra va vacía: encendida guarda lo que traiga (y no saca nada del hopper); si el hopper
-      // está lleno, suelta la de la garra
+      // La garra va vacía: si trae una Muestra, la suelta
       if (m.inClaw && m.inHopper >= m.capacity - 1) {
         out.release = true;
         return;
@@ -813,7 +812,7 @@ export class Bot {
           out.forward = dir * 0.12;
         }
       }
-      // Garra encendida todo el camino, para que el brazo no saque Muestras del hopper
+      // Garra encendida todo el camino
       out.intake = true;
       return;
     }

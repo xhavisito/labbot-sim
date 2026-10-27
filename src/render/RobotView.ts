@@ -1,7 +1,6 @@
 /**
- * Robot visual: chasis tanque con placa del color de la alianza (no lleva bumpers, §7.2), el hopper
- * (paredes altas por fuera y bajas junto al canal) y el brazo con garra entre ellas. Muestras
- * guardadas en el hopper y Muestra Crítica o Muestra en la garra.
+ * Robot visual: chasis tanque con placa del color de la alianza (no lleva bumpers, §7.2), la torre
+ * del pivote y el brazo con garra, con la Muestra o la Muestra Crítica que lleva.
  */
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
@@ -22,7 +21,6 @@ const WHEEL_R = 0.05;
 export class RobotView {
   readonly group = new THREE.Group();
   private arm = new THREE.Group();
-  private storedMeshes: THREE.Mesh[] = [];
   private criticalMesh: THREE.Mesh;
   /** Muestra en la garra. */
   private clawSample: THREE.Mesh;
@@ -85,33 +83,6 @@ export class RobotView {
     // Torre del pivote, brazo y garra; la pieza agarrada va en la punta
     const a = s.arm;
     add(new THREE.BoxGeometry(0.12, a.pivotY - 0.23, 0.3), dark, a.pivotX, (a.pivotY + 0.23) / 2, 0);
-    // Hopper: paredes altas por fuera y bajas junto al canal del brazo, piso inclinado hacia el
-    // canal (la Muestra que sigue espera junto a la boca, atrás) y las Muestras guardadas
-    const x0 = -L / 2 + 0.02;
-    const x1 = a.pivotX - 0.09;
-    const len = x1 - x0;
-    const cx = (x0 + x1) / 2;
-    const chan = 0.115;
-    const outer = W / 2 - 0.03;
-    const walls = new THREE.MeshStandardMaterial({ color: 0x8a6a45, roughness: 0.8 });
-    for (const z of [-1, 1]) {
-      add(new THREE.BoxGeometry(len, s.baseHeight - 0.23, 0.0055), walls, cx, (s.baseHeight + 0.23) / 2, z * outer);
-      add(new THREE.BoxGeometry(len, 0.32, 0.0055), walls, cx, 0.23 + 0.16, z * chan);
-      const floor = add(new THREE.BoxGeometry(len, 0.0055, outer - chan), walls, cx, 0.3, z * (outer + chan) / 2);
-      floor.rotation.x = z * 0.25;
-    }
-    // Fondo bajo: la garra descansa justo adentro, en la boca del hopper (180°; en la variante de
-    // 180° la boca queda arriba del centro, a 117°)
-    add(new THREE.BoxGeometry(0.0055, 0.14, 2 * outer), walls, x0, 0.23 + 0.07, 0);
-    for (let i = 0; i < s.capacity - 1; i++) {
-      const side = i % 2 ? -1 : 1;
-      const j = Math.floor(i / 2);
-      const col = j % 2;
-      const row = Math.floor(j / 2);
-      const m = add(new THREE.BoxGeometry(sz, sz, sz), sampleMat, x0 + 0.1 + col * (sz + 0.02), 0.33 + sz / 2 + row * sz, side * (outer + chan) / 2);
-      m.visible = false;
-      this.storedMeshes.push(m);
-    }
     this.group.add(this.arm);
     this.arm.position.set(a.pivotX, a.pivotY, 0);
     for (const z of [-0.09, 0.09]) add(new THREE.BoxGeometry(a.length, 0.04, 0.03), alu, a.length / 2, 0, z, this.arm);
@@ -160,7 +131,5 @@ export class RobotView {
     const claw = this.arm.getObjectByName('claw');
     if (claw) claw.rotation.z = -m.angle;
     this.clawSample.visible = m.inClaw;
-    // Hopper: las que no van en la garra
-    this.storedMeshes.forEach((mesh, i) => (mesh.visible = i < m.inHopper));
   }
 }

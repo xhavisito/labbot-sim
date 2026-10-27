@@ -66,13 +66,12 @@ export const kbds = (labels: string[]): string => labels.map((l) => `<kbd>${l}</
  */
 export function robotSilhouette(kind: MechanismKind): string {
   const base = `<rect x="40" y="96" width="130" height="26" rx="3"/><circle cx="62" cy="126" r="11"/><circle cx="148" cy="126" r="11"/>`;
-  // Paredes altas del hopper atrás (Muestras dentro) y el eje del brazo al frente
-  const hopper = `<path d="M48 96V20M118 96V20"/><path d="M66 96V58M100 96V58"/><rect class="soft" x="52" y="66" width="12" height="28"/><rect class="soft" x="102" y="66" width="12" height="28"/><path d="M136 96V72"/><circle cx="136" cy="68" r="6"/>`;
+  // Torre del eje y brazo con garra al frente
+  const post = `<path d="M110 96V70"/><circle cx="110" cy="66" r="6"/>`;
   const mech: Record<MechanismKind, string> = {
-    // Brazo con garra al frente
-    pivotHopper: `${hopper}<path class="hot" d="M136 68 184 30"/><path class="hot" d="M184 30l10 2M184 30l4 10"/>`,
-    // Brazo de 180°: media vuelta del piso (adelante) a la boca del hopper (arriba del centro)
-    pivotHopper180: `${hopper}<path class="soft" d="M164 106A40 40 0 0 0 108 30"/><path class="hot" d="M136 68 184 30"/><path class="hot" d="M184 30l10 2M184 30l4 10"/>`,
+    pivot: `${post}<path class="hot" d="M110 66 182 34"/><path class="hot" d="M182 34l10 2M182 34l4 10"/>`,
+    // Brazo de 180°: media vuelta del piso (adelante) a guardado (arriba y atrás)
+    pivot180: `${post}<path class="soft" d="M150 104A44 44 0 0 0 80 30"/><path class="hot" d="M110 66 182 34"/><path class="hot" d="M182 34l10 2M182 34l4 10"/>`,
   };
   return `<svg class="silhouette" viewBox="0 0 220 150" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
     <path class="floor" d="M10 137h200"/>${base}${mech[kind]}</svg>`;

@@ -1,9 +1,11 @@
 # Pivote con hopper — sugerencia de diseño en MDF
 
+> **27-oct:** este robot ya no está en el simulador (a pedido de Xhavi solo quedan el Pivote y su
+> variante de 180°, ver el README). Se deja la sugerencia de diseño y sus números como referencia.
+
 Idea del equipo (dibujo del 26-oct-2026): un hopper con **dos paredes altas** a los lados y el
 **brazo pivotante en medio**. El brazo tiene que llegar a todos los niveles y llevar la Muestra
-Crítica. En el simulador es el tipo **Pivote con hopper** (`PIVOT_HOPPER_ROBOT` en
-`src/config/robot.ts`). Todo lo que no dice el manual es **SUPUESTO** de diseño.
+Crítica. Estuvo en el simulador como el tipo **Pivote con hopper** (hasta el 27-oct). Todo lo que no dice el manual es **SUPUESTO** de diseño.
 
 > §7.2: todo diseño lo revisa y aprueba un mentor de CAD, y el CAD va en la carpeta de Drive del
 > equipo. Esto es un punto de partida para ese CAD, no un plano final.
@@ -64,22 +66,6 @@ abra al soltar, sin empujar: en el simulador, con empujón la Crítica rebotaba 
 2. Apaga la garra, sube a N3 y suelta: el brazo saca sola la siguiente del hopper y regresa.
 3. ENDGAME: posición 4 con la garra vacía (las del hopper no estorban) para tomar la Crítica y
    dejarla en la Repisa (§4.3.1).
-
-## Variante: brazo de 180°
-Pedido de Xhavi (27-oct): una variación donde el brazo "pueda girar 180 grados". En el simulador es
-**Pivote con hopper 180°** (`PIVOT_HOPPER_180_ROBOT`). Mismo chasis, mismo eje (290 mm adelante,
-400 mm de alto) y mismo brazo de 450 mm; lo único que cambia es el recorrido:
-
-- El brazo va del **piso (−63°) a 117°**: 180° justos. La boca del hopper queda **arriba del centro
-  del robot, a 117°** (la garra a ~800 mm de alto y ~8 cm delante del centro), en vez de atrás a 180°.
-- Guarda y saca cada Muestra con menos vuelta (~180° contra 243°), así que cada paso al hopper es
-  ~25% más rápido. Alturas de N1–N3 y de la Crítica, y alcance al frente: iguales.
-- **Por qué no "anota por atrás"**: con el eje al frente, girar 180° desde el frente deja la garra
-  apenas 16 cm detrás del centro, lejos de una Cámara a la espalda; y con el eje al centro no llega
-  al N3 sin pasar de 100 cm (D24). Por eso se tomó como "brazo limitado a 180°" (SUPUESTO; si lo
-  querían de otra forma, p. ej. con torreta, se cambia).
-- Para el CAD: la boca arriba obliga a que el indexador del hopper reciba la Muestra desde arriba
-  (caída al compartimento), más sencillo que la boca trasera, pero la Muestra cae ~45 cm.
 
 ## Qué dice el simulador
 `npm run batch -- --set mech --vs phopn3+p180n3 --seeds 3` (IA difícil, 27-oct; 6 matches por

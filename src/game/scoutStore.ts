@@ -18,9 +18,9 @@ export interface ScoutData {
   schedule: QualMatch[];
 }
 
-/** 8 equipos en el reto interno; mitad con cada versión del pivote con hopper (se editan en la pantalla). */
+/** 8 equipos en el reto interno; mitad con cada versión del pivote (se editan en la pantalla). */
 export function defaultTeams(): Team[] {
-  const kinds: MechanismKind[] = ['pivotHopper', 'pivotHopper180', 'pivotHopper', 'pivotHopper180', 'pivotHopper', 'pivotHopper180', 'pivotHopper', 'pivotHopper180'];
+  const kinds: MechanismKind[] = ['pivot', 'pivot180', 'pivot', 'pivot180', 'pivot', 'pivot180', 'pivot', 'pivot180'];
   return kinds.map((robot, i) => ({ id: `E${i + 1}`, name: `Equipo ${i + 1}`, robot }));
 }
 
@@ -43,7 +43,7 @@ export function sanitizeScout(raw: unknown): ScoutData {
       const t = (x ?? {}) as Record<string, unknown>;
       const id = str(t.id, '', 12);
       if (!id || teams.some((y) => y.id === id)) continue;
-      // Un tipo quitado (genérico, elevador, pivote, torre, chasis) pasa a pivote con hopper
+      // Un tipo quitado (genérico, elevador, torre, chasis, pivote con hopper) pasa a pivote
       teams.push({ id, name: str(t.name, id), robot: MECHANISM_KINDS.find((k) => k === t.robot) ?? DEFAULT_ROBOT.mechanism });
     }
   const ids = new Set((teams.length ? teams : d.teams).map((t) => t.id));

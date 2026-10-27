@@ -32,7 +32,7 @@ import {
   type Tournament,
 } from '../src/core/tournament';
 
-const KINDS: MechanismKind[] = ['pivotHopper', 'pivotHopper180', 'pivotHopper', 'pivotHopper180', 'pivotHopper', 'pivotHopper180', 'pivotHopper', 'pivotHopper180'];
+const KINDS: MechanismKind[] = ['pivot', 'pivot180', 'pivot', 'pivot180', 'pivot', 'pivot180', 'pivot', 'pivot180'];
 const teams = (n = 8): TeamEntry[] => Array.from({ length: n }, (_, i) => ({ id: `E${i + 1}`, name: `Equipo ${i + 1}`, robot: KINDS[i % KINDS.length], strength: 0.3 + ((i * 37) % n) / n / 1.6, isPlayer: i === 0 }));
 
 const withQuals = (seed = 1, format: PlayoffFormat = 'manual', n = 8): Tournament => {

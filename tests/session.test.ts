@@ -101,8 +101,8 @@ describe('match completo en la física', () => {
       const g = session();
       g.startMatch();
       skipTo(g, t);
-      // La precarga va al hopper (con algo en la garra no toma la Crítica)
-      steps(g, 2.5, { toggleIntake: true });
+      // Suelta la precarga (con algo en la garra no toma la Crítica)
+      steps(g, 0.5, { releaseSample: true });
       const c = F.CRITICAL_HOLDER_RED;
       const a = DEFAULT_ROBOT.arm;
       g.player.phys.teleport(c.x, c.z + armTip(a, armAngle(a, DEFAULT_ROBOT.elevatorHeights[4])).x - 0.05, Math.PI / 2);

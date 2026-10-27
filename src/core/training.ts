@@ -69,9 +69,9 @@ export const drillById = (id: string): Drill | undefined => DRILLS.find((d) => d
  * Ritmo de cada tipo de robot comparado con un robot de referencia que anota ≈10 Muestras en N3 por
  * match (los cortes de las medallas se pensaron para él). Sale de las Muestras de N3 por match de
  * la IA difícil en la física (`core/tournament.ts`, PROFILES) y de sus tiempos al principio del
- * TELEOP (el pivote con hopper anota cada ≈8 s, de una en una). SUPUESTO de diseño.
+ * TELEOP (el pivote anota de una en una). SUPUESTO de diseño.
  */
-export const PACE: Record<MechanismKind, number> = { pivotHopper: 1.5, pivotHopper180: 1.5 };
+export const PACE: Record<MechanismKind, number> = { pivot: 1.5, pivot180: 1.5 };
 
 /** Límite y cortes del reto para un tipo de robot (con su ritmo, si el reto es de Muestras). */
 export function drillTargets(d: Drill, mech: MechanismKind): { limit: number; medals: [number, number, number] } {

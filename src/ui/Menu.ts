@@ -67,7 +67,7 @@ function robotDesc(id: RobotId): string {
   }
   return t(`type_${id}_desc` as Key);
 }
-/** Lista de robots para elegir: los pivotes con hopper y los robots propios del editor. */
+/** Lista de robots para elegir: el pivote, su variante de 180° y los robots propios del editor. */
 const robotOptions = (sel: RobotId): string =>
   `<optgroup label="${t('grp_labbot')}">${MECHANISM_KINDS.map((m) => `<option value="${m}" ${m === sel ? 'selected' : ''}>${robotName(m)}</option>`).join('')}</optgroup>${mineOptions(sel)}`;
 /** Robots propios del editor (si hay). */
@@ -75,12 +75,11 @@ function mineOptions(sel: RobotId): string {
   const ids = allRobotIds().filter((id) => customById(id));
   return ids.length ? `<optgroup label="${t('grp_mine')}">${ids.map((id) => `<option value="${id}" ${id === sel ? 'selected' : ''}>${robotName(id)}</option>`).join('')}</optgroup>` : '';
 }
-/** Al elegir un robot, la velocidad y la capacidad de los ajustes toman las suyas. */
+/** Al elegir un robot, la velocidad de los ajustes toma la suya. */
 function adoptRobot(s: Settings, id: RobotId): void {
   const spec = robotSpec(id);
   s.robotType = id;
   s.maxSpeed = Math.min(SETTINGS_RANGE.maxSpeed.max, Math.round(spec.maxSpeed * 4) / 4);
-  s.capacity = Math.min(SETTINGS_RANGE.capacity.max, spec.capacity);
 }
 
 const stationLabel = (i: number): string => `${t(i < 2 ? 'red' : 'blue')} ${(i % 2) + 1}`;
@@ -254,7 +253,6 @@ export class Menu {
     const ids = allRobotIds();
     const i = Math.max(0, ids.indexOf(id));
     const n = ids.length;
-    const cap = s.capacity;
     const levels = (['N1', 'N2', 'N3'] as const).slice(0, spec.maxLevel ?? 3).join(' · ');
     const bar = (label: string, v: number, txt: string) =>
       `<div class="sbar"><span>${label}</span><div><i style="width:${Math.round(Math.min(1, Math.max(0.04, v)) * 100)}%"></i></div><b>${txt}</b></div>`;
@@ -263,7 +261,6 @@ export class Menu {
       <div class="ri-plate"><div class="num">${robotName(id)}</div><p>${robotDesc(id)}</p></div>
       <div class="ri-stats">
         ${bar(t('statSpeed'), s.maxSpeed / SETTINGS_RANGE.maxSpeed.max, `${s.maxSpeed.toFixed(2).replace(/0$/, '')} m/s`)}
-        ${bar(t('statCapacity'), cap / SETTINGS_RANGE.capacity.max, String(cap))}
         <div class="ri-flags"><span>${t('scoresFront')}</span><span>${t('armTravel', { d: armTravelDeg(spec) })}</span><span>${levels}</span></div>
       </div>
       <div class="nav"><button class="arrowbtn" data-step="-1" aria-label="‹">‹</button>
@@ -314,7 +311,6 @@ export class Menu {
           <label>${t('robotType')}</label>${robotSel()}
           <p class="full sub" data-desc>${robotDesc(s.robotType)}</p>
           <label>${t('setSpeed')}</label>${range('maxSpeed', 'm/s')}
-          <label>${t('setCapacity')}</label>${range('capacity', '')}
           <h3>${t('sec_graphics')}</h3>
           <label>${t('setQuality')}</label><div class="seg" data-qseg>${(['auto', 'low', 'medium', 'high'] as const).map((q) => `<button class="${q === s.quality ? 'on' : ''}" data-v="${q}">${t(`quality_${q}`)}</button>`).join('')}</div>
           <p class="full sub">${t('qualityNote')}</p>
@@ -345,8 +341,8 @@ export class Menu {
         const id = sel.value as RobotId;
         adoptRobot(s, id);
         this.root.querySelector('[data-desc]')!.textContent = robotDesc(id);
-        // Los deslizadores de velocidad y capacidad muestran los del robot elegido
-        for (const k of ['maxSpeed', 'capacity'] as const) {
+        // El deslizador de velocidad muestra la del robot elegido
+        for (const k of ['maxSpeed'] as const) {
           const r = this.root.querySelector<HTMLInputElement>(`input[data-k="${k}"]`);
           if (!r) continue;
           r.value = String(s[k]);

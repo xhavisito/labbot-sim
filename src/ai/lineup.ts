@@ -1,7 +1,7 @@
 /**
  * Tipos de robot de la IA en un match: los robots de la computadora usan tipos DISTINTOS entre sí
- * (y distintos al tuyo si alcanza), para que cada match tenga variedad. Solo hay dos tipos (el pivote
- * con hopper y su variante de 180°), así que se reparten y se repiten.
+ * (y distintos al tuyo si alcanza), para que cada match tenga variedad. Solo hay dos tipos (el pivote y
+ * su variante de 180°), así que se reparten y se repiten.
  */
 import { MECHANISM_KINDS, type MechanismKind } from '../config/robot';
 

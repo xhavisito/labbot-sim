@@ -10,7 +10,7 @@ import type { BotOptions } from '../ai/Bot';
 import { AI_LEVELS, type AiLevel } from '../ai/difficulty';
 import { COLLECT_HOME, LEAVE_ZONE, SCORE_PRELOAD, type AutoRoutine } from '../auto/AutoRoutine';
 import { GAME } from '../config/game';
-import { MECHANISM_KINDS, PIVOT_HOPPER_180_ROBOT, PIVOT_HOPPER_ROBOT, ROBOT_PRESETS, type RobotSpec } from '../config/robot';
+import { MECHANISM_KINDS, PIVOT_180_ROBOT, PIVOT_ROBOT, ROBOT_PRESETS, type RobotSpec } from '../config/robot';
 import { entriesFromMatch, entryPoints } from '../core/scouting';
 import { rng } from '../core/rng';
 import { ALLIANCES, type Alliance } from '../core/types';
@@ -52,9 +52,9 @@ function mechVariants(p: string, name: string, spec: RobotSpec): Record<string, 
 }
 
 export const ROBOT_PLANS = {
-  ...mechVariants('phop', 'Pivote con hopper', PIVOT_HOPPER_ROBOT),
-  ...mechVariants('p180', 'Pivote con hopper 180°', PIVOT_HOPPER_180_ROBOT),
-  bloqueo: { id: 'bloqueo', name: 'Pivote con hopper que bloquea la Cámara rival', spec: PIVOT_HOPPER_ROBOT, auto: LEAVE_ZONE, bot: { role: 'block' } },
+  ...mechVariants('piv', 'Pivote', PIVOT_ROBOT),
+  ...mechVariants('p180', 'Pivote 180°', PIVOT_180_ROBOT),
+  bloqueo: { id: 'bloqueo', name: 'Pivote que bloquea la Cámara rival', spec: PIVOT_ROBOT, auto: LEAVE_ZONE, bot: { role: 'block' } },
 } satisfies Record<string, RobotPlan>;
 
 const mp = (a: string, b: string, name: string): AlliancePlan => {
@@ -64,7 +64,7 @@ const mp = (a: string, b: string, name: string): AlliancePlan => {
 
 /** Los dos tipos del simulador (`config/robot.ts`). */
 const TYPES = [
-  ['phop', 'Pivote con hopper'],
+  ['piv', 'Pivote'],
   ['p180', 'Pivote 180°'],
 ] as const;
 
@@ -83,15 +83,15 @@ export const MECH_ALLIANCE_PLANS: AlliancePlan[] = [
     mp(`${p}sin3`, `${p}sin3`, `Dos ${n} sin ENDGAME`),
     mp(`${p}n3`, `${p}park`, `${n} N3 + ${n} solo Plataforma`),
   ]),
-  mp('phopn3', 'p180n3', 'Pivote con hopper + Pivote 180°'),
-  mp('phopcrit3', 'p180n3', 'Pivote con hopper con Crítica + Pivote 180°'),
-  mp('phopn3', 'p180crit3', 'Pivote con hopper + Pivote 180° con Crítica'),
-  mp('phoplab3', 'p180hp3', 'Pivote con hopper Laboratorio + Pivote 180° HP'),
-  mp('phophp3', 'p180lab3', 'Pivote con hopper HP + Pivote 180° Laboratorio'),
+  mp('pivn3', 'p180n3', 'Pivote + Pivote 180°'),
+  mp('pivcrit3', 'p180n3', 'Pivote con Crítica + Pivote 180°'),
+  mp('pivn3', 'p180crit3', 'Pivote + Pivote 180° con Crítica'),
+  mp('pivlab3', 'p180hp3', 'Pivote Laboratorio + Pivote 180° HP'),
+  mp('pivhp3', 'p180lab3', 'Pivote HP + Pivote 180° Laboratorio'),
 ];
 
 /** Estrategias de alianza de siempre (`--set all`): las de `mech` más el bloqueo (para medir cuánto cuesta, §4.6). */
-export const ALLIANCE_PLANS: AlliancePlan[] = [...MECH_ALLIANCE_PLANS, mp('phopn3', 'bloqueo', 'Pivote con hopper + bloqueo')];
+export const ALLIANCE_PLANS: AlliancePlan[] = [...MECH_ALLIANCE_PLANS, mp('pivn3', 'bloqueo', 'Pivote + bloqueo')];
 
 /**
  * Entre dificultades: alianzas de los dos tipos (como juegan los robots de la IA en el juego,

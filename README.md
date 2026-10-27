@@ -18,8 +18,8 @@ npm test             # pruebas unitarias y de física (Vitest)
 npm run build        # revisa tipos y genera el sitio estático en dist/
 npm run preview      # sirve dist/
 npm run batch        # matches de solo IA entre estrategias de alianza (sin navegador): tabla de puntos, RP y faltas
-                     #   --plans phopcrit3+phopn3  --vs phopn3+p180n3  --seeds 3  --workers 4  --out batch.json
-                     #   --set mech: los dos pivotes con hopper (243° y 180°), con puntos por robot
+                     #   --plans pivcrit3+pivn3  --vs pivn3+p180n3  --seeds 3  --workers 4  --out batch.json
+                     #   --set mech: el pivote y su variante de 180°, con puntos por robot
                      #   --set ai --a hard --b normal: una dificultad contra otra, alianzas de los dos tipos
 npm run shots        # capturas con Playwright en shots/ (requiere build; en la nube: CHROMIUM_PATH=/opt/pw-browsers/chromium; --mobile = celular)
 ```
@@ -39,7 +39,7 @@ abrirla con conexión (los cambios se ven la siguiente vez que se abre). Íconos
 ## Cómo se juega
 
 **Editor de robot** (menú → Taller): arma tu robot con medidas del chasis, tracción (motor, cantidad,
-reducción, rueda), mecanismo (tipo de pivote, capacidad del hopper, pivote y largo del brazo, velocidad, nivel máximo), motores de
+reducción, rueda), mecanismo (tipo de pivote, posición del eje y largo del brazo, velocidad, nivel máximo), motores de
 mecanismos y materiales (área de MDF de 5.5 mm, PLA, otros, o la masa de báscula). Calcula masa
 estimada por partes, velocidad (velocidad libre del motor ÷ reducción × circunferencia × 0.8) y
 aceleración, y revisa las reglas de construcción: chasis ≤ 65 × 65 cm, ≤ 100 cm con el brazo (§7.2),
@@ -85,7 +85,7 @@ Los puntos son los del manual (TELEOP; la línea, los de AUTO). **SUPUESTOS del 
 límites, los cortes de cada medalla (calibrados con la física: una ruta con script de un robot de referencia hace
 la línea en 0.6 s, la Plataforma en 3.0 s y la Crítica en 7.1 s, y la IA difícil anota 5 en N3 a los
 ≈28 s del TELEOP), la salida "frente a la Cámara" del reto de Plataforma, los tiempos que la pieza o
-el robot tienen que quedarse para contar, y el ritmo del pivote con hopper en los retos de Muestras
+el robot tienen que quedarse para contar, y el ritmo del pivote en los retos de Muestras
 (×1.5 para los dos tipos: más tiempo o menos puntos para la misma medalla). En la práctica no hay faltas: en el match, tomar la Crítica o subir a la Plataforma
 antes del ENDGAME es Tech Foul (§4.6).
 
@@ -113,18 +113,19 @@ En el menú eliges tu robot (Rojo 1–2, Azul 1–2) y el modo:
   pueden pasar al Scouting.
 - **Práctica libre:** sin reloj ni faltas; el marcador cuenta las Muestras anotadas.
   Backspace reacomoda la cancha.
-- **Tipo de robot** (en el menú; solo hay dos y los dos son el **Pivote con hopper**; con "Al azar" la
-  IA usa los dos):
-  - *Pivote con hopper:* chasis 60×60 cm, brazo de 45 cm con pivote a 40 cm y garra. Agarra del piso
-    y, con la garra encendida, pasa cada Muestra al hopper (hasta 4 más la de la garra) pasando el
-    brazo por arriba (243° de recorrido, del piso hasta atrás); anota al frente en N1–N3 sacando cada
-    Muestra del hopper sola. La Crítica va en la garra (con la garra vacía).
-  - *Pivote con hopper 180°:* el mismo robot con el brazo limitado a 180° de giro (del piso hasta la
-    boca del hopper, que queda arriba del centro a 117°). Guarda y saca cada Muestra más rápido
-    porque recorre menos; mismas alturas y mismo alcance al frente.
-  Los dos cumplen §7.2 (65×65 cm, ≤100 cm de alto con una Muestra en la garra) y caben guardados al
-  inicio (§4.1); lo revisa `validateRobot`. Los robots guardados de tipos que se quitaron (genérico,
-  elevador, pivote sin hopper, torre, chasis) se abren como Pivote con hopper con su chasis.
+- **Tipo de robot** (en el menú; solo hay dos y los dos son el **Pivote**; con "Al azar" la IA usa
+  los dos):
+  - *Pivote* (sugerencia de CAD en MDF): chasis 60×60 cm, brazo de 50 cm con garra y eje a 44 cm.
+    Empieza guardado con la precarga; con el brazo en el piso (tecla 0) y la garra encendida agarra
+    una Muestra y la suelta al frente en N1–N3. Lleva una sola pieza (Muestra o Crítica).
+  - *Pivote 180°:* el mismo pivote con el brazo limitado a 180° de giro, del piso (−57°) a guardado
+    arriba y atrás (123°). Para que la precarga guardada quede bajo 100 cm (§7.2) el eje va 2 cm más
+    bajo (42 cm) y 1 cm más adelante (SUPUESTO de diseño); mismas alturas en N1–N3 y la Repisa.
+  Los dos cumplen §7.2 (65×65 cm, ≤40 cm fuera del chasis, ≤100 cm de alto guardados con la precarga)
+  y caben guardados al inicio (§4.1); lo revisa `validateRobot`. Los robots guardados de tipos que se
+  quitaron (genérico, elevador, torre, chasis, pivote con hopper) se abren como Pivote con su chasis.
+  Con la IA difícil (`npm run batch -- --set mech`, 27-oct) los dos juegan parejo: una alianza de
+  pivotes hace ≈210–240 puntos y 12–14 Muestras por match; sin ENDGAME pierde ≈1.5 RP.
 - **Ajustes:** IA de los otros 3 robots (encendida por defecto; su dificultad, estrategia y rutina de
   AUTO se eligen en Preparar match), rutina de AUTO de tu robot, velocidad y
   capacidad de tu robot, y el Human Player automático. Se guardan en el navegador. Los puntos y

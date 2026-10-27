@@ -1,12 +1,12 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 import * as F from '../src/config/field';
-import { PIVOT_HOPPER_ROBOT } from '../src/config/robot';
+import { PIVOT_ROBOT } from '../src/config/robot';
 import { DEFAULT_SETTINGS, sanitizeSettings } from '../src/config/settings';
 import { CENTER_SPOT, clampSpot, sanitizeSpot, spotPose, spotRoom, spotValid } from '../src/config/startSpot';
 import { GameSession } from '../src/game/GameSession';
 import { initRapier } from '../src/physics/PhysicsWorld';
 
-const { length: L, width: W } = PIVOT_HOPPER_ROBOT;
+const { length: L, width: W } = PIVOT_ROBOT;
 
 describe('posición de inicio elegible (§3.2.1, §4.1)', () => {
   it('derecho, el centro se mueve lo que sobra de la zona; girado 45° casi no cabe', () => {
@@ -59,8 +59,8 @@ describe('posición de inicio elegible (§3.2.1, §4.1)', () => {
   it('lo guardado se limpia y los ajustes viejos de la IA pasan a cada robot', () => {
     expect(sanitizeSpot({ dx: 'a', dz: 9, turn: 7 })).toEqual({ dx: 0, dz: 1, turn: Math.atan2(Math.sin(7), Math.cos(7)) });
     const ids = ['leave', 'preload', 'collect', 'none'];
-    const s = sanitizeSettings({ aiLevel: 'easy', botAuto: 'leave', match: { robots: [{ kind: 'pivotHopper180', strategy: 'park', ai: 'normal' }, { kind: 'tower', strategy: 'volar' }] } }, ids);
-    expect(s.match.robots[0]).toEqual({ kind: 'pivotHopper180', strategy: 'park', ai: 'normal', auto: 'leave' });
+    const s = sanitizeSettings({ aiLevel: 'easy', botAuto: 'leave', match: { robots: [{ kind: 'pivot180', strategy: 'park', ai: 'normal' }, { kind: 'tower', strategy: 'volar' }] } }, ids);
+    expect(s.match.robots[0]).toEqual({ kind: 'pivot180', strategy: 'park', ai: 'normal', auto: 'leave' });
     // Tipo quitado o estrategia desconocida: al azar / automática, con la dificultad de antes
     expect(s.match.robots[1]).toEqual({ kind: 'random', strategy: 'auto', ai: 'easy', auto: 'leave' });
     expect(s.match.start).toEqual(CENTER_SPOT);

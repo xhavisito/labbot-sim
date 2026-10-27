@@ -1,6 +1,6 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 import { COLLECT_HOME } from '../src/auto/AutoRoutine';
-import { PIVOT_HOPPER_ROBOT } from '../src/config/robot';
+import { PIVOT_ROBOT } from '../src/config/robot';
 import { GameSession } from '../src/game/GameSession';
 import { initRapier } from '../src/physics/PhysicsWorld';
 import { decodeReplay, encodeReplay, frameScore, frameTime, REPLAY_HZ, robotFrame, type Replay } from '../src/replay/format';
@@ -14,7 +14,7 @@ beforeAll(async () => {
 
 /** Match de solo IA: 40 s simulados de verdad y luego el reloj salta al final. */
 function recordMatch(): { replay: Replay; g: GameSession } {
-  const g = new GameSession({ player: -1, preload: true, ai: true, specs: [PIVOT_HOPPER_ROBOT, PIVOT_HOPPER_ROBOT, PIVOT_HOPPER_ROBOT, PIVOT_HOPPER_ROBOT], autos: [COLLECT_HOME, COLLECT_HOME, COLLECT_HOME, COLLECT_HOME] });
+  const g = new GameSession({ player: -1, preload: true, ai: true, specs: [PIVOT_ROBOT, PIVOT_ROBOT, PIVOT_ROBOT, PIVOT_ROBOT], autos: [COLLECT_HOME, COLLECT_HOME, COLLECT_HOME, COLLECT_HOME] });
   g.startMatch();
   const rec = new Recorder(g, ['R1', 'R2', 'B1', 'B2']);
   g.tap = rec;
@@ -68,7 +68,7 @@ describe('repeticiones', () => {
       expect(secs).toBeGreaterThan(35);
       expect(s.heatMax).toBeGreaterThan(0);
       expect(s.distance).toBeGreaterThan(1);
-      expect(s.maxSpeed).toBeLessThanOrEqual(PIVOT_HOPPER_ROBOT.maxSpeed + 0.5);
+      expect(s.maxSpeed).toBeLessThanOrEqual(PIVOT_ROBOT.maxSpeed + 0.5);
     }
   });
 
