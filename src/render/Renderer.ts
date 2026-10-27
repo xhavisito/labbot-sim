@@ -20,7 +20,7 @@ export interface QualityPreset {
   renderScale: number;
   shadows: boolean;
   shadowMapSize: number;
-  /** Sombras suaves (PCFSoft) en lugar de PCF. */
+  /** Bordes de sombra más suaves (PCF con radio; Three r186 ya no tiene PCFSoftShadowMap). */
   softShadows: boolean;
   bloom: boolean;
   aa: 'none' | 'fxaa' | 'msaa';
@@ -98,7 +98,8 @@ export class Renderer {
     const p = (this.preset = QUALITY[q]);
     const r = this.renderer;
     r.shadowMap.enabled = p.shadows;
-    r.shadowMap.type = p.softShadows ? THREE.PCFSoftShadowMap : THREE.PCFShadowMap;
+    r.shadowMap.type = THREE.PCFShadowMap;
+    this.sun.shadow.radius = p.softShadows ? 3 : 1;
     this.sun.castShadow = p.shadows;
     if (p.shadows) {
       this.sun.shadow.mapSize.set(p.shadowMapSize, p.shadowMapSize);

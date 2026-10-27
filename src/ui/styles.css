@@ -101,6 +101,8 @@ kbd {
   background: radial-gradient(ellipse 70% 55% at 78% 30%, rgba(255, 199, 44, 0.06), transparent 70%), var(--grid-bg),
     linear-gradient(90deg, rgba(9, 11, 14, 0.97) 0%, rgba(9, 11, 14, 0.9) 45%, rgba(9, 11, 14, 0.62) 100%);
   -webkit-overflow-scrolling: touch; animation: fade-in 0.25s ease-out; --bar-h: 0px;
+  /* lo que se enfoca o se desplaza a la vista no queda debajo de la barra de acciones fija */
+  scroll-padding-bottom: calc(var(--bar-h) + 12px);
 }
 .screen.solid { background: radial-gradient(ellipse 70% 55% at 78% 30%, rgba(255, 199, 44, 0.05), transparent 70%), var(--grid-bg), rgba(9, 11, 14, 0.96); }
 .screen:has(.actionbar) { --bar-h: 76px; }
@@ -110,7 +112,7 @@ kbd {
   width: min(1440px, 100%); margin: 0 auto; min-height: 100%; display: flex; flex-direction: column; gap: 14px;
   padding: calc(16px + var(--safe-t)) calc(28px + var(--safe-r)) calc(18px + var(--safe-b) + var(--bar-h)) calc(28px + var(--safe-l));
 }
-.brandbar { display: flex; align-items: center; gap: 10px; min-height: 40px; flex-wrap: wrap; }
+.brandbar { display: flex; align-items: center; gap: 10px; min-height: 40px; flex-wrap: wrap; flex: none; }
 .brand { display: inline-flex; align-items: center; gap: 10px; font: 700 20px/1 var(--display); letter-spacing: 0.12em; text-transform: uppercase; }
 .brand span { color: var(--accent); }
 /* logo: el cubo de la Muestra visto de frente, con esquinas de plano */
@@ -686,6 +688,8 @@ body.touch-on .player .chips { margin-top: 0.4em; }
   body.touch-on .hud-tr { top: calc(var(--gut) + var(--safe-t) + 6.4em); }
   .hud.practice .hud-tr, body.touch-on .hud.practice .player { top: calc(var(--gut) + var(--safe-t) + 4.4em); }
   .toasts { top: calc(var(--gut) + var(--safe-t) + 12em); }
+  /* paneles de la práctica de AUTO y de los retos: abajo, para no tapar el marcador ni los botones */
+  .ap-panel { top: auto; bottom: calc(var(--gut) + var(--safe-b)); left: calc(var(--gut) + var(--safe-l)); right: calc(var(--gut) + var(--safe-r)); width: auto; max-height: 55%; }
 }
 
 /* ===================================================================== scouting */
@@ -877,6 +881,7 @@ textarea.tin { resize: vertical; min-height: 56px; }
   .acard { grid-template-columns: 34px minmax(0, 1fr); }
   .scout .actionbar { gap: 6px; }
   .scout .actionbar .btn, .scout .actionbar .btn.primary { padding: 10px 4px; gap: 4px; font-size: 11.5px; letter-spacing: 0.03em; }
+  .scout .actionbar .btn .ic { display: none; }
   .acard .pred { grid-column: 2; text-align: left; }
 }
 /* poca altura (celular horizontal): todo más compacto */
@@ -1004,5 +1009,5 @@ body.tn-on .practice-pill { display: none; }
 .tn-panel .ap-head b { white-space: normal; line-height: 1.1; }
 .tn-panel > .tn-meta { display: block; margin-top: 0.4em; font-size: 0.8em; }
 .tn-actions { flex-wrap: nowrap; }
-.tn-actions .btn { flex: 1 1 0; min-width: 0; justify-content: center; white-space: nowrap; overflow: hidden; }
+.tn-actions .btn { flex: 1 1 auto; min-width: 0; justify-content: center; white-space: nowrap; overflow: hidden; }
 @media (pointer: coarse), (max-width: 900px) { .tn-actions .btn { padding-left: 0.6em; padding-right: 0.6em; } .tn-actions .btn .ic { display: none; } }

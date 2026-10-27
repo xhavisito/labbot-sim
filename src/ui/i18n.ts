@@ -8,7 +8,7 @@ const ES = {
   pwa_install: 'Instalar',
   pwa_installTitle: 'Instalar el simulador en este equipo (abre sin conexión)',
   pwa_ios: 'En iPhone: toca Compartir y luego "Agregar a inicio". Después abre sin conexión.',
-  pwa_offline: 'Sin conexión',
+  pwa_offline: 'Listo sin conexión',
   pwa_offlineTitle: 'Todo quedó guardado: el simulador abre y juega sin internet',
   replays: 'Repeticiones',
   replaysDesc: 'Ver tus matches y sus estadísticas',
@@ -289,6 +289,7 @@ const ES = {
   help_elevatorHelp: 'elevador',
   help_padLeft: 'stick izq. avanzar/girar',
   help_padSplit: 'stick izq. avanzar · stick der. girar',
+  touchStick: 'Manejar',
   touchIntake: 'Intake',
   touchDrop: 'Soltar',
   touchGrab: 'Tomar Crít.',
@@ -336,7 +337,7 @@ const ES = {
   lineAndPlatform: 'Línea · Plataforma',
   fullscreen: 'Pantalla completa',
   hintStart: 'Empezar match',
-  disclaimer: 'Fan project, sin arte oficial. Reglas: manual del reto (§).',
+  disclaimer: 'Proyecto de fans, sin arte oficial. Reglas: manual del reto (§).',
   practiceScored: 'Anotadas',
   resetShort: 'Reacomodar',
   you: 'Tú',
@@ -601,7 +602,7 @@ const ES = {
   tr_accepted: 'aceptó',
   tr_declined: 'rechazó',
   tr_champion: 'Campeón',
-  tr_placeN: '{n}º lugar',
+  tr_placeN: '{n}.º lugar',
   tr_youAre: 'Juegas {s}',
   tr_play: 'Jugar',
   tr_otherMatch: 'match de otros equipos',
@@ -623,8 +624,8 @@ const ES = {
   tr_decline: 'Rechazar',
   tr_teamDeclined: '{team} rechazó la invitación. Invita a otro equipo.',
   tr_notPicked: 'Tu equipo no quedó en una alianza de PlayOffs.',
-  tr_finalist: 'Finalista: 2º lugar.',
-  tr_eliminated: 'Eliminados en los PlayOffs: {n}º lugar.',
+  tr_finalist: 'Finalista: 2.º lugar.',
+  tr_eliminated: 'Eliminados en los PlayOffs: {n}.º lugar.',
   tr_series: 'Serie',
   tr_game: 'Juego',
   tr_seriesGame: 'Serie {a} vs {b} · juego {g}',
@@ -633,8 +634,8 @@ const ES = {
   tr_matchesWL: 'Matches G–P',
   tr_roundRobin: 'Todos contra todos',
   tr_rrNote: 'Cada serie a 2 de 3 (§8.2.2). Pasan a la final las dos alianzas con más series ganadas; las demás quedan eliminadas (SUPUESTO: desempate por matches ganados, puntos y seed).',
-  tr_first: '1º del todos contra todos',
-  tr_second: '2º del todos contra todos',
+  tr_first: '1.º del todos contra todos',
+  tr_second: '2.º del todos contra todos',
   tr_toScouting: 'Pasar al Scouting',
   tr_exported: '{n} registros en el Scouting',
   tr_new: 'Nuevo torneo',
@@ -658,7 +659,7 @@ const EN: Record<Key, string> = {
   pwa_install: 'Install',
   pwa_installTitle: 'Install the simulator on this device (works offline)',
   pwa_ios: 'On iPhone: tap Share, then "Add to Home Screen". It then opens offline.',
-  pwa_offline: 'Offline',
+  pwa_offline: 'Offline ready',
   pwa_offlineTitle: 'Everything is cached: the simulator opens and plays without internet',
   replays: 'Replays',
   replaysDesc: 'Watch your matches and their stats',
@@ -939,6 +940,7 @@ const EN: Record<Key, string> = {
   help_elevatorHelp: 'elevator',
   help_padLeft: 'left stick drive/turn',
   help_padSplit: 'left stick drive · right stick turn',
+  touchStick: 'Drive',
   touchIntake: 'Intake',
   touchDrop: 'Drop',
   touchGrab: 'Grab Crit.',
@@ -1316,6 +1318,11 @@ export function setLang(l: 'es' | 'en'): void {
   }
 }
 export const getLang = (): 'es' | 'en' => lang;
+
+/** Fecha y hora en el formato del idioma (es-MX: "27 oct 2026, 4:59 a.m."). */
+export function dateTime(iso: string): string {
+  return new Date(iso).toLocaleString(lang === 'en' ? 'en-US' : 'es-MX', { dateStyle: 'medium', timeStyle: 'short' });
+}
 
 /** Texto traducido; `{x}` se reemplaza con `vars.x`. */
 export function t(k: Key, vars?: Record<string, string | number>): string {
