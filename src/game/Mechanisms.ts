@@ -237,6 +237,16 @@ export class Mechanisms {
     return true;
   }
 
+  /**
+   * Velocidad (m/s, + adelante) con la que sale la pieza al soltarla. La garra del pivote con hopper
+   * solo abre (sin empujón): suelta desde más alto que el pivote y, con empujón, la Crítica rebotaba
+   * y se pasaba de la Repisa.
+   */
+  ejectSpeed(kind: 'sample' | 'critical'): number {
+    const k = this.phys.spec.mechanism;
+    return k === 'pivotHopper' ? 0 : (k === 'tower' && kind === 'critical' ? 1 : this.side) * EJECT_SPEED;
+  }
+
   /** Suelta una pieza (Muestra o Crítica) en la punta del mecanismo, a su altura, hacia afuera. */
   release(kind: 'sample' | 'critical', events: MechEvent[]): boolean {
     if (this.cooldown > 0 || this.phys.spec.mechanism === 'chassis') return false;
@@ -254,9 +264,7 @@ export class Mechanisms {
     const at = p.localToWorld(this.tipX(size, kind), this.exitHeight(kind) + size / 2, 0);
     const h = p.heading();
     const v = p.body.linvel();
-    // La garra del pivote con hopper solo abre (sin empujón): suelta desde más alto que el pivote y,
-    // con empujón, la Crítica rebotaba y se pasaba de la Repisa
-    const e = p.spec.mechanism === 'pivotHopper' ? 0 : (p.spec.mechanism === 'tower' && kind === 'critical' ? 1 : this.side) * EJECT_SPEED;
+    const e = this.ejectSpeed(kind);
     this.pieces.place(piece, at.x, at.y, at.z, h, { x: v.x + Math.cos(h) * e, y: 0, z: v.z - Math.sin(h) * e });
     piece.lastRobot = p.index;
     this.cooldown = EJECT_COOLDOWN;
