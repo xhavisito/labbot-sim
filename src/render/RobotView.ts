@@ -5,6 +5,8 @@
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
 import { CRITICAL_SIZE, SAMPLE_SIZE } from '../config/field';
+import { CLAW } from '../config/robot';
+import { clawDir } from '../physics/RobotPhysics';
 import type { Robot } from '../game/Robot';
 import { ALLIANCE_COLOR } from './FieldView';
 import { criticalMaterial, sampleMaterial } from './PieceView';
@@ -24,6 +26,14 @@ export class RobotView {
   private criticalMesh: THREE.Mesh;
   /** Muestra en la garra. */
   private clawSample: THREE.Mesh;
+  /** LEDs bajo el chasis: parpadean en ámbar con una falla y se apagan a ratos sin comunicación. */
+  private led: THREE.MeshStandardMaterial;
+  private ledColor: THREE.Color;
+  private static readonly AMBER = new THREE.Color(0xff8a1c);
+  /** Fallas activas del robot (las pone la sesión, `game/Damage.ts`). */
+  faults: () => ReadonlyMap<string, number> = () => new Map();
+  /** Placa de la garra (del lado del brazo). */
+  private palm: THREE.Mesh;
   private wheels: Array<{ mesh: THREE.Object3D; side: number }> = [];
   private lastP = new THREE.Vector3();
   private lastYaw = 0;
@@ -67,6 +77,8 @@ export class RobotView {
     add(new RoundedBoxGeometry(L * 0.98, 0.025, W * 0.98, 2, 0.01), plate, 0, 0.22, 0);
     // Tira de LEDs bajo el chasis (el bloom la hace brillar) y placa con la estación en los costados
     const led = new THREE.MeshStandardMaterial({ color: 0x000000, emissive: color, emissiveIntensity: 2.6 });
+    this.led = led;
+    this.ledColor = new THREE.Color(color);
     for (const z of [-1, 1]) add(new THREE.BoxGeometry(L * 0.8, 0.012, 0.01), led, 0, 0.065, z * (W / 2 - 0.115));
     const num = textTexture(`${robot.alliance === 'red' ? 'R' : 'B'}${robot.station + 1}`, { w: 128, h: 64, bg: robot.alliance === 'red' ? '#a01e24' : '#173f9e' });
     if (num) {
@@ -92,7 +104,9 @@ export class RobotView {
     const claw = new THREE.Group();
     claw.position.set(a.length, 0, 0);
     this.arm.add(claw);
-    for (const z of [-1, 1]) add(new THREE.BoxGeometry(0.2, 0.16, 0.02), alu, 0, 0.08, z * 0.11, claw);
+    // Mismas medidas que la hitbox (`CLAW`, `RobotPhysics.setArmPose`): dos dedos y la placa
+    for (const z of [-1, 1]) add(new THREE.BoxGeometry(CLAW.fingerLength, CLAW.fingerHeight, CLAW.fingerThickness), alu, 0, CLAW.fingerHeight / 2, z * CLAW.fingerZ, claw);
+    this.palm = add(new THREE.BoxGeometry(CLAW.palmThickness, CLAW.fingerHeight * 0.75, 2 * CLAW.fingerZ + CLAW.fingerThickness), dark, -(CLAW.fingerLength / 2 + CLAW.palmThickness / 2), CLAW.fingerHeight / 2, 0, claw);
     this.clawSample = add(new THREE.BoxGeometry(sz, sz, sz), sampleMat, 0, sz / 2, 0, claw);
     this.criticalMesh = add(new THREE.BoxGeometry(c, c, c), critMat, 0, c / 2, 0, claw);
     // La garra queda nivelada aunque el brazo gire (se corrige en sync)
@@ -132,6 +146,19 @@ export class RobotView {
     this.arm.rotation.z = m.angle;
     const claw = this.arm.getObjectByName('claw');
     if (claw) claw.rotation.z = -m.angle;
+    this.palm.position.x = -clawDir(m.angle) * (CLAW.fingerLength / 2 + CLAW.palmThickness / 2);
     this.clawSample.visible = m.inClaw;
+    // Con falla: LEDs en ámbar parpadeando (sin comunicación, parpadeo rápido como la luz del robot)
+    const f = this.faults();
+    const now = performance.now() / 1000;
+    if (f.size === 0) {
+      this.led.emissive.copy(this.ledColor);
+      this.led.emissiveIntensity = 2.6;
+    } else {
+      const fast = f.has('commLoss');
+      const on = Math.sin(now * (fast ? 22 : 7)) > 0;
+      this.led.emissive.copy(fast ? this.ledColor : RobotView.AMBER);
+      this.led.emissiveIntensity = on ? 2.8 : 0.2;
+    }
   }
 }

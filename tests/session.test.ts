@@ -184,12 +184,17 @@ describe('match completo en la física', () => {
     expect(g.match!.fouls.some((f) => f.rule === 'PIN' && f.offender === 'red')).toBe(true);
   });
 
-  it('salir de los límites de la cancha es Tech Foul, una vez por salida (§4.6)', () => {
+  it('salir de los límites de la cancha es Tech Foul, una vez por salida y solo completamente fuera (§4.6, D33)', () => {
     const g = session();
     g.startMatch();
     skipTo(g, 20);
     g.player.phys.teleport(1.5, -3.0, Math.PI / 2); // viendo hacia −Z, cerca del límite
     steps(g, 1.5, { forward: 0.4 });
+    // La pared perimetral lo detiene: no sale y no hay falta
+    expect(g.match!.fouls.filter((f) => f.rule === 'OUT_OF_BOUNDS')).toEqual([]);
+    // Del otro lado de la pared (completamente fuera): una falta, aunque siga ahí
+    g.player.phys.teleport(1.5, -F.HALF_W - 1.2, Math.PI / 2);
+    steps(g, 1.5);
     expect(g.match!.fouls.filter((f) => f.rule === 'OUT_OF_BOUNDS')).toHaveLength(1);
   });
 

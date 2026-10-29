@@ -21,16 +21,30 @@ export const G = {
   PIECE: 1 << 2,
   /** Barrera invisible fuera de la cancha. */
   BOUNDARY: 1 << 3,
+  /** Alfombra (el brazo y la garra pasan rozándola: no chocan con ella). */
+  FLOOR: 1 << 4,
+  /** Brazo, garra y pieza agarrada de un robot (hitbox de los mecanismos). */
+  ARM: 1 << 5,
 } as const;
 
 /** Empaqueta membresía/filtro en el formato de 32 bits de Rapier. */
 export const groups = (member: number, filter: number): number => ((member & 0xffff) << 16) | (filter & 0xffff);
 
 export const GROUPS = {
+  floor: groups(G.FLOOR, G.ROBOT | G.PIECE),
+  /**
+   * Estructuras del juego (Cámara, Campana, Plataforma, Repisa). El brazo y la garra NO chocan con
+   * ellas (SUPUESTO, D34): los pivotes del sim (CAD sugerido) pasan el brazo a ras de la Repisa y de
+   * las paredes de la Cámara, y en la cancha simplificada se atoraban donde el robot real pasa.
+   */
   field: groups(G.FIELD, G.ROBOT | G.PIECE),
-  boundary: groups(G.BOUNDARY, G.ROBOT | G.PIECE),
-  robot: groups(G.ROBOT, G.FIELD | G.BOUNDARY | G.ROBOT | G.PIECE),
-  piece: groups(G.PIECE, G.FIELD | G.BOUNDARY | G.ROBOT | G.PIECE),
+  /** Pared perimetral: choca con todo el robot, brazo y garra incluidos. */
+  wall: groups(G.FIELD, G.ROBOT | G.PIECE | G.ARM),
+  boundary: groups(G.BOUNDARY, G.ROBOT | G.PIECE | G.ARM),
+  robot: groups(G.ROBOT, G.FLOOR | G.FIELD | G.BOUNDARY | G.ROBOT | G.PIECE | G.ARM),
+  piece: groups(G.PIECE, G.FLOOR | G.FIELD | G.BOUNDARY | G.ROBOT | G.PIECE | G.ARM),
+  /** Mecanismos: chocan con la pared perimetral, otros robots (chasis y brazos) y piezas; no con la alfombra. */
+  arm: groups(G.ARM, G.FIELD | G.BOUNDARY | G.ROBOT | G.PIECE | G.ARM),
 };
 
 /** Lo que guardamos de cada colisionador para saber qué tocamos. */

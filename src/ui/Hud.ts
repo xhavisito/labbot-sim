@@ -6,6 +6,7 @@
  */
 import { GAME } from '../config/game';
 import { bounds, formatTimer, timerSeconds } from '../core/clock';
+import type { FaultKind } from '../core/damage';
 import { RULES } from '../core/fouls';
 import type { MatchEvent } from '../core/match';
 import { ALLIANCES } from '../core/types';
@@ -22,6 +23,12 @@ const el = (tag: string, cls: string, parent?: HTMLElement): HTMLElement => {
   parent?.appendChild(e);
   return e;
 };
+
+/** Falla activa en la tarjeta del robot: nombre y lo que le queda. */
+function faultChip(k: FaultKind, left: number): string {
+  const rest = left === Infinity ? t('faultUntilEnd') : `${Math.ceil(left)} s`;
+  return `<span class="fault-chip ${k}">⚠ ${t(`fault_${k}` as Key)}<em>${rest}</em></span>`;
+}
 
 export interface HudActions {
   camera: () => void;
@@ -132,6 +139,33 @@ export class Hud {
     }
   }
 
+  private lastMiss = -Infinity;
+
+  /** Avisos de golpes y fallas del robot propio (y de los demás, solo sus fallas). */
+  damage(s: GameSession): void {
+    const me = s.opts.player;
+    for (const e of s.damageEvents) {
+      if (e.type === 'fault') {
+        const fault = t(`fault_${e.kind}` as Key);
+        if (e.robot === me) {
+          const speed = s.damage.impact(me).toFixed(1);
+          this.toast(e.cause === 'impact' ? t('faultHit', { speed, fault }) : t('faultRandom', { fault }), 'fault big');
+        } else {
+          const r = s.robots.find((x) => x.index === e.robot);
+          if (r) this.toast(t('faultOther', { robot: `${t(r.alliance)} ${r.station + 1}`, fault }), 'fault');
+        }
+      } else if (e.robot !== me) continue;
+      else if (e.type === 'repaired') this.toast(t('faultFixed', { fault: t(`fault_${e.kind}` as Key) }), 'ok');
+      else if (e.type === 'dropped') this.toast(t('faultDropped'), 'fault');
+    }
+    // Agarre realista: avisa (cada tanto) que la Muestra se resbaló
+    for (const e of s.events)
+      if (e.type === 'grabMiss' && e.robot === me && s.time - this.lastMiss > 4) {
+        this.lastMiss = s.time;
+        this.toast(t('grabMiss'));
+      }
+  }
+
   update(s: GameSession, cam: CameraMode): void {
     // Viendo un match del torneo (sin robot propio): sin tarjeta de "tu robot" ni teclas
     this.root.classList.toggle('watch', s.opts.player < 0);
@@ -142,7 +176,9 @@ export class Hud {
     const elev = mech.stowed ? t('stowed') : t('elevatorNames').split('|')[mech.target];
     const time = m ? formatTimer(timerSeconds(m.t, s.game)) : '';
     const score = { red: m ? m.score('red') : s.practiceCount.red, blue: m ? m.score('blue') : s.practiceCount.blue };
-    const key = `${score.red}|${score.blue}|${time}|${m?.phase}|${me.index}|${mech.capacity}|${mech.stored.length}|${!!mech.critical}|${elev}|${mech.intakeOn}|${mech.inClaw}|${cam}`;
+    const faults = [...s.damage.faults(me.index)];
+    const faultKey = faults.map(([k, left]) => `${k}${left === Infinity ? '' : Math.ceil(left)}`).join(',');
+    const key = `${score.red}|${score.blue}|${time}|${m?.phase}|${me.index}|${mech.capacity}|${mech.stored.length}|${!!mech.critical}|${elev}|${mech.intakeOn}|${mech.inClaw}|${cam}|${faultKey}`;
     if (key === this.lastKey) return;
     this.lastKey = key;
     this.root.classList.toggle('practice', !m);
@@ -185,7 +221,8 @@ export class Hud {
       <div class="chips"><span class="${mech.intakeOn ? 'on' : 'off'}">${t('intake')} ${mech.intakeOn ? t('on') : t('off')}</span>
         <span class="${mech.critical ? 'on' : 'off'}">${t('critical')} ${mech.critical ? '■' : '–'}</span>
         <span class="${mech.inClaw ? 'on' : 'off'}">${t('claw')} ${mech.inClaw ? '■' : '–'}</span>
-        <span>${t('arm')}: ${elev}</span></div>`;
+        <span>${t('arm')}: ${elev}</span></div>${faults.length ? `<div class="faults">${faults.map(([k, left]) => faultChip(k, left)).join('')}</div>` : ''}`;
+    this.player.classList.toggle('damaged', faults.length > 0);
     this.camLabel.querySelector('span')!.textContent = t(`cam_${cam}` as Key);
   }
 }

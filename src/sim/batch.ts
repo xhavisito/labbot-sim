@@ -179,6 +179,7 @@ export function runMatch(red: AlliancePlan, blue: AlliancePlan, seed = 1): Match
     autos: plans.map((p) => p.auto),
     bots: plans.map((p) => p.bot),
     hp: { enabled: true, interval: 2.5 + rand() * 1.5 },
+    seed,
   });
   try {
     g.startMatch();

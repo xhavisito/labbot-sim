@@ -21,11 +21,55 @@ export const HALF_W = FIELD_WIDTH / 2;
 /** Ancho de la cinta de las marcas. SUPUESTO (no se da): 2 in. */
 export const TAPE_WIDTH = mm(50.8);
 /**
- * El manual habla de "límites definidos" pero no de paredes. SUPUESTO: la cancha no tiene pared
- * perimetral; el sim pone una barrera invisible a este margen para que nada se pierda, y salir
- * del límite es Tech Foul (§4.6).
+ * Pared perimetral (pedido de Xhavi, 29-oct: "van a poner paredes para que no nos salgamos").
+ * El manual solo habla de "límites definidos" (§3.1) y no da medidas de pared: SUPUESTO tomado del
+ * guardrail de los campos FRC (policarbonato con perfil de aluminio arriba y abajo, ≈20 in de alto).
+ * Va por fuera de la alfombra de 9 × 7 m (la cancha queda completa) y se interrumpe donde está la
+ * pared de cada Campana (§3.2.4), que ya cierra ese tramo. Tiene colisión para robots y piezas.
+ */
+export const WALL_HEIGHT = mm(508); // 20 in (guardrail FRC, SUPUESTO)
+/** Grosor de la pared (policarbonato + perfil). SUPUESTO: 2 in. */
+export const WALL_THICKNESS = mm(50.8);
+/**
+ * Detrás de la pared perimetral queda una barrera invisible a este margen (para que una pieza que
+ * salte la pared no se pierda). Salir del límite es Tech Foul (§4.6): ver `fullyOutOfField`.
  */
 export const OUT_OF_BOUNDS_MARGIN = 0.6;
+
+/**
+ * ¿Un robot está COMPLETAMENTE fuera de la cancha? (Xhavi, 29-oct; §4.6 y §6.1 solo dicen "sale de
+ * los límites", sin aclarar si basta una parte: SUPUESTO, D33). Recibe el contorno del robot en el
+ * piso (chasis y mecanismos, en orden alrededor del robot) y revisa con ejes separadores que ese
+ * polígono convexo no toque el rectángulo de 9 × 7 m: con cualquier parte encima de la cancha, no
+ * está fuera.
+ */
+export function fullyOutOfField(poly: ReadonlyArray<{ x: number; z: number }>, halfL = HALF_L, halfW = HALF_W): boolean {
+  if (poly.length === 0) return false;
+  const xs = poly.map((p) => p.x);
+  const zs = poly.map((p) => p.z);
+  // Ejes de la cancha
+  if (Math.min(...xs) > halfL || Math.max(...xs) < -halfL || Math.min(...zs) > halfW || Math.max(...zs) < -halfW) return true;
+  // Ejes de las aristas del robot
+  const corners = [
+    [halfL, halfW],
+    [halfL, -halfW],
+    [-halfL, halfW],
+    [-halfL, -halfW],
+  ];
+  for (let i = 0; i < poly.length; i++) {
+    const a = poly[i];
+    const b = poly[(i + 1) % poly.length];
+    const nx = -(b.z - a.z);
+    const nz = b.x - a.x;
+    if (nx === 0 && nz === 0) continue;
+    const proj = poly.map((p) => p.x * nx + p.z * nz);
+    const lo = Math.min(...proj);
+    const hi = Math.max(...proj);
+    const f = corners.map(([x, z]) => x * nx + z * nz);
+    if (Math.min(...f) > hi || Math.max(...f) < lo) return true;
+  }
+  return false;
+}
 
 // ---------------------------------------------------------------- Zonas de Inicio (§3.2.1)
 export interface Rect {

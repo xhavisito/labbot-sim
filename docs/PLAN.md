@@ -127,3 +127,15 @@ datos guardados de tipos quitados se abren como Pivote. (Un primer cambio dejó 
 con hopper; se corrigió el mismo día.)
 Antes de cada match, **Preparar match** (`ui/MatchSetup.ts`) elige tu posición de inicio (D31,
 `config/startSpot.ts`) y, por robot de la IA, tipo, estrategia (`ai/strategy.ts`), dificultad y AUTO.
+
+## 7. Realismo (pedido del 29-oct)
+Xhavi: "que todas las partes del robot tengan hitbox, se me hace extremadamente fácil recoger las
+muestras… agrega las fallas… pon las paredes… quita que puedan cometer ese faul hasta que
+completamente estemos fuera de la cancha".
+*Hecho:* pared perimetral de 508 mm (guardrail FRC, SUPUESTO D35, `fieldLayout.wallsRed`); hitbox
+del brazo, la garra y la pieza agarrada (`RobotPhysics.setArmPose`, grupo `GROUPS.arm`, D34); agarre
+realista con alineación, cierre y resbalones (`Mechanisms.runClaw`, `GRIP`, D36) y la IA llegando
+derecho a cada Muestra (`Bot.driveToPiece`); fallas por golpes y al azar (`core/damage.ts` puro,
+`game/Damage.ts` en la física, tarjeta del HUD y LEDs del robot); fuera de la cancha solo con todo el
+robot fuera (`fullyOutOfField`, D33). Ajustes → Realismo. Pruebas en `tests/realism.test.ts`.
+Con el agarre realista la IA anota ≈12.5 Muestras por alianza (antes ≈15, `npm run batch -- --set ai`).

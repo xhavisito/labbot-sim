@@ -158,7 +158,7 @@ export class App {
     if (c.mode === 'training' && !drill) return this.toMenu();
     this.session = new GameSession(
       drill
-        ? drillSessionOptions(drill, c.player, this.playerSpec(), this.settings.hpInterval)
+        ? { ...drillSessionOptions(drill, c.player, this.playerSpec(), this.settings.hpInterval), grip: this.settings.grip }
         : c.scout
           ? o
           : { ...o, solo: c.mode !== 'match', ...(c.mode === 'auto' ? { hp: { enabled: false, interval: 3 } } : {}) },
@@ -270,6 +270,9 @@ export class App {
       bots: [0, 1, 2, 3].map((i) => (i === player ? undefined : { ...STRATEGY_OPTIONS[m.robots[i].strategy], ai: m.robots[i].ai })),
       starts: [0, 1, 2, 3].map((i) => (i === player ? m.start : undefined)),
       hp: { enabled: s.hpEnabled, interval: s.hpInterval },
+      grip: s.grip,
+      damage: { ...s.damage },
+      seed: (Math.random() * 2 ** 32) >>> 0,
     };
   }
 
@@ -489,6 +492,7 @@ export class App {
       this.autoPractice?.update(dt);
       this.trainingRun?.update(dt);
       this.hud.events(this.session.matchEvents);
+      this.hud.damage(this.session);
       this.hud.update(this.session, this.cam.mode);
       this.touch.setIntake(this.session.player.mech.intakeOn);
       for (const f of this.session.scoreFx) this.effects.burst(f.x, f.y, f.z, f.alliance);

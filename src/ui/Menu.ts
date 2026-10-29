@@ -9,6 +9,7 @@ import { allRobotIds, robotSpec, type RobotId } from '../config/robotIds';
 import { MECHANISM_KINDS } from '../config/robot';
 import { GAME } from '../config/game';
 import { DEFAULT_SETTINGS, SETTINGS_RANGE, type Settings } from '../config/settings';
+import { DAMAGE_LEVELS, type DamageLevel, type DamageTargets } from '../core/damage';
 import { RULES } from '../core/fouls';
 import type { Match } from '../core/match';
 import type { DrillId } from '../core/training';
@@ -292,6 +293,8 @@ export class Menu {
       return `<div class="range"><input type="range" data-k="${k}" min="${r.min}" max="${r.max}" step="${r.step}" value="${s[k]}"><output data-unit="${unit}">${s[k]} ${unit}</output></div>`;
     };
     const robotSel = () => `<select data-robot>${robotOptions(s.robotType)}</select>`;
+    const seg = (k: string, vals: readonly string[], cur: string, label: (v: string) => string) =>
+      `<div class="seg" data-seg="${k}">${vals.map((v) => `<button class="${v === cur ? 'on' : ''}" data-v="${v}">${label(v)}</button>`).join('')}</div>`;
     this.open(
       `${brandbar(t('settings'))}
       <h1>${t('settings')}</h1>
@@ -311,6 +314,12 @@ export class Menu {
           <label>${t('robotType')}</label>${robotSel()}
           <p class="full sub" data-desc>${robotDesc(s.robotType)}</p>
           <label>${t('setSpeed')}</label>${range('maxSpeed', 'm/s')}
+          <h3>${t('sec_realism')}</h3>
+          <label>${t('setGrip')}</label>${seg('grip', ['real', 'easy'], s.grip, (v) => t(`grip_${v}` as Key))}
+          <label>${t('setDamage')}</label>${seg('damage.level', DAMAGE_LEVELS, s.damage.level, (v) => t(`damage_${v}` as Key))}
+          <label>${t('setDamageWho')}</label>${seg('damage.targets', ['all', 'player'], s.damage.targets, (v) => t(`damageWho_${v}` as Key))}
+          <label>${t('setDamageRandom')}</label><button class="toggle ${s.damage.random ? 'on' : ''}" data-tog-dmg><i></i>${s.damage.random ? t('on_') : t('no_')}</button>
+          <p class="full sub">${t('realismNote')}</p>
           <h3>${t('sec_graphics')}</h3>
           <label>${t('setQuality')}</label><div class="seg" data-qseg>${(['auto', 'low', 'medium', 'high'] as const).map((q) => `<button class="${q === s.quality ? 'on' : ''}" data-v="${q}">${t(`quality_${q}`)}</button>`).join('')}</div>
           <p class="full sub">${t('qualityNote')}</p>
@@ -357,6 +366,21 @@ export class Menu {
         b.parentElement!.querySelectorAll('button').forEach((x) => x.classList.toggle('on', x === b));
       }),
     );
+    this.root.querySelectorAll<HTMLElement>('[data-seg] button').forEach((b) =>
+      b.addEventListener('click', () => {
+        const k = b.parentElement!.dataset.seg!;
+        const v = b.dataset.v!;
+        if (k === 'grip') s.grip = v as Settings['grip'];
+        else if (k === 'damage.level') s.damage = { ...s.damage, level: v as DamageLevel };
+        else if (k === 'damage.targets') s.damage = { ...s.damage, targets: v as DamageTargets };
+        b.parentElement!.querySelectorAll('button').forEach((x) => x.classList.toggle('on', x === b));
+      }),
+    );
+    this.on('[data-tog-dmg]', (el) => {
+      s.damage = { ...s.damage, random: !s.damage.random };
+      el.classList.toggle('on', s.damage.random);
+      el.lastChild!.textContent = s.damage.random ? t('on_') : t('no_');
+    });
     this.on('[data-act="save"]', () => {
       Object.assign(this.settings, s);
       this.onSettings(this.settings);

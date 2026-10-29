@@ -617,6 +617,15 @@ body.ap-open .touch { visibility: hidden; }
 .chips span { padding: 0.5em 0.65em; border-radius: 0.55em; background: rgba(255, 255, 255, 0.07); color: #c9cbd0; font: 700 0.64em/1 var(--font); letter-spacing: 0.06em; white-space: nowrap; }
 .chips span.on { background: rgba(255, 199, 44, 0.16); color: var(--accent); }
 .chips span.off { color: var(--faint); }
+/* fallas del robot propio (core/damage.ts) */
+.player.damaged { border-color: rgba(255, 140, 40, 0.55); }
+.faults { display: flex; flex-wrap: wrap; gap: 0.35em; margin-top: 0.5em; }
+.fault-chip { display: inline-flex; align-items: baseline; gap: 0.45em; padding: 0.5em 0.65em; border-radius: 0.55em; background: rgba(255, 120, 30, 0.18); color: #ffb469; font: 800 0.64em/1 var(--font); letter-spacing: 0.04em; white-space: nowrap; animation: fault-pulse 1.2s ease-in-out infinite; }
+.fault-chip em { font: 700 0.95em/1 var(--mono); font-style: normal; color: #ffd9b0; opacity: 0.85; }
+.fault-chip.commLoss { background: rgba(229, 65, 58, 0.25); color: #ffb1ab; }
+@keyframes fault-pulse { 50% { background: rgba(255, 120, 30, 0.32); } }
+@media (prefers-reduced-motion: reduce) { .fault-chip { animation: none; } }
+.toast.fault { border-left-color: #ff8c28; color: #ffc58a; }
 /* botones arriba a la derecha (cámara, reacomodar, pausa) */
 .hud-tr { position: absolute; top: calc(var(--gut) + var(--safe-t)); right: calc(var(--gut) + var(--safe-r)); display: flex; gap: 0.5em; }
 .hud-btn {
