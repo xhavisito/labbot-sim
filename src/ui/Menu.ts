@@ -310,6 +310,9 @@ export class Menu {
           <h3>${t('sec_graphics')}</h3>
           <label>${t('setQuality')}</label><div class="seg" data-qseg>${(['auto', 'low', 'medium', 'high'] as const).map((q) => `<button class="${q === s.quality ? 'on' : ''}" data-v="${q}">${t(`quality_${q}`)}</button>`).join('')}</div>
           <p class="full sub">${t('qualityNote')}</p>
+          <h3>${t('sec_sound')}</h3>
+          <label>${t('setVolume')}</label>${range('volume', '%')}
+          <p class="full sub">${t('soundNote')}</p>
         </div></div>
       </div>
       <div class="actionbar">${backBtn('data-act="cancel"')}<div class="grow"></div>
@@ -375,7 +378,7 @@ export class Menu {
     });
     this.on('[data-act="cancel"]', () => this.main());
     this.on('[data-act="defaults"]', () => {
-      Object.assign(this.settings, { ...structuredClone(DEFAULT_SETTINGS), touch: this.settings.touch, quality: this.settings.quality });
+      Object.assign(this.settings, { ...structuredClone(DEFAULT_SETTINGS), touch: this.settings.touch, quality: this.settings.quality, volume: this.settings.volume });
       this.onSettings(this.settings);
       this.settingsPanel();
     });

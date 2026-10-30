@@ -6,6 +6,7 @@ import { LEAVE_ZONE, type AutoRoutine } from '../auto/AutoRoutine';
 import { aiLineup } from '../ai/lineup';
 import { STRATEGY_OPTIONS } from '../ai/strategy';
 import { allAutoRoutines, autoRoutineIds } from '../auto/recorded';
+import { FieldAudio } from '../audio/FieldAudio';
 import { ROBOT_PRESETS, type MechanismKind, type RobotSpec } from '../config/robot';
 import { robotSpec } from '../config/robotIds';
 import { loadSettings, saveSettings, type Settings } from '../config/settings';
@@ -64,6 +65,8 @@ export class App {
   state: State = 'menu';
   private choice: MenuChoice = { mode: 'match', player: DEFAULT_PLAYER };
   readonly settings: Settings = loadSettings(autoRoutineIds());
+  /** Sonidos del campo (inicio, TELEOP, ENDGAME, fin). */
+  readonly audio = new FieldAudio(this.settings.volume / 100);
   private last = performance.now();
   /** Último cuadro dibujado detrás de una pantalla opaca (ver `loop`). */
   private lastBehind = 0;
@@ -104,6 +107,7 @@ export class App {
     this.menu = new Menu(ui, (c) => this.start(c), this.settings, (s) => {
       saveSettings(s);
       this.applyQuality();
+      this.audio.setVolume(s.volume / 100);
     }, this.input);
     this.replayBar = new ReplayBar(ui, { camera: () => this.cycleCamera(), stats: () => this.replayStats(), exit: () => this.exitReplay() });
     this.replays = new ReplaysScreen(this.menu.root, {
@@ -507,6 +511,7 @@ export class App {
       this.autoPractice?.update(dt);
       this.trainingRun?.update(dt);
       this.hud.events(this.session.matchEvents);
+      this.audio.events(this.session.matchEvents);
       this.hud.damage(this.session);
       this.hud.update(this.session, this.cam.mode);
       this.touch.setIntake(this.session.player.mech.intakeOn);
