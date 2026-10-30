@@ -44,8 +44,10 @@ abrirla con conexión (los cambios se ven la siguiente vez que se abre). Íconos
   (SUPUESTO: el manual no tiene paredes). Choca con robots y piezas.
 - **Hitbox de todo el robot:** el brazo, la garra y la pieza que llevas chocan con los otros robots
   (cuenta como contacto para las faltas), las piezas y la pared.
-- **Agarre realista:** la Muestra tiene que entrar derecha (≲18°) entre los dedos de la garra y
-  despacio; la garra tarda en cerrar y la Muestra se puede resbalar. "Fácil" deja el agarre de antes.
+- **Agarre de la garra:** por defecto **con compliants** (ruedas flexibles en la boca de la garra):
+  con la garra abajo agarra la Muestra desde cualquier ángulo, aunque llegue de lado o apenas toque la
+  punta de un dedo; solo rebota si llegas muy rápido. "Preciso" exige entrar derecho (≲18°) y despacio
+  hasta la placa; "Fácil" deja el agarre de antes.
 - **Fallas:** un golpe fuerte contra la pared u otro robot puede atascar la garra, alentar el brazo,
   debilitar un motor (más lento y jala de lado) o cortar la comunicación unos segundos; también puede
   tirar la pieza. Se ven en la tarjeta de tu robot y en sus LEDs (ámbar parpadeando). Se eligen el
@@ -167,22 +169,20 @@ Asignación por defecto:
 | Avanzar / retroceder | W / S (o flechas) | Stick izquierdo ↕ |
 | Girar | A / D (o flechas) | Stick izquierdo ↔ (o derecho) |
 | Modo lento | Shift | LT |
-| Garra (encender/apagar) | Espacio | A |
+| Garra: encender/apagar, o tomar la Muestra Crítica si está al alcance | Espacio | A |
 | Brazo: piso, N1, N2, N3, Repisa | 0, 1, 2, 3, 4 | — |
 | Subir / bajar brazo | — | RB / LB (o cruceta ↕) |
-| Soltar Muestra | E | B |
-| Tomar Muestra Crítica | F | X |
-| Soltar Muestra Crítica | R | Y |
+| Soltar pieza (Muestra o Crítica) | E | B |
 | Cambiar cámara | C | Back |
 | Pausa | Esc | Start |
 
-**Touch:** en celular o tableta aparecen un joystick (izquierda) y botones (derecha): garra, soltar,
-subir/bajar el brazo y la Crítica, más cámara y pausa arriba. `?touch=1` los fuerza en escritorio.
+**Touch:** en celular o tableta aparecen un joystick (izquierda) y botones (derecha): garra, soltar y
+subir/bajar el brazo (los mismos para la Muestra y la Crítica), más cámara y pausa arriba. `?touch=1` los fuerza en escritorio.
 
 **Para anotar:** acércate de frente a la pared de tu Cámara de Seguridad, sube el brazo al nivel y
 suelta la Muestra; cuenta cuando cae dentro del nivel. **Para la Muestra Crítica**, en el ENDGAME
-ponte de frente a la rendija de tu Campana con el brazo en "Repisa" y presiona F; luego sube a la
-Plataforma y suéltala sobre la Repisa (R).
+ponte de frente a la rendija de tu Campana con el brazo en "Repisa" y presiona la garra (Espacio); luego sube
+a la Plataforma y suéltala sobre la Repisa (E).
 
 ## Estructura
 

@@ -9,14 +9,19 @@
  * punta del mecanismo, así que anotar depende de dónde caen (lo detecta la sesión).
  *
  * Agarre (Xhavi, 29-oct: "se me hace extremadamente fácil recoger las muestras"): la garra ya no
- * "absorbe" lo que está cerca. Tiene dedos con colisión (`RobotPhysics.setArmPose`), así que la
- * Muestra tiene que entrar de verdad entre ellos (`CLAW_GAP`) hasta la placa, y casi derecha (≲18°).
- * Ahí la garra tarda `GRIP.closeTime` en cerrar (si la Muestra se sale en ese tiempo, no la toma) y
- * puede resbalarse: la probabilidad crece con la velocidad de llegada y el giro de la pieza. Todos
- * esos números son SUPUESTOS de diseño (el manual no habla de mecanismos, §7.2).
+ * "absorbe" lo que está cerca. Tiene dedos con colisión (`RobotPhysics.setArmPose`). Tres modos:
+ * - `compliant` (por defecto; Xhavi, 30-oct: "nuestro robot va a tener compliants"): ruedas flexibles
+ *   en la boca de los dedos jalan la Muestra en cuanto la tocan, con la garra a la altura del piso.
+ *   Agarra de cualquier ángulo y aunque llegue de lado o pegada a la punta de un dedo (no tiene que
+ *   llegar hasta la placa: una Cámara o la pared ya no estorban); solo se resbala si llega muy rápido.
+ * - `precise`: la Muestra tiene que entrar de verdad entre los dedos (`CLAW_GAP`) hasta la placa, y
+ *   casi derecha (≲18°). Ahí la garra tarda `GRIP.closeTime` en cerrar (si la Muestra se sale en ese
+ *   tiempo, no la toma) y puede resbalarse: la probabilidad crece con la velocidad y el giro.
+ * - `easy`: el de antes (toma lo que quede a 12 cm de la punta, sin alinear ni fallar).
+ * Todos esos números son SUPUESTOS de diseño (el manual no habla de mecanismos, §7.2).
  */
 import { inCamara } from '../config/field';
-import { CLAW, CLAW_GAP, armTip, posAngle, type ElevatorPos } from '../config/robot';
+import { CLAW, CLAW_GAP, armTip, posAngle, type ElevatorPos, type GripMode } from '../config/robot';
 import { SAMPLE_SIZE } from '../config/field';
 import { clawDir } from '../physics/RobotPhysics';
 import type { Alliance } from '../core/types';
@@ -27,13 +32,10 @@ export type MechEvent =
   | { type: 'intake'; robot: number; piece: number }
   | { type: 'grabCritical'; robot: number; piece: number }
   | { type: 'release'; robot: number; piece: number }
-  /** La garra cerró pero la Muestra se le resbaló (agarre realista). */
+  /** La garra cerró pero la Muestra se le resbaló (agarre con compliants o preciso). */
   | { type: 'grabMiss'; robot: number; piece: number };
 
-/**
- * Agarre realista (SUPUESTOS de diseño). `easy` = el agarre de antes (toma lo que quede a 12 cm de
- * la punta, sin alinear ni fallar), para quien empieza.
- */
+/** Agarre preciso (SUPUESTOS de diseño). */
 export const GRIP = {
   /** Holgura del centro de la Muestra respecto a su lugar en la garra (m). */
   pocketX: 0.055,
@@ -55,7 +57,24 @@ export const GRIP = {
   retry: 0.45,
 } as const;
 
-export type GripMode = 'real' | 'easy';
+/**
+ * Agarre con compliants (SUPUESTOS de diseño): dos ruedas flexibles en la boca de la garra, una en
+ * la punta de cada dedo, que jalan la Muestra hacia adentro.
+ */
+export const COMPLIANT = {
+  /** Qué tan adelante de la punta de los dedos alcanza a jalarla (m, del borde de la Muestra). */
+  reachFront: 0.03,
+  /** Segundos que tarda en meterla y cerrar. */
+  closeTime: 0.06,
+  /** Arriba de esta velocidad de llegada (m/s) puede rebotar en las ruedas… */
+  safeSpeed: 2.2,
+  /** …con esta probabilidad por cada m/s de más. */
+  missPerSpeed: 0.2,
+  /** Segundos antes de volver a intentarlo tras rebotar. */
+  retry: 0.2,
+} as const;
+
+export type { GripMode };
 
 /**
  * Pose de un cubo apoyado: rumbo (rad) de una de sus caras laterales (las 4 son equivalentes, cada
@@ -82,8 +101,10 @@ export function cubeAlignment(q: { x: number; y: number; z: number; w: number },
   return { yaw: d, tilt };
 }
 
-/** Probabilidad de que la Muestra se resbale al cerrar la garra (agarre realista). Pura. */
-export function missChance(relSpeed: number, yaw: number): number {
+/** Probabilidad de que la Muestra se resbale al cerrar la garra (agarre preciso o con compliants). Pura. */
+export function missChance(relSpeed: number, yaw: number, mode: GripMode = 'precise'): number {
+  if (mode === 'easy') return 0;
+  if (mode === 'compliant') return Math.min(0.5, COMPLIANT.missPerSpeed * Math.max(0, relSpeed - COMPLIANT.safeSpeed));
   const p = GRIP.baseMiss + GRIP.missPerSpeed * Math.max(0, relSpeed - GRIP.safeSpeed) + GRIP.missPerYaw * Math.min(1, yaw / GRIP.maxYaw);
   return Math.max(0, Math.min(0.95, p));
 }
@@ -107,10 +128,10 @@ export class Mechanisms {
   /** Segundos con la garra en la boca del hopper (pasando una Muestra). */
   private transferT = 0;
   private cooldown = 0;
-  /** Agarre realista: Muestra entre los dedos mientras la garra cierra, y cuánto lleva cerrando. */
+  /** Muestra entre los dedos mientras la garra cierra, y cuánto lleva cerrando. */
   private closing: { piece: number; t: number } | null = null;
-  /** Agarre: realista o fácil (el de antes). */
-  grip: GripMode = 'real';
+  /** Agarre: con compliants, preciso o fácil (el de antes). */
+  grip: GripMode = 'compliant';
   /** Azar del agarre (la sesión le da uno con semilla). */
   rand: () => number = Math.random;
   /** Fallas (`game/Damage.ts`): la garra atascada no cierra. */
@@ -207,13 +228,19 @@ export class Mechanisms {
     }
     const p = this.phys;
     const base = p.position().y;
-    const easy = this.grip === 'easy';
-    // Lugar de la Muestra en la garra: recargada en la placa (del lado del brazo)
+    const mode = this.grip;
+    // Lugar de la Muestra en la garra (agarre preciso): recargada en la placa (del lado del brazo)
     const dir = clawDir(this.angle);
-    let cx = this.tipX() - (easy ? 0 : dir * (CLAW.fingerLength / 2 - SAMPLE_SIZE / 2));
+    const tip = this.tipX();
+    let cx = tip - dir * (CLAW.fingerLength / 2 - SAMPLE_SIZE / 2);
     // Si la placa queda dentro del chasis, la Muestra se recarga en el chasis
     const stop = p.halfL + SAMPLE_SIZE / 2;
-    if (!easy) cx = dir > 0 ? Math.max(cx, stop) : Math.min(cx, -stop);
+    cx = dir > 0 ? Math.max(cx, stop) : Math.min(cx, -stop);
+    // Compliants: de la placa (o el chasis) a la punta de los dedos, más lo que alcanzan las ruedas
+    const back = Math.abs(cx) - SAMPLE_SIZE / 2;
+    const front = Math.abs(tip) + CLAW.fingerLength / 2 + SAMPLE_SIZE / 2 + COMPLIANT.reachFront;
+    // De lado basta con que la Muestra toque la rueda (su borde llega al centro del dedo)
+    const side = CLAW.fingerZ + SAMPLE_SIZE / 2;
     const h = p.heading();
     let found: { piece: Piece; yaw: number } | null = null;
     for (const piece of this.pieces.list) {
@@ -223,8 +250,15 @@ export class Mechanisms {
       // Las anotadas quedan en el piso del pozo, tras paredes de 200–800 mm (§3.2.3): la garra no las saca
       if (inCamara(t.x, t.z)) continue;
       const { lx, lz } = p.worldToLocalFlat(t.x, t.z);
-      if (easy) {
-        if (Math.abs(lx - this.tipX()) > 0.12 || Math.abs(lz) > 0.12) continue;
+      if (mode === 'easy') {
+        if (Math.abs(lx - tip) > 0.12 || Math.abs(lz) > 0.12) continue;
+        found = { piece, yaw: 0 };
+        break;
+      }
+      if (mode === 'compliant') {
+        // Cualquier giro o inclinación: las ruedas la acomodan
+        const ax = lx * dir;
+        if (ax < back || ax > front || Math.abs(lz) > side) continue;
         found = { piece, yaw: 0 };
         break;
       }
@@ -239,20 +273,20 @@ export class Mechanisms {
       return;
     }
     const piece = found.piece;
-    if (!easy) {
+    if (mode !== 'easy') {
       // La garra tarda en cerrar; si la Muestra se sale (o es otra), empieza de nuevo
       if (!this.closing || this.closing.piece !== piece.index) this.closing = { piece: piece.index, t: 0 };
       this.closing.t += dt;
-      if (this.closing.t < GRIP.closeTime) return;
+      if (this.closing.t < (mode === 'compliant' ? COMPLIANT.closeTime : GRIP.closeTime)) return;
       this.closing = null;
       const v = p.body.linvel();
       const pv = piece.body.linvel();
       const rel = Math.hypot(v.x - pv.x, v.z - pv.z);
-      if (this.rand() < missChance(Math.max(rel, Math.hypot(v.x, v.z)), found.yaw)) {
+      if (this.rand() < missChance(Math.max(rel, Math.hypot(v.x, v.z)), found.yaw, mode)) {
         // Se resbala: la garra la empuja un poco y vuelve a abrir
         const fwd = { x: Math.cos(h) * dir, z: -Math.sin(h) * dir };
         piece.body.applyImpulse({ x: fwd.x * 0.08, y: 0.02, z: fwd.z * 0.08 }, true);
-        this.cooldown = GRIP.retry;
+        this.cooldown = mode === 'compliant' ? COMPLIANT.retry : GRIP.retry;
         events.push({ type: 'grabMiss', robot: p.index, piece: piece.index });
         return;
       }

@@ -6,7 +6,7 @@ import { AUTO_ROUTINES } from '../auto/AutoRoutine';
 import { routeRoutine, savedRoutes } from '../auto/recorded';
 import { customById } from '../config/customRobots';
 import { allRobotIds, robotSpec, type RobotId } from '../config/robotIds';
-import { MECHANISM_KINDS } from '../config/robot';
+import { GRIP_MODES, MECHANISM_KINDS } from '../config/robot';
 import { GAME } from '../config/game';
 import { DEFAULT_SETTINGS, SETTINGS_RANGE, type Settings } from '../config/settings';
 import { DAMAGE_LEVELS, type DamageLevel, type DamageTargets } from '../core/damage';
@@ -315,7 +315,7 @@ export class Menu {
           <p class="full sub" data-desc>${robotDesc(s.robotType)}</p>
           <label>${t('setSpeed')}</label>${range('maxSpeed', 'm/s')}
           <h3>${t('sec_realism')}</h3>
-          <label>${t('setGrip')}</label>${seg('grip', ['real', 'easy'], s.grip, (v) => t(`grip_${v}` as Key))}
+          <label>${t('setGrip')}</label>${seg('grip', GRIP_MODES, s.grip, (v) => t(`grip_${v}` as Key))}
           <label>${t('setDamage')}</label>${seg('damage.level', DAMAGE_LEVELS, s.damage.level, (v) => t(`damage_${v}` as Key))}
           <label>${t('setDamageWho')}</label>${seg('damage.targets', ['all', 'player'], s.damage.targets, (v) => t(`damageWho_${v}` as Key))}
           <label>${t('setDamageRandom')}</label><button class="toggle ${s.damage.random ? 'on' : ''}" data-tog-dmg><i></i>${s.damage.random ? t('on_') : t('no_')}</button>
@@ -524,7 +524,7 @@ export class Menu {
     const b = this.input.bindings;
     const m = p.match;
     const key = (a: Action) => (b.keys[a].length ? `<kbd>${keyLabel(b.keys[a][0])}</kbd>` : '');
-    const keyRows: Action[] = ['forward', 'back', 'left', 'right', 'slow', 'toggleIntake', 'releaseSample', 'elevatorUp', 'elevatorDown', 'grabCritical', 'releaseCritical', 'camera'];
+    const keyRows: Action[] = ['forward', 'back', 'left', 'right', 'slow', 'toggleIntake', 'releaseSample', 'elevatorUp', 'elevatorDown', 'camera'];
     this.open(
       `<div class="pause">
         <div class="ps-main">

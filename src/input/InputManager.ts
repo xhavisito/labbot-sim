@@ -16,9 +16,8 @@ export interface PlayerInput {
   // Acciones de un solo disparo (se consumen en el cuadro)
   toggleIntake: boolean;
   elevator: ElevatorPos | null;
+  /** Suelta lo que trae en la garra (Muestra o Crítica). */
   releaseSample: boolean;
-  grabCritical: boolean;
-  releaseCritical: boolean;
 }
 
 export const emptyInput = (): PlayerInput => ({
@@ -28,8 +27,6 @@ export const emptyInput = (): PlayerInput => ({
   toggleIntake: false,
   elevator: null,
   releaseSample: false,
-  grabCritical: false,
-  releaseCritical: false,
 });
 
 /** Estado de los controles touch (lo escribe `ui/TouchControls`). */
@@ -147,8 +144,6 @@ export class InputManager {
 
     inp.toggleIntake = hit.has('toggleIntake');
     inp.releaseSample = hit.has('releaseSample');
-    inp.grabCritical = hit.has('grabCritical');
-    inp.releaseCritical = hit.has('releaseCritical');
     for (const [a, pos] of ELEVATOR_ACTIONS) if (hit.has(a)) inp.elevator = this.elevatorPos = pos;
     if (hit.has('elevatorUp')) inp.elevator = this.elevatorPos = Math.min(4, this.elevatorPos + 1) as ElevatorPos;
     if (hit.has('elevatorDown')) inp.elevator = this.elevatorPos = Math.max(0, this.elevatorPos - 1) as ElevatorPos;
