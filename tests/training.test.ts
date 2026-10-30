@@ -178,13 +178,15 @@ describe('retos en la física', () => {
     step(g, { elevator: 4 });
     goTo(g, tr, c.x, c.z + 0.8, 0.1);
     face(g, Math.PI / 2);
-    for (let i = 0; i < 120 && !g.player.mech.critical; i++) step(g, { toggleIntake: true, forward: 0.15 });
+    for (let i = 0; i < 120 && !g.player.mech.critical; i++) step(g, { intake: true, forward: 0.15 });
     expect(g.player.mech.critical).not.toBeNull();
     // Rodea la barra de la Campana y llega por un lado de la Repisa
     goTo(g, tr, 3.2, -1.5, 0.2);
     goTo(g, tr, 0, -1.6, 0.1);
     face(g, -Math.PI / 2);
-    goTo(g, tr, 0, -1.12, 0.04);
+    // Hasta que la viga del brazo topa con el borde de la Repisa (hitbox literal, D34); la Crítica ya
+    // queda encima de ella
+    goTo(g, tr, 0, -1.17, 0.05);
     face(g, -Math.PI / 2);
     for (let i = 0; i < 360 && g.player.mech.critical; i++) step(g, { releaseSample: true, forward: 0.1 });
     while (!tr.ended) step(g);

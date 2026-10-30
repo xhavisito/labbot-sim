@@ -25,8 +25,6 @@ export const G = {
   FLOOR: 1 << 4,
   /** Brazo, garra y pieza agarrada de un robot (hitbox de los mecanismos). */
   ARM: 1 << 5,
-  /** Viga del brazo (ver `GROUPS.beam`). */
-  BEAM: 1 << 6,
 } as const;
 
 /** Empaqueta membresía/filtro en el formato de 32 bits de Rapier. */
@@ -39,20 +37,14 @@ export const GROUPS = {
    * brazo, garra y pieza agarrada incluidos (Xhavi, 30-oct: "hitbox literal a cualquier parte del
    * robot"; D34): la garra ya no atraviesa la madera al anotar.
    */
-  field: groups(G.FIELD, G.ROBOT | G.PIECE | G.ARM | G.BEAM),
+  field: groups(G.FIELD, G.ROBOT | G.PIECE | G.ARM),
   /** Pared perimetral: choca con todo el robot, brazo y garra incluidos. */
-  wall: groups(G.FIELD, G.ROBOT | G.PIECE | G.ARM | G.BEAM),
-  boundary: groups(G.BOUNDARY, G.ROBOT | G.PIECE | G.ARM | G.BEAM),
-  robot: groups(G.ROBOT, G.FLOOR | G.FIELD | G.BOUNDARY | G.ROBOT | G.PIECE | G.ARM | G.BEAM),
-  piece: groups(G.PIECE, G.FLOOR | G.FIELD | G.BOUNDARY | G.ROBOT | G.PIECE | G.ARM | G.BEAM),
-  /** Garra (dedos y placa) y pieza agarrada: chocan con todo menos la alfombra (D34). */
-  arm: groups(G.ARM, G.FIELD | G.BOUNDARY | G.ROBOT | G.PIECE | G.ARM | G.BEAM),
-  /**
-   * Viga del brazo: como la garra pero sin las estructuras del juego (SUPUESTO, D34): en el Pivote
-   * 180° la viga sale a 17 cm del piso y, para que la garra llegue arriba del Nivel 3, pasa por
-   * donde está la pared de 80 cm; en el robot real esa parte va por fuera o más alta.
-   */
-  beam: groups(G.BEAM, G.BOUNDARY | G.ROBOT | G.PIECE | G.ARM | G.BEAM),
+  wall: groups(G.FIELD, G.ROBOT | G.PIECE | G.ARM),
+  boundary: groups(G.BOUNDARY, G.ROBOT | G.PIECE | G.ARM),
+  robot: groups(G.ROBOT, G.FLOOR | G.FIELD | G.BOUNDARY | G.ROBOT | G.PIECE | G.ARM),
+  piece: groups(G.PIECE, G.FLOOR | G.FIELD | G.BOUNDARY | G.ROBOT | G.PIECE | G.ARM),
+  /** Viga del brazo, garra (dedos y placa) y pieza agarrada: chocan con todo menos la alfombra (D34). */
+  arm: groups(G.ARM, G.FIELD | G.BOUNDARY | G.ROBOT | G.PIECE | G.ARM),
 };
 
 /** Lo que guardamos de cada colisionador para saber qué tocamos. */

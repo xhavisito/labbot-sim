@@ -518,7 +518,7 @@ export class Menu {
     const b = this.input.bindings;
     const m = p.match;
     const key = (a: Action) => (b.keys[a].length ? `<kbd>${keyLabel(b.keys[a][0])}</kbd>` : '');
-    const keyRows: Action[] = ['forward', 'back', 'left', 'right', 'slow', 'toggleIntake', 'releaseSample', 'elevatorUp', 'elevatorDown', 'camera'];
+    const keyRows: Action[] = ['forward', 'back', 'left', 'right', 'slow', 'intake', 'releaseSample', 'elevatorUp', 'elevatorDown', 'camera'];
     this.open(
       `<div class="pause">
         <div class="ps-main">

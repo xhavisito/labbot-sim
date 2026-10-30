@@ -18,7 +18,7 @@ function record(player: number, forward: number, secs: number): { route: SavedRo
   s.inputTap = rec.push;
   s.tap = sc;
   for (let i = 0; i < AUTO_STEPS; i++) {
-    s.setInput({ ...emptyInput(), forward: i < secs * PHYSICS_HZ ? forward : 0, toggleIntake: i === 10 });
+    s.setInput({ ...emptyInput(), forward: i < secs * PHYSICS_HZ ? forward : 0, intake: i >= 10 });
     s.step();
   }
   const r = sc.result(s);

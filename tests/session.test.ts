@@ -14,7 +14,7 @@ const still = [DO_NOTHING, DO_NOTHING, DO_NOTHING, DO_NOTHING];
 const session = (autos = still, player = 0) => new GameSession({ player, preload: true, autos });
 const steps = (g: GameSession, s: number, inp: Partial<PlayerInput> = {}) => {
   for (let i = 0; i < s * 120; i++) {
-    g.setInput({ ...emptyInput(), ...(i === 0 ? inp : { forward: inp.forward ?? 0, turn: inp.turn ?? 0 }) });
+    g.setInput({ ...emptyInput(), ...(i === 0 ? inp : { forward: inp.forward ?? 0, turn: inp.turn ?? 0, intake: inp.intake ?? false }) });
     g.step();
   }
 };
@@ -25,6 +25,18 @@ const skipTo = (g: GameSession, t: number) => {
 };
 
 describe('match completo en la física', () => {
+  it('la garra del jugador trabaja solo mientras se mantiene presionado el botón (Xhavi, 30-oct)', () => {
+    const g = session();
+    g.startMatch();
+    skipTo(g, 30);
+    steps(g, 0.1);
+    expect(g.player.mech.intakeOn).toBe(false);
+    steps(g, 0.5, { intake: true });
+    expect(g.player.mech.intakeOn).toBe(true);
+    steps(g, 0.1);
+    expect(g.player.mech.intakeOn).toBe(false);
+  });
+
   it('AUTO por defecto: los 4 robots salen de su zona → 5 c/u y RP de la línea (§4.4)', () => {
     const g = new GameSession({ player: 0, preload: true });
     g.startMatch();
@@ -107,7 +119,7 @@ describe('match completo en la física', () => {
       const a = DEFAULT_ROBOT.arm;
       g.player.phys.teleport(c.x, c.z + armTip(a, armAngle(a, DEFAULT_ROBOT.elevatorHeights[4])).x - 0.05, Math.PI / 2);
       steps(g, 1.5, { elevator: 4 });
-      steps(g, 0.1, { toggleIntake: true });
+      steps(g, 0.1, { intake: true });
       expect(g.player.mech.critical).not.toBeNull();
       return g.match!.fouls.map((f) => f.rule);
     };
@@ -125,9 +137,12 @@ describe('match completo en la física', () => {
       g.pieces.place(c, 0.19, F.REPISA_TOP + F.CRITICAL_SIZE / 2 + 0.002, 0.1);
       steps(g, 0.5);
       expect(g.sensors.criticalOnRepisa('red')).toBe(true);
-      // Un robot en la plataforma roja, pegado a la Repisa, la toca y la pieza sale volando hacia +Z
-      g.player.phys.teleport(0.2 + DEFAULT_ROBOT.width / 2 + 0.005, 0.1, -Math.PI / 2, F.PLATFORM_HEIGHT + 0.01);
-      steps(g, 0.3);
+      // Un robot en la plataforma roja, pegado a la Repisa y viéndola, baja la garra sobre ella (la
+      // toca: hitbox literal, D34), la vuelve a subir para que la viga no la pise y la pieza sale
+      // volando hacia +Z
+      g.player.phys.teleport(0.2 + DEFAULT_ROBOT.length / 2 + 0.005, 0.1, Math.PI, F.PLATFORM_HEIGHT + 0.01);
+      steps(g, 0.6, { elevator: 1 });
+      steps(g, 0.3, { elevator: 3 });
       c.body.setLinvel({ x: 0, y: 0.5, z: 3 }, true);
       steps(g, 1.5);
       expect(g.sensors.criticalOnRepisa('red')).toBe(false);

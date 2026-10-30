@@ -123,6 +123,8 @@ export class Mechanisms {
   angle = 0;
   /** Brazo en su posición de guardado del inicio. */
   stowed = false;
+  /** El brazo topó con una estructura de la cancha y se quedó ahí (hitbox literal, D34). */
+  armBlocked = false;
   /** La garra lleva una Muestra (la última de `stored`); las demás van en el hopper. */
   inClaw = false;
   /** Segundos con la garra en la boca del hopper (pasando una Muestra). */
@@ -190,10 +192,15 @@ export class Mechanisms {
       const g = task ? (s.arm.hopperAngle ?? Math.PI) : posAngle(s, this.target);
       const d = g - this.angle;
       const stepA = s.arm.speed * this.armScale * dt;
-      this.angle = Math.abs(d) <= stepA ? g : this.angle + Math.sign(d) * stepA;
-      this.height = Math.abs(d) <= stepA && !task ? goal : armTip(s.arm, this.angle).y;
+      const next = Math.abs(d) <= stepA ? g : this.angle + Math.sign(d) * stepA;
+      // Si en la nueva pose el brazo o la garra se meterían en la madera, el brazo topa y se queda
+      // (si ya estaba metido, p. ej. por un empujón, lo deja moverse para que se zafe)
+      const held = this.critical ? 'critical' : this.inClaw ? 'sample' : null;
+      this.armBlocked = next !== this.angle && this.phys.armHitsField(next, held) && !this.phys.armHitsField(this.angle, held);
+      if (!this.armBlocked) this.angle = next;
+      this.height = this.angle === g && !task ? goal : armTip(s.arm, this.angle).y;
       // En la boca del hopper: pasa la Muestra después de `transferTime`
-      if (task && Math.abs(d) <= stepA) {
+      if (task && this.angle === g) {
         this.transferT += dt;
         if (this.transferT >= (s.arm.transferTime ?? 0.25)) {
           this.transferT = 0;
@@ -216,6 +223,7 @@ export class Mechanisms {
     const s = this.phys.spec;
     this.stowed = s.arm.stowAngle !== undefined;
     this.transferT = 0;
+    this.armBlocked = false;
     this.angle = s.arm.stowAngle ?? posAngle(s, 0);
     this.height = armTip(s.arm, this.angle).y;
   }
