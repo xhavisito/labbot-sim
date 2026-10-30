@@ -189,7 +189,7 @@ export function textTexture(text: string, opts: { w?: number; h?: number; bg?: s
   g.fillStyle = opts.bg ?? '#000';
   g.fillRect(0, 0, w, h);
   g.fillStyle = opts.fg ?? '#fff';
-  g.font = opts.font ?? `800 ${Math.floor(h * 0.7)}px "Chakra Petch", "Arial Black", Arial, sans-serif`;
+  g.font = opts.font ?? `800 ${Math.floor(h * 0.7)}px "Inter Variable", "Arial Black", Arial, sans-serif`;
   g.textAlign = 'center';
   g.textBaseline = 'middle';
   g.fillText(text, w / 2, h / 2 + h * 0.04);

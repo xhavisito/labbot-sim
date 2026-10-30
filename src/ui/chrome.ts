@@ -1,5 +1,5 @@
 /**
- * Piezas comunes de las pantallas (estilo "pit console", como rebuilt-sim): barra de la marca,
+ * Piezas comunes de las pantallas : barra de la marca,
  * íconos de línea propios (24×24, en lugar de emojis que se ven distinto en cada sistema) y la
  * silueta de cada tipo de robot para el menú.
  */
@@ -44,7 +44,7 @@ export const ic = {
 
 /** Barra superior con la marca; `right` = botones a la derecha. */
 export function brandbar(ctx = '', right = ''): string {
-  return `<div class="brandbar"><div class="brand"><i class="logo" aria-hidden="true"></i>LABBOT<span>RESCUE</span></div>${ctx ? `<div class="ctx">${ctx}</div>` : ''}<div class="grow"></div>${right}</div>`;
+  return `<div class="brandbar"><div class="brand"><i class="logo" aria-hidden="true"></i>LabBot<span>Rescue</span></div>${ctx ? `<div class="ctx">${ctx}</div>` : ''}<div class="grow"></div>${right}</div>`;
 }
 
 /** Selector de idioma (ES/EN) para la barra de la marca. */

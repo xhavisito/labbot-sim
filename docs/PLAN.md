@@ -142,3 +142,11 @@ derecho a cada Muestra (`Bot.driveToPiece`); fallas por golpes y al azar (`core/
 `game/Damage.ts` en la física, tarjeta del HUD y LEDs del robot); fuera de la cancha solo con todo el
 robot fuera (`fullyOutOfField`, D33). Ajustes → Realismo. Pruebas en `tests/realism.test.ts`.
 Con el agarre realista la IA anota ≈12.5 Muestras por alianza (antes ≈15, `npm run batch -- --set ai`).
+
+**30-oct (Xhavi):** "nomás no agarra aunque esté alineado… nuestro robot va a tener compliants" y "que
+se use el mismo botón para pieza normal que para crítica". El agarre por defecto es ahora **con
+compliants** (`COMPLIANT` en `game/Mechanisms.ts`, D37): agarra de cualquier ángulo con la garra abajo,
+de la placa hasta 3 cm delante de la punta de los dedos, con que toque la rueda de un dedo (antes la
+Muestra tenía que llegar hasta la placa, así que pegada a una Cámara o a la pared no se dejaba). El
+estricto queda como "Preciso". Garra (Espacio/A) toma la Crítica si está al alcance y si no
+prende/apaga la garra; Soltar (E/B) suelta lo que traiga.

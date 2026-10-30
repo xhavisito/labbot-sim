@@ -75,7 +75,7 @@ export interface SessionOptions {
   aiLevel?: AiLevel;
   /** Lugar de cada robot en su Zona de Inicio (§4.1, `config/startSpot.ts`); por defecto centrado. */
   starts?: Array<StartSpot | undefined>;
-  /** Agarre de la garra (`game/Mechanisms.ts`): realista (por defecto) o fácil. */
+  /** Agarre de la garra (`game/Mechanisms.ts`): con compliants (por defecto), preciso o fácil. */
   grip?: GripMode;
   /** Fallas por golpes y al azar (`core/damage.ts`); por defecto apagadas (las pruebas y la simulación por lotes). */
   damage?: DamageSettings;
@@ -157,13 +157,13 @@ export class GameSession {
       if (opts.solo && i !== opts.player) continue;
       const r = new Robot(this.pw, this.pieces, i, i < 2 ? 'red' : 'blue', (i % 2) as 0 | 1, opts.specs?.[i] ?? DEFAULT_ROBOT, opts.starts?.[i]);
       this.robots.push(r);
-      const v = new RobotView(r);
+      const v = new RobotView(r, i === opts.player);
       this.robotViews.push(v);
       this.root.add(v.group);
     }
     const rand = rng(opts.seed ?? 1);
     for (const r of this.robots) {
-      r.mech.grip = opts.grip ?? 'real';
+      r.mech.grip = opts.grip ?? 'compliant';
       r.mech.rand = rand;
     }
     this.damage = new Damage(this.robots, opts.damage ?? { ...DEFAULT_DAMAGE, level: 'off' }, rand, opts.player, this.pw.dt);
@@ -249,11 +249,18 @@ export class GameSession {
     if (!this.playerEnabled() || this.pilot || this.damage.disabled(this.player.index)) return;
     const m = this.player.mech;
     const a = this.tapActs;
-    if (inp.toggleIntake) a.intake = m.intakeOn = !m.intakeOn;
+    // Un solo botón por acción para las dos piezas (Xhavi, 30-oct): la garra toma la Muestra Crítica
+    // si la tiene al alcance y a su altura; si no, prende o apaga la garra para las Muestras. Soltar
+    // suelta lo que traiga en la garra.
+    if (inp.toggleIntake) {
+      if (m.grabCritical(this.stepMechEvents)) a.grabCritical = true;
+      else a.intake = m.intakeOn = !m.intakeOn;
+    }
     if (inp.elevator !== null) a.elevator = m.target = inp.elevator;
-    if (inp.releaseSample) a.release = m.release('sample', this.stepMechEvents) || undefined;
-    if (inp.grabCritical) a.grabCritical = m.grabCritical(this.stepMechEvents) || undefined;
-    if (inp.releaseCritical) a.releaseCritical = m.release('critical', this.stepMechEvents) || undefined;
+    if (inp.releaseSample) {
+      if (m.critical) a.releaseCritical = m.release('critical', this.stepMechEvents) || undefined;
+      else a.release = m.release('sample', this.stepMechEvents) || undefined;
+    }
   }
 
   /** ¿El jugador controla su robot ahora? (práctica o TELEOP) */

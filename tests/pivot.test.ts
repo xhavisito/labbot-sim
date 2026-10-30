@@ -61,12 +61,12 @@ describe('Pivote', () => {
     // La garra llega lejos: el robot se para a la distancia de su punta (como la IA, `critDistance`)
     g.player.phys.teleport(c.x, c.z + armTip(a, armAngle(a, S.elevatorHeights[4])).x - 0.05, Math.PI / 2);
     run(g, 1.5, { elevator: 4 });
-    run(g, 0.2, { grabCritical: true });
+    run(g, 0.2, { toggleIntake: true });
     expect(m.critical).toBeNull();
     // Suelta la precarga y ya la toma
     run(g, 0.5, { releaseSample: true });
     expect(m.stored).toHaveLength(0);
-    run(g, 0.2, { grabCritical: true });
+    run(g, 0.2, { toggleIntake: true });
     expect(m.critical).not.toBeNull();
   });
 

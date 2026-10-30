@@ -105,6 +105,10 @@ export const CLAW = {
 /** Espacio libre entre los dedos (m). */
 export const CLAW_GAP = 2 * CLAW.fingerZ - CLAW.fingerThickness;
 
+/** Agarre de la garra (`game/Mechanisms.ts`): con compliants (por defecto), preciso o fácil. */
+export type GripMode = 'compliant' | 'precise' | 'easy';
+export const GRIP_MODES: readonly GripMode[] = ['compliant', 'precise', 'easy'];
+
 /** Posiciones del brazo (0 = piso, 1–3 = niveles, 4 = Repisa). */
 export type ElevatorPos = 0 | 1 | 2 | 3 | 4;
 

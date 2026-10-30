@@ -572,10 +572,12 @@ export class Bot {
   private approach: { piece: number; k: number } | null = null;
 
   /**
-   * Va hacia una Muestra con la garra abajo para que entre de frente. Con el agarre realista
+   * Va hacia una Muestra con la garra abajo para que entre de frente. Con el agarre preciso
    * (`Mechanisms.grip`) la garra solo cierra con la Muestra casi derecha, así que llega por la línea
    * de una de sus caras (la que le queda más de frente): persigue un punto en esa línea, detrás de
    * la Muestra, que se acerca a ella conforme se alinea; y entra despacio (se resbala si llega rápido).
+   * Con compliants llega igual: no lo necesita, pero así no estorba a su compañero ni pisa la
+   * Plataforma (en 8 matches de prueba anota lo mismo que llegando directo, sin faltas).
    */
   private driveToPiece(p: { x: number; z: number; i?: number }, out: BotOutput, phase: Phase): void {
     const r = this.robot;
@@ -626,8 +628,9 @@ export class Bot {
     // Como lo haría un piloto con tanque: se para detrás de la Muestra, gira en su lugar hasta verla
     // de frente y entra derecho y despacio (la garra cierra en ~0.2 s; se resbala si llega rápido)
     const onLine = behind > grab - 0.08 && Math.abs(side) < 0.12;
-    // Otro robot pegado del lado de la garra (la Muestra quedó junto a él): entrar lo empujaría
-    if (onLine && this.rivalNear(pd, grab + 0.35, true)) {
+    // De reversa (garra atrás) no ve lo que tiene detrás: si la Muestra quedó pegada a otro robot,
+    // entrar lo empujaría
+    if (pd < 0 && onLine && this.rivalNear(pd, grab + 0.35, true)) {
       this.ignore.set(piece.index, 4);
       this.targetPiece = -1;
       return;

@@ -19,7 +19,6 @@ export function keyboardHelp(b: Bindings): HelpItem[] {
     { keys: keys(b, 'toggleIntake'), what: t('act_toggleIntake') },
     { keys: elev.length > 1 ? [elev[0], '–', elev[elev.length - 1]] : keys(b, 'elevatorUp', 'elevatorDown'), what: t('help_elevatorHelp') },
     { keys: keys(b, 'releaseSample'), what: t('act_releaseSample').toLowerCase() },
-    { keys: keys(b, 'grabCritical', 'releaseCritical'), what: t('critical').toLowerCase() },
     { keys: keys(b, 'slow'), what: t('act_slow').toLowerCase() },
   ];
   return items.filter((i) => i.keys.length);
@@ -27,7 +26,7 @@ export function keyboardHelp(b: Bindings): HelpItem[] {
 
 /** Línea de ayuda del control. */
 export function padHelp(b: Bindings): string {
-  const acts: Action[] = ['slow', 'toggleIntake', 'releaseSample', 'grabCritical', 'releaseCritical', 'elevatorUp', 'elevatorDown', 'camera', 'pause'];
+  const acts: Action[] = ['slow', 'toggleIntake', 'releaseSample', 'elevatorUp', 'elevatorDown', 'camera', 'pause'];
   const drive = b.padDrive === 'split' ? t('help_padSplit') : t('help_padLeft');
   return `${drive} · ${acts
     .filter((a) => b.pad[a].length)

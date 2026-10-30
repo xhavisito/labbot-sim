@@ -100,13 +100,13 @@ describe('robot (§7.2)', () => {
     // De frente a la Campana (viendo hacia −Z), a la distancia de la punta del brazo a la altura de la rendija
     put(g, c.x, c.z + critReach(), Math.PI / 2);
     run(g, 1.5, { elevator: 4 });
-    run(g, 0.2, { grabCritical: true });
+    run(g, 0.2, { toggleIntake: true });
     expect(g.player.mech.critical?.owner).toBe('red');
     // En la plataforma superior, de frente a la Repisa
     g.player.phys.teleport(F.REPISA_DEPTH / 2 + DEFAULT_ROBOT.length / 2 + 0.03, 0, Math.PI, F.PLATFORM_HEIGHT + 0.01);
     run(g, 1.0);
     const crit = g.player.mech.critical!;
-    run(g, 2.0, { releaseCritical: true });
+    run(g, 2.0, { releaseSample: true });
     const t = crit.body.translation();
     expect(Math.abs(t.x)).toBeLessThan(F.REPISA_DEPTH / 2);
     expect(t.y).toBeCloseTo(F.REPISA_TOP + F.CRITICAL_SIZE / 2, 1);

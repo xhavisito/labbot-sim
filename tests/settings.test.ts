@@ -28,6 +28,13 @@ describe('ajustes', () => {
     expect(sanitizeSettings({ quality: 'ultra' }, ids).quality).toBe('auto');
   });
 
+  it('agarre: compliants por defecto; el estricto de antes ("real") pasa a compliants', () => {
+    expect(DEFAULT_SETTINGS.grip).toBe('compliant');
+    expect(sanitizeSettings({ grip: 'real' }, ids).grip).toBe('compliant');
+    expect(sanitizeSettings({ grip: 'precise' }, ids).grip).toBe('precise');
+    expect(sanitizeSettings({ grip: 'easy' }, ids).grip).toBe('easy');
+  });
+
   it('las rutinas por defecto existen', () => {
     expect(ids).toContain(DEFAULT_SETTINGS.playerAuto);
     for (const r of DEFAULT_SETTINGS.match.robots) expect(ids).toContain(r.auto);
