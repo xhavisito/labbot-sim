@@ -119,9 +119,12 @@ las más urgentes son **D1** (línea de autónomo), **D4** (cuándo cuenta una m
 
 ## 6. Cambio del 27-oct: solo el Pivote
 Por pedido de Xhavi se quitaron los demás robots (genérico, elevador, torre, chasis y pivote con
-hopper): quedan el **Pivote** y su variante **Pivote 180°** (`config/robot.ts`), que recoge al frente y
-voltea el brazo por arriba para anotar atrás en N1–N3 sin girar el chasis (`arm.scoreBack`,
-`posAngle`); la IA llega de reversa a la Cámara (`Bot.scoreDir`).
+hopper): quedan el **Pivote** y su variante **Pivote 180°** (`config/robot.ts`), que recoge atrás y
+voltea el brazo por arriba para anotar al frente en N1–N3 sin girar el chasis (`arm.pickBack`,
+`posAngle`, `posDir`); la IA llega de frente a la Cámara y de reversa a la Muestra y a la Crítica
+(`Bot.pickDir`, `Bot.critDir`). Hasta el 29-oct estaba al revés (recogía al frente y anotaba atrás);
+Xhavi pidió voltearlo para que al avanzar el frente sea el lado donde se acomoda para anotar. Los
+robots propios guardados antes con el eje detrás del centro se abren con el eje adelante.
 Lo que arriba dice "intake/elevador/depósito" hoy es el brazo con garra (`game/Mechanisms.ts`). Los
 datos guardados de tipos quitados se abren como Pivote. (Un primer cambio dejó por error el Pivote
 con hopper; se corrigió el mismo día.)

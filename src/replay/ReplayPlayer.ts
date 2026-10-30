@@ -79,7 +79,8 @@ export class ReplayPlayer {
       const m = rb.mech;
       const near = k < 0.5 ? a : b;
       m.height = lerp(a.height, b.height, k);
-      m.angle = lerp(a.angle, b.angle, k);
+      // Por el camino corto: el ángulo se graba en (−π, π] y el del brazo que voltea cruza de π a −π
+      m.angle = a.angle + Math.atan2(Math.sin(b.angle - a.angle), Math.cos(b.angle - a.angle)) * k;
       m.intakeOn = near.intake;
       // Las vistas solo cuentan cuántas piezas lleva: se rellenan con una pieza cualquiera
       m.stored.length = 0;

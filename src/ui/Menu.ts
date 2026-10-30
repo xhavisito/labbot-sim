@@ -262,7 +262,7 @@ export class Menu {
       <div class="ri-plate"><div class="num">${robotName(id)}</div><p>${robotDesc(id)}</p></div>
       <div class="ri-stats">
         ${bar(t('statSpeed'), s.maxSpeed / SETTINGS_RANGE.maxSpeed.max, `${s.maxSpeed.toFixed(2).replace(/0$/, '')} m/s`)}
-        <div class="ri-flags"><span>${t(spec.arm.scoreBack ? 'scoresBack' : 'scoresFront')}</span><span>${levels}</span></div>
+        <div class="ri-flags"><span>${t(spec.arm.pickBack ? 'picksBack' : 'scoresFront')}</span><span>${levels}</span></div>
       </div>
       <div class="nav"><button class="arrowbtn" data-step="-1" aria-label="‹">‹</button>
         <div class="track"><i style="width:${100 / n}%;margin-left:${(100 * i) / n}%"></i></div>

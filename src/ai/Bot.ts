@@ -17,7 +17,7 @@
  */
 import * as F from '../config/field';
 import { GAME } from '../config/game';
-import { armAngle, armTip, posTip, type ElevatorPos } from '../config/robot';
+import { posDir, posTip, type ElevatorPos } from '../config/robot';
 import type { Phase } from '../core/clock';
 import { opponent, type Alliance, type Level } from '../core/types';
 import { cubePose } from '../game/Mechanisms';
@@ -96,6 +96,8 @@ export class Bot {
   readonly team: Team;
   private targetPiece = -1;
   private backOff = 0;
+  /** Hacia dónde se aparta al atorarse: al revés de como iba (−1 si iba de frente, +1 si de reversa). */
+  private backDir = -1;
   private bestDist = Infinity;
   private progressT = 0;
   private lastGoal: { x: number; z: number } | null = null;
@@ -167,7 +169,7 @@ export class Bot {
 
   /**
    * Punto de anotación: frente a la pared de la Cámara propia, al centro del nivel, viendo hacia ella
-   * (o de espaldas si el brazo anota atrás, `ArmSpec.scoreBack`).
+   * (los dos tipos anotan al frente; `posDir` lo dice por posición).
    */
   scoringPose(level: Level): { x: number; z: number; heading: number } {
     const w = F.camaraWells()[level];
@@ -178,13 +180,18 @@ export class Bot {
     const spread = (w.x1 - w.x0) / 2 - 0.14;
     const dx = [0, -1, 1, -0.5, 0.5][this.visits % 5] * spread;
     const p = F.forAlliance(this.robot.alliance, { x: (w.x0 + w.x1) / 2 + dx, z });
-    const back = this.robot.spec.arm.scoreBack ? Math.PI : 0;
+    const back = this.scoreDir < 0 ? Math.PI : 0;
     return { ...p, heading: wrap((this.robot.alliance === 'red' ? -Math.PI / 2 : Math.PI / 2) + back) };
   }
 
   /** +1 si anota al frente, −1 si anota atrás (llega a la Cámara de reversa). */
   private get scoreDir(): number {
-    return this.robot.spec.arm.scoreBack ? -1 : 1;
+    return posDir(this.robot.spec, 3);
+  }
+
+  /** +1 si recoge del piso al frente, −1 si atrás (llega a la Muestra de reversa, `ArmSpec.pickBack`). */
+  private get pickDir(): number {
+    return posDir(this.robot.spec, 0);
   }
 
   /** Distancia (centro del robot → centro de la Muestra al soltarla) en ese nivel. */
@@ -278,8 +285,8 @@ export class Bot {
 
     if (this.backOff > 0) {
       this.backOff -= dt;
-      // Retrocede girando, salvo que tenga a un rival detrás (no chocarle, §4.5)
-      out.forward = this.rivalNear(-1, 1.0) ? 0 : -0.35;
+      // Se aparta girando (al revés de como iba), salvo que tenga a un rival ahí (no chocarle, §4.5)
+      out.forward = this.rivalNear(this.backDir, 1.0) ? 0 : this.backDir * 0.35;
       out.turn = 0.6;
       return out;
     }
@@ -574,12 +581,13 @@ export class Bot {
     const r = this.robot;
     const pos = r.phys.position();
     const s = r.spec;
-    // Distancia del centro del robot a la que la toma
-    const grab = armTip(s.arm, armAngle(s.arm, 0)).x;
+    // Distancia del centro del robot a la que la toma, y si la garra está al frente o atrás
+    const grab = Math.abs(posTip(s, 0).x);
+    const pd = this.pickDir;
     const dist = Math.hypot(p.x - pos.x, p.z - pos.z);
     const piece = p.i !== undefined ? this.pieces.list[p.i] : undefined;
     if (!piece || r.mech.grip === 'easy' || dist > grab + 1.6) {
-      this.drive(p, out, true, phase, false, false, Math.max(0, dist - grab));
+      this.drive(p, out, true, phase, false, pd < 0, Math.max(0, dist - grab));
       return;
     }
     // Cara de la Muestra más de frente al camino que trae, de las que dejan llegar al robot (sin
@@ -612,13 +620,21 @@ export class Bot {
     const rz = pos.z - p.z;
     const behind = -(rx * dx + rz * dz);
     const side = rx * dz - rz * dx;
-    const herr = wrap(h - r.phys.heading());
+    // Con la garra atrás la ve de espaldas y entra de reversa (girar el chasis gira igual el sentido
+    // de avance, así que la corrección lateral no cambia de signo)
+    const herr = wrap(h + (pd < 0 ? Math.PI : 0) - r.phys.heading());
     // Como lo haría un piloto con tanque: se para detrás de la Muestra, gira en su lugar hasta verla
     // de frente y entra derecho y despacio (la garra cierra en ~0.2 s; se resbala si llega rápido)
     const onLine = behind > grab - 0.08 && Math.abs(side) < 0.12;
+    // Otro robot pegado del lado de la garra (la Muestra quedó junto a él): entrar lo empujaría
+    if (onLine && this.rivalNear(pd, grab + 0.35, true)) {
+      this.ignore.set(piece.index, 4);
+      this.targetPiece = -1;
+      return;
+    }
     if (onLine && Math.abs(herr) < 0.15) {
       out.turn = clamp1(herr * 3 - side * 6);
-      out.forward = Math.min(0.3, 0.12 + Math.max(0, behind - grab) * 0.4);
+      out.forward = pd * Math.min(0.3, 0.12 + Math.max(0, behind - grab) * 0.4);
       return;
     }
     const stage = { x: p.x - dx * (grab + 0.45), z: p.z - dz * (grab + 0.45) };
@@ -628,7 +644,7 @@ export class Bot {
       out.forward = 0;
       return;
     }
-    this.drive(stage, out, true, phase);
+    this.drive(stage, out, true, phase, false, pd < 0);
   }
 
   /**
@@ -678,7 +694,7 @@ export class Bot {
       this.drive(F.forAlliance(r.alliance, { x: 2.9, z: -1.3 }), out, true, phase);
       return;
     }
-    const st = this.dock(pose, faceZ, 1, out, phase, { stage: 0.5, tol: 0.1, edge: 0.25 });
+    const st = this.dock(pose, faceZ, this.pickDir, out, phase, { stage: 0.5, tol: 0.1, edge: 0.25 });
     if (st === 'docked') {
       out.forward = 0;
       this.hpWait += dt;
@@ -771,6 +787,7 @@ export class Bot {
       if (depth < 0.2) return 'docked';
       this.dockT = 0;
       this.backOff = 0.5;
+      this.backDir = -dir;
       return 'travel';
     }
     if (Math.abs(err) > 0.07) {
@@ -799,13 +816,14 @@ export class Bot {
     return F.forAlliance(this.robot.alliance, { x: h.x, z: h.z + this.critDistance() + 0.55 });
   }
 
-  /** La garra toma y suelta la Crítica al frente. */
-  private readonly critDir = 1;
+  /** +1 si la garra toma y suelta la Crítica al frente, −1 si atrás (el Pivote 180°). */
+  private get critDir(): number {
+    return posDir(this.robot.spec, 4);
+  }
 
   /** Distancia (centro del robot → pieza) a la que su garra alcanza la Crítica. */
   private critDistance(): number {
-    const s = this.robot.spec;
-    return armTip(s.arm, armAngle(s.arm, s.elevatorHeights[4])).x - 0.05;
+    return Math.abs(posTip(this.robot.spec, 4).x) - 0.05;
   }
 
   /**
@@ -820,8 +838,7 @@ export class Bot {
     const r = this.robot;
     const s = r.spec;
     const hl = r.phys.halfL;
-    const lift = s.elevatorHeights[4];
-    const tip = armTip(s.arm, armAngle(s.arm, lift)).x;
+    const tip = Math.abs(posTip(s, 4).x);
     // La garra solo abre (sin empujón): lo que se desliza al tocar la Repisa (medido ≈ 2 cm)
     const drift = 0.02;
     return Math.max(F.REPISA_DEPTH / 2 + hl + 0.01, this.critLanding() + tip + drift);
@@ -953,13 +970,13 @@ export class Bot {
   }
 
   // ------------------------------------------------------------------ manejo
-  /** ¿Hay un rival a menos de `d` m en esa dirección (+1 adelante, −1 atrás, ±70°)? */
-  private rivalNear(dir: number, d: number): boolean {
+  /** ¿Hay un rival (o cualquier robot, con `any`) a menos de `d` m en esa dirección (+1 adelante, −1 atrás, ±70°)? */
+  private rivalNear(dir: number, d: number, any = false): boolean {
     const r = this.robot;
     const pos = r.phys.position();
     const h = r.phys.heading() + (dir < 0 ? Math.PI : 0);
     return this.others.some((o) => {
-      if (o === r || o.alliance === r.alliance) return false;
+      if (o === r || (!any && o.alliance === r.alliance)) return false;
       const op = o.phys.position();
       const od = Math.hypot(op.x - pos.x, op.z - pos.z);
       return od < d && Math.abs(wrap(Math.atan2(-(op.z - pos.z), op.x - pos.x) - h)) < 1.2;
@@ -1086,6 +1103,7 @@ export class Bot {
       this.progressT = 0;
       this.bestDist = Infinity;
       this.backOff = 0.6;
+      this.backDir = reverse ? 1 : -1;
       if (this.mode === 'collect' && this.targetPiece >= 0) this.ignore.set(this.targetPiece, 8);
       this.targetPiece = -1;
     }

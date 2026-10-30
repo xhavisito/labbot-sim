@@ -70,7 +70,8 @@ export const frameSize = (h: Pick<ReplayHeader, 'robots' | 'pieces'>): number =>
 const clamp16 = (v: number): number => Math.max(-32768, Math.min(32767, Math.round(v)));
 export const toMm = (m: number): number => clamp16(m * 1000);
 export const toQ = (q: number): number => clamp16(q * 32767);
-export const toAngle = (a: number): number => clamp16(a * 1e4);
+/** Ángulo del brazo, llevado a (−π, π] (el del Pivote 180° pasa de π al recoger atrás y no cabría). */
+export const toAngle = (a: number): number => clamp16(Math.atan2(Math.sin(a), Math.cos(a)) * 1e4);
 
 /** Pose de un robot en el cuadro `f`. */
 export interface RobotFrame {

@@ -133,10 +133,11 @@ En el menú eliges tu robot (Rojo 1–2, Azul 1–2) y el modo:
   - *Pivote* (sugerencia de CAD en MDF): chasis 60×60 cm, brazo de 50 cm con garra y eje a 44 cm.
     Empieza guardado con la precarga; con el brazo en el piso (tecla 0) y la garra encendida agarra
     una Muestra y la suelta al frente en N1–N3. Lleva una sola pieza (Muestra o Crítica).
-  - *Pivote 180°* (estilo Jack in the Bot 2025): recoge al frente y anota **atrás** sin girar el
-    chasis. Eje bajo (17 cm) y 15 cm detrás del centro, brazo de 71 cm: agarra del piso al frente,
-    voltea por arriba y suelta detrás del robot en N1–N3 (desde 78/78/82 cm). La IA llega de reversa
-    a la Cámara. La Crítica (posición 4, 60 cm) y la Repisa siguen al frente. Al voltear con una
+  - *Pivote 180°* (estilo Jack in the Bot 2025): recoge **atrás** y anota al frente sin girar el
+    chasis (volteado el 29-oct: al avanzar, el frente es el lado donde se acomoda para anotar). Eje
+    bajo (17 cm) y 15 cm delante del centro, brazo de 71 cm: agarra del piso atrás (de reversa),
+    voltea por arriba y suelta delante del robot en N1–N3 (desde 78/78/82 cm). Llega a la Cámara de
+    frente. La Crítica (posición 4, 60 cm) y la Repisa van atrás, del lado de la garra. Al voltear con una
     Muestra la punta llega a ~103 cm: excede 100 cm solo durante el giro (SUPUESTO D24, a confirmar
     con los jueces). En simulación (`--set mech`, 3 semillas) rinde parecido al Pivote: 235 vs 228
     puntos por alianza con dos iguales y más en AUTO (61 vs 53).
