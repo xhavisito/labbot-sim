@@ -60,9 +60,9 @@ describe('posición de inicio elegible (§3.2.1, §4.1)', () => {
     expect(sanitizeSpot({ dx: 'a', dz: 9, turn: 7 })).toEqual({ dx: 0, dz: 1, turn: Math.atan2(Math.sin(7), Math.cos(7)) });
     const ids = ['leave', 'preload', 'collect', 'none'];
     const s = sanitizeSettings({ aiLevel: 'easy', botAuto: 'leave', match: { robots: [{ kind: 'pivot180', strategy: 'park', ai: 'normal' }, { kind: 'tower', strategy: 'volar' }] } }, ids);
-    expect(s.match.robots[0]).toEqual({ kind: 'pivot180', strategy: 'park', ai: 'normal', auto: 'leave' });
+    expect(s.match.robots[0]).toEqual({ kind: 'pivot180', strategy: 'park', ai: 'normal', auto: 'leave', plan: '' });
     // Tipo quitado o estrategia desconocida: al azar / automática, con la dificultad de antes
-    expect(s.match.robots[1]).toEqual({ kind: 'random', strategy: 'auto', ai: 'easy', auto: 'leave' });
+    expect(s.match.robots[1]).toEqual({ kind: 'random', strategy: 'auto', ai: 'easy', auto: 'leave', plan: '' });
     expect(s.match.start).toEqual(CENTER_SPOT);
     expect(sanitizeSettings({}, ids).match).toEqual(DEFAULT_SETTINGS.match);
   });

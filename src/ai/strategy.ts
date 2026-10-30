@@ -33,3 +33,32 @@ export const STRATEGY_OPTIONS: Record<StrategyId, Partial<BotOptions>> = {
 };
 
 export const isStrategy = (v: unknown): v is StrategyId => STRATEGIES.includes(v as StrategyId);
+
+/**
+ * Estrategias que puede llevar en secreto un robot rival (2 contra 2: no eliges ni ves la del
+ * contrario, Xhavi 30-oct). Peso = qué tan seguido sale; 'park' (no anota) no se usa para rivales.
+ */
+export const SECRET_STRATEGIES: ReadonlyArray<readonly [StrategyId, number]> = [
+  ['auto', 4],
+  ['n3', 2],
+  ['critical', 1.5],
+  ['hp', 1],
+  ['lab', 1],
+  ['n2', 1],
+  ['noEndgame', 0.5],
+];
+
+/** AUTO de un rival (rutinas de `auto/AutoRoutine.ts`) con su peso. */
+export const SECRET_AUTOS: ReadonlyArray<readonly [string, number]> = [
+  ['preload', 3],
+  ['collect', 3],
+  ['leave', 1],
+];
+
+/** Elige al azar con pesos. */
+export function weighted<T>(list: ReadonlyArray<readonly [T, number]>, rand: () => number = Math.random): T {
+  const total = list.reduce((a, [, w]) => a + w, 0);
+  let r = rand() * total;
+  for (const [v, w] of list) if ((r -= w) < 0) return v;
+  return list[list.length - 1][0];
+}

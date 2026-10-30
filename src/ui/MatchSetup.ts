@@ -3,14 +3,18 @@
  * - tu posición inicial: arrastra tu robot dentro de su Zona de Inicio y gíralo. Solo deja lugares
  *   donde el chasis completo queda dentro de la zona (§3.2.1, §4.1; `config/startSpot.ts`), como el
  *   mapa de la configuración del match de rebuilt-sim;
- * - por cada robot de la IA: tipo (en el Scouting y el torneo lo fija su equipo), estrategia
- *   (`ai/strategy.ts`), dificultad (`ai/difficulty.ts`) y rutina de AUTO;
+ * - tu compañero de la IA: tipo (en el Scouting y el torneo lo fija su equipo), estrategia
+ *   (`ai/strategy.ts`, o una estrategia de alianza que dibujaste, `ui/StrategyScreen.ts`),
+ *   dificultad (`ai/difficulty.ts`) y rutina de AUTO;
+ * - los rivales: solo su dificultad. Su tipo, estrategia y AUTO los elige la IA en secreto en cada
+ *   match y no se muestran (2 contra 2: no sabes la estrategia del contrario, Xhavi 30-oct);
  * - tu rutina de AUTO.
  */
 import { AI_LEVELS, type AiLevel } from '../ai/difficulty';
 import { STRATEGIES, type StrategyId } from '../ai/strategy';
 import { AUTO_ROUTINES } from '../auto/AutoRoutine';
 import { routeRoutine, savedRoutes } from '../auto/recorded';
+import { loadPlans } from '../game/planStore';
 import * as F from '../config/field';
 import { MECHANISM_KINDS, type MechanismKind, type RobotSpec } from '../config/robot';
 import type { MatchRobot, Settings } from '../config/settings';
@@ -39,6 +43,8 @@ export interface SetupActions {
   /** Empieza con lo elegido (ya guardado en los ajustes); `player` por si cambió de estación. */
   start: (player: number) => void;
   save: () => void;
+  /** Abre el menú de Estrategias (al volver, regresa aquí); `id` = abrir esa estrategia. */
+  plans: (id?: string) => void;
 }
 
 /** Área del mapa (marco rojo, m): de la línea X = 2.3 a la pared de la alianza, y |Z| ≤ 1.5. */
@@ -81,6 +87,15 @@ export class MatchSetup {
       const cur = levels.size === 1 ? [...levels][0] : 'mixed';
       return (cur === 'mixed' ? `<option value="mixed" selected disabled hidden>${t('ms_mixed')}</option>` : '') + aiOpts(cur);
     };
+    const plans = loadPlans();
+    const planOf = (r: MatchRobot) => plans.find((x) => x.id === r.plan);
+    const stratSel = (i: number, r: MatchRobot) => {
+      const cur = planOf(r) ? `plan:${r.plan}` : r.strategy;
+      return `<select data-strat="${i}">${STRATEGIES.map((x) => opt(x, t(`strat_${x}` as Key), cur)).join('')}${
+        plans.length ? `<optgroup label="${t('ms_myPlans')}">${plans.map((x) => opt(`plan:${x.id}`, esc(x.name), cur)).join('')}</optgroup>` : ''
+      }</select>`;
+    };
+    const lock = `<span class="ms-fixed ms-secret" title="${t('ms_secretTitle')}">${ic.lock}${t('ms_secret')}</span>`;
     const row = (i: number) => {
       const r = m.robots[i];
       const team = inp.teams?.[i] ? `<small>${esc(inp.teams[i])}</small>` : '';
@@ -90,12 +105,22 @@ export class MatchSetup {
           <div class="ms-f"><span>${t('ms_type')}</span><span class="ms-fixed">${esc(inp.playerName)}</span></div>
           <div class="ms-f"><span>${t('ms_strategy')}</span><span class="ms-fixed">${t('ms_youDrive')}</span></div>
           <div class="ms-f"><span>AUTO</span><select data-pauto>${autoOpts(s.playerAuto, true)}</select></div></div>`;
+      // Rival: solo su dificultad (el tipo se ve si lo fija su equipo en el Scouting o el torneo)
+      if ((i < 2) !== (player < 2))
+        return `<div class="ms-row rival">${head}
+        <div class="ms-f"><span>${t('ms_type')}</span>${inp.kinds ? `<span class="ms-fixed">${t(`type_${inp.kinds[i]}` as Key)}</span>` : lock}</div>
+        <div class="ms-f"><span>${t('ms_strategy')}</span>${lock}</div>
+        <div class="ms-f"><span>${t('ms_difficulty')}</span>${aiSel(i, r.ai)}</div>
+        <div class="ms-f"><span>AUTO</span>${lock}</div>
+        <p class="ms-desc">${t('ms_rivalDesc')}</p></div>`;
+      const plan = planOf(r);
       return `<div class="ms-row">${head}
         <div class="ms-f"><span>${t('ms_type')}</span>${kindCell(i, r)}</div>
-        <div class="ms-f"><span>${t('ms_strategy')}</span><select data-strat="${i}">${STRATEGIES.map((x) => opt(x, t(`strat_${x}` as Key), r.strategy)).join('')}</select></div>
+        <div class="ms-f"><span>${t('ms_strategy')}</span>${stratSel(i, r)}</div>
         <div class="ms-f"><span>${t('ms_difficulty')}</span>${aiSel(i, r.ai)}</div>
-        <div class="ms-f"><span>AUTO</span><select data-auto="${i}">${autoOpts(r.auto, false)}</select></div>
-        <p class="ms-desc" data-desc="${i}">${t(`strat_${r.strategy}_desc` as Key)}</p></div>`;
+        <div class="ms-f"><span>AUTO</span>${plan ? `<span class="ms-fixed">${t('ms_fromPlan')}</span>` : `<select data-auto="${i}">${autoOpts(r.auto, false)}</select>`}</div>
+        <p class="ms-desc" data-desc="${i}">${plan ? t('ms_planDesc', { name: esc(plan.name) }) : t(`strat_${r.strategy}_desc` as Key)}
+          <button class="chipbtn" data-plans="${plan ? esc(plan.id) : ''}">${ic.route}<span>${t('ms_editPlans')}</span></button></p></div>`;
     };
     const rows = () =>
       UI_ALLIANCES.map((a) => `<div class="ms-al ${a}"><h3>${t(a)}</h3>${[0, 1].map((j) => row((a === 'red' ? 0 : 2) + j)).join('')}</div>`)
@@ -188,9 +213,19 @@ export class MatchSetup {
       box.querySelectorAll<HTMLSelectElement>('[data-strat]').forEach((el) =>
         el.addEventListener('change', () => {
           const i = Number(el.dataset.strat);
-          m.robots[i].strategy = el.value as StrategyId;
-          box.querySelector(`[data-desc="${i}"]`)!.textContent = t(`strat_${m.robots[i].strategy}_desc` as Key);
+          if (el.value.startsWith('plan:')) m.robots[i].plan = el.value.slice(5);
+          else {
+            m.robots[i].plan = '';
+            m.robots[i].strategy = el.value as StrategyId;
+          }
           this.act.save();
+          redrawRows();
+        }),
+      );
+      box.querySelectorAll<HTMLElement>('[data-plans]').forEach((el) =>
+        el.addEventListener('click', () => {
+          this.act.save();
+          this.act.plans(el.dataset.plans || undefined);
         }),
       );
       box.querySelectorAll<HTMLSelectElement>('[data-auto]').forEach((el) =>
