@@ -36,7 +36,7 @@ import { t, type Key } from '../ui/i18n';
 import { ic } from '../ui/chrome';
 import { MatchSetup } from '../ui/MatchSetup';
 import { PadNav } from '../ui/padNav';
-import { Menu, type MenuChoice } from '../ui/Menu';
+import { DEFAULT_PLAYER, Menu, type MenuChoice } from '../ui/Menu';
 import { saveMatchEntries, ScoutingScreen, type ScoutPlay } from '../ui/Scouting';
 import { isTouchDevice, TouchControls } from '../ui/TouchControls';
 import { TournamentScreen, WATCH_CAMERA } from '../ui/TournamentScreen';
@@ -62,7 +62,7 @@ export class App {
   readonly menu: Menu;
   session: GameSession;
   state: State = 'menu';
-  private choice: MenuChoice = { mode: 'match', player: 0 };
+  private choice: MenuChoice = { mode: 'match', player: DEFAULT_PLAYER };
   readonly settings: Settings = loadSettings(autoRoutineIds());
   private last = performance.now();
   /** Último cuadro dibujado detrás de una pantalla opaca (ver `loop`). */
