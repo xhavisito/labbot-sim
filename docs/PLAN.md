@@ -95,6 +95,9 @@ tests/                    clock, scoring, fouls/cards, rp, match (casos borde), 
    a la Cámara, filtro de orilla y Plataforma), `ai/Team.ts` (reparto de Muestras, Human Player,
    Cámara y Crítica), `ai/difficulty.ts` (SUPUESTOS de diseño, no del manual), `ai/lineup.ts`.
    La IA anterior queda en `sim/legacyBot.ts` para comparar: `npm run batch -- --set ai --a hard --b old`.
+   *Juego en equipo* (pedido después: "juegan como si fueran los únicos en la cancha"): no empuja a
+   nadie (D40, `Bot.noPush` con `ai/contact.ts`), rodea por la rejilla (`ai/grid.ts`) al toparse, no
+   se pelea Muestras ni la Campana con otros robots; el lote mide `empuja(s)` y `empujón máx(s)`.
 9. **Modo torneo** (pedido después, "como en rebuilt-sim") — Qualifications contra la IA, ranking,
    selección de alianzas por invitación y PlayOffs, con el formato del manual (§8.2).
    *Hecho:* `core/tournament.ts` (parte de abajo: calendario con `makeSchedule`, marcador desde los
