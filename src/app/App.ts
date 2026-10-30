@@ -45,6 +45,8 @@ import { saveMatchEntries, ScoutingScreen, type ScoutPlay } from '../ui/Scouting
 import { isTouchDevice, TouchControls } from '../ui/TouchControls';
 import { TournamentScreen, WATCH_CAMERA } from '../ui/TournamentScreen';
 import { TrainingRun, TrainingScreen, type TrainingRobot } from '../ui/Training';
+import { Practice1v1 } from '../ui/Practice1v1';
+import { loadCycleBests } from '../game/cycleStore';
 import { StrategyScreen } from '../ui/StrategyScreen';
 import { PlanView } from '../render/PlanView';
 
@@ -107,6 +109,9 @@ export class App {
   readonly trainingProgress = loadTraining();
   readonly training: TrainingScreen;
   trainingRun: TrainingRun | null = null;
+  /** Práctica 1 contra 1 en curso (`ui/Practice1v1.ts`). */
+  practice1v1: Practice1v1 | null = null;
+  readonly cycleBests = loadCycleBests();
   /** Aviso de resultados del último match del torneo (se guarda una vez; los resultados se reabren). */
   private tourNote = '';
   /** `?touch=1` fuerza los controles touch (para probar en escritorio). */
@@ -179,14 +184,18 @@ export class App {
     this.choice = c;
     this.closeAutoPractice();
     this.closeTraining();
+    this.closePractice1v1();
     this.renderer.scene.remove(this.session.root);
     this.session.dispose();
     // Práctica libre y de AUTO: solo el robot del jugador en la cancha (en la de AUTO, sin Human Player)
     const o = c.scout ? this.scoutOptions(c.scout) : this.sessionOptions(c.player);
     const drill = c.mode === 'training' ? drillById(c.drill ?? '') : undefined;
     if (c.mode === 'training' && !drill) return this.toMenu();
+    const p1 = c.mode === 'practice1v1';
     this.session = new GameSession(
-      drill
+      p1
+        ? this.practice1v1Options(c.player)
+        : drill
         ? { ...drillSessionOptions(drill, c.player, this.playerSpec(), this.settings.hpInterval), grip: this.settings.grip }
         : c.scout
           ? o
@@ -219,6 +228,19 @@ export class App {
         },
         currentAuto: () => this.settings.playerAuto,
       });
+    if (p1)
+      this.practice1v1 = new Practice1v1(this.hud.root.parentElement ?? document.body, {
+        session: () => this.session,
+        settings: () => this.settings.practice,
+        change: (p) => {
+          this.settings.practice = p;
+          saveSettings(this.settings);
+          this.start(c);
+        },
+        bests: this.cycleBests,
+        robot: { id: this.settings.robotType, name: robotLabel(this.session.player.spec) },
+        exit: () => this.toMenu(),
+      });
     if (drill)
       this.trainingRun = new TrainingRun(this.hud.root.parentElement ?? document.body, drill, {
         session: () => this.session,
@@ -230,6 +252,21 @@ export class App {
         },
         exit: () => this.toMenu(),
       });
+  }
+
+  /** Sesión de la práctica 1 contra 1: tu robot y, enfrente, el rival elegido (mismo tipo de robot; SUPUESTO). */
+  private practice1v1Options(player: number): SessionOptions {
+    const spec = this.playerSpec();
+    const rival = player < 2 ? player + 2 : player - 2;
+    const specs: RobotSpec[] = [];
+    specs[player] = spec;
+    specs[rival] = spec;
+    return { player, preload: true, solo: true, ai: false, specs, rival: this.settings.practice.rival, hp: { enabled: true, interval: this.settings.hpInterval }, grip: this.settings.grip };
+  }
+
+  private closePractice1v1(): void {
+    this.practice1v1?.dispose();
+    this.practice1v1 = null;
   }
 
   private closeTraining(): void {
@@ -368,6 +405,7 @@ export class App {
     if (this.state !== 'playing' || this.session.match) return;
     if (this.autoPractice) this.autoPractice.reset();
     else if (this.trainingRun) this.trainingRun.reset();
+    else if (this.practice1v1) this.practice1v1.reset();
     else this.session.resetField();
   }
 
@@ -491,6 +529,7 @@ export class App {
   toMenu(): void {
     this.closeAutoPractice();
     this.closeTraining();
+    this.closePractice1v1();
     this.state = 'menu';
     this.touch.show(false);
     this.hud.show(false);
@@ -536,6 +575,7 @@ export class App {
     if (this.state === 'playing') {
       if (this.autoPractice?.wantsUi) return this.autoPractice.root;
       if (this.trainingRun?.wantsUi) return this.trainingRun.root;
+      if (this.practice1v1?.wantsUi) return this.practice1v1.root;
       return null;
     }
     if (this.menu.root.style.display !== 'none') return this.menu.root;
@@ -568,10 +608,11 @@ export class App {
     }
     if (this.state === 'playing') {
       if (this.input.camera) this.cycleCamera();
-      this.session.setInput(this.autoPractice ? this.autoPractice.filter(inp) : this.trainingRun ? this.trainingRun.filter(inp) : inp);
+      this.session.setInput(this.autoPractice ? this.autoPractice.filter(inp) : this.trainingRun ? this.trainingRun.filter(inp) : this.practice1v1 ? this.practice1v1.filter(inp) : inp);
       this.session.update(dt);
       this.autoPractice?.update(dt);
       this.trainingRun?.update(dt);
+      this.practice1v1?.update(dt);
       this.hud.events(this.session.matchEvents);
       this.audio.events(this.session.matchEvents);
       this.hud.damage(this.session);
@@ -609,6 +650,7 @@ export class App {
     this.padNav.update(now, this.input.pad(), this.padScope(), this.input.capturing);
     if (this.autoPractice) this.autoPractice.root.style.display = this.state === 'playing' ? '' : 'none';
     if (this.trainingRun) this.trainingRun.root.style.display = this.state === 'playing' ? '' : 'none';
+    if (this.practice1v1) this.practice1v1.root.style.display = this.state === 'playing' ? '' : 'none';
     if (this.state !== 'paused' && this.state !== 'replay') this.session.update(this.state === 'playing' ? 0 : dt);
     this.watchFps(dt);
     this.effects.update(this.state === 'paused' ? 0 : dt);
