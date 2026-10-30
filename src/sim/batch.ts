@@ -129,6 +129,10 @@ export interface RobotResult {
   platform: boolean;
   critical: boolean;
   foulPts: number;
+  /** Segundos con mando de avanzar o girar pero casi quieto (atorado contra algo). */
+  stuck: number;
+  /** Segundos en cada modo de la IA (`Bot.mode`). */
+  modes: Record<string, number>;
 }
 
 export interface AllianceResult {
@@ -187,10 +191,23 @@ export function runMatch(red: AlliancePlan, blue: AlliancePlan, seed = 1): Match
       r.phys.teleport(p.x + (rand() - 0.5) * 0.06, p.z + (rand() - 0.5) * 0.06, r.phys.heading() + (rand() - 0.5) * 0.1);
     }
     const m = g.match!;
-    for (let i = 0; i < 152 * 120 && !m.finished; i++) g.step();
+    const stuck = g.robots.map(() => 0);
+    const modes = g.robots.map((): Record<string, number> => ({}));
+    const dt = 1 / 120;
+    for (let i = 0; i < 152 * 120 && !m.finished; i++) {
+      g.step();
+      for (const r of g.robots) {
+        const mode = (g.bots[r.index] as { mode?: string } | null)?.mode;
+        if (mode) modes[r.index][mode] = (modes[r.index][mode] ?? 0) + dt;
+        const c = r.phys.lastCmd;
+        const v = r.phys.body.linvel();
+        const w = r.phys.body.angvel();
+        if ((Math.abs(c.forward) > 0.15 || Math.abs(c.turn) > 0.3) && Math.hypot(v.x, v.z) < 0.05 && Math.abs(w.y) < 0.15) stuck[r.index] += dt;
+      }
+    }
     const res = {} as Record<Alliance, AllianceResult>;
     const scout = entriesFromMatch(m, plans.map((p) => p.id), 'batch');
-    const robots: RobotResult[] = scout.map((e) => {
+    const robots: RobotResult[] = scout.map((e, k) => {
       const pt = entryPoints(e, GAME);
       return {
         plan: e.team,
@@ -203,6 +220,8 @@ export function runMatch(red: AlliancePlan, blue: AlliancePlan, seed = 1): Match
         platform: e.platform,
         critical: e.critical,
         foulPts: pt.foulPts,
+        stuck: Math.round(stuck[k] * 10) / 10,
+        modes: Object.fromEntries(Object.entries(modes[k]).map(([a, b]) => [a, Math.round(b * 10) / 10])),
       };
     });
     for (const a of ALLIANCES) {

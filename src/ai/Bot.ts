@@ -9,8 +9,9 @@
  * - Calcula su tiempo: en AUTO anota antes de que acabe (vale más, §4.4); en el TELEOP deja lo justo
  *   para subir a la Plataforma o llevar la Crítica (§4.3.1).
  * - Evita faltas (§4.5, §4.6): rodea a los rivales y no se les acerca de frente, no pisa la
- *   Plataforma ni toma la Crítica antes del ENDGAME, no se queda frente a la Cámara rival, no toma
- *   Muestras del Human Player rival (zona de su color, D8) y en AUTO no cruza la línea central (§4.2).
+ *   Plataforma ni toma la Crítica antes del ENDGAME, no se queda frente a la Cámara rival y en AUTO no
+ *   cruza la línea central (§4.2). Las Muestras del Human Player rival (zona de su color, D8) solo las
+ *   roba el nivel Experto, cuando ningún rival las cuida (D38).
  *   Un filtro final (`guard`) descarta mandos que sacarían una esquina de la cancha.
  * - No defiende (§6.1 "no hay defensa"); el papel 'block' solo existe para medir cuánto cuesta.
  * La dificultad (`ai/difficulty.ts`) cambia velocidad, nivel, Crítica, coordinación y márgenes.
@@ -473,7 +474,8 @@ export class Bot {
     const r = this.robot;
     const pos = r.phys.position();
     const home = this.scoringPose(this.level);
-    const back = r.mech.stored.length > 0 ? 0.6 : 0.3;
+    // Con espacio para una sola pieza cada Muestra es un viaje redondo: cuenta todo el regreso
+    const back = r.mech.capacity <= 1 ? 1 : r.mech.stored.length > 0 ? 0.6 : 0.3;
     let best: { i: number; at: { x: number; z: number }; eta: number; cost: number } | null = null;
     for (const p of this.pieces.list) {
       if (p.kind !== 'sample' || p.state.at !== 'field' || this.ignore.has(p.index)) continue;
@@ -544,11 +546,24 @@ export class Bot {
       const v = o.phys.body.linvel();
       if (Math.hypot(v.x, v.z) < 0.3 && Math.hypot(q.x - t.x, q.z - t.z) < Math.hypot(o.spec.length, o.spec.width) / 2 + 0.15) return false;
     }
-    // Las del Human Player rival: quedan detrás de su barrera, en una zona de su color (D8)
-    if (s * t.x < -2.0 && s * t.z > 1.5) return false;
+    // Las del Human Player rival: quedan detrás de su barrera, en una zona de su color (D8). Solo se
+    // roban (Experto) si ningún rival está cerca de ellas y queda tiempo; si no, se dejan
+    if (s * t.x < -2.0 && s * t.z > 1.5 && !this.canSteal(t, phase)) return false;
     // Junto a la Cámara rival: tomarla obliga a quedarse en su frente (D17)
     if (s * t.x < -1.25 && s * t.z < -1.75) return false;
     return true;
+  }
+
+  /** ¿Conviene robar esta Muestra de la Campana rival? Sin rivales cerca de ella ni de la ranura, con tiempo y sin cargar ya. */
+  private canSteal(t: { x: number; z: number }, phase: Phase): boolean {
+    if (!this.profile.steal || phase === 'AUTO' || this.clock < 22) return false;
+    if (this.robot.mech.stored.length >= this.batchSize()) return false;
+    const slot = F.forAlliance(opponent(this.robot.alliance), { x: 3.5, z: -F.HALF_W + 0.085 });
+    return !this.others.some((o) => {
+      if (o.alliance === this.robot.alliance) return false;
+      const q = o.phys.position();
+      return Math.hypot(q.x - t.x, q.z - t.z) < 2.2 || Math.hypot(q.x - slot.x, q.z - slot.z) < 2.4;
+    });
   }
 
   /** La Muestra a la que va (la aparta para su compañero), o null. */

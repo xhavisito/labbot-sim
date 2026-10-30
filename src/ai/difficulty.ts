@@ -5,8 +5,8 @@
  */
 import type { Level } from '../core/types';
 
-export type AiLevel = 'easy' | 'normal' | 'hard';
-export const AI_LEVELS: readonly AiLevel[] = ['easy', 'normal', 'hard'];
+export type AiLevel = 'easy' | 'normal' | 'hard' | 'expert';
+export const AI_LEVELS: readonly AiLevel[] = ['easy', 'normal', 'hard', 'expert'];
 
 export interface AiProfile {
   /** Fracción del mando máximo de avance (1 = todo lo que da el robot). */
@@ -25,13 +25,21 @@ export interface AiProfile {
   batch: number;
   /** Tolerancia de alineación al anotar (m): más grande = más rápido pero falla más. */
   sloppy: number;
+  /**
+   * Roba las Muestras que el Human Player rival deja en su ranura cuando ningún rival las cuida
+   * (SUPUESTO: el manual §3.2.4 no prohíbe tomar Muestras sueltas; el contacto con robots en esa
+   * zona sí es falta, §4.6, y la IA lo evita).
+   */
+  steal: boolean;
 }
 
 export const AI_PROFILES: Record<AiLevel, AiProfile> = {
   // Fácil: lento, anota en N2, no va por la Crítica ni se coordina; sube temprano a la Plataforma
-  easy: { speed: 0.55, level: 2, critical: false, teamwork: false, reaction: 0.9, climbMargin: 14, batch: 2, sloppy: 0.06 },
+  easy: { speed: 0.55, level: 2, critical: false, teamwork: false, reaction: 0.9, climbMargin: 14, batch: 2, sloppy: 0.06, steal: false },
   // Normal: N3 y la Crítica, con algo de duda y margen
-  normal: { speed: 0.8, level: 3, critical: true, teamwork: true, reaction: 0.35, climbMargin: 6, batch: 4, sloppy: 0.02 },
+  normal: { speed: 0.8, level: 3, critical: true, teamwork: true, reaction: 0.35, climbMargin: 6, batch: 4, sloppy: 0.02, steal: false },
   // Difícil: todo lo que da el robot
-  hard: { speed: 1, level: 3, critical: true, teamwork: true, reaction: 0, climbMargin: 2.5, batch: 10, sloppy: 0 },
+  hard: { speed: 1, level: 3, critical: true, teamwork: true, reaction: 0, climbMargin: 2.5, batch: 10, sloppy: 0, steal: false },
+  // Experto: como Difícil, más robar Muestras de la Campana rival y margen justo en la Plataforma
+  expert: { speed: 1, level: 3, critical: true, teamwork: true, reaction: 0, climbMargin: 1.8, batch: 10, sloppy: 0, steal: true },
 };

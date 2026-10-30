@@ -44,6 +44,8 @@ export interface Settings {
   /** Human Player automático (§3.2.4) y cada cuántos segundos mete una Muestra (SUPUESTO). */
   hpEnabled: boolean;
   hpInterval: number;
+  /** Human Player que piensa (`game/HumanPlayer.ts`): cuida sus Muestras de los rivales y alimenta a su robot; apagado = ritmo fijo. */
+  hpSmart: boolean;
   /** Controles touch en pantalla: según el equipo, siempre o nunca. */
   touch: 'auto' | 'on' | 'off';
   /** Calidad gráfica (`render/Renderer.ts`): automática según el equipo y los FPS, o fija. */
@@ -67,6 +69,7 @@ export const DEFAULT_SETTINGS: Settings = {
   maxSpeed: DEFAULT_ROBOT.maxSpeed,
   hpEnabled: true,
   hpInterval: 3,
+  hpSmart: true,
   touch: 'auto',
   quality: 'auto',
   grip: 'compliant',
@@ -113,6 +116,7 @@ export function sanitizeSettings(raw: unknown, autoIds: readonly string[]): Sett
     maxSpeed: num(o.maxSpeed, d.maxSpeed, SETTINGS_RANGE.maxSpeed),
     hpEnabled: typeof o.hpEnabled === 'boolean' ? o.hpEnabled : d.hpEnabled,
     hpInterval: num(o.hpInterval, d.hpInterval, SETTINGS_RANGE.hpInterval),
+    hpSmart: typeof o.hpSmart === 'boolean' ? o.hpSmart : d.hpSmart,
     touch: o.touch === 'on' || o.touch === 'off' ? o.touch : d.touch,
     quality: o.quality === 'low' || o.quality === 'medium' || o.quality === 'high' ? o.quality : d.quality,
     // 'real' (el agarre estricto del 29-oct, entonces por defecto) pasa a compliants

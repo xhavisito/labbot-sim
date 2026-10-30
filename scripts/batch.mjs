@@ -91,8 +91,9 @@ if (process.env.BATCH_WORKER) {
   for (const r of results)
     for (const a of [r.red, r.blue]) {
       if (vs && a.plan === vs && plans.every((p) => p.id !== vs)) continue;
-      const s = rows.get(a.plan) ?? { n: 0, total: 0, own: 0, samples: 0, rp: 0, win: 0, crit: 0, dom: 0, plat: 0, auto: 0, foulsOut: 0 };
+      const s = rows.get(a.plan) ?? { n: 0, total: 0, own: 0, samples: 0, rp: 0, win: 0, crit: 0, dom: 0, plat: 0, auto: 0, foulsOut: 0, stuck: 0 };
       s.n++;
+      s.stuck += a.robots.reduce((x, r) => x + (r.stuck ?? 0), 0) / 2;
       s.total += a.total;
       s.own += a.own;
       s.samples += a.samples;
@@ -117,6 +118,7 @@ if (process.env.BATCH_WORKER) {
     'critica%': f(100 * s.crit, s.n, 0),
     'dominio%': f(100 * s.dom, s.n, 0),
     'faltas(pts)': f(s.foulsOut, s.n),
+    'atorado(s)': f(s.stuck, s.n),
     RP: f(s.rp, s.n, 2),
     'gana%': f(100 * s.win, s.n, 0),
   }));
@@ -127,11 +129,11 @@ if (process.env.BATCH_WORKER) {
     const byV = new Map();
     for (const [id, s] of rows) {
       const v = id.split(':')[0];
-      const t = byV.get(v) ?? { n: 0, total: 0, own: 0, samples: 0, rp: 0, win: 0, crit: 0, dom: 0, plat: 0, auto: 0, foulsOut: 0 };
+      const t = byV.get(v) ?? { n: 0, total: 0, own: 0, samples: 0, rp: 0, win: 0, crit: 0, dom: 0, plat: 0, auto: 0, foulsOut: 0, stuck: 0 };
       for (const k of Object.keys(t)) t[k] += s[k];
       byV.set(v, t);
     }
-    console.table([...byV].map(([v, s]) => ({ ia: v, matches: s.n, puntos: f(s.total, s.n), propios: f(s.own, s.n), auto: f(s.auto, s.n), muestras: f(s.samples, s.n), plataforma: f(s.plat, s.n), 'critica%': f(100 * s.crit, s.n, 0), 'dominio%': f(100 * s.dom, s.n, 0), 'faltas(pts)': f(s.foulsOut, s.n), RP: f(s.rp, s.n, 2), 'gana%': f(100 * s.win, s.n, 0) })));
+    console.table([...byV].map(([v, s]) => ({ ia: v, matches: s.n, puntos: f(s.total, s.n), propios: f(s.own, s.n), auto: f(s.auto, s.n), muestras: f(s.samples, s.n), plataforma: f(s.plat, s.n), 'critica%': f(100 * s.crit, s.n, 0), 'dominio%': f(100 * s.dom, s.n, 0), 'faltas(pts)': f(s.foulsOut, s.n), 'atorado(s)': f(s.stuck, s.n), RP: f(s.rp, s.n, 2), 'gana%': f(100 * s.win, s.n, 0) })));
   }
   console.log(`Listo en ${Math.round((Date.now() - t0) / 1000)} s; resultados en ${out}`);
 }
