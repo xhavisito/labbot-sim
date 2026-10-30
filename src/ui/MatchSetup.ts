@@ -15,7 +15,7 @@ import * as F from '../config/field';
 import { MECHANISM_KINDS, type MechanismKind, type RobotSpec } from '../config/robot';
 import type { MatchRobot, Settings } from '../config/settings';
 import { CENTER_SPOT, clampSpot, spotValid, type StartSpot } from '../config/startSpot';
-import { backBtn, brandbar, ic } from './chrome';
+import { backBtn, brandbar, ic, UI_ALLIANCES, UI_SLOTS } from './chrome';
 import { t, type Key } from './i18n';
 
 const esc = (v: string): string => v.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
@@ -72,7 +72,15 @@ export class MatchSetup {
       if (inp.kinds) return `<span class="ms-fixed">${t(`type_${inp.kinds[i]}` as Key)}</span>`;
       return `<select data-kind="${i}">${opt('random', t('ms_random'), r.kind)}${MECHANISM_KINDS.map((k) => opt(k, t(`type_${k}` as Key), r.kind)).join('')}</select>`;
     };
-    const aiSeg = (i: number, cur: AiLevel) => `<div class="seg ms-ai" data-ai="${i}">${AI_LEVELS.map((l) => `<button class="${l === cur ? 'on' : ''}" data-v="${l}">${t(`ai_${l}`)}</button>`).join('')}</div>`;
+    // Dificultad: un solo control con la actual; al tocarlo se despliega la lista (antes eran 3 botones que no cabían)
+    const aiOpts = (cur: string) => AI_LEVELS.map((l) => opt(l, t(`ai_${l}`), cur)).join('');
+    const aiSel = (i: number, cur: AiLevel) => `<select data-ai="${i}" aria-label="${t('ms_difficulty')}">${aiOpts(cur)}</select>`;
+    /** "Toda la IA": muestra la dificultad común o "Mixta" si los robots de la IA no coinciden. */
+    const allAiOpts = () => {
+      const levels = new Set(m.robots.filter((_, i) => i !== player).map((r) => r.ai));
+      const cur = levels.size === 1 ? [...levels][0] : 'mixed';
+      return (cur === 'mixed' ? `<option value="mixed" selected disabled hidden>${t('ms_mixed')}</option>` : '') + aiOpts(cur);
+    };
     const row = (i: number) => {
       const r = m.robots[i];
       const team = inp.teams?.[i] ? `<small>${esc(inp.teams[i])}</small>` : '';
@@ -85,13 +93,12 @@ export class MatchSetup {
       return `<div class="ms-row">${head}
         <div class="ms-f"><span>${t('ms_type')}</span>${kindCell(i, r)}</div>
         <div class="ms-f"><span>${t('ms_strategy')}</span><select data-strat="${i}">${STRATEGIES.map((x) => opt(x, t(`strat_${x}` as Key), r.strategy)).join('')}</select></div>
-        <div class="ms-f"><span>${t('ms_difficulty')}</span>${aiSeg(i, r.ai)}</div>
+        <div class="ms-f"><span>${t('ms_difficulty')}</span>${aiSel(i, r.ai)}</div>
         <div class="ms-f"><span>AUTO</span><select data-auto="${i}">${autoOpts(r.auto, false)}</select></div>
         <p class="ms-desc" data-desc="${i}">${t(`strat_${r.strategy}_desc` as Key)}</p></div>`;
     };
     const rows = () =>
-      ['red', 'blue']
-        .map((a, k) => `<div class="ms-al ${a}"><h3>${t(a as Key)}</h3>${[0, 1].map((j) => row(k * 2 + j)).join('')}</div>`)
+      UI_ALLIANCES.map((a) => `<div class="ms-al ${a}"><h3>${t(a)}</h3>${[0, 1].map((j) => row((a === 'red' ? 0 : 2) + j)).join('')}</div>`)
         .join('');
     this.root.className = 'screen solid';
     this.root.innerHTML = `<div class="inner">
@@ -102,7 +109,7 @@ export class MatchSetup {
       <div class="ms">
         <div class="panel ms-start">
           <h3>${t('ms_start')}</h3>
-          ${inp.canMove ? `<div class="stations ms-st">${[0, 1, 2, 3].map((i) => `<button class="${i < 2 ? 'red' : 'blue'} ${i === player ? 'on' : ''}" data-slot="${i}"><i></i>${stationName(i)}</button>`).join('')}</div>` : ''}
+          ${inp.canMove ? `<div class="stations ms-st">${UI_SLOTS.map((i) => `<button class="${i < 2 ? 'red' : 'blue'} ${i === player ? 'on' : ''}" data-slot="${i}"><i></i>${stationName(i)}</button>`).join('')}</div>` : ''}
           <div class="ms-map" data-map></div>
           <div class="ms-turn"><span>${t('ms_turn')}</span><input type="range" min="-180" max="180" step="5" data-turn><output data-turnout></output>
             <button class="chipbtn" data-center>${ic.reset}<span>${t('ms_center')}</span></button></div>
@@ -111,7 +118,7 @@ export class MatchSetup {
         </div>
         <div class="panel ms-robots">
           <h3>${t('ms_robots')}</h3>
-          <div class="ms-all"><span>${t('ms_allAi')}</span><div class="seg" data-allai>${AI_LEVELS.map((l) => `<button data-v="${l}">${t(`ai_${l}`)}</button>`).join('')}</div></div>
+          <label class="ms-all"><span>${t('ms_allAi')}</span><select data-allai>${allAiOpts()}</select></label>
           <div data-rows>${rows()}</div>
         </div>
       </div>
@@ -196,26 +203,26 @@ export class MatchSetup {
         s.playerAuto = (e.target as HTMLSelectElement).value;
         this.act.save();
       });
-      box.querySelectorAll<HTMLElement>('[data-ai] button').forEach((b) =>
-        b.addEventListener('click', () => {
-          m.robots[Number(b.parentElement!.dataset.ai)].ai = b.dataset.v as AiLevel;
-          b.parentElement!.querySelectorAll('button').forEach((x) => x.classList.toggle('on', x === b));
+      box.querySelectorAll<HTMLSelectElement>('[data-ai]').forEach((el) =>
+        el.addEventListener('change', () => {
+          m.robots[Number(el.dataset.ai)].ai = el.value as AiLevel;
+          allAi.innerHTML = allAiOpts();
           this.act.save();
         }),
       );
     };
+    const allAi = q<HTMLSelectElement>('[data-allai]');
     const redrawRows = () => {
       q<HTMLElement>('[data-rows]').innerHTML = rows();
+      allAi.innerHTML = allAiOpts();
       bindRows();
     };
     bindRows();
-    this.root.querySelectorAll<HTMLElement>('[data-allai] button').forEach((b) =>
-      b.addEventListener('click', () => {
-        for (const r of m.robots) r.ai = b.dataset.v as AiLevel;
-        this.act.save();
-        redrawRows();
-      }),
-    );
+    allAi.addEventListener('change', () => {
+      for (const r of m.robots) r.ai = allAi.value as AiLevel;
+      this.act.save();
+      redrawRows();
+    });
     this.root.querySelectorAll<HTMLElement>('[data-slot]').forEach((b) =>
       b.addEventListener('click', () => {
         player = Number(b.dataset.slot);

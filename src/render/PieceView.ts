@@ -16,9 +16,15 @@ export function sampleMaterial(): THREE.MeshStandardMaterial {
   return (sample = new THREE.MeshStandardMaterial({ color: foam ? 0xffffff : 0xd9c9a8, map: foam?.map ?? null, bumpMap: foam?.bump ?? null, bumpScale: 1.4, roughness: 0.96 }));
 }
 
-/** Muestra Crítica: plástico brillante del color de la alianza con un leve resplandor. */
+/**
+ * Color de la Muestra Crítica. El manual la pide roja/azul por alianza (pág. 15); por pedido del equipo
+ * la azul va en el morado del branding (como el robot propio). Solo cambia el dibujo, no las reglas.
+ */
+export const CRITICAL_COLOR: Record<Alliance, number> = { red: ALLIANCE_COLOR.red, blue: 0x8a2ba3 };
+
+/** Muestra Crítica: plástico brillante del color de su alianza con un leve resplandor. */
 export function criticalMaterial(a: Alliance): THREE.MeshPhysicalMaterial {
-  return (critical[a] ??= new THREE.MeshPhysicalMaterial({ color: ALLIANCE_COLOR[a], roughness: 0.3, clearcoat: 0.8, clearcoatRoughness: 0.2, emissive: ALLIANCE_COLOR[a], emissiveIntensity: 0.25 }));
+  return (critical[a] ??= new THREE.MeshPhysicalMaterial({ color: CRITICAL_COLOR[a], roughness: 0.3, clearcoat: 0.8, clearcoatRoughness: 0.2, emissive: CRITICAL_COLOR[a], emissiveIntensity: 0.25 }));
 }
 
 export class PieceView {

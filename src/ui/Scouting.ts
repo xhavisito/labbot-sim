@@ -13,7 +13,7 @@ import { makeSchedule, predictPlayoffs, rankTeams, suggestDraft, type DraftAllia
 import { loadHistory, saveHistory } from '../game/historyStore';
 import { emptyScout, sanitizeScout, saveScout, scoutCsv, type ScoutData } from '../game/scoutStore';
 import { simulateMatch } from '../sim/quickSim';
-import { backBtn, brandbar, ic } from './chrome';
+import { backBtn, brandbar, ic, UI_SLOTS } from './chrome';
 import { t, type Key } from './i18n';
 
 export type ScoutTab = 'teams' | 'schedule' | 'record' | 'table' | 'opr' | 'robots' | 'alliances' | 'history';
@@ -240,9 +240,9 @@ export class ScoutingScreen {
         const has = done.has(q.id);
         const res = has ? this.matchScore(q) : null;
         return `<tr class="${has ? 'done' : ''}"><td class="mono">${q.id}</td>
-          <td class="al red">${q.red.map((x) => this.chip(x)).join('')}</td>
-          <td class="sc">${res ? `<b class="r">${res.red}</b>–<b class="b">${res.blue}</b>` : '–'}</td>
           <td class="al blue">${q.blue.map((x) => this.chip(x)).join('')}</td>
+          <td class="sc">${res ? `<b class="b">${res.blue}</b>–<b class="r">${res.red}</b>` : '–'}</td>
+          <td class="al red">${q.red.map((x) => this.chip(x)).join('')}</td>
           <td class="acts"><button class="chipbtn" data-sim="${q.id}">${t('sc_sim')}</button>
             <button class="chipbtn" data-play="${q.id}">${t('sc_play')}</button>
             <button class="chipbtn" data-rec="${q.id}">${t('sc_record')}</button></td></tr>`;
@@ -347,7 +347,7 @@ export class ScoutingScreen {
     dlg.innerHTML = `<div class="dialog pick">
       <div class="kicker"><span></span>${q.id}</div>
       <h2>${t('sc_pickRobot')}</h2>
-      <div class="pickgrid">${teams.map((x, i) => `<button class="${i < 2 ? 'red' : 'blue'}" data-slot="${i}">${this.chip(x)}</button>`).join('')}</div>
+      <div class="pickgrid">${UI_SLOTS.map((i) => `<button class="${i < 2 ? 'red' : 'blue'}" data-slot="${i}">${this.chip(teams[i])}</button>`).join('')}</div>
       <div class="actions"><button class="btn" data-x>${t('back')}</button></div></div>`;
     this.root.appendChild(dlg);
     dlg.querySelector('[data-x]')!.addEventListener('click', () => dlg.remove());
@@ -394,7 +394,7 @@ export class ScoutingScreen {
         <label>${t('sc_match')}</label><input class="tin" data-f="match" value="${esc(d.match)}" maxlength="20" list="sc-matches">
         <datalist id="sc-matches">${this.data.schedule.map((x) => `<option value="${x.id}">`).join('')}</datalist>
         <label>${t('sc_team')}</label><select data-f="team">${teamList.map((x) => `<option value="${x}" ${x === d.team ? 'selected' : ''}>${esc(this.name(x))}</option>`).join('')}</select>
-        <label>${t('sc_alliance')}</label><div class="seg" data-al><button class="red ${d.alliance === 'red' ? 'on' : ''}" data-v="red">${t('red')}</button><button class="blue ${d.alliance === 'blue' ? 'on' : ''}" data-v="blue">${t('blue')}</button></div>
+        <label>${t('sc_alliance')}</label><div class="seg" data-al><button class="blue ${d.alliance === 'blue' ? 'on' : ''}" data-v="blue">${t('blue')}</button><button class="red ${d.alliance === 'red' ? 'on' : ''}" data-v="red">${t('red')}</button></div>
         <h3>AUTO</h3>
         <label>${t('autoLine')}</label>${tog('autoLine', t('sc_crossed'))}
         ${[1, 2, 3].map((l) => `<label>${t('level')} ${l}</label>${stepper(`a${l}`, d.samplesAuto[l - 1])}`).join('')}

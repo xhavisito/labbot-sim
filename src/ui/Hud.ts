@@ -66,12 +66,13 @@ export class Hud {
       const txt = el('div', 'sb-rp-txt', rp);
       return { side: s, score, meter: el('i', '', meter), txt, rp };
     };
-    const red = side('red');
+    // Azul a la izquierda, rojo a la derecha (como en el resto de la UI)
+    const blue = side('blue');
     const center = el('div', 'sb-center', this.board);
     this.timer = el('div', 'timer', center);
     this.phase = el('div', 'period', center);
     this.prog = el('i', '', el('div', 'sb-prog', center));
-    const blue = side('blue');
+    const red = side('red');
     this.sides = { red, blue };
 
     this.pill = el('div', 'practice-pill', this.root);

@@ -18,7 +18,7 @@ import { ACTIONS, assign, clearAction, cloneBindings, DEFAULT_BINDINGS, keyLabel
 import type { InputManager } from '../input/InputManager';
 import { CAMERA_MODES, type CameraMode } from '../render/CameraRig';
 import { padHelp } from './controlsHelp';
-import { backBtn, brandbar, ic, kbds, langChips, robotSilhouette } from './chrome';
+import { backBtn, brandbar, ic, kbds, langChips, robotSilhouette, UI_ALLIANCES, UI_SLOTS } from './chrome';
 import { getLang, setLang, t, type Key } from './i18n';
 import type { ScoutPlay } from './Scouting';
 import { isIos, isStandalone, promptInstall, pwa } from '../pwa/register';
@@ -54,7 +54,6 @@ export interface PauseInfo {
   menuLabel?: string;
 }
 
-const ROBOTS = [0, 1, 2, 3];
 
 /** Medidas del chasis del robot (cm), para la vitrina del menú. */
 const chassisSize = (id: RobotId): string => `${Math.round(robotSpec(id).length * 100)} × ${Math.round(robotSpec(id).width * 100)} cm`;
@@ -164,7 +163,7 @@ export class Menu {
         <div class="mm-right">
           <div class="bay">
             <div class="bay-head"><span class="bay-label">${t('station')}</span></div>
-            <div class="stations">${ROBOTS.map((i) => `<button class="${i < 2 ? 'red' : 'blue'} ${i === this.player ? 'on' : ''}" data-slot="${i}"><i></i>${stationLabel(i)}</button>`).join('')}</div>
+            <div class="stations">${UI_SLOTS.map((i) => `<button class="${i < 2 ? 'red' : 'blue'} ${i === this.player ? 'on' : ''}" data-slot="${i}"><i></i>${stationLabel(i)}</button>`).join('')}</div>
             <div class="bay-head"><span class="bay-label">${t('yourRobot')}</span></div>
             <div class="showcase">${robotSilhouette(robotSpec(s.robotType).mechanism)}<span class="dim">${chassisSize(s.robotType)} · ${t('robotType')}</span></div>
             <div class="robotinfo" data-robotinfo></div>
@@ -513,9 +512,9 @@ export class Menu {
           <h2>${t('paused')}</h2>
           ${
             m
-              ? `<div class="ps-score"><div class="red"><span>${t('red')}</span><b>${m.score('red')}</b></div>
+              ? `<div class="ps-score"><div class="blue"><span>${t('blue')}</span><b>${m.score('blue')}</b></div>
                  <div class="mid"><b>${p.timer}</b><span>${p.phase}</span></div>
-                 <div class="blue"><b>${m.score('blue')}</b><span>${t('blue')}</span></div></div>`
+                 <div class="red"><b>${m.score('red')}</b><span>${t('red')}</span></div></div>`
               : ''
           }
           <div class="ps-menu">
@@ -556,7 +555,7 @@ export class Menu {
   results(m: Match, onRestart: () => void, onMenu: () => void, onDownload: () => void, player: number, note = '', cont?: string): void {
     const b = { red: m.breakdown('red'), blue: m.breakdown('blue') };
     const rp = { red: m.rankingPoints('red'), blue: m.rankingPoints('blue') };
-    const row = (label: string, f: (a: Alliance) => string | number, cls = '') => `<tr class="${cls}"><td>${label}</td>${ALLIANCES.map((a) => `<td>${f(a)}</td>`).join('')}</tr>`;
+    const row = (label: string, f: (a: Alliance) => string | number, cls = '') => `<tr class="${cls}"><td>${label}</td>${UI_ALLIANCES.map((a) => `<td>${f(a)}</td>`).join('')}</tr>`;
     const winner: Alliance | null = b.red.total === b.blue.total ? null : b.red.total > b.blue.total ? 'red' : 'blue';
     const mine: Alliance | null = player < 0 ? null : player < 2 ? 'red' : 'blue';
     const chip = (on: boolean, label: string) => `<span class="rpchip ${on ? 'on' : ''}">${label}</span>`;
@@ -575,13 +574,13 @@ export class Menu {
         <div class="kicker"><span></span>${t('resultsKick')}${player >= 0 ? ` · ${t('yourRobot')}: ${stationLabel(player)}` : ''}</div>
         <h2 class="${winner ?? ''}">${winner ? `${t('winner')} ${t(winner)}` : t('tie')}</h2>
         <div class="final">
-          <div class="red ${winner === 'red' ? 'win' : ''}"><small>${t('red')}${mine === 'red' ? ` · ${t('you')}` : ''}</small>${b.red.total}</div>
-          <div class="dash">–</div>
           <div class="blue ${winner === 'blue' ? 'win' : ''}"><small>${t('blue')}${mine === 'blue' ? ` · ${t('you')}` : ''}</small>${b.blue.total}</div>
+          <div class="dash">–</div>
+          <div class="red ${winner === 'red' ? 'win' : ''}"><small>${t('red')}${mine === 'red' ? ` · ${t('you')}` : ''}</small>${b.red.total}</div>
         </div>
         <h3>${t('breakdown')}</h3>
         <table class="breakdown">
-          <tr><th></th><th class="red">${t('red')}</th><th class="blue">${t('blue')}</th></tr>
+          <tr><th></th><th class="blue">${t('blue')}</th><th class="red">${t('red')}</th></tr>
           ${row(t('autoLine'), (a) => b[a].autoLine)}
           ${row(t('samplesAuto'), (a) => b[a].samplesAuto)}
           ${row(t('samplesTeleop'), (a) => b[a].samplesTeleop)}
@@ -590,7 +589,7 @@ export class Menu {
           ${row(t('penalties'), (a) => b[a].penalties)}
           ${ALLIANCES.some((a) => b[a].redCard) ? row(t('redCard'), (a) => (b[a].redCard ? '<span class="neg">✕</span>' : '–')) : ''}
           ${row(t('total'), (a) => b[a].total, 'tot')}
-          <tr><td>${t('rp')}</td>${ALLIANCES.map((a) => `<td>${rpCell(a)}</td>`).join('')}</tr>
+          <tr><td>${t('rp')}</td>${UI_ALLIANCES.map((a) => `<td>${rpCell(a)}</td>`).join('')}</tr>
         </table>
         <h3>${t('fouls')}</h3><ul class="fouls">${fouls}</ul>
         ${note ? `<div class="msg ok">${ic.check}${note}</div>` : ''}

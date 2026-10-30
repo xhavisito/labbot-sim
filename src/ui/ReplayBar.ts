@@ -47,7 +47,7 @@ export class ReplayBar {
       .map((e) => `<i class="${e.type === 'score' ? e.alliance : ''}" style="left:${(100 * e.t) / Math.max(1, p.duration)}%"></i>`)
       .join('');
     this.root.innerHTML = `
-      <div class="rb-score"><b class="red">0</b><div><span class="rb-timer">0:15</span><small class="rb-phase"></small></div><b class="blue">0</b></div>
+      <div class="rb-score"><b class="blue">0</b><div><span class="rb-timer">0:15</span><small class="rb-phase"></small></div><b class="red">0</b></div>
       <div class="rb-tag">${ic.play}${t('rp_title')}</div>
       <div class="replaybar">
         <button class="hud-btn" data-a="play" title="${t('rp_playPause')}"></button>

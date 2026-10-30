@@ -120,7 +120,7 @@ export class Arena {
     for (const t of this.led) t.offset.x = (time * 0.04) % 1;
   }
 
-  /** Pantalla: rojo · centro (timer o título) · azul. */
+  /** Pantalla: azul · centro (timer o título) · rojo (azul primero, como en la UI). */
   setScreen(center: string, red: string, blue: string): void {
     const key = `${center}|${red}|${blue}`;
     if (!this.screenCanvas || !this.screenTex || key === this.lastScreen) return;
@@ -132,9 +132,9 @@ export class Arena {
     g.fillRect(0, 0, W, H);
     const score = red !== '' || blue !== '';
     if (score) {
-      g.fillStyle = '#b71c1c';
-      g.fillRect(0, 0, W * 0.32, H);
       g.fillStyle = '#0d47a1';
+      g.fillRect(0, 0, W * 0.32, H);
+      g.fillStyle = '#b71c1c';
       g.fillRect(W * 0.68, 0, W * 0.32, H);
     }
     g.textAlign = 'center';
@@ -142,11 +142,11 @@ export class Arena {
     g.fillStyle = '#fff';
     if (score) {
       g.font = '800 96px "Inter Variable", Arial, sans-serif';
-      g.fillText(red, W * 0.16, H / 2);
-      g.fillText(blue, W * 0.84, H / 2);
+      g.fillText(blue, W * 0.16, H / 2);
+      g.fillText(red, W * 0.84, H / 2);
     }
-    g.fillStyle = '#a98bff';
-    g.font = `800 ${score ? 76 : 56}px "Inter Variable", Arial, sans-serif`;
+    g.fillStyle = '#e9239d';
+    g.font = `700 ${score ? 76 : 56}px "League Spartan Variable", "Inter Variable", Arial, sans-serif`;
     g.fillText(center, W / 2, H / 2);
     this.screenTex.needsUpdate = true;
   }

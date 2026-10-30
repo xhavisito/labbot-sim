@@ -32,7 +32,7 @@ export class ReplaysScreen {
       const win = h.final.red === h.final.blue ? '' : h.final.red > h.final.blue ? 'red' : 'blue';
       const kb = Math.max(1, Math.round(s.bytes.length / 1024));
       return `<div class="rp-card" data-id="${esc(s.id)}">
-        <div class="rp-score"><b class="red ${win === 'red' ? 'win' : ''}">${h.final.red}</b><span>–</span><b class="blue ${win === 'blue' ? 'win' : ''}">${h.final.blue}</b></div>
+        <div class="rp-score"><b class="blue ${win === 'blue' ? 'win' : ''}">${h.final.blue}</b><span>–</span><b class="red ${win === 'red' ? 'win' : ''}">${h.final.red}</b></div>
         <div class="rp-info"><b>${dateTime(h.createdAt)}</b>
           <small>${me ? `${t('yourRobot')}: ${stationTag(me.alliance, me.station)} · ${esc(me.label)}` : t('rp_aiOnly')} · ${kb} KB</small>
           <small class="rp-robots">${h.robots.map((r) => `<span class="${r.alliance}">${stationTag(r.alliance, r.station)} ${esc(r.label)}</span>`).join('')}</small></div>
