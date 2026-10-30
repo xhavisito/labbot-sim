@@ -19,7 +19,7 @@ import { DEFAULT_DAMAGE, type DamageSettings } from '../core/damage';
 import { Match, type MatchEvent } from '../core/match';
 import { rng } from '../core/rng';
 import type { TimedEvent } from '../core/matchLog';
-import { ALLIANCES, type Alliance, type Level } from '../core/types';
+import { ALLIANCES, opponent, type Alliance, type Level } from '../core/types';
 import type { PlayerInput } from '../input/InputManager';
 import { buildFieldColliders } from '../physics/FieldColliders';
 import { Pieces } from '../physics/Pieces';
@@ -62,7 +62,7 @@ export interface SessionOptions {
   /** La IA maneja los robots que no son del jugador en el TELEOP. */
   ai?: boolean;
   /** Human Player automático: encendido y segundos entre Muestras (SUPUESTO, ver HumanPlayer). */
-  hp?: { enabled: boolean; interval: number };
+  hp?: { enabled: boolean; interval: number; smart?: boolean };
   /**
    * Práctica libre: solo se crea el robot del jugador (sin aliado ni rivales), su Human Player
    * mete Muestras sin límite y las Cámaras tienen un "vacío" que se traga lo anotado (nunca se
@@ -98,6 +98,8 @@ export class GameSession {
   readonly sensors: Sensors;
   readonly referee: Referee;
   readonly hps: Record<Alliance, HumanPlayer>;
+  /** Muestras del Human Player rival que anotó cada alianza en el match (las robó de su Campana). */
+  readonly stolen: Record<Alliance, number> = { red: 0, blue: 0 };
   /** Fallas de los robots (golpes contra la pared u otros robots, y al azar). */
   readonly damage: Damage;
   /** Eventos de fallas del cuadro (los consume la UI y se vacían en `setInput`). */
@@ -145,6 +147,8 @@ export class GameSession {
     for (const a of ALLIANCES) {
       this.hps[a].enabled = opts.hp?.enabled ?? true;
       this.hps[a].interval = opts.hp?.interval ?? this.hps[a].interval;
+      this.hps[a].smart = opts.hp?.smart ?? true;
+      this.hps[a].robots = this.robots;
     }
     this.root.add(buildFieldView());
     if (opts.solo) {
@@ -191,6 +195,7 @@ export class GameSession {
     this.referee.reset();
     for (const a of ALLIANCES) {
       this.hps[a].reset();
+      this.stolen[a] = 0;
       this.practiceCount[a] = 0;
     }
     this.damage.reset();
@@ -332,6 +337,8 @@ export class GameSession {
       this.scoreFx.push({ x: at.x, y: at.y, z: at.z, alliance: s.alliance });
       // En práctica también se avisa (0 puntos): la práctica de AUTO y los retos llevan su cuenta
       scored.push({ piece: s.piece.index, alliance: s.alliance, level: s.level, points: m ? m.scoreSample(s.alliance, s.level, s.piece.lastRobot) : 0 });
+      // Robada: la metió el Human Player rival y la anotó esta alianza
+      if (m && this.hps[opponent(s.alliance)].fed.has(s.piece.index)) this.stolen[s.alliance]++;
       if (!m) {
         this.practiceCount[s.alliance]++;
         if (this.opts.solo) this.sink.set(s.piece.index, 0);

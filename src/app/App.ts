@@ -272,7 +272,7 @@ export class App {
       autos: [0, 1, 2, 3].map((i) => (i === player ? routine(s.playerAuto) : botAuto(i))),
       bots: [0, 1, 2, 3].map((i) => (i === player ? undefined : { ...STRATEGY_OPTIONS[m.robots[i].strategy], ai: m.robots[i].ai })),
       starts: [0, 1, 2, 3].map((i) => (i === player ? m.start : undefined)),
-      hp: { enabled: s.hpEnabled, interval: s.hpInterval },
+      hp: { enabled: s.hpEnabled, interval: s.hpInterval, smart: s.hpSmart },
       grip: s.grip,
       damage: { ...s.damage },
       seed: (Math.random() * 2 ** 32) >>> 0,

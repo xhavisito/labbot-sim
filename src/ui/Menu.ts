@@ -272,7 +272,7 @@ export class Menu {
       const mine = routes ? savedRoutes.map((r) => opt(routeRoutine(r).id, esc(r.name))).join('') : '';
       return fixed + (mine ? `<optgroup label="${t('grp_routes')}">${mine}</optgroup>` : '');
     };
-    const toggle = (k: 'ai' | 'hpEnabled') => `<button class="toggle ${s[k] ? 'on' : ''}" data-tog="${k}"><i></i>${s[k] ? t('on_') : t('no_')}</button>`;
+    const toggle = (k: 'ai' | 'hpEnabled' | 'hpSmart') => `<button class="toggle ${s[k] ? 'on' : ''}" data-tog="${k}"><i></i>${s[k] ? t('on_') : t('no_')}</button>`;
     const range = (k: keyof typeof SETTINGS_RANGE, unit: string) => {
       const r = SETTINGS_RANGE[k];
       return `<div class="range"><input type="range" data-k="${k}" min="${r.min}" max="${r.max}" step="${r.step}" value="${s[k]}"><output data-unit="${unit}">${s[k]} ${unit}</output></div>`;
@@ -293,6 +293,8 @@ export class Menu {
           <h3>${t('sec_hp')}</h3>
           <label>${t('setHp')}</label>${toggle('hpEnabled')}
           <label>${t('setHpInterval')}</label>${range('hpInterval', 's')}
+          <label>${t('setHpSmart')}</label>${toggle('hpSmart')}
+          <p class="full sub">${t('hpSmartNote')}</p>
         </div></div>
         <div class="panel"><div class="form">
           <h3>${t('sec_robot')}</h3>
@@ -325,7 +327,7 @@ export class Menu {
       });
     });
     this.on('[data-tog]', (el) => {
-      const k = el.dataset.tog as 'ai' | 'hpEnabled';
+      const k = el.dataset.tog as 'ai' | 'hpEnabled' | 'hpSmart';
       s[k] = !s[k];
       el.classList.toggle('on', s[k]);
       el.lastChild!.textContent = s[k] ? t('on_') : t('no_');
