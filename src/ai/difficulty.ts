@@ -31,15 +31,22 @@ export interface AiProfile {
    * zona sí es falta, §4.6, y la IA lo evita).
    */
   steal: boolean;
+  /**
+   * Arrimándose a la Cámara: factor de la velocidad con la que entra (1 = la de siempre) y a cuántos
+   * metros de su punto de anotación se alinea antes de entrar. Un piloto fino se alinea más cerca y
+   * entra sin frenar tanto: menos tiempo ocupando el Nivel 3 (su compañero espera su turno).
+   */
+  dockSpeed: number;
+  dockStage: number;
 }
 
 export const AI_PROFILES: Record<AiLevel, AiProfile> = {
   // Fácil: lento, anota en N2, no va por la Crítica ni se coordina; sube temprano a la Plataforma
-  easy: { speed: 0.55, level: 2, critical: false, teamwork: false, reaction: 0.9, climbMargin: 14, batch: 2, sloppy: 0.06, steal: false },
+  easy: { speed: 0.55, level: 2, critical: false, teamwork: false, reaction: 0.9, climbMargin: 14, batch: 2, sloppy: 0.06, steal: false, dockSpeed: 1, dockStage: 0.55 },
   // Normal: N3 y la Crítica, con algo de duda y margen
-  normal: { speed: 0.8, level: 3, critical: true, teamwork: true, reaction: 0.35, climbMargin: 6, batch: 4, sloppy: 0.02, steal: false },
-  // Difícil: todo lo que da el robot
-  hard: { speed: 1, level: 3, critical: true, teamwork: true, reaction: 0, climbMargin: 2.5, batch: 10, sloppy: 0, steal: false },
+  normal: { speed: 0.8, level: 3, critical: true, teamwork: true, reaction: 0.35, climbMargin: 6, batch: 4, sloppy: 0.02, steal: false, dockSpeed: 1, dockStage: 0.55 },
+  // Difícil: todo lo que da el robot, y se arrima a la Cámara más rápido y desde más cerca
+  hard: { speed: 1, level: 3, critical: true, teamwork: true, reaction: 0, climbMargin: 2.5, batch: 10, sloppy: 0, steal: false, dockSpeed: 1.5, dockStage: 0.4 },
   // Experto: como Difícil, más robar Muestras de la Campana rival y margen justo en la Plataforma
-  expert: { speed: 1, level: 3, critical: true, teamwork: true, reaction: 0, climbMargin: 1.8, batch: 10, sloppy: 0, steal: true },
+  expert: { speed: 1, level: 3, critical: true, teamwork: true, reaction: 0, climbMargin: 1.8, batch: 10, sloppy: 0, steal: true, dockSpeed: 1.5, dockStage: 0.4 },
 };

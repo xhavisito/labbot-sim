@@ -89,6 +89,8 @@ const PUSH_PATIENCE = 0.6;
 const YIELD_TIME = 0.5;
 /** Segundos que le deja más espacio a un robot con el que se trabó. */
 const WARY_TIME = 6;
+/** Segundos de más (sobre lo que tarda en llegar) para tomar la Muestra que persigue antes de dejarla. */
+const TARGET_SLACK = 6;
 
 export interface BotOptions {
   /** Nivel al que anota (por defecto el de la dificultad: N3, el que más vale). */
@@ -592,7 +594,7 @@ export class Bot {
 
     if (this.mode === 'collect') {
       out.intake = true;
-      const piece = this.pickSample(phase);
+      const piece = this.pickSample(phase, dt);
       if (piece) this.driveToPiece(piece, out, phase);
       else if (m.stored.length === 0 && phase !== 'AUTO') this.drive(this.zoneWait() ?? this.waitSpot(), out, false, phase);
     } else if (this.mode === 'hp') {
@@ -889,7 +891,13 @@ export class Bot {
   }
 
   /** La Muestra a la que va (la aparta para su compañero), o null. */
-  private pickSample(phase: Phase): { x: number; z: number; i: number } | null {
+  private pickSample(phase: Phase, dt: number): { x: number; z: number; i: number } | null {
+    // Lleva demasiado tras la misma Muestra (girando en su lugar junto a ella sin entrar, trabado sin
+    // que `unjam` lo note): la deja un rato y busca otra
+    if (this.targetPiece >= 0 && (this.targetT -= dt) <= 0) {
+      this.ignore.set(this.targetPiece, WARY_TIME);
+      this.targetPiece = -1;
+    }
     const c = this.bestCandidate(phase);
     if (!c) {
       this.targetPiece = -1;
@@ -900,10 +908,17 @@ export class Bot {
       this.bestDist = Infinity;
       this.progressT = 0;
       this.targetPiece = c.i;
+      this.targetT = c.eta + TARGET_SLACK;
     }
     this.team.claim(c.i, this.robot.index);
     return { ...c.at, i: c.i };
   }
+
+  /** Segundos que le da a la Muestra que persigue antes de dejarla (`pickSample`). */
+  private targetT = 0;
+
+  /** Muestra frente a la que ya llegó a su punto de espera (`driveToPiece`), o −1. */
+  private staged = -1;
 
   /** Cara por la que entra a la Muestra que persigue (para no cambiarla a cada rato). */
   private approach: { piece: number; k: number } | null = null;
@@ -972,14 +987,19 @@ export class Bot {
       this.targetPiece = -1;
       return;
     }
-    if (onLine && Math.abs(herr) < 0.15) {
+    const stage = { x: p.x - dx * (grab + 0.45), z: p.z - dz * (grab + 0.45) };
+    const toStage = Math.hypot(stage.x - pos.x, stage.z - pos.z);
+    // Ya llegó a su punto de espera: se queda en esta etapa aunque al girar se aleje unos centímetros
+    // (con un solo umbral giraba hacia el punto y de vuelta hacia la Muestra sin fin)
+    const staged = toStage < (this.staged === piece.index ? 0.3 : 0.1);
+    this.staged = staged ? piece.index : -1;
+    // Ya de frente: entra corrigiendo de lado (si quedó un poco fuera de la línea, también)
+    if ((onLine || (staged && Math.abs(side) < 0.3 && behind > grab - 0.08)) && Math.abs(herr) < 0.15) {
       out.turn = clamp1(herr * 3 - side * 6);
       out.forward = pd * Math.min(0.3, 0.12 + Math.max(0, behind - grab) * 0.4);
       return;
     }
-    const stage = { x: p.x - dx * (grab + 0.45), z: p.z - dz * (grab + 0.45) };
-    const toStage = Math.hypot(stage.x - pos.x, stage.z - pos.z);
-    if (onLine || toStage < 0.1) {
+    if (onLine || staged) {
       out.turn = clamp1(herr * 2.5);
       out.forward = 0;
       return;
@@ -1078,7 +1098,7 @@ export class Bot {
     const near = Math.hypot(pose.x - pos.x, pose.z - pos.z) < 1.6;
     if (level === 3 && near) this.team.n3By = r.index;
     out.elevator = near ? level : 0;
-    const st = this.dock(pose, this.side, this.scoreDir, out, phase, { stage: 0.55, tol: 0.1 + this.profile.sloppy, edge: EDGE_CLEAR });
+    const st = this.dock(pose, this.side, this.scoreDir, out, phase, { stage: this.profile.dockStage, tol: 0.1 + this.profile.sloppy, edge: EDGE_CLEAR });
     // Ya se está arrimando: se queda con ese nivel hasta soltar todo
     if (st === 'creep' || st === 'docked') this.lockedLevel = level;
     if (st === 'docked') out.release = m.atTarget;
@@ -1156,7 +1176,8 @@ export class Bot {
       // Arrimarse corrigiendo el error lateral con el rumbo (apunta 0.8 m más allá de la pose)
       const aim = Math.atan2(-faceZ * 0.8, pose.x - pos.x) + (dir > 0 ? 0 : Math.PI);
       const dev = clamp(wrap(aim - want), 0.15);
-      out.forward = dir * Math.min(0.55, depth * 1.8 + 0.1);
+      const k = this.profile.dockSpeed;
+      out.forward = dir * Math.min(0.55 * k, depth * 1.8 * k + 0.1);
       out.turn = clamp1(wrap(want + dev - r.phys.heading()) * 2.5);
       return 'creep';
     }
@@ -1314,10 +1335,19 @@ export class Bot {
   private footState(pos: { x: number; z: number }, dir: number): 'away' | 'turn' | 'ready' {
     const sx = this.side * pos.x;
     const onRamp = sx < F.PLATFORM_LENGTH / 2 + 0.05;
-    if (sx > 2.95 || sx < 0.4 || Math.abs(pos.z - this.lane()) > (onRamp ? 0.3 : 0.12)) return 'away';
+    // Ya llegó a su carril: más tolerancia para no alternar entre ir al punto (girando hacia él) y
+    // girar hacia la rampa cuando queda justo en el borde
+    const tol = onRamp ? 0.3 : this.footLatch ? 0.25 : 0.12;
+    if (sx > 2.95 || sx < 0.4 || Math.abs(pos.z - this.lane()) > tol) {
+      this.footLatch = false;
+      return 'away';
+    }
+    this.footLatch = true;
     const want = (this.side > 0 ? Math.PI : 0) + (dir < 0 ? Math.PI : 0);
     return onRamp || Math.abs(wrap(want - this.robot.phys.heading())) < 0.3 ? 'ready' : 'turn';
   }
+
+  private footLatch = false;
 
   /** Frente al Nivel 3 de la Cámara rival (papel 'block'). */
   private blockPose(): { x: number; z: number } {
@@ -1510,6 +1540,7 @@ export class Bot {
     const p = this.robot.phys;
     const pos = p.position();
     const h0 = p.heading();
+    const v0 = p.body.linvel();
     const hl = p.halfL;
     const hw = p.halfW;
     const px = F.PLATFORM_LENGTH / 2 + 0.08;
@@ -1519,8 +1550,9 @@ export class Bot {
     const invasion = (f: number, t: number, plat = !platformOk, withEdge = edge >= 0): number => {
       const h = h0 + t * this.robot.spec.maxOmega * 0.8 * 0.15;
       const d = f * this.robot.spec.maxSpeed * 0.15;
-      const cx = pos.x + Math.cos(h0) * d;
-      const cz = pos.z - Math.sin(h0) * d;
+      // Más lo que ya trae de inercia (frenar no es instantáneo)
+      const cx = pos.x + Math.cos(h0) * d + v0.x * 0.1;
+      const cz = pos.z - Math.sin(h0) * d + v0.z * 0.1;
       const c = Math.cos(h);
       const s = Math.sin(h);
       let v = 0;
