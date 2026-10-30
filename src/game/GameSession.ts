@@ -322,8 +322,8 @@ export class GameSession {
       r.mech.step(dt, this.stepMechEvents);
     }
     // Human Player: Muestras por la ranura durante todo el TeleOp (§3.2.4)
-    if (m && isTeleop(phase)) for (const a of ALLIANCES) this.hps[a].step(dt);
-    else if (!m && this.opts.solo) this.hps[this.player.alliance].step(dt);
+    if (m && isTeleop(phase)) for (const a of ALLIANCES) this.hps[a].step(dt, phase === 'ENDGAME');
+    else if (!m && this.opts.solo) this.hps[this.player.alliance].step(dt, true);
     this.damage.beforeStep();
     this.pw.step();
     this.time += dt;

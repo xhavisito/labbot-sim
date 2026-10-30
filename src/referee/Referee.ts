@@ -20,7 +20,7 @@ export const CONTACT_COOLDOWN = 2;
 export const CONTACT_MIN_SPEED = 0.15;
 /** Pinning: más de 3 s; otra falta cada 3 s más (D11). */
 export const PIN_SECONDS = 3;
-/** Obstruir (D17, SUPUESTO): más de 3 s seguidos frente a la Cámara rival; otra falta cada 5 s más. */
+/** Obstruir (D17, SUPUESTO): más de 3 s seguidos en una zona de anotación rival (`obstructZones`); otra falta cada 5 s más. */
 export const OBSTRUCT_SECONDS = 3;
 export const OBSTRUCT_REPEAT = 5;
 /**
@@ -32,6 +32,19 @@ export const KNOCK_WINDOW = 1;
 /** Frente de la Cámara de cada alianza (D17, SUPUESTO): el largo de la Cámara y 1 m hacia la cancha. */
 export function camaraFront(a: Alliance): F.Rect {
   return F.rectFor(a, { x0: F.CAMARA_X_END_RED - F.CAMARA_LENGTH, x1: F.CAMARA_X_END_RED, z0: F.CAMARA_Z_RED[0] - 1.0, z1: F.CAMARA_Z_RED[0] });
+}
+
+/**
+ * Zonas que un rival no puede obstruir (§4.6 "bloquear u obstruir las zonas del equipo contrario";
+ * D17, SUPUESTO con el criterio de un mentor del reto, 30-oct: "cualquier zona de anotación que sea
+ * obstruida es foul, hasta subirse a la rampa enemiga"): el frente de su Cámara, el frente de su
+ * Campana (donde su robot recibe las Muestras del Human Player) y su rampa de la Plataforma (del pie a
+ * la Repisa, sin la Repisa compartida).
+ */
+export function obstructZones(a: Alliance): F.Rect[] {
+  const campanaFront: F.Rect = { x0: F.CAMPANA_X_RED[0], x1: F.CAMPANA_X_RED[1], z0: -F.HALF_W, z1: -F.HALF_W + 0.8 };
+  const ramp: F.Rect = { x0: F.REPISA_DEPTH / 2, x1: F.PLATFORM_LENGTH / 2, z0: -F.PLATFORM_WIDTH / 2, z1: F.PLATFORM_WIDTH / 2 };
+  return [camaraFront(a), F.rectFor(a, campanaFront), F.rectFor(a, ramp)];
 }
 
 /** Zonas del color de cada alianza (D8, SUPUESTO): sus 2 Zonas de Inicio y el frente de su Campana. */
@@ -129,11 +142,11 @@ export class Referee {
         this.flags.set(key, true);
       }
       if (clear >= 1) this.flags.set(key, false);
-      // §4.6 (y §6.1 "no hay defensa"): quedarse frente a la Cámara rival en el TELEOP
+      // §4.6 (y §6.1 "no hay defensa"): quedarse en una zona de anotación rival en el TELEOP (D17)
       const p = r.phys.position();
-      const front = camaraFront(r.alliance === 'red' ? 'blue' : 'red');
+      const zones = obstructZones(r.alliance === 'red' ? 'blue' : 'red');
       const ob = this.obstruct.get(r.index) ?? { t: 0, charged: 0 };
-      if (isTeleop(phase) && F.inRect(front, p.x, p.z)) ob.t += dt;
+      if (isTeleop(phase) && zones.some((z) => F.inRect(z, p.x, p.z))) ob.t += dt;
       else {
         ob.t = 0;
         ob.charged = 0;

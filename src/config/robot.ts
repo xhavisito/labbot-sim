@@ -116,7 +116,7 @@ export type ElevatorPos = 0 | 1 | 2 | 3 | 4;
  * Pivote con garra (sugerencia de CAD en MDF): chasis 600 × 600 mm, pivote 110 mm adelante del centro
  * a 440 mm de la base, brazo de 500 mm (del eje al centro de la base de la pieza), guardado a 127°
  * con la precarga. Así llega al piso, a N1–N3 y a la Repisa sin salir más de 40 cm, y al inicio
- * cabe en el perímetro y bajo 100 cm (lo revisa `validateRobot`). La posición 4 (0.60 m) sirve para
+ * cabe en el perímetro y bajo 100 cm (lo revisa `validateRobot`). La posición 4 (0.615 m, la altura de la rendija: con la garra más abajo los dedos chocaban con su soporte, D34) sirve para
  * la rendija de la Campana y para soltar sobre la Repisa desde la Plataforma. Una sola pieza a la vez.
  * El manual no da velocidad, masa ni mecanismos: esos números son SUPUESTOS configurables.
  */
@@ -133,7 +133,7 @@ export const PIVOT_ROBOT: RobotSpec = {
   traction: 1.0,
   capacity: 1,
   arm: { pivotX: mm(110), pivotY: mm(440), length: mm(500), speed: 4, stowAngle: (127 * Math.PI) / 180 },
-  elevatorHeights: [0, mm(260), mm(560), mm(830), mm(600)],
+  elevatorHeights: [0, mm(260), mm(560), mm(830), mm(615)],
 };
 
 /**
@@ -146,7 +146,7 @@ export const PIVOT_ROBOT: RobotSpec = {
  * - piso (194°): la Muestra 24 cm detrás del chasis;
  * - N1 y N2 (780 mm) y N3 (820 mm), al frente: la Muestra cae al pozo desde arriba, 21 y 14 cm
  *   delante del chasis (N1 y N2 se sueltan desde arriba: más abajo la garra saldría más de 40 cm);
- * - posición 4 (600 mm, Crítica y Repisa) atrás, 11 cm fuera del chasis;
+ * - posición 4 (615 mm, Crítica y Repisa) atrás, 11 cm fuera del chasis;
  * - guardado a 107° con la precarga: dentro del perímetro y a 99.9 cm (§4.1).
  * Del piso a N3 el brazo recorre ~128°. Al pasar por la vertical con una Muestra llega a 103 cm. Con
  * un brazo que voltea no hay forma de recoger de un lado, anotar en N3 del otro y llegar a la Crítica
@@ -158,7 +158,7 @@ export const PIVOT_180_ROBOT: RobotSpec = {
   name: 'Pivote 180°',
   mechanism: 'pivot180',
   arm: { pivotX: mm(150), pivotY: mm(170), length: mm(710), speed: 4, stowAngle: (107 * Math.PI) / 180, pickBack: true },
-  elevatorHeights: [0, mm(780), mm(780), mm(820), mm(600)],
+  elevatorHeights: [0, mm(780), mm(780), mm(820), mm(615)],
 };
 
 /** Robot por defecto (el del menú la primera vez). */
