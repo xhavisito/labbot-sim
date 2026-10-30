@@ -44,7 +44,7 @@ export class Arena {
       m.position.set(x, -0.003, z);
       this.group.add(m);
     }
-    const wallMat = new THREE.MeshStandardMaterial({ color: 0x1b2130, roughness: 0.9 });
+    const wallMat = new THREE.MeshStandardMaterial({ color: 0x1e0b24, roughness: 0.9 });
     const walls = [
       new THREE.BoxGeometry(34, 9, 0.3).translate(0, 4.5, -14),
       new THREE.BoxGeometry(34, 9, 0.3).translate(0, 4.5, 14),
@@ -53,7 +53,7 @@ export class Arena {
     ];
     this.group.add(new THREE.Mesh(mergeGeometries(walls)!, wallMat));
 
-    // ---- Gradas de aluminio en los lados largos y atrás de cada Driver Station
+    // ---- Gradas en los lados largos y atrás de cada Driver Station, en el morado del branding del equipo
     const tierGeos: THREE.BufferGeometry[] = [];
     const seatGeos: THREE.BufferGeometry[] = [];
     const rows = 7;
@@ -72,13 +72,13 @@ export class Arena {
     addStand(16, Math.PI, F.HALF_W + 2.6); // lado −Z
     addStand(7, Math.PI / 2, F.HALF_L + 4.2); // atrás de la alianza roja
     addStand(7, -Math.PI / 2, F.HALF_L + 4.2); // atrás de la alianza azul
-    this.group.add(new THREE.Mesh(mergeGeometries(tierGeos)!, new THREE.MeshStandardMaterial({ color: 0x10131a, roughness: 0.95 })));
-    const boards = new THREE.Mesh(mergeGeometries(seatGeos)!, new THREE.MeshStandardMaterial({ color: 0xa2a9b3, metalness: 0.75, roughness: 0.35 }));
+    this.group.add(new THREE.Mesh(mergeGeometries(tierGeos)!, new THREE.MeshStandardMaterial({ color: 0x3b0b3e, roughness: 0.9 })));
+    const boards = new THREE.Mesh(mergeGeometries(seatGeos)!, new THREE.MeshStandardMaterial({ color: 0x8a2ba3, metalness: 0.45, roughness: 0.4 }));
     boards.receiveShadow = true;
     this.group.add(boards);
 
     // ---- Estructuras de focos sobre la cancha (barras emisivas: el bloom las hace brillar)
-    const truss = new THREE.MeshStandardMaterial({ color: 0x161a22, metalness: 0.6, roughness: 0.5 });
+    const truss = new THREE.MeshStandardMaterial({ color: 0x24102a, metalness: 0.6, roughness: 0.5 });
     const lamp = new THREE.MeshStandardMaterial({ color: 0x222222, emissive: 0xfff2dc, emissiveIntensity: 5 });
     const trussGeos: THREE.BufferGeometry[] = [];
     const lampGeos: THREE.BufferGeometry[] = [];
@@ -128,7 +128,7 @@ export class Arena {
     const g = this.screenCanvas.getContext('2d')!;
     const W = this.screenCanvas.width;
     const H = this.screenCanvas.height;
-    g.fillStyle = '#05070c';
+    g.fillStyle = '#1a0620';
     g.fillRect(0, 0, W, H);
     const score = red !== '' || blue !== '';
     if (score) {
@@ -152,7 +152,7 @@ export class Arena {
   }
 }
 
-/** Manta LED genérica: texto del evento sobre un degradado rojo → azul. */
+/** Manta LED: texto del evento sobre un degradado con los colores del branding (morado → magenta → morado). */
 function ledTexture(): THREE.CanvasTexture | null {
   if (typeof document === 'undefined') return null;
   const c = document.createElement('canvas');
@@ -160,20 +160,24 @@ function ledTexture(): THREE.CanvasTexture | null {
   c.height = 64;
   const g = c.getContext('2d')!;
   const grd = g.createLinearGradient(0, 0, 1024, 0);
-  grd.addColorStop(0, '#8e1414');
-  grd.addColorStop(0.5, '#0b0d12');
-  grd.addColorStop(1, '#0d3a8e');
+  grd.addColorStop(0, '#3b0b3e');
+  grd.addColorStop(0.35, '#722585');
+  grd.addColorStop(0.5, '#e9239d');
+  grd.addColorStop(0.65, '#722585');
+  grd.addColorStop(1, '#3b0b3e');
   g.fillStyle = grd;
   g.fillRect(0, 0, 1024, 64);
   g.fillStyle = '#ffffff';
-  g.font = '700 40px "Inter Variable", Impact, sans-serif';
+  g.font = '700 36px "League Spartan Variable", "Inter Variable", Impact, sans-serif';
   g.textBaseline = 'middle';
-  for (const [x, t] of [
-    [30, 'LABBOT RESCUE'],
-    [390, 'WINTERFEST 2026'],
-    [760, 'LAMBOT 3478'],
-  ] as Array<[number, string]>)
+  // Reparte los textos a lo ancho según lo que mide cada uno (la letra puede ser más ancha o más angosta)
+  const texts = ['LABBOT RESCUE', 'WINTERFEST 2026', 'LAMBOT 3478'];
+  const gap = (1024 - texts.reduce((w, t) => w + g.measureText(t).width, 0)) / texts.length;
+  let x = gap / 2;
+  for (const t of texts) {
     g.fillText(t, x, 34);
+    x += g.measureText(t).width + gap;
+  }
   const t = new THREE.CanvasTexture(c);
   t.colorSpace = THREE.SRGBColorSpace;
   t.wrapS = THREE.RepeatWrapping;
