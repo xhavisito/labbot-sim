@@ -114,7 +114,8 @@ export class InputManager {
     return pad ? pad.buttons.map((b) => b.pressed) : [];
   }
 
-  private pad(): Gamepad | null {
+  /** El primer control conectado (también lo usan los menús, `ui/padNav.ts`). */
+  pad(): Gamepad | null {
     const pads = typeof navigator !== 'undefined' && navigator.getGamepads ? navigator.getGamepads() : [];
     return [...pads].find((p): p is Gamepad => !!p && p.connected) ?? null;
   }

@@ -68,6 +68,11 @@ export class AutoPractice {
     return this.phase === 'recording' ? inp : emptyInput();
   }
 
+  /** Con el panel abierto (sin grabar ni reproducir) el control navega sus botones. */
+  get wantsUi(): boolean {
+    return this.phase === 'ready' || this.phase === 'result';
+  }
+
   /** Cada cuadro, después de `session.update`. */
   update(dt: number): void {
     if (this.phase === 'countdown') {

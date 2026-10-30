@@ -143,6 +143,11 @@ export class TrainingRun {
     return this.phase === 'running' ? inp : emptyInput();
   }
 
+  /** Con las instrucciones o el resultado a la vista el control navega sus botones. */
+  get wantsUi(): boolean {
+    return this.phase === 'brief' || this.phase === 'result';
+  }
+
   /** Cada cuadro, después de `session.update`. */
   update(dt: number): void {
     if (this.phase === 'countdown') {
