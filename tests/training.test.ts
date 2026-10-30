@@ -186,7 +186,7 @@ describe('retos en la física', () => {
     face(g, -Math.PI / 2);
     // Hasta que la viga del brazo topa con el borde de la Repisa (hitbox literal, D34); la Crítica ya
     // queda encima de ella
-    goTo(g, tr, 0, -1.17, 0.05);
+    goTo(g, tr, 0, -1.2, 0.05);
     face(g, -Math.PI / 2);
     for (let i = 0; i < 360 && g.player.mech.critical; i++) step(g, { releaseSample: true, forward: 0.1 });
     while (!tr.ended) step(g);
