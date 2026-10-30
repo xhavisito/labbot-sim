@@ -8,11 +8,13 @@ import type { InputManager } from '../input/InputManager';
 import { t, type Key } from './i18n';
 
 const BUTTONS: Array<{ action: Action; label: Key | string; cls: string }> = [
-  { action: 'toggleIntake', label: 'touchIntake', cls: 'b-intake' },
+  { action: 'intake', label: 'touchIntake', cls: 'b-intake' },
   { action: 'releaseSample', label: 'touchDrop', cls: 'b-drop' },
   { action: 'elevatorUp', label: '▲', cls: 'b-up' },
   { action: 'elevatorDown', label: '▼', cls: 'b-down' },
 ];
+/** Botones que se mantienen presionados (no de un toque). */
+const HOLD = new Set<Action>(['intake']);
 
 /** ¿El equipo es táctil? (pantalla de dedo, sin mouse fino) */
 export const isTouchDevice = (): boolean =>
@@ -43,14 +45,27 @@ export class TouchControls {
     this.stick.addEventListener('pointerdown', (e) => this.stickDown(e));
     this.stick.addEventListener('pointermove', (e) => this.stickMove(e));
     for (const ev of ['pointerup', 'pointercancel', 'lostpointercapture'] as const) this.stick.addEventListener(ev, (e) => this.stickUp(e));
-    this.root.querySelectorAll<HTMLButtonElement>('[data-a]').forEach((b) =>
+    this.root.querySelectorAll<HTMLButtonElement>('[data-a]').forEach((b) => {
+      const a = b.dataset.a as Action;
       b.addEventListener('pointerdown', (e) => {
         e.preventDefault();
-        this.input.touch.pressed.add(b.dataset.a as Action);
         b.classList.add('on');
+        // La garra trabaja mientras el dedo sigue encima (como la tecla o el botón del control)
+        if (HOLD.has(a)) {
+          b.setPointerCapture(e.pointerId);
+          this.input.touch.held.add(a);
+          return;
+        }
+        this.input.touch.pressed.add(a);
         setTimeout(() => b.classList.remove('on'), 150);
-      }),
-    );
+      });
+      if (HOLD.has(a))
+        for (const ev of ['pointerup', 'pointercancel', 'lostpointercapture'] as const)
+          b.addEventListener(ev, () => {
+            this.input.touch.held.delete(a);
+            b.classList.remove('on');
+          });
+    });
     this.intake = this.root.querySelector('.b-intake')!;
     this.show(false);
   }
@@ -62,7 +77,11 @@ export class TouchControls {
 
   show(v: boolean): void {
     this.root.style.display = v ? '' : 'none';
-    if (!v) this.release();
+    if (!v) {
+      this.release();
+      this.input.touch.held.clear();
+      this.root.querySelectorAll('.tbtn.on').forEach((b) => b.classList.remove('on'));
+    }
   }
 
   private stickDown(e: PointerEvent): void {

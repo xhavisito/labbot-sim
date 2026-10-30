@@ -16,7 +16,7 @@ const session = (spec: RobotSpec, preload = true) => new GameSession({ player: 0
 
 function run(g: GameSession, s: number, inp: Partial<PlayerInput> = {}): void {
   g.setInput({ ...emptyInput(), ...inp });
-  const hold = { ...emptyInput(), forward: inp.forward ?? 0, turn: inp.turn ?? 0 };
+  const hold = { ...emptyInput(), forward: inp.forward ?? 0, turn: inp.turn ?? 0, intake: inp.intake ?? false };
   for (let i = 0; i < s * 120; i++) {
     if (i === 1) g.setInput(hold);
     g.step();
@@ -63,7 +63,7 @@ describe('tipos de robot: solo el pivote y su variante de 180° (27-oct)', () =>
     g.player.phys.teleport(x, z, -Math.PI / 2);
     g.pieces.place(g.pieces.list.find((p) => p.kind === 'sample' && p.state.at === 'field')!, x, F.SAMPLE_SIZE / 2, z + posTip(S180, 0).x, 0);
     const h0 = g.player.phys.heading();
-    run(g, 1.5, { toggleIntake: true });
+    run(g, 1.5, { intake: true });
     expect(m.inClaw).toBe(true);
     run(g, 2.0, { elevator: 3 });
     expect(m.atTarget).toBe(true);
@@ -96,7 +96,7 @@ describe('tipos de robot: solo el pivote y su variante de 180° (27-oct)', () =>
       const m = g.player.mech;
       const spot = F.labSpots()[0];
       g.player.phys.teleport(spot.x + 1.0, spot.z, Math.PI);
-      run(g, 3.0, { toggleIntake: true, forward: 0.2 });
+      run(g, 3.0, { intake: true, forward: 0.2 });
       expect(m.stored).toHaveLength(1);
       expect(m.inClaw).toBe(true);
       // Con el brazo arriba antes de arrimarse: la garra choca con la madera de la Cámara (D34)

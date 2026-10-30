@@ -12,7 +12,7 @@ beforeAll(async () => {
 
 function run(g: GameSession, s: number, inp: Partial<PlayerInput> = {}): void {
   g.setInput({ ...emptyInput(), ...inp });
-  const hold = { ...emptyInput(), forward: inp.forward ?? 0, turn: inp.turn ?? 0 };
+  const hold = { ...emptyInput(), forward: inp.forward ?? 0, turn: inp.turn ?? 0, intake: inp.intake ?? false };
   for (let i = 0; i < s * 120; i++) {
     if (i === 1) g.setInput(hold);
     g.step();

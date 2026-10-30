@@ -17,7 +17,7 @@ const session = (preload = false) => new GameSession({ player: 0, preload });
 /** Corre `s` segundos con la entrada dada (las acciones de un disparo se aplican una vez). */
 function run(g: GameSession, s: number, inp: Partial<PlayerInput> = {}): void {
   g.setInput({ ...emptyInput(), ...inp });
-  const hold = { ...emptyInput(), forward: inp.forward ?? 0, turn: inp.turn ?? 0, slow: inp.slow ?? false };
+  const hold = { ...emptyInput(), forward: inp.forward ?? 0, turn: inp.turn ?? 0, intake: inp.intake ?? false, slow: inp.slow ?? false };
   for (let i = 0; i < s * 120; i++) {
     if (i === 1) g.setInput(hold);
     g.step();
@@ -74,7 +74,7 @@ describe('robot (§7.2)', () => {
     const g = session();
     const spot = F.labSpots()[0]; // (0.46, −2.4)
     put(g, spot.x + 1.0, spot.z, Math.PI);
-    run(g, 3.0, { toggleIntake: true, forward: 0.2 });
+    run(g, 3.0, { intake: true, forward: 0.2 });
     expect(g.player.mech.stored.length).toBeGreaterThanOrEqual(1);
     expect(g.pieces.list.filter((p) => p.state.at === 'robot' && p.state.robot === 0)).toHaveLength(g.player.mech.stored.length);
   });
@@ -100,7 +100,7 @@ describe('robot (§7.2)', () => {
     // De frente a la Campana (viendo hacia −Z), a la distancia de la punta del brazo a la altura de la rendija
     put(g, c.x, c.z + critReach(), Math.PI / 2);
     run(g, 1.5, { elevator: 4 });
-    run(g, 0.2, { toggleIntake: true });
+    run(g, 0.2, { intake: true });
     expect(g.player.mech.critical?.owner).toBe('red');
     // En la plataforma superior, de frente a la Repisa
     g.player.phys.teleport(F.REPISA_DEPTH / 2 + DEFAULT_ROBOT.length / 2 + 0.03, 0, Math.PI, F.PLATFORM_HEIGHT + 0.01);

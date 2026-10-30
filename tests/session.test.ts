@@ -14,7 +14,7 @@ const still = [DO_NOTHING, DO_NOTHING, DO_NOTHING, DO_NOTHING];
 const session = (autos = still, player = 0) => new GameSession({ player, preload: true, autos });
 const steps = (g: GameSession, s: number, inp: Partial<PlayerInput> = {}) => {
   for (let i = 0; i < s * 120; i++) {
-    g.setInput({ ...emptyInput(), ...(i === 0 ? inp : { forward: inp.forward ?? 0, turn: inp.turn ?? 0 }) });
+    g.setInput({ ...emptyInput(), ...(i === 0 ? inp : { forward: inp.forward ?? 0, turn: inp.turn ?? 0, intake: inp.intake ?? false }) });
     g.step();
   }
 };
@@ -25,6 +25,18 @@ const skipTo = (g: GameSession, t: number) => {
 };
 
 describe('match completo en la física', () => {
+  it('la garra del jugador trabaja solo mientras se mantiene presionado el botón (Xhavi, 30-oct)', () => {
+    const g = session();
+    g.startMatch();
+    skipTo(g, 30);
+    steps(g, 0.1);
+    expect(g.player.mech.intakeOn).toBe(false);
+    steps(g, 0.5, { intake: true });
+    expect(g.player.mech.intakeOn).toBe(true);
+    steps(g, 0.1);
+    expect(g.player.mech.intakeOn).toBe(false);
+  });
+
   it('AUTO por defecto: los 4 robots salen de su zona → 5 c/u y RP de la línea (§4.4)', () => {
     const g = new GameSession({ player: 0, preload: true });
     g.startMatch();
@@ -107,7 +119,7 @@ describe('match completo en la física', () => {
       const a = DEFAULT_ROBOT.arm;
       g.player.phys.teleport(c.x, c.z + armTip(a, armAngle(a, DEFAULT_ROBOT.elevatorHeights[4])).x - 0.05, Math.PI / 2);
       steps(g, 1.5, { elevator: 4 });
-      steps(g, 0.1, { toggleIntake: true });
+      steps(g, 0.1, { intake: true });
       expect(g.player.mech.critical).not.toBeNull();
       return g.match!.fouls.map((f) => f.rule);
     };
