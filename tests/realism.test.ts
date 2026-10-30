@@ -22,7 +22,7 @@ beforeAll(async () => {
 const still = [DO_NOTHING, DO_NOTHING, DO_NOTHING, DO_NOTHING];
 const steps = (g: GameSession, s: number, inp: Partial<PlayerInput> = {}) => {
   for (let i = 0; i < s * 120; i++) {
-    g.setInput({ ...emptyInput(), ...(i === 0 ? inp : { forward: inp.forward ?? 0, turn: inp.turn ?? 0 }) });
+    g.setInput({ ...emptyInput(), ...(i === 0 ? inp : { forward: inp.forward ?? 0, turn: inp.turn ?? 0, intake: inp.intake ?? false }) });
     g.step();
   }
 };
@@ -129,9 +129,9 @@ describe('hitbox de los mecanismos', () => {
     const p = g.pieces.list[0];
     // Junto al dedo, por fuera de la garra
     const tip = r.mech.tipX();
-    steps(g, 0.6, { toggleIntake: true });
+    steps(g, 0.6, { intake: true });
     g.pieces.place(p, tip, F.SAMPLE_SIZE / 2, 2.0 + CLAW.fingerZ + F.SAMPLE_SIZE / 2 + 0.02);
-    steps(g, 1.0, { forward: 0.1 });
+    steps(g, 1.0, { forward: 0.1, intake: true });
     expect(r.mech.inClaw).toBe(false);
     expect(Math.abs(p.body.translation().z - 2.0)).toBeGreaterThan(CLAW_GAP / 2);
   });
@@ -163,12 +163,12 @@ describe('agarre preciso', () => {
         const g = solo({ grip }, spec);
         const r = g.player;
         r.phys.teleport(0, 2.0, 0);
-        steps(g, 0.6, { toggleIntake: true });
+        steps(g, 0.6, { intake: true });
         // Con la garra atrás (Pivote 180°) la Muestra queda detrás y entra de reversa
         const d = posDir(spec, 0);
         const p = g.pieces.list[0];
         g.pieces.place(p, r.mech.tipX() + d * gap, F.SAMPLE_SIZE / 2, 2.0, yaw);
-        steps(g, 2.5, { forward: d * 0.08 });
+        steps(g, 2.5, { forward: d * 0.08, intake: true });
         return r.mech.inClaw;
       };
       expect(go(3 * DEG, 'precise', 0.35)).toBe(true);
@@ -205,10 +205,10 @@ describe('agarre con compliants (por defecto; Xhavi, 30-oct)', () => {
     const g = solo({}, spec);
     const r = g.player;
     r.phys.teleport(0, 2.0, 0);
-    steps(g, 1.5, { toggleIntake: true, elevator });
+    steps(g, 1.5, { intake: true, elevator });
     const p = g.pieces.list[0];
     g.pieces.place(p, r.mech.tipX() + 0.5, F.SAMPLE_SIZE / 2, 2.0 + side, yaw);
-    for (let i = 0; i < 3 * 120 && !r.mech.inClaw; i++) steps(g, 1 / 120, { forward });
+    for (let i = 0; i < 3 * 120 && !r.mech.inClaw; i++) steps(g, 1 / 120, { forward, intake: true });
     return r.mech.inClaw;
   };
 
@@ -226,11 +226,11 @@ describe('agarre con compliants (por defecto; Xhavi, 30-oct)', () => {
       const g = solo({ grip });
       const r = g.player;
       r.phys.teleport(0, 2.0, 0);
-      steps(g, 1.5, { toggleIntake: true });
+      steps(g, 1.5, { intake: true });
       const p = g.pieces.list[0];
       // Quieta, con su borde de atrás en la punta de los dedos y 30° de giro
       g.pieces.place(p, r.mech.tipX() + CLAW.fingerLength / 2 + F.SAMPLE_SIZE / 2, F.SAMPLE_SIZE / 2, 2.0, 30 * DEG);
-      steps(g, 0.5);
+      steps(g, 0.5, { intake: true });
       return r.mech.inClaw;
     };
     expect(tipFront('compliant')).toBe(true);
@@ -342,7 +342,7 @@ describe('fallas en la física', () => {
     const j = solo({ damage: { level: 'normal', targets: 'all', random: false } });
     j.player.phys.teleport(0, 2.0, 0);
     j.damage.inflict(0, 'clawJam', 30);
-    steps(j, 0.6, { toggleIntake: true });
+    steps(j, 0.6, { intake: true });
     j.pieces.place(j.pieces.list[0], j.player.mech.tipX() + 0.3, F.SAMPLE_SIZE / 2, 2.0);
     steps(j, 2.5, { forward: 0.08 });
     expect(j.player.mech.inClaw).toBe(false);

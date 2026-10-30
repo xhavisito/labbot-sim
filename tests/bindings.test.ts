@@ -23,14 +23,14 @@ describe('asignación de controles', () => {
   });
 
   it('asignar mueve la tecla de otra acción y respeta el máximo por acción', () => {
-    let b = assign(DEFAULT_BINDINGS, 'keys', 'toggleIntake', 'KeyE'); // E era "soltar Muestra"
-    expect(b.keys.toggleIntake).toEqual(['Space', 'KeyE']);
+    let b = assign(DEFAULT_BINDINGS, 'keys', 'intake', 'KeyE'); // E era "soltar Muestra"
+    expect(b.keys.intake).toEqual(['Space', 'KeyE']);
     expect(b.keys.releaseSample).toEqual([]);
-    b = assign(b, 'keys', 'toggleIntake', 'KeyQ');
-    expect(b.keys.toggleIntake).toEqual(['KeyE', 'KeyQ']); // se va la más vieja
-    expect(b.keys.toggleIntake.length).toBeLessThanOrEqual(MAX_PER_ACTION);
+    b = assign(b, 'keys', 'intake', 'KeyQ');
+    expect(b.keys.intake).toEqual(['KeyE', 'KeyQ']); // se va la más vieja
+    expect(b.keys.intake.length).toBeLessThanOrEqual(MAX_PER_ACTION);
     // No cambia el original
-    expect(DEFAULT_BINDINGS.keys.toggleIntake).toEqual(['Space']);
+    expect(DEFAULT_BINDINGS.keys.intake).toEqual(['Space']);
   });
 
   it('botones del control y quitar una acción', () => {
@@ -56,7 +56,7 @@ describe('asignación de controles', () => {
   });
 
   it('la ayuda refleja la asignación', () => {
-    const b = assign(DEFAULT_BINDINGS, 'keys', 'toggleIntake', 'KeyQ');
+    const b = assign(DEFAULT_BINDINGS, 'keys', 'intake', 'KeyQ');
     expect(keyboardHelp(b).flatMap((i) => i.keys)).toContain('Q');
     expect(padHelp(DEFAULT_BINDINGS)).toContain('RB');
   });
@@ -65,10 +65,12 @@ describe('asignación de controles', () => {
 describe('InputManager con asignación', () => {
   it('una tecla reasignada dispara su acción y la vieja ya no', () => {
     const { win, key } = fakeWindow();
-    const im = new InputManager(assign(DEFAULT_BINDINGS, 'keys', 'toggleIntake', 'KeyQ'), win);
+    const im = new InputManager(assign(DEFAULT_BINDINGS, 'keys', 'intake', 'KeyQ'), win);
     key('keydown', 'KeyQ');
-    expect(im.poll().toggleIntake).toBe(true);
-    expect(im.poll().toggleIntake).toBe(false); // de un solo disparo
+    expect(im.poll().intake).toBe(true);
+    expect(im.poll().intake).toBe(true); // se mantiene mientras siga presionada
+    key('keyup', 'KeyQ');
+    expect(im.poll().intake).toBe(false);
     key('keydown', 'KeyE'); // las demás teclas no cambian
     expect(im.poll().releaseSample).toBe(true);
     key('keydown', 'KeyW');
@@ -106,5 +108,21 @@ describe('InputManager con asignación', () => {
     expect(inp.turn).toBeCloseTo(-0.3);
     expect(inp.elevator).toBe(1);
     expect(im.poll().elevator).toBeNull(); // se consumió
+  });
+
+  it('la garra del touch trabaja mientras el dedo sigue en el botón', () => {
+    const { win } = fakeWindow();
+    const im = new InputManager(DEFAULT_BINDINGS, win);
+    im.touch.held.add('intake');
+    expect(im.poll().intake).toBe(true);
+    expect(im.poll().intake).toBe(true);
+    im.touch.held.delete('intake');
+    expect(im.poll().intake).toBe(false);
+  });
+
+  it('la asignación guardada con el nombre viejo (`toggleIntake`) se respeta', () => {
+    const b = sanitizeBindings({ keys: { toggleIntake: ['KeyQ'] }, pad: { toggleIntake: [PAD.X] } });
+    expect(b.keys.intake).toEqual(['KeyQ']);
+    expect(b.pad.intake).toEqual([PAD.X]);
   });
 });

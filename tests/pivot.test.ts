@@ -15,7 +15,7 @@ const session = (spec: RobotSpec, preload = true) => new GameSession({ player: 0
 
 function run(g: GameSession, s: number, inp: Partial<PlayerInput> = {}): void {
   g.setInput({ ...emptyInput(), ...inp });
-  const hold = { ...emptyInput(), forward: inp.forward ?? 0, turn: inp.turn ?? 0 };
+  const hold = { ...emptyInput(), forward: inp.forward ?? 0, turn: inp.turn ?? 0, intake: inp.intake ?? false };
   for (let i = 0; i < s * 120; i++) {
     if (i === 1) g.setInput(hold);
     g.step();
@@ -46,7 +46,7 @@ describe('Pivote', () => {
     let intake = false;
     for (const spot of spots.slice(0, 2)) {
       g.player.phys.teleport(spot.x + 1.0, spot.z, Math.PI);
-      run(g, 3.0, { toggleIntake: !intake, forward: 0.2 });
+      run(g, 3.0, { intake: !intake, forward: 0.2 });
       intake = true;
     }
     expect(m.stored).toHaveLength(1);
@@ -61,12 +61,12 @@ describe('Pivote', () => {
     // La garra llega lejos: el robot se para a la distancia de su punta (como la IA, `critDistance`)
     g.player.phys.teleport(c.x, c.z + armTip(a, armAngle(a, S.elevatorHeights[4])).x - 0.05, Math.PI / 2);
     run(g, 1.5, { elevator: 4 });
-    run(g, 0.2, { toggleIntake: true });
+    run(g, 0.2, { intake: true });
     expect(m.critical).toBeNull();
     // Suelta la precarga y ya la toma
     run(g, 0.5, { releaseSample: true });
     expect(m.stored).toHaveLength(0);
-    run(g, 0.2, { toggleIntake: true });
+    run(g, 0.2, { intake: true });
     expect(m.critical).not.toBeNull();
   });
 

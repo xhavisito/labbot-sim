@@ -178,7 +178,7 @@ describe('retos en la física', () => {
     step(g, { elevator: 4 });
     goTo(g, tr, c.x, c.z + 0.8, 0.1);
     face(g, Math.PI / 2);
-    for (let i = 0; i < 120 && !g.player.mech.critical; i++) step(g, { toggleIntake: true, forward: 0.15 });
+    for (let i = 0; i < 120 && !g.player.mech.critical; i++) step(g, { intake: true, forward: 0.15 });
     expect(g.player.mech.critical).not.toBeNull();
     // Rodea la barra de la Campana y llega por un lado de la Repisa
     goTo(g, tr, 3.2, -1.5, 0.2);

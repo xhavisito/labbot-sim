@@ -13,8 +13,9 @@ export interface PlayerInput {
   turn: number;
   /** Modo fino (mitad de velocidad). */
   slow: boolean;
+  /** Garra encendida mientras se mantiene presionado el botón (Xhavi, 30-oct). */
+  intake: boolean;
   // Acciones de un solo disparo (se consumen en el cuadro)
-  toggleIntake: boolean;
   elevator: ElevatorPos | null;
   /** Suelta lo que trae en la garra (Muestra o Crítica). */
   releaseSample: boolean;
@@ -24,7 +25,7 @@ export const emptyInput = (): PlayerInput => ({
   forward: 0,
   turn: 0,
   slow: false,
-  toggleIntake: false,
+  intake: false,
   elevator: null,
   releaseSample: false,
 });
@@ -35,6 +36,8 @@ export interface TouchState {
   turn: number;
   /** Acciones tocadas desde el último cuadro. */
   pressed: Set<Action>;
+  /** Acciones con el dedo encima ahora (las que se mantienen, como la garra). */
+  held: Set<Action>;
 }
 
 const DEADZONE = 0.15;
@@ -59,7 +62,7 @@ export class InputManager {
   pause = false;
   /** Posición del elevador elegida con subir/bajar (paso a paso). */
   private elevatorPos = 0;
-  readonly touch: TouchState = { forward: 0, turn: 0, pressed: new Set() };
+  readonly touch: TouchState = { forward: 0, turn: 0, pressed: new Set(), held: new Set() };
   /** Esperando una tecla o botón para reasignar (lo maneja el menú de Controles). */
   private capture: ((c: Captured) => void) | null = null;
 
@@ -134,6 +137,7 @@ export class InputManager {
     inp.forward = (this.held('forward') ? 1 : 0) - (this.held('back') ? 1 : 0);
     inp.turn = (this.held('left') ? 1 : 0) - (this.held('right') ? 1 : 0);
     inp.slow = this.held('slow');
+    inp.intake = this.held('intake') || this.touch.held.has('intake');
     for (const a of ACTIONS) if (this.hit(a)) hit.add(a);
     this.pressed.clear();
     this.pollPad(inp, hit);
@@ -143,7 +147,6 @@ export class InputManager {
     for (const a of this.touch.pressed) hit.add(a);
     this.touch.pressed.clear();
 
-    inp.toggleIntake = hit.has('toggleIntake');
     inp.releaseSample = hit.has('releaseSample');
     for (const [a, pos] of ELEVATOR_ACTIONS) if (hit.has(a)) inp.elevator = this.elevatorPos = pos;
     if (hit.has('elevatorUp')) inp.elevator = this.elevatorPos = Math.min(4, this.elevatorPos + 1) as ElevatorPos;
@@ -183,6 +186,7 @@ export class InputManager {
     if (dpadF && !inp.forward) inp.forward = dpadF;
     if (dpadT && !inp.turn) inp.turn = dpadT;
     if (hold('slow')) inp.slow = true;
+    if (hold('intake')) inp.intake = true;
     for (const a of ACTIONS) if (btn(a)) hit.add(a);
     this.padPrev = now;
   }
