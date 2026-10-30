@@ -1,6 +1,8 @@
 /**
  * Robot visual: chasis tanque con placa del color de la alianza (no lleva bumpers, §7.2), la torre
  * del pivote y el brazo con garra, con la Muestra o la Muestra Crítica que lleva.
+ * El robot que maneja el jugador lleva placa y LEDs morados (pedido del equipo); la alianza se sigue
+ * leyendo en la placa lateral con la estación (R1, B2…).
  */
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
@@ -19,6 +21,8 @@ const wheelMat = new THREE.MeshStandardMaterial({ color: 0x141414, roughness: 0.
 const hubMat = new THREE.MeshStandardMaterial({ color: 0xe0a419, roughness: 0.35, metalness: 0.6 });
 const sampleMat = sampleMaterial();
 const WHEEL_R = 0.05;
+/** Color de la placa y los LEDs del robot propio, en cualquier alianza. */
+export const OWN_ROBOT_COLOR = 0x8b5cf6;
 
 export class RobotView {
   readonly group = new THREE.Group();
@@ -44,7 +48,7 @@ export class RobotView {
   private prevQ = new THREE.Quaternion();
   private curQ = new THREE.Quaternion();
 
-  constructor(private robot: Robot) {
+  constructor(private robot: Robot, own = false) {
     const s = robot.spec;
     const L = s.length;
     const W = s.width;
@@ -56,7 +60,7 @@ export class RobotView {
       parent.add(m);
       return m;
     };
-    const color = ALLIANCE_COLOR[robot.alliance];
+    const color = own ? OWN_ROBOT_COLOR : ALLIANCE_COLOR[robot.alliance];
     // Chasis redondeado y tanque: tres ruedas por lado con cubo dorado (giran al avanzar) y oruga
     add(new RoundedBoxGeometry(L, 0.16, W - 0.12, 3, 0.025), dark, 0, 0.13, 0);
     this.halfW = W / 2 - 0.03;
