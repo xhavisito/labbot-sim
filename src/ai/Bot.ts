@@ -20,6 +20,7 @@ import { GAME } from '../config/game';
 import { armAngle, armTip, posTip, type ElevatorPos } from '../config/robot';
 import type { Phase } from '../core/clock';
 import { opponent, type Alliance, type Level } from '../core/types';
+import { cubePose } from '../game/Mechanisms';
 import type { Robot } from '../game/Robot';
 import type { Pieces } from '../physics/Pieces';
 import { AI_PROFILES, type AiLevel, type AiProfile } from './difficulty';
@@ -560,15 +561,74 @@ export class Bot {
     return { ...c.at, i: c.i };
   }
 
-  /** Va hacia una Muestra con la garra abajo para que entre de frente. */
-  private driveToPiece(p: { x: number; z: number }, out: BotOutput, phase: Phase): void {
+  /** Cara por la que entra a la Muestra que persigue (para no cambiarla a cada rato). */
+  private approach: { piece: number; k: number } | null = null;
+
+  /**
+   * Va hacia una Muestra con la garra abajo para que entre de frente. Con el agarre realista
+   * (`Mechanisms.grip`) la garra solo cierra con la Muestra casi derecha, así que llega por la línea
+   * de una de sus caras (la que le queda más de frente): persigue un punto en esa línea, detrás de
+   * la Muestra, que se acerca a ella conforme se alinea; y entra despacio (se resbala si llega rápido).
+   */
+  private driveToPiece(p: { x: number; z: number; i?: number }, out: BotOutput, phase: Phase): void {
     const r = this.robot;
     const pos = r.phys.position();
     const s = r.spec;
     // Distancia del centro del robot a la que la toma
     const grab = armTip(s.arm, armAngle(s.arm, 0)).x;
     const dist = Math.hypot(p.x - pos.x, p.z - pos.z);
-    this.drive(p, out, true, phase, false, false, Math.max(0, dist - grab));
+    const piece = p.i !== undefined ? this.pieces.list[p.i] : undefined;
+    if (!piece || r.mech.grip === 'easy' || dist > grab + 1.6) {
+      this.drive(p, out, true, phase, false, false, Math.max(0, dist - grab));
+      return;
+    }
+    // Cara de la Muestra más de frente al camino que trae, de las que dejan llegar al robot (sin
+    // pegarse a una Cámara, la pared, la Plataforma o la barra de la Campana)
+    const bearing = Math.atan2(-(p.z - pos.z), p.x - pos.x);
+    const f = cubePose(piece.body.rotation()).faceYaw;
+    const room = r.phys.halfW + 0.04;
+    const hx = F.PLATFORM_LENGTH / 2 + room;
+    const hz = F.PLATFORM_WIDTH / 2 + room;
+    const free = (q: { x: number; z: number }) =>
+      Math.abs(q.x) < F.HALF_L - room && Math.abs(q.z) < F.HALF_W - room && !nearCamara(q, room) && (phase === 'ENDGAME' || !(Math.abs(q.x) < hx && Math.abs(q.z) < hz)) && !nearBarrier(q, room);
+    let h = bearing;
+    let best = Infinity;
+    for (let k = 0; k < 4; k++) {
+      const hk = f + (k * Math.PI) / 2;
+      const ux = Math.cos(hk);
+      const uz = -Math.sin(hk);
+      let cost = Math.abs(wrap(hk - bearing)) + (this.approach?.piece === piece.index && this.approach.k === k ? -0.3 : 0);
+      if (!free({ x: p.x - ux * grab, z: p.z - uz * grab }) || !free({ x: p.x - ux * (grab + 0.45), z: p.z - uz * (grab + 0.45) })) cost += 10;
+      if (cost < best) {
+        best = cost;
+        h = hk;
+        this.approach = { piece: piece.index, k };
+      }
+    }
+    const dx = Math.cos(h);
+    const dz = -Math.sin(h);
+    // Qué tan atrás de la Muestra va el robot, sobre la línea de esa cara, y qué tan de lado
+    const rx = pos.x - p.x;
+    const rz = pos.z - p.z;
+    const behind = -(rx * dx + rz * dz);
+    const side = rx * dz - rz * dx;
+    const herr = wrap(h - r.phys.heading());
+    // Como lo haría un piloto con tanque: se para detrás de la Muestra, gira en su lugar hasta verla
+    // de frente y entra derecho y despacio (la garra cierra en ~0.2 s; se resbala si llega rápido)
+    const onLine = behind > grab - 0.08 && Math.abs(side) < 0.12;
+    if (onLine && Math.abs(herr) < 0.15) {
+      out.turn = clamp1(herr * 3 - side * 6);
+      out.forward = Math.min(0.3, 0.12 + Math.max(0, behind - grab) * 0.4);
+      return;
+    }
+    const stage = { x: p.x - dx * (grab + 0.45), z: p.z - dz * (grab + 0.45) };
+    const toStage = Math.hypot(stage.x - pos.x, stage.z - pos.z);
+    if (onLine || toStage < 0.1) {
+      out.turn = clamp1(herr * 2.5);
+      out.forward = 0;
+      return;
+    }
+    this.drive(stage, out, true, phase);
   }
 
   /**
@@ -1178,6 +1238,15 @@ function nearCamara(p: { x: number; z: number }, m: number): boolean {
   return (['red', 'blue'] as const).some((a) =>
     F.inRect(F.rectFor(a, { x0: F.CAMARA_X_END_RED - F.CAMARA_LENGTH - m, x1: F.CAMARA_X_END_RED + m, z0: F.CAMARA_Z_RED[0] - m, z1: F.HALF_W }), p.x, p.z),
   );
+}
+
+/** ¿El punto queda a menos de `m` metros de la barra de obstáculo de alguna Campana (§3.2.4)? */
+function nearBarrier(p: { x: number; z: number }, m: number): boolean {
+  return (['red', 'blue'] as const).some((a) => {
+    const q = F.forAlliance(a, p);
+    const x0 = F.CAMPANA_X_RED[0] - F.BARRIER_WIDTH;
+    return q.x > x0 - m && q.x < F.CAMPANA_X_RED[0] + m && q.z < -F.HALF_W + F.BARRIER_LENGTH + m;
+  });
 }
 
 /** ¿El punto está en el pasillo de la Campana de esa alianza (entre su barra y la pared)? */

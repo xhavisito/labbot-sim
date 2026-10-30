@@ -86,6 +86,25 @@ export interface RobotSpec {
   maxLevel?: Level;
 }
 
+/**
+ * Garra (la misma medida en la física y en el dibujo). SUPUESTO de diseño: dos dedos de 20 × 16 cm
+ * a los lados de la pieza, abiertos 23 cm (cabe la Muestra Crítica de 20 cm; la Muestra mide 15 cm,
+ * §4.1.1; girada 45° mide 21 cm) y una placa del lado del brazo que la detiene. Para cerrar, la
+ * Muestra tiene que estar casi derecha (`GRIP.maxYaw` en `game/Mechanisms.ts`). Todo nivelado con
+ * el robot (como en el dibujo), con el centro en la punta del brazo.
+ */
+export const CLAW = {
+  /** Largo de los dedos (a lo largo del robot). */
+  fingerLength: mm(200),
+  fingerHeight: mm(160),
+  fingerThickness: mm(20),
+  /** Distancia del centro de la garra al centro de cada dedo. */
+  fingerZ: mm(125),
+  palmThickness: mm(20),
+} as const;
+/** Espacio libre entre los dedos (m). */
+export const CLAW_GAP = 2 * CLAW.fingerZ - CLAW.fingerThickness;
+
 /** Posiciones del brazo (0 = piso, 1–3 = niveles, 4 = Repisa). */
 export type ElevatorPos = 0 | 1 | 2 | 3 | 4;
 

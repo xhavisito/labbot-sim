@@ -15,7 +15,9 @@ import { GAME, type GameConfig } from '../config/game';
 import { DEFAULT_ROBOT, type RobotSpec } from '../config/robot';
 import type { StartSpot } from '../config/startSpot';
 import { isTeleop, robotsEnabled, type Phase } from '../core/clock';
+import { DEFAULT_DAMAGE, type DamageSettings } from '../core/damage';
 import { Match, type MatchEvent } from '../core/match';
+import { rng } from '../core/rng';
 import type { TimedEvent } from '../core/matchLog';
 import { ALLIANCES, type Alliance, type Level } from '../core/types';
 import type { PlayerInput } from '../input/InputManager';
@@ -27,8 +29,9 @@ import { buildFieldView } from '../render/FieldView';
 import { PieceView } from '../render/PieceView';
 import { RobotView } from '../render/RobotView';
 import { SinkView } from '../render/SinkView';
+import { Damage, type DamageEvent } from './Damage';
 import { HumanPlayer } from './HumanPlayer';
-import type { MechEvent } from './Mechanisms';
+import type { GripMode, MechEvent } from './Mechanisms';
 import { Robot } from './Robot';
 import { Sensors } from './Sensors';
 
@@ -72,6 +75,12 @@ export interface SessionOptions {
   aiLevel?: AiLevel;
   /** Lugar de cada robot en su Zona de Inicio (§4.1, `config/startSpot.ts`); por defecto centrado. */
   starts?: Array<StartSpot | undefined>;
+  /** Agarre de la garra (`game/Mechanisms.ts`): realista (por defecto) o fácil. */
+  grip?: GripMode;
+  /** Fallas por golpes y al azar (`core/damage.ts`); por defecto apagadas (las pruebas y la simulación por lotes). */
+  damage?: DamageSettings;
+  /** Semilla del azar de la física (agarre y fallas); por defecto 1 (reproducible: pruebas y lotes). */
+  seed?: number;
   /** Otra IA para algunos robots (comparar versiones en `sim/batch.ts`); null = la de siempre. */
   makeBot?: (r: Robot, opts: Partial<BotOptions> & { auto: AutoPlan; teleop: boolean }, all: Robot[], pieces: Pieces) => BotDriver | null;
 }
@@ -89,6 +98,10 @@ export class GameSession {
   readonly sensors: Sensors;
   readonly referee: Referee;
   readonly hps: Record<Alliance, HumanPlayer>;
+  /** Fallas de los robots (golpes contra la pared u otros robots, y al azar). */
+  readonly damage: Damage;
+  /** Eventos de fallas del cuadro (los consume la UI y se vacían en `setInput`). */
+  readonly damageEvents: DamageEvent[] = [];
   readonly root = new THREE.Group();
   readonly game: GameConfig;
   match: Match | null = null;
@@ -148,6 +161,13 @@ export class GameSession {
       this.robotViews.push(v);
       this.root.add(v.group);
     }
+    const rand = rng(opts.seed ?? 1);
+    for (const r of this.robots) {
+      r.mech.grip = opts.grip ?? 'real';
+      r.mech.rand = rand;
+    }
+    this.damage = new Damage(this.robots, opts.damage ?? { ...DEFAULT_DAMAGE, level: 'off' }, rand, opts.player, this.pw.dt);
+    this.robots.forEach((r, i) => (this.robotViews[i].faults = () => this.damage.faults(r.index)));
     this.referee = new Referee(this.pw, this.robots, () => this.match, { pieces: this.pieces, sensors: this.sensors });
     this.resetField();
   }
@@ -173,6 +193,7 @@ export class GameSession {
       this.hps[a].reset();
       this.practiceCount[a] = 0;
     }
+    this.damage.reset();
     for (const r of this.robots) {
       r.resetPose();
       if (this.opts.preload) {
@@ -223,8 +244,9 @@ export class GameSession {
     this.input = inp;
     this.events.length = 0;
     this.matchEvents.length = 0;
+    this.damageEvents.length = 0;
     // En AUTO el robot sigue su rutina; fuera del match habilitado (PRE en match, DONE) no se mueve
-    if (!this.playerEnabled() || this.pilot) return;
+    if (!this.playerEnabled() || this.pilot || this.damage.disabled(this.player.index)) return;
     const m = this.player.mech;
     const a = this.tapActs;
     if (inp.toggleIntake) a.intake = m.intakeOn = !m.intakeOn;
@@ -252,8 +274,10 @@ export class GameSession {
       let turn = 0;
       let slow = false;
       const b = this.bots[r.index];
-      const bot = !b || !m ? null : phase === 'AUTO' ? (b.opts.auto !== 'none' ? b : null) : isTeleop(phase) && b.opts.teleop ? b : null;
-      const runner = m && phase === 'AUTO' ? this.autos[r.index] : !m && r === this.player ? this.pilot : null;
+      // Sin comunicación (falla) el robot no recibe mandos: se queda quieto
+      const off = this.damage.disabled(r.index);
+      const bot = !b || !m || off ? null : phase === 'AUTO' ? (b.opts.auto !== 'none' ? b : null) : isTeleop(phase) && b.opts.teleop ? b : null;
+      const runner = off ? null : m && phase === 'AUTO' ? this.autos[r.index] : !m && r === this.player ? this.pilot : null;
       if (bot) {
         const o = bot.step(dt, phase, m ? m.remaining : Infinity);
         forward = o.forward;
@@ -272,7 +296,7 @@ export class GameSession {
         if (o.release) r.mech.release('sample', this.stepMechEvents);
         if (o.grabCritical) r.mech.grabCritical(this.stepMechEvents);
         if (o.releaseCritical) r.mech.release('critical', this.stepMechEvents);
-      } else if (enabled && r === this.player && this.input) {
+      } else if (enabled && !off && r === this.player && this.input) {
         forward = this.input.forward;
         turn = this.input.turn;
         slow = this.input.slow;
@@ -280,7 +304,7 @@ export class GameSession {
         this.inputTap?.({ forward: forward * k, turn: turn * k, ...this.tapActs });
         this.tapActs = {};
       }
-      if (!enabled) r.mech.intakeOn = false;
+      if (!enabled || off) r.mech.intakeOn = false;
       const k = slow ? 0.5 : 1;
       r.phys.drive({ forward: forward * r.spec.maxSpeed * k, turn: turn * r.spec.maxOmega * 0.8 * k }, dt);
       r.mech.step(dt, this.stepMechEvents);
@@ -288,9 +312,11 @@ export class GameSession {
     // Human Player: Muestras por la ranura durante todo el TeleOp (§3.2.4)
     if (m && isTeleop(phase)) for (const a of ALLIANCES) this.hps[a].step(dt);
     else if (!m && this.opts.solo) this.hps[this.player.alliance].step(dt);
+    this.damage.beforeStep();
     this.pw.step();
     this.time += dt;
     this.referee.drainCollisions();
+    this.damageEvents.push(...this.damage.afterStep(dt, enabled, this.stepMechEvents));
 
     // Sensores → puntuación
     const scored: ScoredSample[] = [];

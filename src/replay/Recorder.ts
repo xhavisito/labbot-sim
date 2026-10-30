@@ -49,7 +49,7 @@ export class Recorder implements SessionTap {
       if (e.type === 'release') {
         this.releasedBy.set(e.piece, e.robot);
         this.events.push({ t, type: 'release', robot: e.robot, kind: s.pieces.list[e.piece].kind });
-      } else this.events.push({ t, type: e.type, robot: e.robot });
+      } else if (e.type !== 'grabMiss') this.events.push({ t, type: e.type, robot: e.robot });
     }
     for (const x of scored) {
       const robot = this.releasedBy.get(x.piece) ?? null;

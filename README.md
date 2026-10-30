@@ -4,7 +4,7 @@ Simulador 3D web del reto interno **LabBot Rescue 2026** (Robotics WinterFest, L
 Cancha, piezas, robots tanque, reloj, puntuación, faltas y Ranking Points según el manual del reto.
 
 - **Reglas:** [`docs/reglas-reto.md`](docs/reglas-reto.md) resume el manual con la sección de cada
-  regla (§x.y), las medidas tomadas de las figuras y la lista de dudas y supuestos (D1–D32).
+  regla (§x.y), las medidas tomadas de las figuras y la lista de dudas y supuestos (D1–D36).
 - **Plan y arquitectura:** [`docs/PLAN.md`](docs/PLAN.md).
 
 ## Instalar y correr
@@ -37,6 +37,21 @@ abrirla con conexión (los cambios se ven la siguiente vez que se abre). Íconos
 (`node scripts/icons.mjs` los regenera desde `icon.svg`).
 
 ## Cómo se juega
+
+**Realismo** (Ajustes → Realismo, pedido del equipo el 29-oct; detalles y números en D33–D36 de
+`docs/reglas-reto.md`):
+- **Pared perimetral** baja alrededor de la cancha: 508 mm (20 in) como el guardrail de FRC
+  (SUPUESTO: el manual no tiene paredes). Choca con robots y piezas.
+- **Hitbox de todo el robot:** el brazo, la garra y la pieza que llevas chocan con los otros robots
+  (cuenta como contacto para las faltas), las piezas y la pared.
+- **Agarre realista:** la Muestra tiene que entrar derecha (≲18°) entre los dedos de la garra y
+  despacio; la garra tarda en cerrar y la Muestra se puede resbalar. "Fácil" deja el agarre de antes.
+- **Fallas:** un golpe fuerte contra la pared u otro robot puede atascar la garra, alentar el brazo,
+  debilitar un motor (más lento y jala de lado) o cortar la comunicación unos segundos; también puede
+  tirar la pieza. Se ven en la tarjeta de tu robot y en sus LEDs (ámbar parpadeando). Se eligen el
+  nivel (No/Pocas/Normal/Muchas), si les pasa a todos o solo a tu robot, y fallas al azar.
+  Reacomodar la cancha (Backspace) lo repara.
+- **Salir de la cancha** (Tech Foul, §4.6) solo cuenta con todo el robot fuera.
 
 **Editor de robot** (menú → Taller): arma tu robot con medidas del chasis, tracción (motor, cantidad,
 reducción, rueda), mecanismo (tipo de pivote, posición del eje y largo del brazo, velocidad, nivel máximo), motores de
@@ -222,7 +237,8 @@ Cada regla en el código cita su sección del manual.
   pierde tiempo cuando un robot quieto le tapa el frente de la Cámara.
 - El Human Player es automático (una Muestra cada 3 s si la ranura está libre).
 - No se simulan las faltas de conducta, seguridad o del Human Player humano (no se pueden detectar).
-- La intake, el brazo y la plataforma no chocan con la cancha (solo mueven piezas). Los tipos son presets
+- El brazo y la garra chocan con otros robots, las piezas y la pared perimetral, pero no con las
+  estructuras del juego (Cámara, Campana, Plataforma, Repisa; D34). Los tipos son presets
   en `src/config/robot.ts` con medidas SUPUESTAS; el editor de robot (`config/customRobots.ts`) cambia
   medidas, masa, tracción y mecanismo, pero no la geometría de cada tipo.
 - Al pasar por la vertical, el brazo del pivote con una Muestra llega a ~109 cm; el manual no aclara

@@ -1,7 +1,7 @@
 /**
  * Árbitro automático: revisa cada paso de física las faltas que se pueden ver en la simulación
  * (catálogo en `core/fouls.ts`). Cada umbral está documentado junto a su regla; los que el manual
- * no fija son SUPUESTOS listados en docs/reglas-reto.md (D7, D8, D11, D17, D21).
+ * no fija son SUPUESTOS listados en docs/reglas-reto.md (D7, D8, D11, D17, D21, D33).
  */
 import * as F from '../config/field';
 import { isTeleop, type Phase } from '../core/clock';
@@ -115,8 +115,9 @@ export class Referee {
 
     for (const r of this.robots) {
       const corners = r.phys.footprint();
-      // §4.6: el robot sale de los límites de la cancha
-      const out = corners.some((c) => Math.abs(c.x) > F.HALF_L || Math.abs(c.z) > F.HALF_W);
+      // §4.6: el robot sale de los límites de la cancha. Solo cuando TODO el robot (chasis y garra)
+      // queda fuera (Xhavi, 29-oct; el manual no aclara si basta una parte: SUPUESTO, D33)
+      const out = F.fullyOutOfField(r.phys.outline(r.mech.angle));
       this.once(`oob:${r.index}`, out, r, 'OUT_OF_BOUNDS');
       // §4.6: subir a la Plataforma antes del endgame (una por instancia; se rearma tras 1 s fuera)
       const on = r.phys.wheelsOnPlatform > 0;

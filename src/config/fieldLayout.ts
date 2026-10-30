@@ -8,8 +8,8 @@ import * as F from './field';
 
 export type Vec3 = [number, number, number];
 
-export type FieldPart = 'camara' | 'campana' | 'barrier' | 'criticalHolder' | 'ramp' | 'platform' | 'repisa' | 'boundary';
-export type FieldMaterial = 'mdf' | 'mdfDark' | 'gray' | 'invisible';
+export type FieldPart = 'camara' | 'campana' | 'barrier' | 'criticalHolder' | 'ramp' | 'platform' | 'repisa' | 'wall' | 'boundary';
+export type FieldMaterial = 'mdf' | 'mdfDark' | 'gray' | 'wall' | 'invisible';
 
 export interface Solid {
   part: FieldPart;
@@ -100,6 +100,19 @@ function platformRed(): Solid[] {
   ];
 }
 
+/**
+ * Pared perimetral baja (SUPUESTO: guardrail FRC de 20 in, `WALL_HEIGHT`) por fuera de la alfombra:
+ * la pared de la Driver Station roja (+X) y el lado −Z hasta la Campana roja (que cierra el resto);
+ * la otra mitad es la rotación de 180°.
+ */
+function wallsRed(): Solid[] {
+  const t = F.WALL_THICKNESS;
+  const h = F.WALL_HEIGHT;
+  const L = F.HALF_L;
+  const W = F.HALF_W;
+  return [box(L, L + t, 0, h, -W - t, W + t), box(-L - t, F.CAMPANA_X_RED[0], 0, h, -W - t, -W)].map((points) => ({ part: 'wall' as const, material: 'wall' as const, points }));
+}
+
 function boundary(): Solid[] {
   const m = F.OUT_OF_BOUNDS_MARGIN;
   const L = F.HALF_L + m;
@@ -124,7 +137,8 @@ export function fieldSolids(): Solid[] {
     material: 'mdfDark',
     points: box(-F.REPISA_DEPTH / 2, F.REPISA_DEPTH / 2, 0, F.REPISA_TOP, -hz, hz),
   };
-  return [...red, ...blue, repisa, ...boundary()];
+  const walls = wallsRed();
+  return [...red, ...blue, repisa, ...walls, ...walls.map((s) => ({ ...s, points: mirror(s.points) })), ...boundary()];
 }
 
 /** Cinta de las Zonas de Inicio (segmentos en el piso) por alianza. */

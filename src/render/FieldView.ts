@@ -28,6 +28,8 @@ function materials(): Mats {
     mdfDark: new THREE.MeshStandardMaterial({ color: mdf2 ? 0xd9cbb6 : 0xa8957c, map: mdf2?.map ?? null, bumpMap: mdf2?.bump ?? null, bumpScale: 0.5, roughness: 0.8 }),
     // Aluminio anodizado de los marcos y la Plataforma
     gray: new THREE.MeshStandardMaterial({ color: 0xa4abb4, roughness: 0.38, metalness: 0.7 }),
+    // Pared perimetral: policarbonato transparente (el perfil de aluminio de arriba se dibuja aparte)
+    wall: new THREE.MeshStandardMaterial({ color: 0xcfe3f2, roughness: 0.1, metalness: 0.0, transparent: true, opacity: 0.28, depthWrite: false }),
     carpet: new THREE.MeshStandardMaterial({ color: tint(carpet, 0x2b2d31), map: carpet?.map ?? null, bumpMap: carpet?.bump ?? null, bumpScale: 0.8, roughness: 0.97 }),
   };
   return mats;
@@ -101,6 +103,20 @@ export function buildFieldView(): THREE.Group {
     mesh.castShadow = true;
     mesh.receiveShadow = true;
     mesh.name = `${s.part}${s.alliance ? `-${s.alliance}` : ''}`;
+    if (s.part === 'wall') {
+      // Transparente: no tapa la sombra; con perfil de aluminio arriba y abajo (como el guardrail FRC)
+      mesh.castShadow = false;
+      const xs = s.points.map((p) => p[0]);
+      const zs = s.points.map((p) => p[2]);
+      const [x0, x1, z0, z1] = [Math.min(...xs), Math.max(...xs), Math.min(...zs), Math.max(...zs)];
+      for (const y of [0.02, F.WALL_HEIGHT - 0.02]) {
+        const rail = new THREE.Mesh(new THREE.BoxGeometry(x1 - x0 + 0.004, 0.04, z1 - z0 + 0.004), MATERIALS.gray);
+        rail.position.set((x0 + x1) / 2, y, (z0 + z1) / 2);
+        rail.castShadow = true;
+        rail.receiveShadow = true;
+        g.add(rail);
+      }
+    }
     g.add(mesh);
   }
   // Franja del color de la alianza en la pared trasera de cada Campana, para ubicarlas

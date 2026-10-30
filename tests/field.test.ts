@@ -52,7 +52,7 @@ describe('cancha (§3)', () => {
       r.points.forEach(([x, y, z], k) => expect(blue[i].points[k]).toEqual([-x, y, -z]));
     });
     for (const s of solids) {
-      if (s.part === 'boundary') continue;
+      if (s.part === 'boundary' || s.part === 'wall') continue;
       for (const [x, , z] of s.points) {
         expect(Math.abs(x)).toBeLessThanOrEqual(F.HALF_L + 1e-9);
         const limit = s.part === 'campana' ? F.HALF_W + F.CAMPANA_DEPTH + 0.05 : F.HALF_W + 0.05;
