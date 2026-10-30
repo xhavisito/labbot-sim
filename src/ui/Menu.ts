@@ -595,8 +595,7 @@ export class Menu {
         <h3>${t('breakdown')}</h3>
         <div class="bchart">
           <div class="bc-head"><span class="blue">${t('blue')}</span><span class="red">${t('red')}</span></div>
-          ${bar(t('autoLine'), cat('autoLine'))}
-          ${bar(t('samplesAuto'), cat('samplesAuto'))}
+          ${bar(t('autoPoints'), cat('auto'))}
           ${bar(t('samplesTeleop'), cat('samplesTeleop'))}
           ${bar(t('platform'), cat('platform'))}
           ${bar(t('criticalSample'), cat('critical'))}

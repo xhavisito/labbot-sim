@@ -126,7 +126,6 @@ export interface RobotResult {
   endgame: number;
   samples: number;
   n3: number;
-  autoLine: boolean;
   platform: boolean;
   critical: boolean;
   foulPts: number;
@@ -138,8 +137,8 @@ export interface AllianceResult {
   total: number;
   /** Puntos propios (sin los que regalan las faltas del rival). */
   own: number;
-  autoLine: number;
-  samplesAuto: number;
+  /** Puntos de AUTO: Línea de Autónomo + Muestras del AUTO (§4.4). */
+  auto: number;
   samplesTeleop: number;
   samples: number;
   platform: number;
@@ -201,7 +200,6 @@ export function runMatch(red: AlliancePlan, blue: AlliancePlan, seed = 1): Match
         endgame: pt.endgame,
         samples: e.samplesAuto.reduce((x, y) => x + y, 0) + e.samplesTeleop.reduce((x, y) => x + y, 0),
         n3: e.samplesAuto[2] + e.samplesTeleop[2],
-        autoLine: e.autoLine,
         platform: e.platform,
         critical: e.critical,
         foulPts: pt.foulPts,
@@ -218,8 +216,7 @@ export function runMatch(red: AlliancePlan, blue: AlliancePlan, seed = 1): Match
         robots: a === 'red' ? [robots[0], robots[1]] : [robots[2], robots[3]],
         total: b.total,
         own: b.subtotal - b.penalties,
-        autoLine: b.autoLine,
-        samplesAuto: b.samplesAuto,
+        auto: b.auto,
         samplesTeleop: b.samplesTeleop,
         samples: m.samplesIn(a),
         platform: b.platform,

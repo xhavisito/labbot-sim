@@ -101,7 +101,7 @@ if (process.env.BATCH_WORKER) {
       s.crit += a.rpCritical ? 1 : 0;
       s.dom += a.rpDominance ? 1 : 0;
       s.plat += a.platform;
-      s.auto += a.autoLine + a.samplesAuto;
+      s.auto += a.auto;
       s.foulsOut += a.penaltiesOut;
       rows.set(a.plan, s);
     }

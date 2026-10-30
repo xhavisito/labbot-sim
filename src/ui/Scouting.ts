@@ -515,7 +515,7 @@ export class ScoutingScreen {
     const sum = this.summaries();
     if (!sum.length) return `<p class="msg">${t('sc_noData')}</p>`;
     const max = Math.max(...sum.map((s) => s.points), 1);
-    const head = ['#', t('sc_team'), 'M', t('sc_points'), 'AUTO', 'TELEOP', 'END', t('stored'), 'N3', t('sc_line'), t('sc_plat'), t('sc_crit'), t('fouls'), t('sc_net'), 'RP', '±'];
+    const head = ['#', t('sc_team'), 'M', t('sc_points'), 'AUTO', 'TELEOP', 'END', t('stored'), 'N3', t('sc_plat'), t('sc_crit'), t('fouls'), t('sc_net'), 'RP', '±'];
     return `<div class="panel wide"><h3>${t('sc_tableTitle')}</h3>
       <div class="scroll"><table class="stable summary">
         <tr>${head.map((h) => `<th>${h}</th>`).join('')}</tr>
@@ -525,7 +525,7 @@ export class ScoutingScreen {
           <td class="num bar"><i style="width:${(100 * s.points) / max}%"></i><b>${f1(s.points)}</b></td>
           <td class="num">${f1(s.auto)}</td><td class="num">${f1(s.teleop)}</td><td class="num">${f1(s.endgame)}</td>
           <td class="num">${f1(s.samples)}</td><td class="num">${f1(s.n3)}</td>
-          <td class="num">${pct(s.autoLinePct)}</td><td class="num">${pct(s.platformPct)}</td><td class="num">${pct(s.criticalPct)}</td>
+          <td class="num">${pct(s.platformPct)}</td><td class="num">${pct(s.criticalPct)}</td>
           <td class="num ${s.foulPts > 4 ? 'neg' : ''}">${f1(s.foulPts)}${s.cards ? ` <span class="card">▮${s.cards}</span>` : ''}</td>
           <td class="num strong">${f1(s.net)}</td><td class="num">${s.rp === null ? '–' : s.rp.toFixed(2)}</td><td class="num dim">${f1(s.sd)}</td></tr>`,
           )
@@ -585,7 +585,7 @@ export class ScoutingScreen {
         const p = entryPoints(e, GAME);
         const lv = [0, 1, 2].map((i) => e.samplesAuto[i] + e.samplesTeleop[i]).join('/');
         return `<tr><td class="mono">${esc(e.match)}</td><td class="num strong">${p.total}</td><td class="num">${p.auto}</td><td class="num">${lv}</td><td class="num">${e.cycles ?? '–'}</td><td class="num">${fN(e.cycleAvg)}</td>
-          <td>${e.autoLine ? '✓' : '·'}</td><td>${e.platform ? '✓' : '·'}</td><td>${e.critical ? '✓' : '·'}</td><td class="num ${p.foulPts ? 'neg' : ''}">${p.foulPts || ''}</td></tr>`;
+          <td>${e.platform ? '✓' : '·'}</td><td>${e.critical ? '✓' : '·'}</td><td class="num ${p.foulPts ? 'neg' : ''}">${p.foulPts || ''}</td></tr>`;
       })
       .join('');
     const cmp = sum
@@ -611,7 +611,7 @@ export class ScoutingScreen {
           ${kpi(t('stored'), f1(s.samples), s.topLevel ? t('rb_mostly', { n: s.topLevel }) : '')}
           ${kpi(t('rb_cycle'), s.cycle === null ? '–' : `${f1(s.cycle)} s`, s.cycles === null ? t('rb_noCycle') : t('rb_cyclesPer', { n: f1(s.cycles), b: fN(s.bestCycle) }))}
           ${kpi(t('sc_crit'), pct(s.criticalPct))}
-          ${kpi(t('sc_plat'), pct(s.platformPct), `${t('sc_line')} ${pct(s.autoLinePct)}`)}
+          ${kpi(t('sc_plat'), pct(s.platformPct))}
         </div>
         <h3 class="mt">${t('rb_levels')}</h3>
         <div class="lvbars">${lvl}<p class="sub"><i class="sw a"></i> AUTO <i class="sw t"></i> TELEOP</p></div>
@@ -619,7 +619,7 @@ export class ScoutingScreen {
       </div>
       <div class="panel"><h3>${t('rb_matches')} · ${esc(this.name(s.team))}</h3>
         <div class="scroll"><table class="stable">
-          <tr><th>${t('sc_match')}</th><th>${t('sc_points')}</th><th>AUTO</th><th>N1/N2/N3</th><th>${t('st_cycles')}</th><th>${t('rb_cycleS')}</th><th>${t('sc_line')}</th><th>${t('sc_plat')}</th><th>${t('sc_crit')}</th><th>${t('fouls')}</th></tr>
+          <tr><th>${t('sc_match')}</th><th>${t('sc_points')}</th><th>AUTO</th><th>N1/N2/N3</th><th>${t('st_cycles')}</th><th>${t('rb_cycleS')}</th><th>${t('sc_plat')}</th><th>${t('sc_crit')}</th><th>${t('fouls')}</th></tr>
           ${matchRows}</table></div>
       </div></div>
       <div class="panel wide"><h3>${t('rb_compare')}</h3>

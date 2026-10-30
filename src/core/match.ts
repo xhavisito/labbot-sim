@@ -25,6 +25,11 @@ export interface SampleRecord {
 }
 
 export interface Breakdown {
+  /**
+   * Puntos de AUTO: Línea de Autónomo (5 c/robot) + Muestras anotadas en el AUTO (§4.4). Es lo que
+   * muestran los desgloses; `autoLine` y `samplesAuto` quedan para la lógica y las pruebas.
+   */
+  auto: number;
   autoLine: number;
   samplesAuto: number;
   samplesTeleop: number;
@@ -208,7 +213,7 @@ export class Match {
       .reduce((sum, f) => sum + (f.kind === 'TECH' ? this.cfg.fouls.tech : this.cfg.fouls.foul), 0);
     const subtotal = autoLine + samplesAuto + samplesTeleop + platform + critical + penalties;
     const redCard = this.red.has(a);
-    return { autoLine, samplesAuto, samplesTeleop, platform, critical, penalties, subtotal, redCard, total: redCard ? 0 : subtotal };
+    return { auto: autoLine + samplesAuto, autoLine, samplesAuto, samplesTeleop, platform, critical, penalties, subtotal, redCard, total: redCard ? 0 : subtotal };
   }
 
   score(a: Alliance): number {

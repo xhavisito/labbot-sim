@@ -62,7 +62,10 @@ describe('registro del match', () => {
     expect(log.format).toBe('labbot-rescue-match');
     expect(log.createdAt).toBe('2026-01-01T00:00:00.000Z');
     expect(log.alliances.red.breakdown.total).toBe(m.score('red'));
-    expect(log.alliances.red.autoLineRobots).toEqual([0]);
+    // La Línea de Autónomo (robot 0, 5) va dentro de los Puntos de AUTO junto con la Muestra N3 (18)
+    expect(log.alliances.red.breakdown.auto).toBe(5 + 18);
+    expect(log.alliances.red.breakdown).not.toHaveProperty('autoLine');
+    expect(log.alliances.red.breakdown).not.toHaveProperty('samplesAuto');
     expect(log.alliances.red.samples).toEqual([expect.objectContaining({ level: 3, period: 'AUTO' })]);
     expect(log.alliances.blue.critical).toBe(true);
     expect(log.fouls[0]).toMatchObject({ rule: 'OUT_OF_BOUNDS', section: '§4.6', offender: 'blue' });

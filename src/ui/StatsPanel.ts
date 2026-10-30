@@ -131,7 +131,7 @@ export class StatsPanel {
           <div class="tablewrap"><table class="breakdown stats-t">
             <tr><th></th>${head}</tr>
             ${row(t('st_samples'), (s) => `<b>${totalSamples(s)}</b> <small>${lv(s, 1)}/${lv(s, 2)}/${lv(s, 3)}</small>`)}
-            ${row(t('st_samplesAuto'), (s) => String(s.samples.AUTO[1] + s.samples.AUTO[2] + s.samples.AUTO[3]))}
+            ${row(t('autoPoints'), (s) => String(s.autoPoints))}
             ${row(t('st_points'), (s) => String(s.samplePoints), 'tot')}
             ${row(t('st_cycles'), (s) => String(s.cycles.length + (s.scoreTimes.length ? 1 : 0)))}
             ${row(t('st_avgCycle'), (s) => num(s.avgCycle, 1, ' s'))}
@@ -140,7 +140,6 @@ export class StatsPanel {
             ${row(t('st_distance'), (s) => num(s.distance, 0, ' m'))}
             ${row(t('st_speed'), (s) => `${num(s.avgSpeed, 2)} / ${num(s.maxSpeed, 2)}`)}
             ${row(t('st_ownHalf'), (s) => `${Math.round((100 * s.timeOwnHalf) / Math.max(1e-6, s.timeOwnHalf + s.timeRivalHalf))}%`)}
-            ${row(t('autoLine'), (s) => yes(s.autoLine))}
             ${row(t('platform'), (s) => yes(s.onPlatform))}
             ${row(t('criticalSample'), (s) => yes(s.critical))}
           </table></div>
