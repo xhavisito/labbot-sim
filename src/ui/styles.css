@@ -124,9 +124,9 @@ kbd {
 .brandbar { display: flex; align-items: center; gap: 10px; min-height: 40px; flex-wrap: wrap; flex: none; }
 .brand { display: inline-flex; align-items: center; gap: 10px; font: 700 20px/1 var(--display); letter-spacing: 0; }
 .brand span { color: var(--accent); }
-/* logo: el cubo de la Muestra visto de frente, con esquinas de plano */
-.brand .logo { position: relative; width: 26px; height: 26px; flex: none; background: var(--surface-3); box-shadow: inset 0 0 0 2px var(--accent); }
-.brand .logo::after { content: ''; position: absolute; inset: 7px; background: var(--accent); }
+/* logo: mismo ícono que la PWA (degradado con el cubo de la Muestra en blanco) */
+.brand .logo { position: relative; width: 26px; height: 26px; flex: none; border-radius: 7px; background: linear-gradient(135deg, #e9239d, #722585 55%, #2a0830); }
+.brand .logo::after { content: ''; position: absolute; inset: 5px; background: #f8f8f8; clip-path: polygon(50% 0, 100% 25%, 100% 75%, 50% 100%, 0 75%, 0 25%); }
 .brandbar .ctx { color: var(--muted); font: 600 11px var(--font); letter-spacing: 0; padding-left: 12px; border-left: 1px solid var(--line-2); }
 .brandbar .grow, .actionbar .grow { flex: 1; }
 .screen h1 { margin: 0; font: 700 clamp(30px, 3.6vw, 52px)/1 var(--display); letter-spacing: 0; }

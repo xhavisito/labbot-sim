@@ -1,9 +1,23 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
-  <!-- colores del branding del equipo: morado oscuro, morado, magenta y blanco -->
-  <rect width="512" height="512" fill="#0b0610"/>
-  <path d="M0 360c80-20 140 10 200 60s130 70 312 20M0 400c80-16 140 12 196 58s134 66 316 18" fill="none" stroke="#a8347b" stroke-width="6" stroke-opacity=".5"/>
-  <path d="M96 96h272l48 48v272H144l-48-48z" fill="#3b0b3e" stroke="#e9239d" stroke-width="20" stroke-linejoin="round"/>
-  <path d="M256 150 352 204v104l-96 54-96-54V204z" fill="#f8f8f8"/>
-  <path d="M160 204l96 54 96-54M256 258v104" fill="none" stroke="#722585" stroke-width="10" stroke-linejoin="round"/>
-  <rect x="176" y="380" width="160" height="14" rx="7" fill="#e9239d"/>
+  <!-- Ícono del sim con los colores del branding: magenta → morado → morado oscuro, y un cubo blanco grande
+       (la Muestra). Fondo a sangre (sirve también como maskable: el cubo cae dentro del círculo seguro). -->
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#e9239d"/>
+      <stop offset=".5" stop-color="#722585"/>
+      <stop offset="1" stop-color="#2a0830"/>
+    </linearGradient>
+    <radialGradient id="glow" cx=".3" cy=".22" r=".6">
+      <stop offset="0" stop-color="#ffffff" stop-opacity=".32"/>
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="512" height="512" fill="url(#bg)"/>
+  <rect width="512" height="512" fill="url(#glow)"/>
+  <g stroke-linejoin="round" stroke-width="10">
+    <path d="M256 104 396 184 256 264 116 184Z" fill="#ffffff" stroke="#ffffff"/>
+    <path d="M116 184 256 264V416L116 336Z" fill="#f1e3f5" stroke="#f1e3f5"/>
+    <path d="M256 264 396 184V336L256 416Z" fill="#d9a6e6" stroke="#d9a6e6"/>
+  </g>
+  <rect x="150" y="438" width="212" height="18" rx="9" fill="#ff8ad4"/>
 </svg>
