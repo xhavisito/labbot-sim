@@ -57,6 +57,8 @@ export interface Settings {
   grip: GripMode;
   /** Fallas por golpes y al azar (`core/damage.ts`). */
   damage: DamageSettings;
+  /** Volumen de los sonidos del campo (`audio/FieldAudio.ts`), 0–100 %; 0 = silencio. */
+  volume: number;
 }
 
 const botDefault = (): MatchRobot => ({ kind: 'random', strategy: 'auto', ai: 'hard', auto: 'preload' });
@@ -74,11 +76,13 @@ export const DEFAULT_SETTINGS: Settings = {
   quality: 'auto',
   grip: 'compliant',
   damage: { ...DEFAULT_DAMAGE },
+  volume: 80,
 };
 
 export const SETTINGS_RANGE = {
   maxSpeed: { min: 1, max: 4.5, step: 0.25 },
   hpInterval: { min: 1, max: 10, step: 0.5 },
+  volume: { min: 0, max: 100, step: 5 },
 } as const;
 
 const KEY = 'labbot.settings';
@@ -122,6 +126,7 @@ export function sanitizeSettings(raw: unknown, autoIds: readonly string[]): Sett
     // 'real' (el agarre estricto del 29-oct, entonces por defecto) pasa a compliants
     grip: GRIP_MODES.find((g) => g === o.grip) ?? d.grip,
     damage: sanitizeDamage(o.damage),
+    volume: num(o.volume, d.volume, SETTINGS_RANGE.volume),
   };
 }
 
