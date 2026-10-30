@@ -125,9 +125,12 @@ describe('match completo en la física', () => {
       g.pieces.place(c, 0.19, F.REPISA_TOP + F.CRITICAL_SIZE / 2 + 0.002, 0.1);
       steps(g, 0.5);
       expect(g.sensors.criticalOnRepisa('red')).toBe(true);
-      // Un robot en la plataforma roja, pegado a la Repisa, la toca y la pieza sale volando hacia +Z
-      g.player.phys.teleport(0.2 + DEFAULT_ROBOT.width / 2 + 0.005, 0.1, -Math.PI / 2, F.PLATFORM_HEIGHT + 0.01);
-      steps(g, 0.3);
+      // Un robot en la plataforma roja, pegado a la Repisa y viéndola, baja la garra sobre ella (la
+      // toca: hitbox literal, D34), la vuelve a subir para que la viga no la pise y la pieza sale
+      // volando hacia +Z
+      g.player.phys.teleport(0.2 + DEFAULT_ROBOT.length / 2 + 0.005, 0.1, Math.PI, F.PLATFORM_HEIGHT + 0.01);
+      steps(g, 0.6, { elevator: 1 });
+      steps(g, 0.3, { elevator: 3 });
       c.body.setLinvel({ x: 0, y: 0.5, z: 3 }, true);
       steps(g, 1.5);
       expect(g.sensors.criticalOnRepisa('red')).toBe(false);

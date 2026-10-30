@@ -18,7 +18,7 @@ export interface HpWatched {
 }
 
 /** Rapidez (m/s) a la que el HP desliza la Muestra Crítica por la rendija (SUPUESTO, D39). */
-const CRIT_SLIDE_SPEED = 0.8;
+const CRIT_SLIDE_SPEED = 1.5;
 /** Distancia (m) de la garra de su robot a la Crítica a partir de la cual el HP se la acomoda. */
 const CRIT_SLIDE_REACH = 1.2;
 
