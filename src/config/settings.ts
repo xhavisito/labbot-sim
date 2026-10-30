@@ -64,7 +64,15 @@ export interface Settings {
   damage: DamageSettings;
   /** Volumen de los sonidos del campo (`audio/FieldAudio.ts`), 0–100 %; 0 = silencio. */
   volume: number;
+  /**
+   * Pizarra de la estrategia de alianza en el match (`render/PlanView.ts` y la tarjeta del HUD):
+   * líneas en la cancha y tarjeta, solo la tarjeta, o nada.
+   */
+  planBoard: PlanBoard;
 }
+
+export type PlanBoard = 'all' | 'card' | 'off';
+export const PLAN_BOARDS: readonly PlanBoard[] = ['all', 'card', 'off'];
 
 const botDefault = (): MatchRobot => ({ kind: 'random', strategy: 'auto', ai: 'hard', auto: 'preload', plan: '' });
 
@@ -82,6 +90,7 @@ export const DEFAULT_SETTINGS: Settings = {
   grip: 'compliant',
   damage: { ...DEFAULT_DAMAGE },
   volume: 80,
+  planBoard: 'all',
 };
 
 export const SETTINGS_RANGE = {
@@ -133,6 +142,7 @@ export function sanitizeSettings(raw: unknown, autoIds: readonly string[]): Sett
     grip: GRIP_MODES.find((g) => g === o.grip) ?? d.grip,
     damage: sanitizeDamage(o.damage),
     volume: num(o.volume, d.volume, SETTINGS_RANGE.volume),
+    planBoard: PLAN_BOARDS.find((b) => b === o.planBoard) ?? d.planBoard,
   };
 }
 

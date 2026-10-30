@@ -23,6 +23,13 @@ describe('ajustes', () => {
     expect(s.playerAuto).toBe('collect');
   });
 
+  it('pizarra de estrategia: en la cancha por defecto; se puede dejar solo la tarjeta o apagar', () => {
+    expect(DEFAULT_SETTINGS.planBoard).toBe('all');
+    expect(sanitizeSettings({ planBoard: 'card' }, ids).planBoard).toBe('card');
+    expect(sanitizeSettings({ planBoard: 'off' }, ids).planBoard).toBe('off');
+    expect(sanitizeSettings({ planBoard: true }, ids).planBoard).toBe('all');
+  });
+
   it('calidad gráfica: solo valores conocidos', () => {
     expect(sanitizeSettings({ quality: 'low' }, ids).quality).toBe('low');
     expect(sanitizeSettings({ quality: 'ultra' }, ids).quality).toBe('auto');
