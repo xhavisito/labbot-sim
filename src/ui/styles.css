@@ -1230,3 +1230,14 @@ body.touch-on .plan-card { left: auto; right: calc(var(--gut) + var(--safe-r)); 
   .pl-tab { min-height: 36px; padding: 4px 10px; }
   .pl-head { margin: 2px 0 8px; }
 }
+
+/* Práctica 1 contra 1 */
+.p1-panel { width: min(34em, calc(100% - 2 * var(--gut))); }
+.p1-opts { display: grid; grid-template-columns: auto 1fr; gap: 0.5em 0.8em; align-items: center; margin-top: 0.9em; font-size: 0.9em; }
+.p1-opts label { color: var(--muted); font-weight: 700; }
+.p1-table { width: 100%; margin-top: 0.7em; border-collapse: collapse; font-size: 0.88em; }
+.p1-table th, .p1-table td { padding: 0.35em 0.4em; text-align: right; border-bottom: 1px solid var(--line); }
+.p1-table thead th { color: var(--muted); font-weight: 700; font-size: 0.85em; }
+.p1-table tbody th { text-align: left; font-weight: 700; }
+.p1-table tr.dim { opacity: 0.45; }
+.p1-table tr.total { font-weight: 800; color: var(--accent); }

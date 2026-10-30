@@ -75,3 +75,13 @@ describe('registro del match', () => {
     expect(JSON.parse(JSON.stringify(log))).toEqual(log);
   });
 });
+
+describe('ajustes de la práctica 1 contra 1', () => {
+  it('por defecto: rival quieto y práctica libre; lo inválido vuelve al valor por defecto', async () => {
+    const { sanitizePractice, DEFAULT_SETTINGS } = await import('../src/config/settings');
+    expect(DEFAULT_SETTINGS.practice).toEqual({ rival: 'passive', limit: 0 });
+    expect(sanitizePractice({ rival: 'ai', limit: 120 })).toEqual({ rival: 'ai', limit: 120 });
+    expect(sanitizePractice({ rival: 'boss', limit: 77 })).toEqual({ rival: 'passive', limit: 0 });
+    expect(sanitizePractice(null)).toEqual({ rival: 'passive', limit: 0 });
+  });
+});
