@@ -7,6 +7,7 @@
  * que los puntos son un techo para cada estrategia: sirven para comparar, no como pronóstico.
  */
 import type { BotOptions } from '../ai/Bot';
+import { pushTouch, touches } from '../ai/contact';
 import { AI_LEVELS, type AiLevel } from '../ai/difficulty';
 import { COLLECT_HOME, LEAVE_ZONE, SCORE_PRELOAD, type AutoRoutine } from '../auto/AutoRoutine';
 import { GAME } from '../config/game';
@@ -133,6 +134,12 @@ export interface RobotResult {
   stuck: number;
   /** Segundos en cada modo de la IA (`Bot.mode`). */
   modes: Record<string, number>;
+  /** Segundos empujando a otro robot (lo toca por donde lo manda avanzar, `ai/contact.ts`). */
+  pushing: number;
+  /** De esos, empujando a su compañero. */
+  pushMate: number;
+  /** El empujón seguido más largo (s). */
+  pushMax: number;
 }
 
 export interface AllianceResult {
@@ -193,6 +200,7 @@ export function runMatch(red: AlliancePlan, blue: AlliancePlan, seed = 1): Match
     const m = g.match!;
     const stuck = g.robots.map(() => 0);
     const modes = g.robots.map((): Record<string, number> => ({}));
+    const push = g.robots.map(() => ({ t: 0, mate: 0, run: 0, max: 0 }));
     const dt = 1 / 120;
     for (let i = 0; i < 152 * 120 && !m.finished; i++) {
       g.step();
@@ -203,6 +211,12 @@ export function runMatch(red: AlliancePlan, blue: AlliancePlan, seed = 1): Match
         const v = r.phys.body.linvel();
         const w = r.phys.body.angvel();
         if ((Math.abs(c.forward) > 0.15 || Math.abs(c.turn) > 0.3) && Math.hypot(v.x, v.z) < 0.05 && Math.abs(w.y) < 0.15) stuck[r.index] += dt;
+        const pt = pushTouch(r, c.forward, touches(r, g.robots, 0.02));
+        const ps = push[r.index];
+        ps.run = pt ? ps.run + dt : 0;
+        ps.max = Math.max(ps.max, ps.run);
+        if (pt) ps.t += dt;
+        if (pt && pt.other.alliance === r.alliance) ps.mate += dt;
       }
     }
     const res = {} as Record<Alliance, AllianceResult>;
@@ -222,6 +236,9 @@ export function runMatch(red: AlliancePlan, blue: AlliancePlan, seed = 1): Match
         foulPts: pt.foulPts,
         stuck: Math.round(stuck[k] * 10) / 10,
         modes: Object.fromEntries(Object.entries(modes[k]).map(([a, b]) => [a, Math.round(b * 10) / 10])),
+        pushing: Math.round(push[k].t * 10) / 10,
+        pushMate: Math.round(push[k].mate * 10) / 10,
+        pushMax: Math.round(push[k].max * 10) / 10,
       };
     });
     for (const a of ALLIANCES) {

@@ -8,6 +8,10 @@
  *   Player, uno lleva la Crítica y se turnan el Nivel 3.
  * - Calcula su tiempo: en AUTO anota antes de que acabe (vale más, §4.4); en el TELEOP deja lo justo
  *   para subir a la Plataforma o llevar la Crítica (§4.3.1).
+ * - No empuja a nadie (`noPush`): si toca a otro robot por donde va (rival, su compañero o el del
+ *   jugador, aunque esté dañado y no se mueva) no avanza hacia él; si sigue cerrado, retrocede, le deja
+ *   más espacio un rato y busca otro camino u otra Muestra. Tampoco se pelea una Muestra que otro
+ *   robot tiene encima ni la Campana si otro la ocupa.
  * - Evita faltas (§4.5, §4.6): rodea a los rivales y no se les acerca de frente, no pisa la
  *   Plataforma ni toma la Crítica antes del ENDGAME, no se queda frente a la Cámara rival y en AUTO no
  *   cruza la línea central (§4.2). Las Muestras del Human Player rival (zona de su color, D8) solo las
@@ -20,12 +24,15 @@ import * as F from '../config/field';
 import { GAME } from '../config/game';
 import { posDir, posTip, type ElevatorPos } from '../config/robot';
 import type { Phase } from '../core/clock';
+import { DAMAGE } from '../core/damage';
 import { opponent, type Alliance, type Level } from '../core/types';
 import { cubePose } from '../game/Mechanisms';
 import { obstructZones } from '../referee/Referee';
 import type { Robot } from '../game/Robot';
 import type { Pieces } from '../physics/Pieces';
 import { clawDir } from '../physics/RobotPhysics';
+import { pushTouch, touches } from './contact';
+import { planPath } from './grid';
 import { AI_PROFILES, type AiLevel, type AiProfile } from './difficulty';
 import type { PlanDirective, PlanDriver } from './plan';
 import { Team } from './Team';
@@ -71,6 +78,17 @@ const WALL_CLEAR = 0.6;
 const HZ = 120;
 /** Segundos para subir la rampa desde su pie y quedar sobre la Plataforma (medido). */
 const CLIMB_TIME = 2.2;
+/** Separación (m) entre contornos a la que cuenta como tocar a otro robot (`noPush`). */
+const CONTACT_GAP = 0.04;
+/**
+ * Segundos que espera pegado a otro robot (sin empujarlo) antes de echarse para atrás y replanear, y
+ * cuánto retrocede. SUPUESTOS de diseño: el manual cobra el contacto con un rival (§4.5) y el pinning
+ * sin dar duración (D11); el árbitro del sim cobra pinning a los 3 s.
+ */
+const PUSH_PATIENCE = 0.6;
+const YIELD_TIME = 0.5;
+/** Segundos que le deja más espacio a un robot con el que se trabó. */
+const WARY_TIME = 6;
 
 export interface BotOptions {
   /** Nivel al que anota (por defecto el de la dificultad: N3, el que más vale). */
@@ -142,6 +160,25 @@ export class Bot {
   clock = Infinity;
   private phase: Phase = 'PRE';
   private guardT = 0;
+  /** Segundos pegado a otro robot queriendo avanzar hacia él, y la maniobra para despegarse. */
+  private pushT = 0;
+  private yieldT = 0;
+  private yieldDir = -1;
+  /** Robots con los que se trabó hace poco (índice → segundos): les deja más espacio. */
+  private wary = new Map<number, number>();
+  /** Veces seguidas que se tuvo que hacer para atrás, y segundos sin tocar a nadie desde la última. */
+  private yields = 0;
+  private clearT = 0;
+  /** Plan que dejó porque otro robot le cierra el paso (p. ej. la Campana) y por cuántos segundos. */
+  private giveUp: { mode: Mode; t: number } | null = null;
+  /** Segundos que sigue rodeando por la rejilla (`planPath`) tras toparse, y el punto al que va. */
+  private planT = 0;
+  private planCd = 0;
+  private pathWp: { x: number; z: number } | null = null;
+  /** Segundos esperando a que se abra el paso (no hay camino libre a su objetivo). */
+  private pathWaitT = 0;
+  /** Segundos detenido por un robot enfrente (sin tocarlo). */
+  private holdT = 0;
   /** Paso del plan en curso, punto de su ruta al que va y segundos tras ese punto. */
   private directive: PlanDirective | null = null;
   private routeIdx = 0;
@@ -224,11 +261,13 @@ export class Bot {
     this.unjam(out, dt);
     // El brazo topó con la madera al girar (`Mechanisms.armBlocked`): se aleja del lado de la garra
     // para que libre (con la viga chocando, pegado a la Cámara el brazo no pasa de N1)
+    // (si ahí tiene a otro robot no lo empuja: sigue su camino y el brazo libra después)
     const m = this.robot.mech;
-    if (m.armBlocked && this.freeT <= 0) {
+    if (m.armBlocked && this.freeT <= 0 && !pushTouch(this.robot, -clawDir(m.angle), touches(this.robot, this.others, CONTACT_GAP))) {
       out.forward = -clawDir(m.angle) * 0.4;
       out.turn = 0;
     }
+    this.noPush(out, dt);
     out.forward *= this.profile.speed;
     this.guard(out, phase === 'ENDGAME');
     return out;
@@ -276,6 +315,128 @@ export class Bot {
   }
 
   /**
+   * No empujar a otro robot. Con un rival, el contacto y el pinning son Foul (§4.5) y en su zona Tech
+   * Foul (§4.6); con su compañero o un robot dañado el manual no dice nada (SUPUESTO: tampoco), pero
+   * empujarlo lo arrima a la Plataforma o fuera de la cancha y los golpes dañan (D36). Si lo toca por
+   * donde va, no avanza hacia él (puede girar y seguir por un lado); si en `PUSH_PATIENCE` s sigue
+   * cerrado, retrocede derecho, le deja más espacio un rato (`wary`) y suelta la Muestra que perseguía
+   * para buscar otra o rodearlo.
+   */
+  private noPush(out: BotOutput, dt: number): void {
+    for (const [i, t] of this.wary) if (t - dt <= 0) this.wary.delete(i);
+    else this.wary.set(i, t - dt);
+    const list = touches(this.robot, this.others, CONTACT_GAP);
+    if (this.yieldT > 0) {
+      this.yieldT -= dt;
+      // Derecho (girar pegado a otro lo barre); si también tiene a alguien atrás, quieto
+      out.forward = pushTouch(this.robot, this.yieldDir, list) ? 0 : this.yieldDir * 0.4;
+      out.turn = 0;
+      return;
+    }
+    if (this.giveUp && (this.giveUp.t -= dt) <= 0) this.giveUp = null;
+    const hit = pushTouch(this.robot, out.forward, list);
+    if (!hit) {
+      this.pushT = Math.max(0, this.pushT - dt);
+      this.clearT += dt;
+      if (this.clearT > 3) this.yields = 0;
+      return;
+    }
+    this.clearT = 0;
+    out.forward = 0;
+    this.pushT += dt;
+    if (this.pushT < PUSH_PATIENCE) return;
+    this.pushT = 0;
+    this.yieldT = YIELD_TIME;
+    this.yieldDir = hit.lx > 0 ? -1 : 1;
+    this.wary.set(hit.other.index, WARY_TIME);
+    if (this.targetPiece >= 0) this.ignore.set(this.targetPiece, WARY_TIME);
+    this.targetPiece = -1;
+    this.dockT = 0;
+    this.detour = null;
+    this.lastGoal = null;
+    // Al volver, rodea por donde sí cabe (camino en la rejilla con los robots como obstáculos)
+    this.planT = 4;
+    this.planCd = 0;
+    // Ya se hizo para atrás y volvió a toparse: ese camino está cerrado, cambia de plan un rato
+    // (la Campana o el Nivel ocupados: junta en otro lado; recolectando ya soltó la Muestra)
+    if (++this.yields >= 2) {
+      this.yields = 0;
+      if (this.mode === 'hp' || this.mode === 'score') this.giveUp = { mode: this.mode, t: 8 };
+      if (this.mode === 'score') this.lockedLevel = null;
+    }
+  }
+
+  /**
+   * Siguiente punto (≈0.9 m adelante) de un camino en la rejilla de `pos` a `goal` que rodea a los
+   * otros robots, la Plataforma (antes del ENDGAME no se pisa, §4.6), las Cámaras y las barras de las
+   * Campanas, sin sacar una esquina de la cancha ni (en AUTO) cruzar la línea central (§4.2).
+   */
+  private pathWaypoint(pos: { x: number; z: number }, goal: { x: number; z: number }, phase: Phase): { x: number; z: number } | null {
+    const robots = this.others
+      .filter((o) => o !== this.robot)
+      .map((o) => {
+        const q = o.phys.position();
+        // Con un robot pegado, su disco no tapa el punto de salida (si no, no hay camino)
+        return { x: q.x, z: q.z, R: Math.min(0.64 + (this.isWary(o) ? 0.08 : 0), Math.hypot(q.x - pos.x, q.z - pos.z) - 0.05) };
+      });
+    // Casi todo el margen que el manejo normal no pisa (`PLATFORM_CLEAR`): media diagonal del chasis
+    // y algo, para que a toda velocidad y girando no la roce (§4.6)
+    const px = F.PLATFORM_LENGTH / 2 + PLATFORM_CLEAR - 0.1;
+    const pz = F.PLATFORM_WIDTH / 2 + PLATFORM_CLEAR - 0.1;
+    const mx = F.PLATFORM_LENGTH / 2 + PLATFORM_CLEAR;
+    const mz = F.PLATFORM_WIDTH / 2 + PLATFORM_CLEAR;
+    const zones = RIVAL_ZONES[this.robot.alliance];
+    const cost = (p: { x: number; z: number }): number => {
+      if (Math.abs(p.x) > F.HALF_L - 0.38 || Math.abs(p.z) > F.HALF_W - 0.38) return Infinity;
+      const nearStart = Math.hypot(p.x - pos.x, p.z - pos.z) < 0.3;
+      if (!nearStart && ((Math.abs(p.x) < px && Math.abs(p.z) < pz) || nearCamara(p, 0.38) || nearBarrier(p, 0.38))) return Infinity;
+      if (!nearStart && phase === 'AUTO' && this.side * p.x < 0.5) return Infinity;
+      let c = 1;
+      for (const o of robots) {
+        const d = Math.hypot(p.x - o.x, p.z - o.z);
+        if (d < o.R) return Infinity;
+        if (d < o.R + 0.4) c += (2 * (o.R + 0.4 - d)) / 0.4;
+      }
+      if (Math.abs(p.x) < mx && Math.abs(p.z) < mz) c += 3;
+      if (phase !== 'AUTO' && zones.some((z) => F.inRect(z, p.x, p.z))) c += 2;
+      return c;
+    };
+    const { path, reached } = planPath(pos, goal, cost, { halfL: F.HALF_L, halfW: F.HALF_W, cell: 0.15 });
+    if (!reached && Math.hypot(goal.x - pos.x, goal.z - pos.z) > 1.0) {
+      // No hay por dónde: espera (sigue buscando) un rato; si no se abre, cambia de plan
+      this.planT = Math.max(this.planT, 0.5);
+      this.pathWaitT += 0.25;
+      if (this.pathWaitT > 5) {
+        this.pathWaitT = 0;
+        this.planT = 0;
+        if (this.mode === 'hp' || this.mode === 'score') this.giveUp = { mode: this.mode, t: 8 };
+        if (this.targetPiece >= 0) this.ignore.set(this.targetPiece, WARY_TIME);
+        this.targetPiece = -1;
+        return null;
+      }
+      return WAIT;
+    }
+    this.pathWaitT = 0;
+    if (!path.length) return null;
+    // Mientras la recta a su objetivo siga tapada por un robot, sigue el rodeo (si no, al acabar
+    // `planT` volvería a la recta y se toparía otra vez)
+    if (robots.some((o) => segPointDist(pos, goal, o) < 0.75)) this.planT = Math.max(this.planT, 1);
+    let len = 0;
+    let prev = pos;
+    for (const q of path) {
+      len += Math.hypot(q.x - prev.x, q.z - prev.z);
+      prev = q;
+      if (len >= 0.9) return q;
+    }
+    return path[path.length - 1];
+  }
+
+  /** ¿Se trabó hace poco con ese robot? */
+  private isWary(o: Robot): boolean {
+    return this.wary.has(o.index);
+  }
+
+  /**
    * La garra choca con la madera (D34): si está arriba de una Cámara (acaba de anotar) y el plan pide
    * bajarla, al girar hacia abajo se engancharía detrás de la pared. Primero se aparta derecho con la
    * garra en alto y la baja cuando ya quedó afuera.
@@ -319,6 +480,11 @@ export class Bot {
     if (this.jamT > 1.0) {
       this.jamT = 0;
       this.freeT = 0.7;
+      // Trabado yendo por una Muestra (pegada a una pared o a la Cámara): la deja un rato
+      if (this.mode === 'collect' && this.targetPiece >= 0) {
+        this.ignore.set(this.targetPiece, WARY_TIME);
+        this.targetPiece = -1;
+      }
       this.freeDir = Math.abs(c.forward) > 0.15 ? -Math.sign(c.forward) : -Math.sign(this.robot.mech.tipX() || 1);
     }
   }
@@ -385,6 +551,8 @@ export class Bot {
       this.n3Wait = 0;
     }
     if (this.mode !== 'collect' && this.mode !== 'hp') this.team.claim(-1, r.index);
+    // Ya no se está arrimando a la Cámara ni a la Campana (si no, `unjam` no lo zafaría)
+    if (this.mode === 'collect' || this.mode === 'climb') this.dockT = 0;
 
     // Dificultad: duda un momento al cambiar de plan
     if (this.mode !== this.lastMode) {
@@ -577,6 +745,9 @@ export class Bot {
     if (this.team.critPending !== null && this.team.critPending !== this.robot.index) return false;
     const src = this.opts.source;
     if (src === 'lab') return false;
+    // Otro robot (el del jugador, uno dañado, un rival) ocupa la Campana o le cierra el paso a ella:
+    // no se mete a empujarlo
+    if (src !== 'hp' && ((this.mode !== 'hp' && this.campanaTaken()) || this.giveUp?.mode === 'hp')) return false;
     const stock = this.pieces.hpStock(this.robot.alliance).length;
     if (stock === 0) return false;
     if (src === 'hp') return true;
@@ -609,11 +780,36 @@ export class Bot {
       const at = { x: t.x, z: t.z };
       const eta = this.eta(pos, at) + this.turnCost(at);
       let cost = eta + back * this.eta(at, home);
+      cost += this.crowdCost(at);
       // Seguir con la que ya iba (no cambia por poquito)
       if (p.index === this.targetPiece) cost -= 0.6;
       if (!best || cost < best.cost) best = { i: p.index, at, eta, cost };
     }
     return best;
+  }
+
+  /**
+   * Segundos extra de una Muestra por los robots que tiene cerca: no se pelea una que otro robot ya
+   * tiene encima (entrar por ella es chocarlo; con un rival, Foul §4.5) ni trabaja el mismo montón que
+   * su compañero. SUPUESTO de diseño.
+   */
+  private crowdCost(at: { x: number; z: number }): number {
+    const r = this.robot;
+    let c = 0;
+    for (const o of this.others) {
+      if (o === r) continue;
+      const q = o.phys.position();
+      const d = Math.hypot(q.x - at.x, q.z - at.z);
+      const R = (o.alliance !== r.alliance ? 1.3 : 1.0) + (this.isWary(o) ? 0.4 : 0);
+      if (d < R) c += ((R - d) / R) * (o.alliance !== r.alliance ? 4 : 3);
+    }
+    // Junto a la que apartó su compañero: él ya va para allá
+    for (const [piece, who] of this.team.claims) {
+      if (who === r.index || !this.claimActive(piece)) continue;
+      const t = this.pieces.list[piece]?.body.translation();
+      if (t && Math.hypot(t.x - at.x, t.z - at.z) < 0.8) c += 1.2;
+    }
+    return c;
   }
 
   /** ¿El que apartó esa Muestra sigue jugando? (el robot del jugador deja de correr la IA al acabar el AUTO) */
@@ -805,7 +1001,11 @@ export class Bot {
     // Si su compañero va por la Crítica o a la Plataforma, se pega a la orilla: a 1.95 m le cerraba
     // el pasillo junto a la Plataforma y el de la Crítica se quedaba atorado ahí el resto del match
     const busy = this.team.members.some((b) => b !== this && (b.mode === 'critical' || b.mode === 'climb'));
-    return F.forAlliance(this.robot.alliance, { x: 0.6, z: busy ? 2.6 : 1.95 });
+    // Si otro robot ya está ahí (el del jugador estacionado), espera un poco más allá
+    const spots = busy ? [{ x: 0.6, z: 2.6 }, { x: -0.2, z: 2.6 }] : [{ x: 0.6, z: 1.95 }, { x: 0.6, z: 2.6 }, { x: -0.2, z: 1.95 }];
+    const free = (q: { x: number; z: number }) => !this.others.some((o) => o !== this.robot && Math.hypot(o.phys.position().x - q.x, o.phys.position().z - q.z) < 0.9);
+    const spot = spots.map((q) => F.forAlliance(this.robot.alliance, q)).find(free);
+    return spot ?? F.forAlliance(this.robot.alliance, spots[0]);
   }
 
   // ------------------------------------------------------------------ Human Player
@@ -830,6 +1030,11 @@ export class Bot {
     return { x: Math.max(slot.x - lim, Math.min(slot.x + lim, x)), z: slot.z + slot.dz * reach };
   }
 
+  /** ¿Hay otro robot en el pasillo de su Campana (entre la barra y la pared)? */
+  private campanaTaken(): boolean {
+    return this.others.some((o) => o !== this.robot && inCampana(this.robot.alliance, o.phys.position()));
+  }
+
   private atHumanPlayer(out: BotOutput, phase: Phase, dt: number): void {
     const r = this.robot;
     out.intake = true;
@@ -837,10 +1042,8 @@ export class Bot {
     const faceZ = -this.side; // la Campana del rojo está en −Z
     // Un compañero sale de la Campana (es un pasillo entre la barra y la pared): lo deja salir
     const pos = r.phys.position();
-    const leaving = this.team.members.some((b) => {
-      return b !== this && this.isActive(b) && b.mode !== 'hp' && inCampana(r.alliance, b.robot.phys.position());
-    });
-    if (leaving && !inCampana(r.alliance, pos)) {
+    // Otro robot en la Campana (un compañero que sale, el del jugador que la ocupa): espera afuera
+    if (this.campanaTaken() && !inCampana(r.alliance, pos)) {
       this.drive(F.forAlliance(r.alliance, { x: 2.9, z: -1.3 }), out, true, phase);
       return;
     }
@@ -887,7 +1090,8 @@ export class Bot {
     const pref = this.level;
     const occupied = (l: Level): boolean => {
       const p = this.scoringPose(l);
-      if (this.others.some((o) => o !== this.robot && Math.hypot(o.phys.position().x - p.x, o.phys.position().z - p.z) < 0.8)) return true;
+      // Otro robot en ese frente (o uno con el que se trabó, cerca): a otro nivel o a esperar
+      if (this.others.some((o) => o !== this.robot && Math.hypot(o.phys.position().x - p.x, o.phys.position().z - p.z) < (this.isWary(o) ? 1.3 : 0.8))) return true;
       return l === 3 && this.team.n3By !== null && this.team.n3By !== this.robot.index && this.teammateAtN3();
     };
     if (!occupied(pref)) {
@@ -1122,8 +1326,8 @@ export class Bot {
   }
 
   // ------------------------------------------------------------------ manejo
-  /** ¿Hay un rival (o cualquier robot, con `any`) a menos de `d` m en esa dirección (+1 adelante, −1 atrás, ±70°)? */
-  private rivalNear(dir: number, d: number, any = false): boolean {
+  /** ¿Hay un rival (o cualquier robot, con `any`) a menos de `d` m en esa dirección (+1 adelante, −1 atrás, ±`cone` rad)? */
+  private rivalNear(dir: number, d: number, any = false, cone = 1.2): boolean {
     const r = this.robot;
     const pos = r.phys.position();
     const h = r.phys.heading() + (dir < 0 ? Math.PI : 0);
@@ -1131,7 +1335,7 @@ export class Bot {
       if (o === r || (!any && o.alliance === r.alliance)) return false;
       const op = o.phys.position();
       const od = Math.hypot(op.x - pos.x, op.z - pos.z);
-      return od < d && Math.abs(wrap(Math.atan2(-(op.z - pos.z), op.x - pos.x) - h)) < 1.2;
+      return od < d && Math.abs(wrap(Math.atan2(-(op.z - pos.z), op.x - pos.x) - h)) < cone;
     });
   }
 
@@ -1151,8 +1355,27 @@ export class Bot {
       this.detour.t -= 1 / HZ;
       g = this.detour;
     }
-    if (!allowPlatform) g = this.avoidPlatform(pos, g);
-    g = this.avoidBarrier(pos, g);
+    // Rodeando a un robot con el que se topó: sigue el camino de la rejilla (ya evita la Plataforma)
+    if (this.planT > 0 && !allowPlatform) {
+      this.planT -= 1 / HZ;
+      this.planCd -= 1 / HZ;
+      if (this.planCd <= 0) {
+        this.planCd = 0.25;
+        this.pathWp = this.pathWaypoint(pos, goal, phase);
+      }
+    } else this.pathWp = null;
+    const planned = !!this.pathWp && Math.hypot(goal.x - pos.x, goal.z - pos.z) > 0.4;
+    if (planned && this.pathWp === WAIT) {
+      // Todo el paso cerrado (otros robots en los dos pasillos): espera donde está y vuelve a buscar
+      out.forward = 0;
+      out.turn = 0;
+      return;
+    }
+    if (planned) g = this.pathWp!;
+    else {
+      if (!allowPlatform) g = this.avoidPlatform(pos, g);
+      g = this.avoidBarrier(pos, g);
+    }
     if (phase === 'AUTO') g = { x: this.side > 0 ? Math.max(0.5, g.x) : Math.min(-0.5, g.x), z: g.z };
     g = { x: clamp(g.x, F.HALF_L - edge), z: clamp(g.z, F.HALF_W - edge) };
     let dx = g.x - pos.x;
@@ -1175,12 +1398,13 @@ export class Bot {
         // con la garra abajo lo empujaría al pasar rozándolo (a la Plataforma o fuera de la cancha)
         const v = o.phys.body.linvel();
         const still = Math.hypot(v.x, v.z) < 0.3;
-        const R = rival ? 1.3 : still ? 1.1 : precise ? 0.8 : 1.0;
+        const wary = this.isWary(o);
+        const R = (rival ? 1.3 : still ? 1.1 : precise ? 0.8 : 1.0) + (wary ? 0.4 : 0);
         if (od > R || od < 1e-3 || od > dist + 0.4) continue;
         // Solo si el otro queda hacia donde va
         const ahead = -(ox * ax + oz * az) / od;
         if (ahead < -0.2) continue;
-        const w = ((R - od) / R) * (rival ? 1.8 : still ? 1.5 : 1.0);
+        const w = ((R - od) / R) * (rival ? 1.8 : still ? 1.5 : 1.0) * (wary ? 1.5 : 1);
         // Empuje lateral (pasar por un lado) más uno hacia atrás
         const tx = -az;
         const tz = ax;
@@ -1235,9 +1459,26 @@ export class Bot {
     const sd = slowDist ?? dist;
     const f = align * align * Math.min(1, sd / (precise ? 0.6 : 0.35)) * (precise ? 0.8 : 1);
     out.forward = (reverse ? -1 : 1) * Math.max(f, sd > 0.05 && align > 0.9 ? 0.12 : 0);
-    // Rival enfrente y cerca (en el sentido de avance): no avanzar hacia él
-    if (this.rivalNear(reverse ? -1 : 1, 1.0)) out.forward = 0;
-    else if (this.rivalNear(reverse ? -1 : 1, 1.4)) out.forward *= 0.4;
+    // Rival enfrente y cerca (en el sentido de avance): no avanzar hacia él. Siguiendo un camino de
+    // la rejilla (ya le deja espacio) solo si lo tiene casi de frente
+    const wanted = out.forward;
+    const cone = planned ? 0.5 : 1.2;
+    if (this.rivalNear(reverse ? -1 : 1, planned ? 0.8 : 1.0, false, cone)) out.forward = 0;
+    else if (this.rivalNear(reverse ? -1 : 1, 1.4, false, cone)) out.forward *= 0.4;
+    // Cualquier otro robot (su compañero, el del jugador) enfrente y cerca: no más rápido de lo que
+    // daña un golpe (`DAMAGE.threshold`, D36), con margen
+    else if (this.rivalNear(reverse ? -1 : 1, 0.95, true)) out.forward = clamp(out.forward, (DAMAGE.threshold * 0.8) / (r.spec.maxSpeed * this.profile.speed));
+    // Otro robot parado justo en su objetivo (el del jugador en su lugar de espera, uno dañado):
+    // espera cerca a que se quite en vez de empujarlo
+    if (!allowPlatform && this.others.some((o) => o !== r && isStill(o) && Math.hypot(o.phys.position().x - goal.x, o.phys.position().z - goal.z) < 0.55 && Math.hypot(o.phys.position().x - pos.x, o.phys.position().z - pos.z) < 1.15)) out.forward = 0;
+    // Detenido por otro robot que le tapa el camino: tras un momento, busca por dónde rodearlo
+    const held = Math.abs(wanted) > 0.1 && Math.abs(out.forward) < 0.02;
+    this.holdT = held ? this.holdT + 1 / HZ : 0;
+    if (this.holdT > 0.6 && this.planT <= 0 && !allowPlatform) {
+      this.holdT = 0;
+      this.planT = 3;
+      this.planCd = 0;
+    }
     // Atorado: si en 2.5 s no se acercó 0.15 m al objetivo, retrocede girando y (si iba por una
     // Muestra) la ignora un rato
     if (!this.lastGoal || Math.hypot(goal.x - this.lastGoal.x, goal.z - this.lastGoal.z) > 0.3) {
@@ -1310,7 +1551,7 @@ export class Bot {
     // Alternativas: de todas las que menos invaden, la más parecida a su mando (giros cortos
     // incluidos: así se despega de una orilla poco a poco en lugar de quedarse quieto)
     const options: Array<[number, number]> = [[0, out.turn], [out.forward, 0], [0, 0]];
-    for (const f of [-0.5, -0.3, 0, 0.3, 0.5]) for (const t of [-1, -0.6, -0.15, 0, 0.15, 0.6, 1]) options.push([f, t]);
+    for (const f of [-0.5, -0.3, -0.12, 0, 0.12, 0.3, 0.5]) for (const t of [-1, -0.6, -0.15, 0, 0.15, 0.6, 1]) options.push([f, t]);
     let best: [number, number] = [out.forward, out.turn];
     let bestV = invasion(out.forward, out.turn);
     let bestD = 0;
@@ -1362,12 +1603,23 @@ export class Bot {
     const cx = hx + 0.1;
     const cz = hz + 0.1;
     const sz = Math.sign(pos.z) || 1;
-    // Dentro del margen: primero salir hacia afuera (sin rozar la Plataforma)
+    // Dentro del margen: primero salir hacia afuera (sin rozar la Plataforma), por la salida más corta
+    // que no tape otro robot (si no, se le echa encima de reversa)
     if (Math.abs(pos.x) < hx && Math.abs(pos.z) < hz) {
-      const outX = (Math.abs(pos.x) - F.PLATFORM_LENGTH / 2) / PLATFORM_CLEAR;
-      const outZ = (Math.abs(pos.z) - F.PLATFORM_WIDTH / 2) / PLATFORM_CLEAR;
-      if (outX > outZ) return { x: Math.sign(pos.x) * cx, z: pos.z };
-      return { x: pos.x, z: sz * cz };
+      const exits = [{ x: (Math.sign(pos.x) || this.side) * cx, z: pos.z }, { x: pos.x, z: sz * cz }];
+      // Frente a una rampa (pasado su extremo) también puede salir por el otro lado
+      if (Math.abs(pos.x) > F.PLATFORM_LENGTH / 2 + 0.1) exits.push({ x: pos.x, z: -sz * cz });
+      let best = exits[0];
+      let bestC = Infinity;
+      for (const e of exits) {
+        const crowded = this.others.some((o) => o !== this.robot && segPointDist(pos, e, o.phys.position()) < 0.75);
+        const c = Math.hypot(e.x - pos.x, e.z - pos.z) + (crowded ? 3 : 0);
+        if (c < bestC) {
+          bestC = c;
+          best = e;
+        }
+      }
+      return best;
     }
     // En un extremo (frente a una rampa): primero a la esquina de ese extremo, del lado del objetivo
     if (Math.abs(pos.z) < hz) return { x: (Math.sign(pos.x) || this.side) * cx, z: (Math.sign(goal.z) || sz) * cz };
@@ -1380,7 +1632,11 @@ export class Bot {
     // Mismo lado: bordear hasta la esquina del extremo por donde queda el objetivo
     return { x: Math.abs(goal.x) > hx ? Math.sign(goal.x) * cx : goal.x, z: sz * cz };
   }
+
 }
+
+/** Marca de `pathWaypoint`: no hay camino libre, esperar. */
+const WAIT = { x: NaN, z: NaN };
 
 /** Zonas de anotación rivales que no puede obstruir más de 3 s (§4.6, D17), por alianza propia. */
 const RIVAL_ZONES: Record<Alliance, F.Rect[]> = { red: obstructZones('blue'), blue: obstructZones('red') };
@@ -1389,6 +1645,20 @@ const RIVAL_ZONES: Record<Alliance, F.Rect[]> = { red: obstructZones('blue'), bl
 const CAMARAS: readonly F.Rect[] = (['red', 'blue'] as const).map((a) =>
   F.rectFor(a, { x0: F.CAMARA_X_END_RED - F.CAMARA_LENGTH - 0.15, x1: F.CAMARA_X_END_RED + 0.15, z0: F.CAMARA_Z_RED[0] - 0.15, z1: F.HALF_W }),
 );
+
+/** ¿El robot está casi parado? (el del jugador sin moverse, uno dañado o trabado) */
+function isStill(o: Robot): boolean {
+  const v = o.phys.body.linvel();
+  return Math.hypot(v.x, v.z) < 0.3;
+}
+
+/** Distancia del punto `p` al segmento a–b. */
+function segPointDist(a: { x: number; z: number }, b: { x: number; z: number }, p: { x: number; z: number }): number {
+  const dx = b.x - a.x;
+  const dz = b.z - a.z;
+  const t = Math.max(0, Math.min(1, ((p.x - a.x) * dx + (p.z - a.z) * dz) / (dx * dx + dz * dz || 1)));
+  return Math.hypot(a.x + dx * t - p.x, a.z + dz * t - p.z);
+}
 
 /** ¿El segmento (x0,z0)→(x1,z1) toca el rectángulo |x| ≤ hx, |z| ≤ hz? (Liang–Barsky) */
 export function segmentHitsRect(x0: number, z0: number, x1: number, z1: number, hx: number, hz: number): boolean {
