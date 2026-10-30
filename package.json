@@ -14,7 +14,8 @@
     "shots": "node scripts/screenshot.mjs",
     "ui-shots": "node scripts/ui-shots.mjs",
     "ui-hit": "node scripts/ui-hit.mjs",
-    "batch": "node scripts/batch.mjs"
+    "batch": "node scripts/batch.mjs",
+    "pad-nav": "node scripts/pad-nav.mjs"
   },
   "dependencies": {
     "@dimforge/rapier3d-compat": "0.21.0",

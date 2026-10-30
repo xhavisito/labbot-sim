@@ -79,6 +79,9 @@ input[type='text'] { -webkit-user-select: text; user-select: text; }
 .btn:not(.primary) .ic { color: var(--accent); }
 .ic { width: 1.15em; height: 1.15em; flex: none; }
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+/* Menús con el control (ui/padNav.ts): anillo morado/magenta bien visible desde el sillón */
+body.pad-nav .pad-focus { outline: 3px solid var(--accent); outline-offset: 3px; box-shadow: 0 0 0 7px rgba(233, 35, 157, 0.28), 0 0 22px rgba(233, 35, 157, 0.45); }
+body.pad-nav { cursor: none; }
 .chipbtn {
   display: inline-flex; align-items: center; gap: 7px; min-height: 38px; padding: 8px 13px; white-space: nowrap;
   border: 1px solid var(--line-2); border-radius: var(--radius-sm); background: var(--surface); color: var(--text); cursor: pointer;
@@ -435,7 +438,7 @@ input[type='range'] { width: 100%; accent-color: var(--accent); }
 .replaybar { position: absolute; left: calc(10px + var(--safe-l)); right: calc(10px + var(--safe-r)); bottom: calc(10px + var(--safe-b)); pointer-events: auto; display: flex; flex-wrap: wrap; align-items: center; gap: 0.6em; padding: 0.6em; border: 1px solid var(--line-2); border-radius: 0.9em; background: rgba(18, 9, 22, 0.86); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); }
 .replaybar .seg button { min-height: 2.6em; padding: 0.5em 0.75em; font-size: 0.85em; }
 .rb-track { position: relative; flex: 1 1 260px; min-width: 160px; height: 2.6em; display: flex; align-items: center; }
-.rb-track input { width: 100%; accent-color: var(--accent); position: relative; z-index: 1; }
+.rb-track input { width: 100%; accent-color: var(--accent); }
 .rb-marks { position: absolute; left: 8px; right: 8px; top: 0; bottom: 0; pointer-events: none; }
 .rb-marks i { position: absolute; top: 4px; width: 2px; height: 0.7em; margin-left: -1px; }
 .rb-marks i.red { background: var(--red); }

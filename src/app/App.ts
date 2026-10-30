@@ -35,6 +35,7 @@ import { Hud } from '../ui/Hud';
 import { t, type Key } from '../ui/i18n';
 import { ic } from '../ui/chrome';
 import { MatchSetup } from '../ui/MatchSetup';
+import { PadNav } from '../ui/padNav';
 import { Menu, type MenuChoice } from '../ui/Menu';
 import { saveMatchEntries, ScoutingScreen, type ScoutPlay } from '../ui/Scouting';
 import { isTouchDevice, TouchControls } from '../ui/TouchControls';
@@ -55,6 +56,8 @@ export class App {
   private fps = { frames: 0, time: 0, drops: 0 };
   readonly cam: CameraRig;
   readonly input = new InputManager();
+  /** Menús con el control: foco, A elige, B regresa (`ui/padNav.ts`). */
+  readonly padNav = new PadNav();
   readonly hud: Hud;
   readonly menu: Menu;
   session: GameSession;
@@ -462,6 +465,18 @@ export class App {
     this.updateTouch();
   }
 
+  /** La UI que el control navega ahora; jugando (manejando el robot) ninguna. */
+  private padScope(): HTMLElement | null {
+    if (this.state === 'playing') {
+      if (this.autoPractice?.wantsUi) return this.autoPractice.root;
+      if (this.trainingRun?.wantsUi) return this.trainingRun.root;
+      return null;
+    }
+    if (this.menu.root.style.display !== 'none') return this.menu.root;
+    if (this.state === 'replay' && this.replay) return this.replayBar.root;
+    return null;
+  }
+
   cycleCamera(): void {
     const i = CAMERA_MODES.indexOf(this.cam.mode);
     this.setCamera(CAMERA_MODES[(i + 1) % CAMERA_MODES.length]);
@@ -518,6 +533,8 @@ export class App {
       this.cam.camera.position.set(Math.cos(a) * 9, 6.5, Math.sin(a) * 7.5);
       this.cam.orbit.target.set(0, 0, 0);
     }
+    // Después del estado: si A reanuda la pausa, el robot no recibe esa A (ya no es pulsación nueva)
+    this.padNav.update(now, this.input.pad(), this.padScope(), this.input.capturing);
     if (this.autoPractice) this.autoPractice.root.style.display = this.state === 'playing' ? '' : 'none';
     if (this.trainingRun) this.trainingRun.root.style.display = this.state === 'playing' ? '' : 'none';
     if (this.state !== 'paused' && this.state !== 'replay') this.session.update(this.state === 'playing' ? 0 : dt);

@@ -407,6 +407,7 @@ export class Menu {
         <div class="panel"><div class="form">
           <h3>${t('sec_options')}</h3>
           <div class="full msg ${pad ? 'ok' : ''}">${ic.gamepad}${pad ? t('padConnected', { name: pad.id.split('(')[0].trim() }) : t('padNone')}</div>
+          <p class="full sub">${t('padMenus')}</p>
           <label>${t('padDriveLabel')}</label>${seg('padDrive', b.padDrive, [['left', t('padDriveLeft')], ['split', t('padDriveSplit')]])}
           <label>${t('invertForward')}</label><button class="toggle ${b.invertForward ? 'on' : ''}" data-tog="invert"><i></i>${b.invertForward ? t('on_') : t('no_')}</button>
           <label>${t('touchControls')}</label>${seg('touch', this.settings.touch, [['auto', t('touchAuto')], ['on', t('touchOn')], ['off', t('touchOff')]])}
@@ -532,7 +533,7 @@ export class Menu {
           <h3 class="ps-keys-title">${t('keysTitle')}</h3>
           <div class="ps-keys">${keyRows.map((a) => `<div>${t(`act_${a}` as Key)}<span class="k">${kbds(b.keys[a].map(keyLabel))}</span></div>`).join('')}</div>
           <h3 class="ps-keys-title">${t('padTitle')}</h3>
-          <div class="ps-pad">${padHelp(b)}</div>
+          <div class="ps-pad">${padHelp(b)}<br>${t('padMenus')}</div>
         </div>
       </div>`,
       'overlay',
