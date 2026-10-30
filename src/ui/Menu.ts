@@ -120,6 +120,8 @@ export class Menu {
     this.root.innerHTML = cls.startsWith('screen') ? `<div class="inner">${html}</div>` : html;
     this.root.style.display = '';
     this.root.scrollTop = 0;
+    // Los diálogos se desplazan por dentro: que abran desde arriba, con el título visible
+    this.root.querySelector('.dialog')?.scrollTo(0, 0);
   }
 
   private on(sel: string, fn: (el: HTMLElement) => void): void {
@@ -555,12 +557,23 @@ export class Menu {
   results(m: Match, onRestart: () => void, onMenu: () => void, onDownload: () => void, player: number, note = '', cont?: string): void {
     const b = { red: m.breakdown('red'), blue: m.breakdown('blue') };
     const rp = { red: m.rankingPoints('red'), blue: m.rankingPoints('blue') };
-    const row = (label: string, f: (a: Alliance) => string | number, cls = '') => `<tr class="${cls}"><td>${label}</td>${UI_ALLIANCES.map((a) => `<td>${f(a)}</td>`).join('')}</tr>`;
     const winner: Alliance | null = b.red.total === b.blue.total ? null : b.red.total > b.blue.total ? 'red' : 'blue';
     const mine: Alliance | null = player < 0 ? null : player < 2 ? 'red' : 'blue';
+    // Gráfica de barras encontradas: cada categoría compara Azul (izquierda) contra Rojo (derecha),
+    // a escala de la categoría; el número de cada barra va siempre escrito.
+    const bar = (label: string, v: Record<Alliance, number>, cls = '') => {
+      const max = Math.max(v.blue, v.red, 1);
+      const side = (a: Alliance) =>
+        `<span class="bc-val ${a}">${v[a]}</span><span class="bc-track ${a}"><i style="width:${((v[a] / max) * 100).toFixed(1)}%"></i></span>`;
+      return `<div class="bc-row ${cls}" title="${label}: ${t('blue')} ${v.blue} · ${t('red')} ${v.red}"><span class="bc-lbl">${label}</span>${side('blue')}${side('red')}</div>`;
+    };
+    const cat = (k: keyof (typeof b)['red']) => ({ blue: Number(b.blue[k]), red: Number(b.red[k]) });
+    const rpMax = GAME.rp.win + GAME.rp.autoLine + GAME.rp.critical + GAME.rp.dominance;
     const chip = (on: boolean, label: string) => `<span class="rpchip ${on ? 'on' : ''}">${label}</span>`;
     const rpCell = (a: Alliance) =>
-      `<div class="rprow">${chip(rp[a].win > 0, `${t('rpWin')} +${rp[a].win}`)}${chip(rp[a].autoLine, t('rpAuto'))}${chip(rp[a].critical, t('rpCritical'))}${chip(rp[a].dominance, `${t('dominance')} ${m.samplesIn(a)}/${GAME.rp.dominanceSamples}`)}</div><div class="rptotal">${rp[a].total} RP</div>`;
+      `<div class="rpcard ${a}"><div class="rptotal"><b>${rp[a].total}</b> / ${rpMax} RP</div>` +
+      `<div class="rpmeter">${Array.from({ length: rpMax }, (_, i) => `<i class="${i < rp[a].total ? 'on' : ''}"></i>`).join('')}</div>` +
+      `<div class="rprow">${chip(rp[a].win > 0, `${t('rpWin')} +${rp[a].win}`)}${chip(rp[a].autoLine, t('rpAuto'))}${chip(rp[a].critical, t('rpCritical'))}${chip(rp[a].dominance, `${t('dominance')} ${m.samplesIn(a)}/${GAME.rp.dominanceSamples}`)}</div></div>`;
     const fouls = m.fouls.length
       ? m.fouls
           .map(
@@ -579,18 +592,19 @@ export class Menu {
           <div class="red ${winner === 'red' ? 'win' : ''}"><small>${t('red')}${mine === 'red' ? ` · ${t('you')}` : ''}</small>${b.red.total}</div>
         </div>
         <h3>${t('breakdown')}</h3>
-        <table class="breakdown">
-          <tr><th></th><th class="blue">${t('blue')}</th><th class="red">${t('red')}</th></tr>
-          ${row(t('autoLine'), (a) => b[a].autoLine)}
-          ${row(t('samplesAuto'), (a) => b[a].samplesAuto)}
-          ${row(t('samplesTeleop'), (a) => b[a].samplesTeleop)}
-          ${row(t('platform'), (a) => b[a].platform)}
-          ${row(t('criticalSample'), (a) => b[a].critical)}
-          ${row(t('penalties'), (a) => b[a].penalties)}
-          ${ALLIANCES.some((a) => b[a].redCard) ? row(t('redCard'), (a) => (b[a].redCard ? '<span class="neg">✕</span>' : '–')) : ''}
-          ${row(t('total'), (a) => b[a].total, 'tot')}
-          <tr><td>${t('rp')}</td>${UI_ALLIANCES.map((a) => `<td>${rpCell(a)}</td>`).join('')}</tr>
-        </table>
+        <div class="bchart">
+          <div class="bc-head"><span class="blue">${t('blue')}</span><span class="red">${t('red')}</span></div>
+          ${bar(t('autoLine'), cat('autoLine'))}
+          ${bar(t('samplesAuto'), cat('samplesAuto'))}
+          ${bar(t('samplesTeleop'), cat('samplesTeleop'))}
+          ${bar(t('platform'), cat('platform'))}
+          ${bar(t('criticalSample'), cat('critical'))}
+          ${bar(t('penalties'), cat('penalties'))}
+          ${bar(t('total'), cat('total'), 'tot')}
+          ${ALLIANCES.some((a) => b[a].redCard) ? `<div class="bc-card">${UI_ALLIANCES.map((a) => `<span class="${a}">${b[a].redCard ? `✕ ${t('redCard')} (${b[a].subtotal} → 0)` : ''}</span>`).join('')}</div>` : ''}
+        </div>
+        <h3>${t('rp')}</h3>
+        <div class="rpgrid">${UI_ALLIANCES.map(rpCell).join('')}</div>
         <h3>${t('fouls')}</h3><ul class="fouls">${fouls}</ul>
         ${note ? `<div class="msg ok">${ic.check}${note}</div>` : ''}
         <div class="actions">
