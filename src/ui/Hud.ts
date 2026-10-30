@@ -16,7 +16,7 @@ import type { CameraMode } from '../render/CameraRig';
 import { ic } from './chrome';
 import { keyboardHelp } from './controlsHelp';
 import { t, type Key } from './i18n';
-import { activeStep, type StrategyPlan } from '../core/plan';
+import { activeStep, nextStep, PREVIEW_S, type StrategyPlan } from '../core/plan';
 import type { Phase } from '../core/clock';
 import { partnerSummary, stepLabel } from './StrategyScreen';
 
@@ -57,6 +57,9 @@ export class Hud {
   private planCard: HTMLElement;
   private plan: StrategyPlan | null = null;
   private planKey = '';
+  /** Línea "Sigue … en 0:04" de la tarjeta (solo en los últimos `PREVIEW_S` del paso). */
+  private planNext: HTMLElement | null = null;
+  private planNextText = '';
   private lastKey = '';
   private lastScore = { red: -1, blue: -1 };
 
@@ -115,22 +118,37 @@ export class Hud {
     this.planCard.style.display = 'none';
   }
 
-  /** Cambia la tarjeta al empezar otro paso de la estrategia. */
+  /** Pizarra apagada en Ajustes (`Settings.planBoard` = 'off'): sin tarjeta. */
+  set planCardOn(v: boolean) {
+    this.planCard.classList.toggle('off', !v);
+  }
+
+  /** Cambia la tarjeta al empezar otro paso de la estrategia y avisa cuánto falta para el siguiente. */
   planStep(phase: Phase, remaining: number): void {
     const a = this.plan ? activeStep(this.plan, phase, remaining) : null;
     const key = a?.key ?? '';
-    if (key === this.planKey) return;
-    this.planKey = key;
-    this.planCard.style.display = a ? '' : 'none';
-    if (!a || !this.plan) return;
-    const esc = (v: string) => v.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
-    this.planCard.innerHTML = `<div class="pc-head"><span>${t('hud_plan')}</span><b>${esc(this.plan.name)}</b></div>
-      <div class="pc-step">${stepLabel(a.key, a.step)}</div>
-      <div class="pc-row mate"><i></i><span><b>${t('hud_mate')}:</b> ${partnerSummary(this.plan, a)}</span></div>
-      ${a.step.me.note || a.step.me.route.length ? `<div class="pc-row me"><i></i><span><b>${t('hud_me')}:</b> ${esc(a.step.me.note || '—')}</span></div>` : ''}`;
-    this.planCard.classList.remove('flash');
-    void this.planCard.offsetWidth;
-    this.planCard.classList.add('flash');
+    if (key !== this.planKey) {
+      this.planKey = key;
+      this.planNextText = '';
+      this.planCard.style.display = a ? '' : 'none';
+      if (!a || !this.plan) return;
+      const esc = (v: string) => v.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
+      this.planCard.innerHTML = `<div class="pc-head"><span>${t('hud_plan')}</span><b>${esc(this.plan.name)}</b></div>
+        <div class="pc-step">${stepLabel(a.key, a.step)}</div>
+        <div class="pc-row mate"><i></i><span><b>${t('hud_mate')}:</b> ${partnerSummary(this.plan, a)}</span></div>
+        ${a.step.me.note || a.step.me.route.length ? `<div class="pc-row me"><i></i><span><b>${t('hud_me')}:</b> ${esc(a.step.me.note || '—')}</span></div>` : ''}
+        <div class="pc-next"></div>`;
+      this.planNext = this.planCard.querySelector('.pc-next');
+      this.planCard.classList.remove('flash');
+      void this.planCard.offsetWidth;
+      this.planCard.classList.add('flash');
+    }
+    if (!this.plan || !this.planNext) return;
+    const n = nextStep(this.plan, phase, remaining);
+    const text = n && n.in <= PREVIEW_S ? t('hud_next', { step: n.phase === 'TELEOP' ? `TELEOP ${n.turn + 1}` : n.key, s: formatTimer(n.in) }) : '';
+    if (text === this.planNextText) return;
+    this.planNextText = text;
+    this.planNext.textContent = text;
   }
 
   /** Ayuda de teclas con la asignación actual. */

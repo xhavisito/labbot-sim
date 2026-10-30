@@ -187,6 +187,21 @@ export function activeStep(plan: StrategyPlan, phase: Phase, remaining: number):
   return { key: `TELEOP${i}`, phase: 'TELEOP', turn: i, step: turns[i] };
 }
 
+/** Segundos antes de cambiar de paso en los que la pizarra del match ya enseña el siguiente. */
+export const PREVIEW_S = 5;
+
+/** Paso que sigue y en cuántos segundos empieza (`in`); null en el último (ENDGAME) o fuera del match. */
+export function nextStep(plan: StrategyPlan, phase: Phase, remaining: number): (ActiveStep & { in: number }) | null {
+  const a = activeStep(plan, phase, remaining);
+  if (!a || a.phase === 'ENDGAME') return null;
+  const turns = plan.steps.TELEOP;
+  // AUTO (y la pausa) → primer turno del TELEOP; el último turno → ENDGAME (§2)
+  if (a.phase === 'AUTO') return { key: 'TELEOP0', phase: 'TELEOP', turn: 0, step: turns[0], in: Math.max(0, remaining - TELEOP_FROM) };
+  const i = a.turn + 1;
+  if (i < turns.length) return { key: `TELEOP${i}`, phase: 'TELEOP', turn: i, step: turns[i], in: Math.max(0, remaining - turns[i].from) };
+  return { key: 'ENDGAME', phase: 'ENDGAME', turn: -1, step: plan.steps.ENDGAME, in: Math.max(0, remaining - ENDGAME_FROM) };
+}
+
 /** Problemas de un plan contra las reglas, para avisar en el editor (no se bloquea nada). */
 export interface PlanIssue {
   /** 'AUTO', 'TELEOP0'…, 'ENDGAME'. */

@@ -77,6 +77,13 @@ export class App {
   private activePlan: StrategyPlan | null = null;
   /** Rutas del paso de la estrategia en curso, sobre la cancha. */
   private planView = new PlanView();
+
+  /** Pizarra de estrategia según Ajustes: líneas en la cancha y/o tarjeta del HUD. */
+  private applyPlanBoard(): void {
+    const b = this.settings.planBoard;
+    this.planView.visible = b === 'all';
+    this.hud.planCardOn = b !== 'off';
+  }
   readonly strategies: StrategyScreen;
   readonly settings: Settings = loadSettings(autoRoutineIds());
   /** Sonidos del campo (inicio, TELEOP, ENDGAME, fin). */
@@ -200,6 +207,7 @@ export class App {
     const plan = c.mode === 'match' && !drill ? this.activePlan : null;
     this.planView.set(plan, this.session.player.alliance);
     this.hud.setPlan(plan);
+    this.applyPlanBoard();
     // Cada match se graba para la repetición y las estadísticas
     this.recorder = c.mode === 'match' ? new Recorder(this.session, this.session.robots.map((r) => robotLabel(r.spec))) : null;
     this.session.tap = this.recorder;

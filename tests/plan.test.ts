@@ -2,7 +2,7 @@ import { beforeAll, describe, expect, it } from 'vitest';
 import { planAutoRoutine, planBotOptions, planDriver } from '../src/ai/plan';
 import { SECRET_STRATEGIES, weighted } from '../src/ai/strategy';
 import { LEAVE_ZONE } from '../src/auto/AutoRoutine';
-import { activeStep, newPlan, planIssues, sanitizePlan, sanitizePlans, TELEOP_FROM, type StrategyPlan } from '../src/core/plan';
+import { activeStep, newPlan, nextStep, planIssues, sanitizePlan, sanitizePlans, TELEOP_FROM, type StrategyPlan } from '../src/core/plan';
 import { GameSession } from '../src/game/GameSession';
 import { emptyInput } from '../src/input/InputManager';
 import { initRapier } from '../src/physics/PhysicsWorld';
@@ -56,6 +56,19 @@ describe('estrategias de alianza (core/plan)', () => {
     expect(activeStep(p, 'TELEOP', 45)?.key).toBe('TELEOP2');
     expect(activeStep(p, 'ENDGAME', 20)?.key).toBe('ENDGAME');
     expect(activeStep(p, 'DONE', 0)).toBeNull();
+  });
+
+  it('pizarra del match: paso que sigue y en cuántos segundos (AUTO → TELEOP 1 → … → ENDGAME)', () => {
+    const p = plan((x) => {
+      x.steps.TELEOP.push({ ...structuredClone(x.steps.TELEOP[0]), from: 90 });
+    });
+    expect(nextStep(p, 'PRE', 150)).toBeNull();
+    expect(nextStep(p, 'AUTO', 140)).toMatchObject({ key: 'TELEOP0', in: 5 });
+    expect(nextStep(p, 'PAUSE', 135)).toMatchObject({ key: 'TELEOP0', in: 0 });
+    expect(nextStep(p, 'TELEOP', 94)).toMatchObject({ key: 'TELEOP1', turn: 1, in: 4 });
+    expect(nextStep(p, 'TELEOP', 60)).toMatchObject({ key: 'ENDGAME', in: 30 });
+    expect(nextStep(p, 'ENDGAME', 20)).toBeNull();
+    expect(nextStep(p, 'DONE', 0)).toBeNull();
   });
 
   it('avisa de Plataforma antes del ENDGAME, zonas rivales (§4.6, D17) y AUTO sin salir de la zona (§4.4)', () => {

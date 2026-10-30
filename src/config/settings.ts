@@ -78,7 +78,15 @@ export interface Settings {
   practice: PracticeSettings;
   /** Volumen de los sonidos del campo (`audio/FieldAudio.ts`), 0–100 %; 0 = silencio. */
   volume: number;
+  /**
+   * Pizarra de la estrategia de alianza en el match (`render/PlanView.ts` y la tarjeta del HUD):
+   * líneas en la cancha y tarjeta, solo la tarjeta, o nada.
+   */
+  planBoard: PlanBoard;
 }
+
+export type PlanBoard = 'all' | 'card' | 'off';
+export const PLAN_BOARDS: readonly PlanBoard[] = ['all', 'card', 'off'];
 
 const botDefault = (): MatchRobot => ({ kind: 'random', strategy: 'auto', ai: 'hard', auto: 'preload', plan: '' });
 
@@ -98,6 +106,7 @@ export const DEFAULT_SETTINGS: Settings = {
   // SUPUESTO: por defecto el rival está quieto, como un obstáculo que no te quita Muestras
   practice: { rival: 'passive', limit: 0 },
   volume: 80,
+  planBoard: 'all',
 };
 
 export const SETTINGS_RANGE = {
@@ -160,6 +169,7 @@ export function sanitizeSettings(raw: unknown, autoIds: readonly string[]): Sett
     damage: sanitizeDamage(o.damage),
     practice: sanitizePractice(o.practice),
     volume: num(o.volume, d.volume, SETTINGS_RANGE.volume),
+    planBoard: PLAN_BOARDS.find((b) => b === o.planBoard) ?? d.planBoard,
   };
 }
 

@@ -8,7 +8,7 @@ import { customById } from '../config/customRobots';
 import { allRobotIds, robotSpec, type RobotId } from '../config/robotIds';
 import { GRIP_MODES, MECHANISM_KINDS } from '../config/robot';
 import { GAME } from '../config/game';
-import { DEFAULT_SETTINGS, PRACTICE_LIMITS, RIVALS, SETTINGS_RANGE, type RivalKind, type Settings } from '../config/settings';
+import { DEFAULT_SETTINGS, PLAN_BOARDS, PRACTICE_LIMITS, RIVALS, SETTINGS_RANGE, type PlanBoard, type RivalKind, type Settings } from '../config/settings';
 import { DAMAGE_LEVELS, type DamageLevel, type DamageTargets } from '../core/damage';
 import { RULES } from '../core/fouls';
 import type { Match } from '../core/match';
@@ -296,6 +296,9 @@ export class Menu {
           <label>${t('setAi')}</label>${toggle('ai')}
           <label>${t('setPlayerAuto')}</label><select data-k="playerAuto">${autoOpts(s.playerAuto, true)}</select>
           <p class="full sub">${t('aiNote')}</p>
+          <h3>${t('sec_planBoard')}</h3>
+          <label>${t('setPlanBoard')}</label>${seg('planBoard', PLAN_BOARDS, s.planBoard, (v) => t(`planBoard_${v}` as Key))}
+          <p class="full sub">${t('planBoardNote')}</p>
           <h3>${t('sec_hp')}</h3>
           <label>${t('setHp')}</label>${toggle('hpEnabled')}
           <label>${t('setHpInterval')}</label>${range('hpInterval', 's')}
@@ -375,6 +378,7 @@ export class Menu {
         else if (k === 'grip') s.grip = v as Settings['grip'];
         else if (k === 'damage.level') s.damage = { ...s.damage, level: v as DamageLevel };
         else if (k === 'damage.targets') s.damage = { ...s.damage, targets: v as DamageTargets };
+        else if (k === 'planBoard') s.planBoard = v as PlanBoard;
         b.parentElement!.querySelectorAll('button').forEach((x) => x.classList.toggle('on', x === b));
       }),
     );

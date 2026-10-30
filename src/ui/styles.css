@@ -1219,6 +1219,9 @@ body.tn-on .practice-pill { display: none; }
 .plan-card .pc-row.mate i { background: var(--accent); }
 .plan-card .pc-row.me i { background: #fff; }
 .plan-card.flash { animation: pc-flash 1.2s ease-out; }
+.plan-card.off { display: none !important; }
+.plan-card .pc-next { font: 700 0.85em var(--display); color: var(--accent); }
+.plan-card .pc-next:empty { display: none; }
 @keyframes pc-flash { 0% { box-shadow: 0 0 0 0.25em rgba(233, 35, 157, 0.6); } 100% { box-shadow: 0 0 0 0 rgba(233, 35, 157, 0); } }
 @media (prefers-reduced-motion: reduce) { .plan-card.flash { animation: none; } }
 .hud.watch .plan-card { display: none !important; }
