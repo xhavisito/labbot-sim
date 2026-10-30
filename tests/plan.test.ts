@@ -112,11 +112,18 @@ describe('la IA del compañero sigue la estrategia', () => {
     let minAuto = Infinity;
     let minTurn = Infinity;
     let maxX = -Infinity;
+    let moved = false;
     for (let i = 0; i < 70 * 120 && !g.match!.finished; i++) {
       g.setInput(emptyInput());
       g.step();
       const q = mate.phys.position();
       const m = g.match!;
+      // Tu robot quieto, fuera del camino de la ruta del TELEOP (si estorba, el compañero la rodea y
+      // el resultado depende de por qué lado se va)
+      if (m.phase === 'TELEOP' && !moved) {
+        g.player.phys.teleport(-2.2, -1.4, 0);
+        moved = true;
+      }
       if (m.phase === 'AUTO') {
         maxX = Math.max(maxX, q.x);
         minAuto = Math.min(minAuto, Math.hypot(q.x - target.auto.x, q.z - target.auto.z));

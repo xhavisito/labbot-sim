@@ -74,6 +74,18 @@ export const COMPLIANT = {
   retry: 0.2,
 } as const;
 
+/**
+ * Al soltar una Muestra, las ruedas de los compliants giran al revés y la empujan hacia donde abre la
+ * garra (Xhavi, 30-oct: "es muy justo el espacio [para anotar]"). Así cae más al fondo del pozo y el
+ * robot puede soltar más lejos de la pared: en N3 la distancia a la pared desde la que entra pasa de 11–12 a 22–26 cm. No en el
+ * agarre preciso (garra sin ruedas), ni con la Crítica (rebotaba y se pasaba de la Repisa), ni cuando
+ * un golpe la tira. SUPUESTO de diseño (el manual no habla de mecanismos, §7.2).
+ */
+export const OUTTAKE = {
+  /** Velocidad (m/s) con la que sale la Muestra, sumada a la del robot. */
+  speed: 1.0,
+} as const;
+
 export type { GripMode };
 
 /**
@@ -347,9 +359,9 @@ export class Mechanisms {
   }
 
   /**
-   * Suelta una pieza (Muestra o Crítica) en la punta de la garra, a su altura. La garra solo abre
-   * (sin empujón): suelta desde alto y, con empujón, la Crítica rebotaba y se pasaba de la Repisa.
-   * Suelta lo que trae en la garra (no lo del hopper).
+   * Suelta una pieza (Muestra o Crítica) en la punta de la garra, a su altura. La Crítica sale sin
+   * empujón (con empujón rebotaba y se pasaba de la Repisa); la Muestra, con el de las ruedas
+   * (`OUTTAKE`). Suelta lo que trae en la garra (no lo del hopper).
    */
   release(kind: 'sample' | 'critical', events: MechEvent[], force = false): boolean {
     if (this.cooldown > 0 && !force) return false;
@@ -366,7 +378,8 @@ export class Mechanisms {
     const at = p.localToWorld(this.tipX(), this.height + size / 2, 0);
     const h = p.heading();
     const v = p.body.linvel();
-    this.pieces.place(piece, at.x, at.y, at.z, h, { x: v.x, y: 0, z: v.z });
+    const out = kind === 'sample' && !force && this.grip !== 'precise' ? OUTTAKE.speed * clawDir(this.angle) : 0;
+    this.pieces.place(piece, at.x, at.y, at.z, h, { x: v.x + Math.cos(h) * out, y: 0, z: v.z - Math.sin(h) * out });
     piece.lastRobot = p.index;
     this.cooldown = EJECT_COOLDOWN;
     events.push({ type: 'release', robot: p.index, piece: piece.index });

@@ -18,7 +18,7 @@ export const ROBOT_LIMITS = {
 /**
  * Tipos de robot del simulador (27-oct, a pedido de Xhavi solo queda el Pivote; el manual no fija
  * mecanismos, §7.2):
- * - pivot: pivote con garra (sugerencia de CAD en MDF): brazo de 50 cm que agarra una Muestra del
+ * - pivot: pivote con garra (sugerencia de CAD en MDF): brazo de 51 cm que agarra una Muestra del
  *   piso y la suelta al frente en N1–N3, o lleva la Muestra Crítica. Una pieza a la vez.
  * - pivot180: pivote que voltea el brazo por arriba (como Jack in the Bot, FRC 2025): recoge del
  *   piso atrás y anota al frente en N1–N3 sin girar el chasis. Eje bajo y adelante del centro, brazo
@@ -114,8 +114,12 @@ export type ElevatorPos = 0 | 1 | 2 | 3 | 4;
 
 /**
  * Pivote con garra (sugerencia de CAD en MDF): chasis 600 × 600 mm, pivote 110 mm adelante del centro
- * a 440 mm de la base, brazo de 500 mm (del eje al centro de la base de la pieza), guardado a 127°
- * con la precarga. Así llega al piso, a N1–N3 y a la Repisa sin salir más de 40 cm, y al inicio
+ * a 460 mm de la base, brazo de 510 mm (del eje al centro de la base de la pieza), guardado a 131°
+ * con la precarga. Más holgura al anotar (Xhavi, 30-oct: "es muy justo el espacio"; antes eje a
+ * 440 mm, brazo de 500 mm, N2 a 560 mm y N3 a 830 mm): N3 suelta a 850 mm (5 cm sobre la pared de
+ * 80 cm en vez de 3; con la Muestra llega justo a 100 cm, §7.2) y 1.6 cm más adelante; N2 a 610 mm
+ * para no pasar de 40 cm con el brazo más largo. La punta queda 27.9/29.7/13.9 cm delante del chasis
+ * en N1/N2/N3; en el piso, 3 cm. Las ruedas de la garra la empujan al soltar (`OUTTAKE`). Así llega al piso, a N1–N3 y a la Repisa sin salir más de 40 cm, y al inicio
  * cabe en el perímetro y bajo 100 cm (lo revisa `validateRobot`). La posición 4 (0.615 m, la altura de la rendija: con la garra más abajo los dedos chocaban con su soporte, D34) sirve para
  * la rendija de la Campana y para soltar sobre la Repisa desde la Plataforma. Una sola pieza a la vez.
  * El manual no da velocidad, masa ni mecanismos: esos números son SUPUESTOS configurables.
@@ -132,8 +136,8 @@ export const PIVOT_ROBOT: RobotSpec = {
   maxOmega: 5.5,
   traction: 1.0,
   capacity: 1,
-  arm: { pivotX: mm(110), pivotY: mm(440), length: mm(500), speed: 4, stowAngle: (127 * Math.PI) / 180 },
-  elevatorHeights: [0, mm(260), mm(560), mm(830), mm(615)],
+  arm: { pivotX: mm(110), pivotY: mm(460), length: mm(510), speed: 4, stowAngle: (131 * Math.PI) / 180 },
+  elevatorHeights: [0, mm(260), mm(610), mm(850), mm(615)],
 };
 
 /**
