@@ -20,6 +20,11 @@ export interface MatchRobot {
   ai: AiLevel;
   /** Rutina de AUTO (id de `AUTO_ROUTINES`). */
   auto: string;
+  /**
+   * Estrategia de alianza (id de `game/planStore.ts`, '' = ninguna): solo cuenta si este robot es tu
+   * compañero; manda sobre `strategy` y `auto`.
+   */
+  plan: string;
 }
 
 /** Configuración del match que se elige antes de empezar ("Preparar match"); se recuerda para el siguiente. */
@@ -61,7 +66,7 @@ export interface Settings {
   volume: number;
 }
 
-const botDefault = (): MatchRobot => ({ kind: 'random', strategy: 'auto', ai: 'hard', auto: 'preload' });
+const botDefault = (): MatchRobot => ({ kind: 'random', strategy: 'auto', ai: 'hard', auto: 'preload', plan: '' });
 
 export const DEFAULT_SETTINGS: Settings = {
   ai: true,
@@ -109,6 +114,7 @@ export function sanitizeSettings(raw: unknown, autoIds: readonly string[]): Sett
       strategy: isStrategy(r.strategy) ? r.strategy : 'auto',
       ai: AI_LEVELS.find((l) => l === r.ai) ?? oldAi ?? botDefault().ai,
       auto: auto(r.auto, oldAuto),
+      plan: typeof r.plan === 'string' ? r.plan.slice(0, 40) : '',
     };
   };
   return {

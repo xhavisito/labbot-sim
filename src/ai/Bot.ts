@@ -27,6 +27,7 @@ import type { Robot } from '../game/Robot';
 import type { Pieces } from '../physics/Pieces';
 import { clawDir } from '../physics/RobotPhysics';
 import { AI_PROFILES, type AiLevel, type AiProfile } from './difficulty';
+import type { PlanDirective, PlanDriver } from './plan';
 import { Team } from './Team';
 
 export interface BotOutput {
@@ -87,6 +88,13 @@ export interface BotOptions {
   endgame?: EndgamePlan;
   /** Dificultad. */
   ai: AiLevel;
+  /**
+   * Estrategia de alianza que le dibujaste (`ai/plan.ts`, solo tu compañero): en cada paso recorre
+   * su ruta y luego junta en su zona, de donde y al nivel que diga el plan.
+   */
+  plan?: PlanDriver;
+  /** AUTO sin anotar (el plan dice "Cruzar la línea" o "Quedarse quieto"): recorre la ruta y se para. */
+  autoIdle?: boolean;
 }
 
 /** Datos de un acercamiento de precisión (`dock`). */
@@ -134,6 +142,10 @@ export class Bot {
   clock = Infinity;
   private phase: Phase = 'PRE';
   private guardT = 0;
+  /** Paso del plan en curso, punto de su ruta al que va y segundos tras ese punto. */
+  private directive: PlanDirective | null = null;
+  private routeIdx = 0;
+  private routeT = 0;
 
   constructor(
     readonly robot: Robot,
@@ -206,6 +218,7 @@ export class Bot {
   step(dt: number, phase: Phase, timeLeft = Infinity): BotOutput {
     this.clock = timeLeft;
     this.phase = phase;
+    this.applyPlan(phase, timeLeft);
     const out = this.decide(dt, phase, timeLeft);
     this.unhook(out);
     this.unjam(out, dt);
@@ -219,6 +232,47 @@ export class Bot {
     out.forward *= this.profile.speed;
     this.guard(out, phase === 'ENDGAME');
     return out;
+  }
+
+  /** Al empezar otro paso del plan: su ruta desde el primer punto y lo que pide (de dónde, nivel). */
+  private applyPlan(phase: Phase, timeLeft: number): void {
+    const d = this.opts.plan?.at(phase, timeLeft) ?? null;
+    if (!d || d.key === this.directive?.key) return;
+    this.directive = d;
+    this.routeIdx = 0;
+    this.routeT = 0;
+    this.opts.source = d.source;
+    this.opts.level = d.level;
+    this.lockedLevel = null;
+    this.team.plan();
+  }
+
+  /**
+   * Ruta del plan: va punto por punto con la garra lista para recoger. Un punto al que no llega en
+   * 6 s (un robot en medio, fuera de alcance) se salta. No la sigue si ya le toca subir a la
+   * Plataforma o llevar la Crítica (el ENDGAME manda).
+   */
+  private followRoute(out: BotOutput, phase: Phase, dt: number): boolean {
+    const d = this.directive;
+    if (!d || this.routeIdx >= d.route.length || this.mode === 'climb' || this.mode === 'critical') return false;
+    const pos = this.robot.phys.position();
+    const g = d.route[this.routeIdx];
+    this.routeT += dt;
+    if (Math.hypot(g.x - pos.x, g.z - pos.z) < 0.35 || this.routeT > 6) {
+      this.routeIdx++;
+      this.routeT = 0;
+      return this.followRoute(out, phase, 0);
+    }
+    this.team.claim(-1, this.robot.index);
+    this.targetPiece = -1;
+    out.intake = true;
+    this.drive(g, out, false, phase, phase === 'ENDGAME');
+    return true;
+  }
+
+  /** ¿Sigue recorriendo la ruta del paso del plan? */
+  get onRoute(): boolean {
+    return !!this.directive && this.routeIdx < this.directive.route.length;
   }
 
   /**
@@ -366,11 +420,13 @@ export class Bot {
       return out;
     }
 
+    if (this.followRoute(out, phase, dt)) return out;
+
     if (this.mode === 'collect') {
       out.intake = true;
       const piece = this.pickSample(phase);
       if (piece) this.driveToPiece(piece, out, phase);
-      else if (m.stored.length === 0 && phase !== 'AUTO') this.drive(this.waitSpot(), out, false, phase);
+      else if (m.stored.length === 0 && phase !== 'AUTO') this.drive(this.zoneWait() ?? this.waitSpot(), out, false, phase);
     } else if (this.mode === 'hp') {
       this.atHumanPlayer(out, phase, dt);
     } else if (this.mode === 'score') {
@@ -399,6 +455,10 @@ export class Bot {
 
     if (phase === 'AUTO') {
       const autoLeft = timeLeft - GAME.times.teleop - GAME.times.autoToTeleopPause;
+      if (o.autoIdle) {
+        this.mode = 'idle';
+        return;
+      }
       if (o.auto === 'preload' || o.role !== 'score') {
         this.mode = n > 0 && o.role === 'score' ? 'score' : 'idle';
         return;
@@ -590,6 +650,9 @@ export class Bot {
     if (labOnly && nearHp) return false;
     if (this.opts.source === 'hp' && !nearHp) return false;
     if (this.opts.source === 'lab' && nearHp) return false;
+    // Zona de trabajo del plan: solo las de ahí (más las de su Campana, si atiende al Human Player)
+    const zone = this.directive?.zone;
+    if (zone && !F.inRect(zone, t.x, t.z) && !(nearHp && this.opts.source !== 'lab')) return false;
     // Ya anotadas: dentro de una Cámara (botes sin fondo, §3.2.3; quedan en el piso del pozo)
     for (const a of ['red', 'blue'] as const) {
       const c = F.rectFor(a, { x0: F.CAMARA_X_END_RED - F.CAMARA_LENGTH - 0.05, x1: F.CAMARA_X_END_RED + 0.05, z0: F.CAMARA_Z_RED[0] - 0.05, z1: F.HALF_W });
@@ -726,6 +789,12 @@ export class Bot {
       return;
     }
     this.drive(stage, out, true, phase, false, pd < 0);
+  }
+
+  /** Sin nada que juntar en su zona de trabajo del plan: espera en medio de ella. */
+  private zoneWait(): { x: number; z: number } | null {
+    const z = this.directive?.zone;
+    return z ? { x: (z.x0 + z.x1) / 2, z: (z.z0 + z.z1) / 2 } : null;
   }
 
   /**

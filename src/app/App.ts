@@ -4,7 +4,8 @@
  */
 import { LEAVE_ZONE, type AutoRoutine } from '../auto/AutoRoutine';
 import { aiLineup } from '../ai/lineup';
-import { STRATEGY_OPTIONS } from '../ai/strategy';
+import { planAutoRoutine, planBotOptions } from '../ai/plan';
+import { SECRET_AUTOS, SECRET_STRATEGIES, STRATEGY_OPTIONS, weighted, type StrategyId } from '../ai/strategy';
 import { allAutoRoutines, autoRoutineIds } from '../auto/recorded';
 import { FieldAudio } from '../audio/FieldAudio';
 import { ROBOT_PRESETS, type MechanismKind, type RobotSpec } from '../config/robot';
@@ -17,6 +18,8 @@ import { drillSessionOptions } from '../game/drills';
 import { loadTraining } from '../game/trainingStore';
 import { GameSession, type SessionOptions } from '../game/GameSession';
 import { loadScout } from '../game/scoutStore';
+import { planById } from '../game/planStore';
+import type { StrategyPlan } from '../core/plan';
 import { InputManager } from '../input/InputManager';
 import { CAMERA_MODES, CameraRig, type CameraMode } from '../render/CameraRig';
 import { Arena } from '../render/Arena';
@@ -42,6 +45,8 @@ import { saveMatchEntries, ScoutingScreen, type ScoutPlay } from '../ui/Scouting
 import { isTouchDevice, TouchControls } from '../ui/TouchControls';
 import { TournamentScreen, WATCH_CAMERA } from '../ui/TournamentScreen';
 import { TrainingRun, TrainingScreen, type TrainingRobot } from '../ui/Training';
+import { StrategyScreen } from '../ui/StrategyScreen';
+import { PlanView } from '../render/PlanView';
 
 type State = 'menu' | 'playing' | 'paused' | 'results' | 'replay';
 
@@ -64,6 +69,13 @@ export class App {
   session: GameSession;
   state: State = 'menu';
   private choice: MenuChoice = { mode: 'match', player: DEFAULT_PLAYER };
+  /** Estrategia y AUTO que la IA eligió en secreto para cada rival del match (null = no es rival). */
+  private secret: Array<{ strategy: StrategyId; auto: string } | null> = [];
+  /** Estrategia de alianza que sigue tu compañero en este match (se dibuja en la cancha y el HUD). */
+  private activePlan: StrategyPlan | null = null;
+  /** Rutas del paso de la estrategia en curso, sobre la cancha. */
+  private planView = new PlanView();
+  readonly strategies: StrategyScreen;
   readonly settings: Settings = loadSettings(autoRoutineIds());
   /** Sonidos del campo (inicio, TELEOP, ENDGAME, fin). */
   readonly audio = new FieldAudio(this.settings.volume / 100);
@@ -135,6 +147,9 @@ export class App {
       play: (drill) => this.start({ mode: 'training', player: this.menu.player, drill }),
     });
     this.menu.onTraining = () => this.training.show();
+    this.strategies = new StrategyScreen(this.menu.root);
+    this.menu.onStrategies = () => this.strategies.show(() => this.toMenu());
+    this.renderer.scene.add(this.planView.group);
     pwa.onChange = () => {
       if (this.state === 'menu') this.menu.pwaChips();
     };
@@ -172,6 +187,10 @@ export class App {
     );
     this.renderer.scene.add(this.session.root);
     if (c.mode === 'match') this.session.startMatch();
+    // La estrategia de alianza solo cuenta en el match (en práctica no hay compañero)
+    const plan = c.mode === 'match' && !drill ? this.activePlan : null;
+    this.planView.set(plan, this.session.player.alliance);
+    this.hud.setPlan(plan);
     // Cada match se graba para la repetición y las estadísticas
     this.recorder = c.mode === 'match' ? new Recorder(this.session, this.session.robots.map((r) => robotLabel(r.spec))) : null;
     this.session.tap = this.recorder;
@@ -237,6 +256,7 @@ export class App {
     new MatchSetup(this.menu.root, this.settings, {
       back,
       save: () => saveSettings(this.settings),
+      plans: (id) => this.strategies.show(() => this.openSetup(c), id),
       start: (player) => {
         if (!sc) this.menu.player = player;
         this.start({ ...c, player, ready: true });
@@ -261,11 +281,26 @@ export class App {
     const m = s.match;
     const routine = (id: string) => allAutoRoutines().find((r) => r.id === id) ?? LEAVE_ZONE;
     const random = aiLineup(player, this.playerSpec().mechanism);
-    const types = kinds ?? m.robots.map((r, i) => (r.kind === 'random' ? random[i] : r.kind));
+    // 2 contra 2: no eliges ni ves lo de los rivales (Xhavi, 30-oct). Su tipo, estrategia y AUTO los
+    // elige la IA en secreto en cada match; de ellos solo se elige la dificultad
+    const rival = (i: number) => player >= 0 && (i < 2) !== (player < 2);
+    this.secret = [0, 1, 2, 3].map((i) => (rival(i) ? { strategy: weighted(SECRET_STRATEGIES), auto: weighted(SECRET_AUTOS) } : null));
+    const strategy = (i: number) => this.secret[i]?.strategy ?? m.robots[i].strategy;
+    // Tu compañero sigue la estrategia de alianza que elegiste para él (si la IA está prendida)
+    const mate = player >= 0 ? player ^ 1 : -1;
+    const plan = mate >= 0 && s.ai ? planById(m.robots[mate].plan) : undefined;
+    this.activePlan = plan ?? null;
+    const types = kinds ?? m.robots.map((r, i) => (r.kind === 'random' || rival(i) ? random[i] : r.kind));
     const botAuto = (i: number): AutoRoutine => {
-      const a = routine(m.robots[i].auto);
+      if (i === mate && plan) return planAutoRoutine(plan);
+      const a = routine(this.secret[i]?.auto ?? m.robots[i].auto);
       // "Solo línea y Plataforma" no anota: con una rutina de la IA se quedaría quieto en AUTO
-      return m.robots[i].strategy === 'park' && a.bot ? LEAVE_ZONE : a;
+      return strategy(i) === 'park' && a.bot ? LEAVE_ZONE : a;
+    };
+    const bot = (i: number) => {
+      const ai = m.robots[i].ai;
+      if (i === mate && plan) return { ...planBotOptions(plan, i < 2 ? 'red' : 'blue'), ai };
+      return { ...STRATEGY_OPTIONS[strategy(i)], ai };
     };
     return {
       player,
@@ -274,7 +309,7 @@ export class App {
       // Tu robot es el del menú (con tu velocidad y capacidad), salvo en el Scouting: el de tu equipo
       specs: types.map((k, i) => (i === player && (!kinds || tour) ? this.playerSpec() : ROBOT_PRESETS[k])),
       autos: [0, 1, 2, 3].map((i) => (i === player ? routine(s.playerAuto) : botAuto(i))),
-      bots: [0, 1, 2, 3].map((i) => (i === player ? undefined : { ...STRATEGY_OPTIONS[m.robots[i].strategy], ai: m.robots[i].ai })),
+      bots: [0, 1, 2, 3].map((i) => (i === player ? undefined : bot(i))),
       starts: [0, 1, 2, 3].map((i) => (i === player ? m.start : undefined)),
       hp: { enabled: s.hpEnabled, interval: s.hpInterval, smart: s.hpSmart },
       grip: s.grip,
@@ -364,6 +399,7 @@ export class App {
       sc?.tour ? this.tourNote : sc ? t('sc_saved', { match: sc.match }) : '',
       sc?.tour ? t('tr_continue') : undefined,
     );
+    this.revealRivals();
     const rep = this.lastReplay;
     const bar = this.menu.root.querySelector('.results .actions');
     if (!rep || !bar) return;
@@ -371,6 +407,21 @@ export class App {
     const back = () => this.showResults();
     bar.querySelector('[data-act="replay"]')!.addEventListener('click', () => this.watchReplay(rep, back));
     bar.querySelector('[data-act="stats"]')!.addEventListener('click', () => this.showStats(rep, back, () => this.watchReplay(rep, back)));
+  }
+
+  /**
+   * Al terminar el match se revela qué estrategia y AUTO eligió la IA de cada rival (SUPUESTO: en un
+   * evento real se ve jugando; durante el match no aparece en ningún lado: HUD, repetición ni gráficas).
+   */
+  private revealRivals(): void {
+    const box = this.menu.root.querySelector('.results .fouls');
+    const row = (x: { strategy: StrategyId; auto: string }, i: number): string => {
+      const a = i < 2 ? 'red' : 'blue';
+      return `<li><span class="tag ${a}">${t(a).toUpperCase()} ${(i % 2) + 1}</span>${t(`strat_${x.strategy}` as Key)}<em>AUTO: ${t(`auto_${x.auto}` as Key)}</em></li>`;
+    };
+    const rows = this.secret.map((x, i) => (x ? row(x, i) : '')).join('');
+    if (!box || !rows) return;
+    box.insertAdjacentHTML('afterend', `<h3>${t('res_rivals')}</h3><ul class="fouls rivals">${rows}</ul><p class="ms-note">${t('res_rivalsNote')}</p>`);
   }
 
   /** Pantalla de estadísticas de una repetición. */
@@ -391,6 +442,8 @@ export class App {
     this.menu.hide();
     this.hud.show(false);
     this.touch.show(false);
+    // La estrategia de alianza es tuya: no va en la repetición
+    this.planView.set(null, 'red');
     this.replay = new ReplayPlayer(r);
     this.renderer.scene.remove(this.session.root);
     this.renderer.scene.add(this.replay.session.root);
@@ -433,6 +486,7 @@ export class App {
     this.state = 'menu';
     this.touch.show(false);
     this.hud.show(false);
+    this.planView.set(null, 'red');
     this.cam.setMode('free');
     this.menu.main();
   }
@@ -514,6 +568,11 @@ export class App {
       this.audio.events(this.session.matchEvents);
       this.hud.damage(this.session);
       this.hud.update(this.session, this.cam.mode);
+      const sm = this.session.match;
+      if (sm) {
+        this.planView.update(sm.phase, sm.remaining);
+        this.hud.planStep(sm.phase, sm.remaining);
+      }
       this.touch.setIntake(this.session.player.mech.intakeOn);
       for (const f of this.session.scoreFx) this.effects.burst(f.x, f.y, f.z, f.alliance);
       const m = this.session.match;

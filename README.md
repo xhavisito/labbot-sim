@@ -110,10 +110,12 @@ En el menú eliges tu robot (Rojo 1–2, Azul 1–2) y el modo:
 
 - **Jugar match:** primero la pantalla **Preparar match**: eliges dónde arranca tu robot (arrastrándolo
   en el mapa de tu Zona de Inicio y con el giro; solo deja lugares donde el chasis completo queda
-  dentro de la zona, §3.2.1 y §4.1) y, para cada robot de la IA, su tipo, su **estrategia** (automática,
-  N3, N2, N1, va por la Muestra Crítica, atiende al Human Player, solo del Laboratorio, sin ENDGAME o
-  solo línea y Plataforma), su **dificultad** (Fácil, Normal o Difícil, o todas de un jalón) y su
-  rutina de AUTO. Se recuerda para el siguiente match. En el AUTO (15 s) los robots corren su rutina preprogramada. En el TELEOP (135 s) manejas tu robot, y en el ENDGAME
+  dentro de la zona, §3.2.1 y §4.1) y, para tu compañero de la IA, su tipo, su **estrategia** (automática,
+  N3, N2, N1, va por la Muestra Crítica, atiende al Human Player, solo del Laboratorio, sin ENDGAME,
+  solo línea y Plataforma, o una de tus **estrategias de alianza**), su **dificultad** (Fácil, Normal o
+  Difícil, o todas de un jalón) y su rutina de AUTO. De los **rivales** solo eliges la dificultad: su
+  tipo, estrategia y AUTO los elige la IA en secreto en cada match y se revelan en los resultados (D40).
+  Se recuerda para el siguiente match. En el AUTO (15 s) los robots corren su rutina preprogramada. En el TELEOP (135 s) manejas tu robot, y en el ENDGAME
   (últimos 30 s) se habilitan la Plataforma y la Muestra Crítica. Al final verás el desglose de
   puntos, RP y faltas.
 - **Scouting** (en el menú): equipos del reto y su tipo de robot; formato del torneo (SUPUESTO,
@@ -148,6 +150,11 @@ En el menú eliges tu robot (Rojo 1–2, Azul 1–2) y el modo:
   quitaron (genérico, elevador, torre, chasis, pivote con hopper) se abren como Pivote con su chasis.
   Con la IA difícil (`npm run batch -- --set mech`, 27-oct) los dos juegan parejo: una alianza de
   pivotes hace ≈210–240 puntos y 12–14 Muestras por match; sin ENDGAME pierde ≈1.5 RP.
+- **Estrategias:** dibujas sobre la cancha cómo se van a mover y rotar tú y tu compañero: por paso
+  (AUTO, de 1 a 4 turnos del TELEOP que empiezan a la hora que elijas, ENDGAME) la ruta del compañero,
+  tu ruta, su zona de trabajo, de dónde junta y a qué nivel anota, y una nota para ti. Se guardan en
+  el navegador (sirven sin conexión) y se eligen en Preparar match; la IA del compañero las sigue y en
+  el match ves tus rutas en la cancha y el paso en curso en el HUD (D40).
 - **Ajustes:** IA de los otros 3 robots (encendida por defecto; su dificultad, estrategia y rutina de
   AUTO se eligen en Preparar match), rutina de AUTO de tu robot, velocidad y
   capacidad de tu robot, y el Human Player automático. Se guardan en el navegador. Los puntos y
