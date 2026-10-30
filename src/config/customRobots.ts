@@ -38,6 +38,8 @@ export const SPEED_EFFICIENCY = 0.8;
 export const ACCEL_TORQUE_FRACTION = 0.35;
 
 export interface CustomRobot {
+  /** Versión del formato: 2 desde que el Pivote 180° anota al frente (29-oct). */
+  v?: 2;
   id: string;
   name: string;
   mechanism: MechanismKind;
@@ -79,6 +81,7 @@ const cm = (m: number) => Math.round(m * 1000) / 10;
 /** Un robot nuevo a partir de un `RobotSpec` (los presets u otro robot propio), con la tracción del chasis base (4 CIM, 12.75:1, 6 in). */
 export function customFromSpec(s: RobotSpec, name: string, id = newId()): CustomRobot {
   return {
+    v: 2,
     id,
     name,
     mechanism: s.mechanism,
@@ -233,6 +236,7 @@ export function sanitizeCustom(raw: unknown): CustomRobot | null {
   const mm0 = (o.mechMotors ?? {}) as Record<string, unknown>;
   const motor = (v: unknown): MotorKind => MOTOR_KINDS.find((k) => k === v) ?? d.driveMotor;
   return {
+    v: 2,
     id: d.id,
     name: typeof o.name === 'string' && o.name.trim() ? o.name.trim().slice(0, 40) : d.name,
     mechanism: mech,
@@ -250,7 +254,9 @@ export function sanitizeCustom(raw: unknown): CustomRobot | null {
     capacity: d.capacity,
     liftSpeed: arm(o.liftSpeed, d.liftSpeed, 0.2, 8),
     maxLevel: o.maxLevel === 1 || o.maxLevel === 2 ? o.maxLevel : 3,
-    armPivotXCm: arm(o.armPivotXCm, d.armPivotXCm, -40, 40),
+    // El Pivote 180° se volteó el 29-oct (recoge atrás, anota al frente): uno guardado antes tenía el
+    // eje detrás del centro; volteado, el eje queda igual de lejos pero adelante
+    armPivotXCm: mech === 'pivot180' && typeof o.armPivotXCm === 'number' && o.armPivotXCm < 0 && o.v !== 2 ? -arm(o.armPivotXCm, d.armPivotXCm, -40, 40) : arm(o.armPivotXCm, d.armPivotXCm, -40, 40),
     armPivotYCm: arm(o.armPivotYCm, d.armPivotYCm, 15, 100),
     armLengthCm: arm(o.armLengthCm, d.armLengthCm, 20, 90),
     mdfM2: o.mdfM2 === null || o.mdfM2 === undefined ? null : finite(o.mdfM2, 1, 0, 10),

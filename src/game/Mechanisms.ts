@@ -1,7 +1,7 @@
 /**
  * Mecanismos del pivote (`RobotSpec.arm`; los dos tipos del simulador, `config/robot.ts`): brazo con
- * garra. Agarra una pieza del piso con el brazo abajo y la suelta en la punta (atrás en N1–N3 si el
- * brazo voltea, `ArmSpec.scoreBack`: la punta queda detrás del robot). Empieza guardado
+ * garra. Agarra una pieza del piso con el brazo abajo y la suelta en la punta (si el brazo voltea,
+ * `ArmSpec.pickBack`, recoge y toma la Crítica atrás y anota al frente en N1–N3). Empieza guardado
  * (`ArmSpec.stowAngle`) y sale de ahí al primer mando. Lleva una pieza a la vez (capacidad 1); con
  * capacidad > 1 (un hopper, ya sin tipo que lo use) la garra pasa cada Muestra a la boca del hopper
  * (`ArmSpec.hopperAngle`) y la saca de ahí para anotar.
@@ -21,7 +21,7 @@
  * Todos esos números son SUPUESTOS de diseño (el manual no habla de mecanismos, §7.2).
  */
 import { inCamara } from '../config/field';
-import { CLAW, CLAW_GAP, armTip, posAngle, type ElevatorPos, type GripMode } from '../config/robot';
+import { CLAW, CLAW_GAP, armTip, posAngle, posDir, type ElevatorPos, type GripMode } from '../config/robot';
 import { SAMPLE_SIZE } from '../config/field';
 import { clawDir } from '../physics/RobotPhysics';
 import type { Alliance } from '../core/types';
@@ -321,7 +321,8 @@ export class Mechanisms {
    * rendija de la Campana, en el piso o en la Repisa). Las del hopper no estorban; la garra, sí.
    */
   grabCritical(events: MechEvent[]): boolean {
-    if (this.critical || this.inClaw || this.angle > Math.PI / 2) return false;
+    // La garra tiene que estar del lado donde toma la Crítica (no guardada ni volteada al otro)
+    if (this.critical || this.inClaw || clawDir(this.angle) !== posDir(this.phys.spec, 4)) return false;
     const p = this.phys;
     const c = this.pieces.critical(this.alliance);
     if (c.state.at !== 'field') return false;

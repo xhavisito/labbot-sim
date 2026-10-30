@@ -31,19 +31,19 @@ describe('tipos de robot: solo el pivote y su variante de 180° (27-oct)', () =>
     for (const s of Object.values(ROBOT_PRESETS)) expect(s.capacity).toBe(1);
   });
 
-  it('180°: recoge al frente y voltea el brazo para anotar atrás; todo dentro de §7.2', () => {
+  it('180° (volteado el 29-oct): recoge atrás y voltea el brazo para anotar al frente; todo dentro de §7.2', () => {
     const half = S180.length / 2;
-    // Piso al frente, la Muestra fuera del chasis
-    expect(posTip(S180, 0).x - 0.075).toBeGreaterThan(half);
-    // N1–N3 atrás: la Muestra detrás del chasis, con el fondo arriba de la apertura (§3.2.3)
+    // Piso atrás, la Muestra fuera del chasis
+    expect(-posTip(S180, 0).x - 0.075).toBeGreaterThan(half);
+    // N1–N3 al frente: la Muestra delante del chasis, con el fondo arriba de la apertura (§3.2.3)
     for (const l of [1, 2, 3] as const) {
       const t = posTip(S180, l);
-      expect(-t.x - 0.075).toBeGreaterThan(half);
+      expect(t.x - 0.075).toBeGreaterThan(half);
       expect(t.y).toBeCloseTo(S180.elevatorHeights[l], 6);
     }
     expect(S180.elevatorHeights[3]).toBeGreaterThan(0.8);
-    // La Crítica (posición 4) al frente
-    expect(posTip(S180, 4).x - 0.1).toBeGreaterThan(half);
+    // La Crítica (posición 4) atrás, del lado donde recoge
+    expect(-posTip(S180, 4).x - 0.1).toBeGreaterThan(half);
     // Guardado con la precarga dentro del perímetro y bajo 100 cm (§4.1)
     const st = armTip(S180.arm, S180.arm.stowAngle!);
     expect(Math.abs(st.x) + 0.075).toBeLessThanOrEqual(half);
@@ -52,15 +52,15 @@ describe('tipos de robot: solo el pivote y su variante de 180° (27-oct)', () =>
     expect(S180.arm.pivotY + S180.arm.length + 0.15).toBeCloseTo(1.03, 6);
   });
 
-  it('180°: agarra al frente y anota en N3 de espaldas a la Cámara, sin girar el chasis', () => {
+  it('180°: agarra atrás y anota en N3 de frente a la Cámara, sin girar el chasis', () => {
     const g = session(S180, false);
     const m = g.player.mech;
     const w = F.camaraWells()[3];
-    // De espaldas a la Cámara (viendo hacia −Z) con una Muestra en el piso enfrente
+    // De frente a la Cámara (viendo hacia +Z) con una Muestra en el piso detrás
     const z = F.CAMARA_Z_RED[0] - S180.length / 2 - 0.02;
     const x = (w.x0 + w.x1) / 2;
-    g.player.phys.teleport(x, z, Math.PI / 2);
-    g.pieces.place(g.pieces.list.find((p) => p.kind === 'sample' && p.state.at === 'field')!, x, F.SAMPLE_SIZE / 2, z - posTip(S180, 0).x, 0);
+    g.player.phys.teleport(x, z, -Math.PI / 2);
+    g.pieces.place(g.pieces.list.find((p) => p.kind === 'sample' && p.state.at === 'field')!, x, F.SAMPLE_SIZE / 2, z + posTip(S180, 0).x, 0);
     const h0 = g.player.phys.heading();
     run(g, 1.5, { toggleIntake: true });
     expect(m.inClaw).toBe(true);
@@ -71,6 +71,19 @@ describe('tipos de robot: solo el pivote y su variante de 180° (27-oct)', () =>
     expect(m.stored).toHaveLength(0);
     expect(g.practiceCount.red).toBe(1);
     expect(Math.abs(g.player.phys.heading() - h0)).toBeLessThan(0.05);
+  });
+
+  it('180°: avanzando de frente llega a la Cámara con la precarga y la anota en N3', () => {
+    const g = session(S180, true);
+    const m = g.player.mech;
+    const w = F.camaraWells()[3];
+    // 1 m antes de la Cámara, viéndola: avanza hacia adelante hasta quedar pegado
+    g.player.phys.teleport((w.x0 + w.x1) / 2, F.CAMARA_Z_RED[0] - S180.length / 2 - 1.0, -Math.PI / 2);
+    run(g, 2.0, { elevator: 3, forward: 0.5 });
+    expect(m.atTarget).toBe(true);
+    run(g, 0.4, { releaseSample: true });
+    run(g, 1.5);
+    expect(g.practiceCount.red).toBe(1);
   });
 
   for (const spec of [PIVOT_ROBOT]) {

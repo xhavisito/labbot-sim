@@ -7,7 +7,7 @@ import { beforeAll, describe, expect, it } from 'vitest';
 import { DO_NOTHING } from '../src/auto/AutoRoutine';
 import * as F from '../src/config/field';
 import { fieldSolids } from '../src/config/fieldLayout';
-import { CLAW, CLAW_GAP, DEFAULT_ROBOT, PIVOT_180_ROBOT } from '../src/config/robot';
+import { CLAW, CLAW_GAP, DEFAULT_ROBOT, PIVOT_180_ROBOT, posDir } from '../src/config/robot';
 import { DAMAGE, faultChance, ImpactMeter, impactSide, pickFault, sanitizeDamage } from '../src/core/damage';
 import { rng } from '../src/core/rng';
 import { GameSession, type SessionOptions } from '../src/game/GameSession';
@@ -163,9 +163,11 @@ describe('agarre preciso', () => {
         const r = g.player;
         r.phys.teleport(0, 2.0, 0);
         steps(g, 0.6, { toggleIntake: true });
+        // Con la garra atrás (Pivote 180°) la Muestra queda detrás y entra de reversa
+        const d = posDir(spec, 0);
         const p = g.pieces.list[0];
-        g.pieces.place(p, r.mech.tipX() + gap, F.SAMPLE_SIZE / 2, 2.0, yaw);
-        steps(g, 2.5, { forward: 0.08 });
+        g.pieces.place(p, r.mech.tipX() + d * gap, F.SAMPLE_SIZE / 2, 2.0, yaw);
+        steps(g, 2.5, { forward: d * 0.08 });
         return r.mech.inClaw;
       };
       expect(go(3 * DEG, 'precise', 0.35)).toBe(true);

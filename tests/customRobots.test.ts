@@ -81,4 +81,13 @@ describe('robot propio del editor', () => {
     expect(s.mechanism).toBe('pivot180');
     expect(s.arm.stowAngle!).toBeCloseTo(PIVOT_180_ROBOT.arm.stowAngle!, 6);
   });
+
+  it('un Pivote 180° guardado antes de voltearlo (eje detrás del centro) pasa el eje adelante', () => {
+    const old = { ...customFromSpec(PIVOT_180_ROBOT, 'viejo'), v: undefined, armPivotXCm: -15 };
+    const c = sanitizeCustom(JSON.parse(JSON.stringify(old)))!;
+    expect(c.armPivotXCm).toBe(15);
+    expect(validateRobot(customSpec(c))).toEqual([]);
+    // Ya en el formato nuevo, un eje atrás se respeta
+    expect(sanitizeCustom({ ...c, armPivotXCm: -5 })!.armPivotXCm).toBe(-5);
+  });
 });
