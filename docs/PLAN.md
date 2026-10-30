@@ -98,6 +98,13 @@ tests/                    clock, scoring, fouls/cards, rp, match (casos borde), 
    *Juego en equipo* (pedido después: "juegan como si fueran los únicos en la cancha"): no empuja a
    nadie (D42, `Bot.noPush` con `ai/contact.ts`), rodea por la rejilla (`ai/grid.ts`) al toparse, no
    se pelea Muestras ni la Campana con otros robots; el lote mide `empuja(s)` y `empujón máx(s)`.
+   *Difícil más fuerte sin empujar* (30-oct): sin empujones Difícil le ganaba a Normal 59 %. Se
+   arreglaron dos trabas de todos los niveles (girar en su lugar frente a una Muestra o al pie de la
+   rampa con la Crítica; `Bot.staged`, `Bot.footLatch` y un límite de tiempo por Muestra) y Difícil
+   se arrima a la Cámara más rápido y desde más cerca (`dockSpeed`, `dockStage`): menos tiempo con el
+   Nivel 3 ocupado. El filtro de orilla (`Bot.guard`) cuenta la inercia: rozaba la Plataforma al
+   girar en su esquina (§4.6). 180 matches (`--seeds 10`): Difícil gana 59 % → 83 %, faltas
+   PLATFORM_EARLY de 10 → 2. Variantes de perfil: `--tweak '{"hard":{…}}'`.
 9. **Modo torneo** (pedido después, "como en rebuilt-sim") — Qualifications contra la IA, ranking,
    selección de alianzas por invitación y PlayOffs, con el formato del manual (§8.2).
    *Hecho:* `core/tournament.ts` (parte de abajo: calendario con `makeSchedule`, marcador desde los

@@ -7,6 +7,7 @@
 //   npm run batch -- --workers 4 --out batch.json
 //   npm run batch -- --set mech                    los dos pivotes con hopper y sus papeles (sin el bloqueo)
 //   npm run batch -- --set ai --a hard --b normal  IA difícil contra normal, alianzas de los dos tipos
+//   npm run batch -- --set ai --a hard --b normal --tweak '{"hard":{"batch":3}}'   prueba una variante del perfil
 //
 // Imprime una tabla por estrategia (promedios) y guarda todos los matches en JSON.
 import { fork } from 'node:child_process';
@@ -26,6 +27,10 @@ async function load() {
   const batch = await server.ssrLoadModule('/src/sim/batch.ts');
   const { initRapier } = await server.ssrLoadModule('/src/physics/PhysicsWorld.ts');
   await initRapier();
+  // --tweak: cambia campos del perfil de una dificultad (`ai/difficulty.ts`) solo en esta corrida
+  const tweak = JSON.parse(process.env.BATCH_TWEAK ?? '{}');
+  const { AI_PROFILES } = await server.ssrLoadModule('/src/ai/difficulty.ts');
+  for (const [level, t] of Object.entries(tweak)) Object.assign(AI_PROFILES[level], t);
   return { server, batch };
 }
 
@@ -50,6 +55,7 @@ if (process.env.BATCH_WORKER) {
   const seeds = Number(opt('seeds', '1'));
   const workers = Number(opt('workers', String(Math.max(1, cpus().length))));
   const out = opt('out', 'batch-results.json');
+  if (opt('tweak')) process.env.BATCH_TWEAK = opt('tweak');
 
   const jobs = [];
   // --a <versión> --b <versión>: cada alianza "<a>:…" contra cada "<b>:…" (conjunto `ai`)
