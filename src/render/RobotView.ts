@@ -22,7 +22,7 @@ const hubMat = new THREE.MeshStandardMaterial({ color: 0xe0a419, roughness: 0.35
 const sampleMat = sampleMaterial();
 const WHEEL_R = 0.05;
 /** Color de la placa y los LEDs del robot propio, en cualquier alianza. */
-export const OWN_ROBOT_COLOR = 0x8b5cf6;
+export const OWN_ROBOT_COLOR = 0x8a2ba3;
 
 export class RobotView {
   readonly group = new THREE.Group();

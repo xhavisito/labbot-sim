@@ -6,6 +6,10 @@
 import type { MechanismKind } from '../config/robot';
 import { getLang, t } from './i18n';
 
+/** Orden en pantalla: azul antes que rojo (pedido del equipo). Los índices de robot no cambian (0–1 rojo, 2–3 azul). */
+export const UI_ALLIANCES = ['blue', 'red'] as const;
+export const UI_SLOTS = [2, 3, 0, 1] as const;
+
 const svg = (d: string, cls = 'ic') =>
   `<svg class="${cls}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
 

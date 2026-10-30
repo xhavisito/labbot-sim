@@ -94,16 +94,19 @@ export class StatsPanel {
     const robots = h.robots;
     const st = this.stats;
     const tag = (i: number) => stationTag(robots[i].alliance, robots[i].station);
-    const head = robots.map((r, i) => `<th class="${r.alliance}">${tag(i)}${r.index === h.player ? ` · ${t('you')}` : ''}<small>${esc(r.label)}</small></th>`).join('');
-    const row = (label: string, f: (s: RobotStats) => string, cls = '') => `<tr class="${cls}"><td>${label}</td>${st.map((s) => `<td>${f(s)}</td>`).join('')}</tr>`;
+    // Azul antes que rojo en tablas y listas (los índices de la repetición no cambian)
+    const order = robots.map((_, i) => i).sort((a, b) => Number(robots[a].alliance === 'red') - Number(robots[b].alliance === 'red'));
+    const ordered = order.map((i) => [i, robots[i]] as const);
+    const head = ordered.map(([i, r]) => `<th class="${r.alliance}">${tag(i)}${r.index === h.player ? ` · ${t('you')}` : ''}<small>${esc(r.label)}</small></th>`).join('');
+    const row = (label: string, f: (s: RobotStats) => string, cls = '') => `<tr class="${cls}"><td>${label}</td>${order.map((i) => `<td>${f(st[i])}</td>`).join('')}</tr>`;
     const yes = (b: boolean) => (b ? `<span class="ok">✓</span>` : '–');
     const lv = (s: RobotStats, l: 1 | 2 | 3) => s.samples.AUTO[l] + s.samples.TELEOP[l];
     const dur = replayDuration(this.replay);
     const end = Math.max(dur, bounds(GAME).teleopEnd);
     const auto = bounds(GAME).autoEnd;
-    const timeline = robots
+    const timeline = ordered
       .map(
-        (r, i) => `<div class="tl-row"><span class="${r.alliance}">${tag(i)}</span><div class="tl-track"><i class="tl-auto" style="width:${(100 * auto) / end}%"></i>${st[i].scoreTimes
+        ([i, r]) => `<div class="tl-row"><span class="${r.alliance}">${tag(i)}</span><div class="tl-track"><i class="tl-auto" style="width:${(100 * auto) / end}%"></i>${st[i].scoreTimes
           .map((x) => `<b class="${r.alliance}" style="left:${(100 * x) / end}%"></b>`)
           .join('')}</div><em>${totalSamples(st[i])}</em></div>`,
       )
@@ -113,10 +116,10 @@ export class StatsPanel {
     this.root.innerHTML = `<div class="inner">
       ${brandbar(t('st_title'))}
       <h1>${t('st_title')}</h1>
-      <p class="sub">${date} · <b class="red-t">${h.final.red}</b> – <b class="blue-t">${h.final.blue}</b> · ${t('st_note')}</p>
+      <p class="sub">${date} · <b class="blue-t">${h.final.blue}</b> – <b class="red-t">${h.final.red}</b> · ${t('st_note')}</p>
       <div class="panels stats">
         <div class="panel"><h3>${t('st_heat')}</h3>
-          <div class="seg" data-only>${robots.map((r, i) => `<button class="${r.alliance} ${this.only === i ? 'on' : ''}" data-i="${i}">${tag(i)}</button>`).join('')}<button class="${this.only === null ? 'on' : ''}" data-i="all">${t('st_all')}</button></div>
+          <div class="seg" data-only>${ordered.map(([i, r]) => `<button class="${r.alliance} ${this.only === i ? 'on' : ''}" data-i="${i}">${tag(i)}</button>`).join('')}<button class="${this.only === null ? 'on' : ''}" data-i="all">${t('st_all')}</button></div>
           <canvas class="heat" width="${Math.round(F.FIELD_LENGTH * 80)}" height="${Math.round(F.FIELD_WIDTH * 80)}"></canvas>
           <p class="sub">${t('st_heatNote')}</p>
         </div>

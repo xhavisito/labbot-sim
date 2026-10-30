@@ -1,7 +1,9 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
-  <rect width="512" height="512" fill="#090b0e"/>
-  <path d="M96 96h272l48 48v272H144l-48-48z" fill="#262c36" stroke="#ffc72c" stroke-width="20" stroke-linejoin="round"/>
-  <path d="M256 150 352 204v104l-96 54-96-54V204z" fill="#d9c9a8"/>
-  <path d="M160 204l96 54 96-54M256 258v104" fill="none" stroke="#090b0e" stroke-width="10" stroke-linejoin="round"/>
-  <rect x="176" y="380" width="160" height="14" rx="7" fill="#c0262d"/>
+  <!-- colores del branding del equipo: morado oscuro, morado, magenta y blanco -->
+  <rect width="512" height="512" fill="#0b0610"/>
+  <path d="M0 360c80-20 140 10 200 60s130 70 312 20M0 400c80-16 140 12 196 58s134 66 316 18" fill="none" stroke="#a8347b" stroke-width="6" stroke-opacity=".5"/>
+  <path d="M96 96h272l48 48v272H144l-48-48z" fill="#3b0b3e" stroke="#e9239d" stroke-width="20" stroke-linejoin="round"/>
+  <path d="M256 150 352 204v104l-96 54-96-54V204z" fill="#f8f8f8"/>
+  <path d="M160 204l96 54 96-54M256 258v104" fill="none" stroke="#722585" stroke-width="10" stroke-linejoin="round"/>
+  <rect x="176" y="380" width="160" height="14" rx="7" fill="#e9239d"/>
 </svg>

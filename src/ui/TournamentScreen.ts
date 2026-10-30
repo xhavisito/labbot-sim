@@ -288,8 +288,8 @@ export class TournamentScreen {
     const champ = (a: number | undefined) => (a === undefined || tt.champion === null ? null : tt.champion === a);
     const finals = tt.playoffs.filter((m) => m.kind === 'final');
     return `<div class="br-match br-final ${finals.some((m) => !m.result) ? 'next' : ''}"><div class="br-id">${t('br_final')} · ${t('br_bestOf3')}</div>
-      <div class="br-side red">${this.brLine(tt, red, tbd.red, wins(red), champ(red))}</div><div class="br-side blue">${this.brLine(tt, blue, tbd.blue, wins(blue), champ(blue))}</div>
-      ${finals.map((m) => { const w = playoffWinner(m); return `<div class="br-fgame">${m.id} <span>${m.result ? `${m.result.red.score} – ${m.result.blue.score}` : '—'}</span>${w ? ` <i class="sw ${w}"></i>` : ''}</div>`; }).join('')}</div>`;
+      <div class="br-side blue">${this.brLine(tt, blue, tbd.blue, wins(blue), champ(blue))}</div><div class="br-side red">${this.brLine(tt, red, tbd.red, wins(red), champ(red))}</div>
+      ${finals.map((m) => { const w = playoffWinner(m); return `<div class="br-fgame">${m.id} <span>${m.result ? `${m.result.blue.score} – ${m.result.red.score}` : '—'}</span>${w ? ` <i class="sw ${w}"></i>` : ''}</div>`; }).join('')}</div>`;
   }
 
   /** Formato del manual: series del todos contra todos, tabla y final. */
@@ -300,7 +300,7 @@ export class TournamentScreen {
         const won = (a: number) => (s.winner === undefined ? null : s.winner === a);
         return `<div class="br-match ${ms.some((m) => !m.result) ? 'next' : ''}"><div class="br-id">${t('tr_series')} ${s.n} · ${t('br_bestOf3')}</div>
           <div class="br-side red">${this.brLine(tt, s.a, '', String(s.winsA), won(s.a))}</div><div class="br-side blue">${this.brLine(tt, s.b, '', String(s.winsB), won(s.b))}</div>
-          ${ms.map((m) => { const w = playoffWinner(m); return `<div class="br-fgame">${t('tr_game')} ${m.id.split('-')[1]} <span>${m.result ? `${m.result.red.score} – ${m.result.blue.score}` : '—'}</span>${w ? ` <i class="sw ${w}"></i>` : ''}</div>`; }).join('')}</div>`;
+          ${ms.map((m) => { const w = playoffWinner(m); return `<div class="br-fgame">${t('tr_game')} ${m.id.split('-')[1]} <span>${m.result ? `${m.result.blue.score} – ${m.result.red.score}` : '—'}</span>${w ? ` <i class="sw ${w}"></i>` : ''}</div>`; }).join('')}</div>`;
       })
       .join('');
     const st = standings(tt);
@@ -329,7 +329,7 @@ export class TournamentScreen {
       const won = (a: number | undefined) => (out && a !== undefined ? out.w === a : null);
       const next = !out && last && !last.result;
       return `<div class="br-match ${next ? 'next' : ''}"><div class="br-id">M${n}${ms.length > 1 ? ` · ${t('br_replay')}` : ''}</div>
-        <div class="br-side red">${this.brLine(tt, redA, srcLabel(slot.red), sc('red'), won(redA))}</div><div class="br-side blue">${this.brLine(tt, blueA, srcLabel(slot.blue), sc('blue'), won(blueA))}</div></div>`;
+        <div class="br-side blue">${this.brLine(tt, blueA, srcLabel(slot.blue), sc('blue'), won(blueA))}</div><div class="br-side red">${this.brLine(tt, redA, srcLabel(slot.red), sc('red'), won(redA))}</div></div>`;
     };
     const cols = (lower: boolean) =>
       [...new Set(st.format.slots.filter((s) => s.lower === lower).map((s) => s.round))]
@@ -376,7 +376,7 @@ export class TournamentScreen {
     const myA = tt.alliances?.findIndex((a) => a.includes(me)) ?? -1;
     const myPlace = myA >= 0 ? places.get(myA) : undefined;
     const f1 = (v: number) => v.toFixed(1);
-    const vs = (m: TMatch) => `<span class="sw red"></span>${this.side(tt, m.red)} <span class="dim">vs</span> <span class="sw blue"></span>${this.side(tt, m.blue)}`;
+    const vs = (m: TMatch) => `<span class="sw blue"></span>${this.side(tt, m.blue)} <span class="dim">vs</span> <span class="sw red"></span>${this.side(tt, m.red)}`;
     // ---- Panel de lo que sigue
     let action = '';
     if (next?.kind === 'play') {
@@ -436,7 +436,7 @@ export class TournamentScreen {
               ${rows.map((r, k) => `<tr class="${tt.teams[r.i].isPlayer ? 'me' : ''}"><td class="mono">${k + 1}</td><td>${teamCell(r.i)}</td><td class="num strong">${r.s ? f1(catValue(r.s, c)) : '–'}</td><td class="num">${r.s?.matches ?? 0}</td></tr>`).join('')}</table>`;
           })();
     const quals = tt.quals
-      .map((m) => `<tr class="${m.result ? 'done' : ''} ${involvesPlayer(tt, m) ? 'me' : ''}"><td class="mono">${m.id}</td><td class="al red">${this.side(tt, m.red)}</td><td class="sc">${m.result ? `<b class="r">${m.result.red.score}</b>–<b class="b">${m.result.blue.score}</b>` : '–'}</td><td class="al blue">${this.side(tt, m.blue)}</td></tr>`)
+      .map((m) => `<tr class="${m.result ? 'done' : ''} ${involvesPlayer(tt, m) ? 'me' : ''}"><td class="mono">${m.id}</td><td class="al blue">${this.side(tt, m.blue)}</td><td class="sc">${m.result ? `<b class="b">${m.result.blue.score}</b>–<b class="r">${m.result.red.score}</b>` : '–'}</td><td class="al red">${this.side(tt, m.red)}</td></tr>`)
       .join('');
     this.show(`
       ${brandbar(`${t('tournament')} · ${t(tt.playoffFormat === 'manual' ? 'tr_fmt_manual' : 'tr_fmt_doubleElim')}`)}
