@@ -157,7 +157,7 @@ export class GameSession {
       if (opts.solo && i !== opts.player) continue;
       const r = new Robot(this.pw, this.pieces, i, i < 2 ? 'red' : 'blue', (i % 2) as 0 | 1, opts.specs?.[i] ?? DEFAULT_ROBOT, opts.starts?.[i]);
       this.robots.push(r);
-      const v = new RobotView(r);
+      const v = new RobotView(r, i === opts.player);
       this.robotViews.push(v);
       this.root.add(v.group);
     }

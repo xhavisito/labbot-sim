@@ -141,12 +141,12 @@ export class Arena {
     g.textBaseline = 'middle';
     g.fillStyle = '#fff';
     if (score) {
-      g.font = '800 96px "Chakra Petch", Arial, sans-serif';
+      g.font = '800 96px "Inter Variable", Arial, sans-serif';
       g.fillText(red, W * 0.16, H / 2);
       g.fillText(blue, W * 0.84, H / 2);
     }
-    g.fillStyle = '#ffc72c';
-    g.font = `800 ${score ? 76 : 56}px "Chakra Petch", Arial, sans-serif`;
+    g.fillStyle = '#a98bff';
+    g.font = `800 ${score ? 76 : 56}px "Inter Variable", Arial, sans-serif`;
     g.fillText(center, W / 2, H / 2);
     this.screenTex.needsUpdate = true;
   }
@@ -166,7 +166,7 @@ function ledTexture(): THREE.CanvasTexture | null {
   g.fillStyle = grd;
   g.fillRect(0, 0, 1024, 64);
   g.fillStyle = '#ffffff';
-  g.font = '700 40px "Chakra Petch", Impact, sans-serif';
+  g.font = '700 40px "Inter Variable", Impact, sans-serif';
   g.textBaseline = 'middle';
   for (const [x, t] of [
     [30, 'LABBOT RESCUE'],

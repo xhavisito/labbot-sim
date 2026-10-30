@@ -130,32 +130,27 @@ export class Menu {
   // ------------------------------------------------------------------ principal
   main(): void {
     const s = this.settings;
-    const b = this.input.bindings;
     const fs = !!document.documentElement.requestFullscreen;
-    const tool = (go: string, icon: string, label: Key, desc: Key, cls = '') =>
-      `<button class="mm-tool ${cls}" data-go="${go}">${icon.replace('class="ic"', 'class="mi"')}<span class="mt-txt"><b>${t(label)}</b><small>${t(desc)}</small></span></button>`;
-    const g = GAME.times;
+    // Atajos del taller: solo ícono y nombre (la descripción va en el title)
+    const tool = (go: string, icon: string, label: Key, desc: Key) =>
+      `<button class="mm-tool" data-go="${go}" title="${t(desc)}">${icon.replace('class="ic"', 'class="mi"')}<span class="mt-txt"><b>${t(label)}</b></span></button>`;
     this.open(`
-      ${brandbar(`${t('mm_fan')} · ${t('mm_event')}`, `<span class="pwa-chips" data-pwa></span>${langChips()}${fs ? `<button class="chipbtn" data-fs title="${t('fullscreen')}">${ic.expand}</button>` : ''}`)}
+      ${brandbar('', `<span class="pwa-chips" data-pwa></span>${langChips()}${fs ? `<button class="chipbtn" data-fs title="${t('fullscreen')}">${ic.expand}</button>` : ''}`)}
       <div class="mm">
         <div class="mm-left">
           <h1 class="mm-title">LabBot <span>Rescue 2026</span></h1>
-          <div class="mm-eyebrow"><span>01</span>${t('mm_play')}</div>
           <button class="mm-hero" data-act="match">
-            <span class="mh-kick">${t('matchKick')}</span>
             <b>${t('match')}</b>
             <small>${t('matchDesc')}</small>
             <span class="mh-go">${ic.go}</span>
           </button>
           <button class="mm-hero alt" data-act="practice">
-            <span class="mh-kick">${t('practiceMode')} · ${stationLabel(this.player)}</span>
             <b>${t('practice')}</b>
             <small>${t('practiceDesc')}</small>
             <span class="mh-go">${ic.go}</span>
           </button>
-          <div class="mm-eyebrow late"><span>02</span>${t('mm_workshop')}</div>
           <div class="mm-tools late">
-            ${tool('training', ic.medal, 'tn_title', 'trainingDesc', 'wide')}
+            ${tool('training', ic.medal, 'tn_title', 'trainingDesc')}
             ${tool('replays', ic.film, 'replays', 'replaysDesc')}
             ${tool('editor', ic.cube, 'editor', 'editorDesc')}
             ${tool('autoPractice', ic.route, 'autoPractice', 'autoPracticeDesc')}
@@ -165,32 +160,18 @@ export class Menu {
             ${tool('scouting', ic.clipboard, 'scouting', 'scoutingDesc')}
             ${tool('tournament', ic.trophy, 'tournament', 'tournamentDesc')}
           </div>
-          <div class="mm-timeline late" aria-hidden="true">
-            <div class="tl-head"><span>${t('mm_timeline')}</span><small>${t('mm_tlNote')}</small></div>
-            <div class="tl-bar">
-              <i class="auto" style="flex-grow:${g.auto}"><span>AUTO 0:15</span></i>
-              <i class="tele" style="flex-grow:${g.teleop - g.endgame}"><span>TELEOP 2:15 → 0:30</span></i>
-              <i class="end" style="flex-grow:${g.endgame}"><span>ENDGAME</span></i>
-            </div>
-          </div>
         </div>
         <div class="mm-right">
           <div class="bay">
             <div class="bay-head"><span class="bay-label">${t('station')}</span></div>
             <div class="stations">${ROBOTS.map((i) => `<button class="${i < 2 ? 'red' : 'blue'} ${i === this.player ? 'on' : ''}" data-slot="${i}"><i></i>${stationLabel(i)}</button>`).join('')}</div>
             <div class="bay-head"><span class="bay-label">${t('yourRobot')}</span></div>
-            <div class="showcase">${robotSilhouette(robotSpec(s.robotType).mechanism)}<span class="dim">${chassisSize(s.robotType)} · ${t('robotType').toUpperCase()}</span></div>
+            <div class="showcase">${robotSilhouette(robotSpec(s.robotType).mechanism)}<span class="dim">${chassisSize(s.robotType)} · ${t('robotType')}</span></div>
             <div class="robotinfo" data-robotinfo></div>
           </div>
         </div>
       </div>
       <div class="mm-bottom">
-        <div class="keyhints">
-          <span>${kbds(b.keys.forward.map(keyLabel))}${kbds(b.keys.back.map(keyLabel))} ${t('help_drive')}</span>
-          <span>${kbds(b.keys.left.map(keyLabel))}${kbds(b.keys.right.map(keyLabel))} ${t('help_turnHelp')}</span>
-          <span>${kbds(b.keys.pause.map(keyLabel))} ${t('act_pause').toLowerCase()}</span>
-          <span><kbd>Enter</kbd> ${t('hintStart').toLowerCase()}</span>
-        </div>
         <div>${t('disclaimer')}</div>
       </div>`);
     this.robotInfo();
@@ -271,7 +252,7 @@ export class Menu {
       b.addEventListener('click', () => {
         adoptRobot(s, ids[(i + Number(b.dataset.step) + n) % n]);
         this.onSettings(s);
-        this.root.querySelector('.showcase')!.innerHTML = `${robotSilhouette(robotSpec(s.robotType).mechanism)}<span class="dim">${chassisSize(s.robotType)} · ${t('robotType').toUpperCase()}</span>`;
+        this.root.querySelector('.showcase')!.innerHTML = `${robotSilhouette(robotSpec(s.robotType).mechanism)}<span class="dim">${chassisSize(s.robotType)} · ${t('robotType')}</span>`;
         this.robotInfo();
       }),
     );
