@@ -56,8 +56,9 @@ describe('tipos de robot: solo el pivote y su variante de 180° (27-oct)', () =>
     const g = session(S180, false);
     const m = g.player.mech;
     const w = F.camaraWells()[3];
-    // De frente a la Cámara (viendo hacia +Z) con una Muestra en el piso detrás
-    const z = F.CAMARA_Z_RED[0] - S180.length / 2 - 0.02;
+    // De frente a la Cámara (viendo hacia +Z), a 12 cm para que la viga libre la pared de 80 cm al
+    // subir (hitbox literal, D34), con una Muestra en el piso detrás
+    const z = F.CAMARA_Z_RED[0] - S180.length / 2 - 0.12;
     const x = (w.x0 + w.x1) / 2;
     g.player.phys.teleport(x, z, -Math.PI / 2);
     g.pieces.place(g.pieces.list.find((p) => p.kind === 'sample' && p.state.at === 'field')!, x, F.SAMPLE_SIZE / 2, z + posTip(S180, 0).x, 0);
@@ -66,6 +67,8 @@ describe('tipos de robot: solo el pivote y su variante de 180° (27-oct)', () =>
     expect(m.inClaw).toBe(true);
     run(g, 2.0, { elevator: 3 });
     expect(m.atTarget).toBe(true);
+    // Se arrima despacio hasta que la viga toca el borde: la garra queda sobre el pozo
+    run(g, 1.0, { forward: 0.2 });
     run(g, 0.4, { releaseSample: true });
     run(g, 1.5);
     expect(m.stored).toHaveLength(0);
@@ -77,9 +80,10 @@ describe('tipos de robot: solo el pivote y su variante de 180° (27-oct)', () =>
     const g = session(S180, true);
     const m = g.player.mech;
     const w = F.camaraWells()[3];
-    // 1 m antes de la Cámara, viéndola: avanza hacia adelante hasta quedar pegado
+    // 1 m antes de la Cámara, viéndola: avanza despacio con la garra arriba hasta que la viga toca el
+    // borde de la pared de 80 cm (hitbox literal, D34; empujando más fuerte el robot se encarama en ella)
     g.player.phys.teleport((w.x0 + w.x1) / 2, F.CAMARA_Z_RED[0] - S180.length / 2 - 1.0, -Math.PI / 2);
-    run(g, 2.0, { elevator: 3, forward: 0.5 });
+    run(g, 4.0, { elevator: 3, forward: 0.25 });
     expect(m.atTarget).toBe(true);
     run(g, 0.4, { releaseSample: true });
     run(g, 1.5);

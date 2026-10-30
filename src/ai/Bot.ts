@@ -25,6 +25,7 @@ import { cubePose } from '../game/Mechanisms';
 import { obstructZones } from '../referee/Referee';
 import type { Robot } from '../game/Robot';
 import type { Pieces } from '../physics/Pieces';
+import { clawDir } from '../physics/RobotPhysics';
 import { AI_PROFILES, type AiLevel, type AiProfile } from './difficulty';
 import { Team } from './Team';
 
@@ -208,6 +209,13 @@ export class Bot {
     const out = this.decide(dt, phase, timeLeft);
     this.unhook(out);
     this.unjam(out, dt);
+    // El brazo topó con la madera al girar (`Mechanisms.armBlocked`): se aleja del lado de la garra
+    // para que libre (con la viga chocando, pegado a la Cámara el brazo no pasa de N1)
+    const m = this.robot.mech;
+    if (m.armBlocked && this.freeT <= 0) {
+      out.forward = -clawDir(m.angle) * 0.4;
+      out.turn = 0;
+    }
     out.forward *= this.profile.speed;
     this.guard(out, phase === 'ENDGAME');
     return out;

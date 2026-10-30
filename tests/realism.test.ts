@@ -113,8 +113,9 @@ describe('hitbox de los mecanismos', () => {
     const g = new GameSession({ player: 0, preload: false, autos: still });
     const [a, b] = g.robots;
     a.phys.teleport(0, 2.2, 0);
-    // Chasis a 32 cm: solo la garra en N1 (punta a ≈ 0.58 m + dedos, a 26–42 cm de alto) llega al otro robot
-    b.phys.teleport(0.92, 2.2, 0);
+    // Chasis a 22 cm, el otro de frente: solo la garra en N1 (punta a ≈ 0.58 m + dedos, a 26–42 cm de
+    // alto, arriba de su chasis de 23.5 cm) llega a su torre (hitbox literal: la torre mide lo que se ve)
+    b.phys.teleport(0.82, 2.2, Math.PI);
     steps(g, 0.3);
     const x0 = b.phys.position().x;
     steps(g, 1.5, { elevator: 1 });
