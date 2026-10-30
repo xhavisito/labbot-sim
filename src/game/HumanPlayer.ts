@@ -13,8 +13,14 @@ import type { Pieces } from '../physics/Pieces';
 /** Lo mínimo que el Human Player ve de un robot en la cancha. */
 export interface HpWatched {
   alliance: Alliance;
-  phys: { position(): { x: number; z: number } };
+  phys: { position(): { x: number; z: number }; localToWorld(lx: number, ly: number, lz: number): { x: number; z: number } };
+  mech: { tipX(): number; height: number };
 }
+
+/** Rapidez (m/s) a la que el HP desliza la Muestra Crítica por la rendija (SUPUESTO, D39). */
+const CRIT_SLIDE_SPEED = 0.8;
+/** Distancia (m) de la garra de su robot a la Crítica a partir de la cual el HP se la acomoda. */
+const CRIT_SLIDE_REACH = 1.2;
 
 /** Un rival más cerca que esto de la ranura puede robar lo que se meta (SUPUESTO: el manual no prohíbe tomar Muestras sueltas). */
 const THREAT_DIST = 1.8;
@@ -77,9 +83,47 @@ export class HumanPlayer {
     return { ...p, dz: this.alliance === 'red' ? 1 : -1 };
   }
 
-  /** Avanza (solo se llama en TELEOP). Devuelve true si introdujo una Muestra. */
-  step(dt: number): boolean {
+  /**
+   * La Muestra Crítica está en la rendija deslizable (§3.2.4): cuando un robot de su alianza acerca la
+   * garra, el HP la desliza hasta quedar justo frente a ella (D39). Así el robot no tiene que
+   * alinearse de lado al centímetro.
+   */
+  private centerCritical(dt: number): void {
+    const crit = this.pieces.critical(this.alliance);
+    if (crit.state.at !== 'field') return;
+    const t = crit.body.translation();
+    const h = F.forAlliance(this.alliance, F.CRITICAL_HOLDER_RED);
+    // Solo mientras sigue en la rendija (no si ya se cayó o la tiene un robot)
+    if (t.y < F.CRITICAL_HOLDER_RED.y || Math.abs(t.z - h.z) > 0.12) return;
+    let best = Infinity;
+    let goal = t.x;
+    for (const r of this.robots) {
+      // Con la garra a la altura de la rendija (va por la Crítica), no la que pasa con el brazo abajo
+      if (r.alliance !== this.alliance || Math.abs(r.mech.height - F.CRITICAL_HOLDER_RED.y) > 0.12) continue;
+      const tip = r.phys.localToWorld(r.mech.tipX(), 0, 0);
+      const d = Math.hypot(tip.x - t.x, tip.z - t.z);
+      if (d < CRIT_SLIDE_REACH && d < best) {
+        best = d;
+        goal = tip.x;
+      }
+    }
+    const a = F.forAlliance(this.alliance, { x: F.CRITICAL_SLIDE_RED[0], z: 0 }).x;
+    const b = F.forAlliance(this.alliance, { x: F.CRITICAL_SLIDE_RED[1], z: 0 }).x;
+    goal = Math.max(Math.min(a, b), Math.min(Math.max(a, b), goal));
+    const dx = goal - t.x;
+    if (Math.abs(dx) < 0.003) return;
+    const step = Math.sign(dx) * Math.min(Math.abs(dx), CRIT_SLIDE_SPEED * dt);
+    crit.body.setTranslation({ x: t.x + step, y: t.y, z: t.z }, true);
+    crit.body.setLinvel({ x: 0, y: 0, z: 0 }, true);
+  }
+
+  /**
+   * Avanza (solo se llama en TELEOP). `endgame`: los robots ya pueden tomar la Crítica (§4.3.1) y el HP
+   * se la acomoda. Devuelve true si introdujo una Muestra.
+   */
+  step(dt: number, endgame = false): boolean {
     if (!this.enabled) return false;
+    if (endgame && this.robots.length) this.centerCritical(dt);
     this.timer += dt;
     const stock = this.pieces.hpStock(this.alliance);
     if (!stock.length) return false;

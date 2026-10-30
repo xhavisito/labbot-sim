@@ -73,10 +73,12 @@ function campana(): Solid[] {
   add(box(xb - t, xb, 0, h, zf - F.CAMPANA_DEPTH - t, zf - t));
   // Barra lateral de obstáculo, perpendicular a la pared en el extremo de la Campana
   s.push({ part: 'barrier', material: 'mdf', points: box(xa - F.BARRIER_WIDTH, xa, 0, F.BARRIER_HEIGHT, -F.HALF_W, -F.HALF_W + F.BARRIER_LENGTH) });
-  // Soporte de la rendija deslizable de la Muestra Crítica (arriba de la pared)
+  // Soporte de la rendija deslizable de la Muestra Crítica (arriba de la pared): a lo largo de todo
+  // el tramo por donde el Human Player la desliza (D39)
   const c = F.CRITICAL_HOLDER_RED;
   const half = F.CRITICAL_SIZE / 2 + 0.03;
-  s.push({ part: 'criticalHolder', material: 'gray', points: box(c.x - half, c.x + half, c.y - t, c.y, zf - t, c.z + half) });
+  const [s0, s1] = F.CRITICAL_SLIDE_RED;
+  s.push({ part: 'criticalHolder', material: 'gray', points: box(s0 - half, s1 + half, c.y - t, c.y, zf - t, c.z + half) });
   return s;
 }
 

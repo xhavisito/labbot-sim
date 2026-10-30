@@ -15,7 +15,7 @@ export const RULES: Record<RuleCode, { kind: FoulKind; section: string; es: stri
   PLATFORM_EARLY: { kind: 'TECH', section: '§4.6', es: 'Subir a la Plataforma de Contención antes del endgame' },
   CRITICAL_EARLY: { kind: 'TECH', section: '§4.6', es: 'Tomar la Muestra Crítica antes del endgame' },
   AUTO_CENTER: { kind: 'FOUL', section: '§4.2', es: 'Cruzar la línea central en AUTO', supuesto: 'D7: el manual no le asigna falta' },
-  OBSTRUCT: { kind: 'TECH', section: '§4.6, §6.1', es: 'Bloquear u obstruir deliberadamente las zonas del equipo contrario', supuesto: 'D17: más de 3 s frente a la Cámara rival; otra cada 5 s más' },
+  OBSTRUCT: { kind: 'TECH', section: '§4.6, §6.1', es: 'Bloquear u obstruir deliberadamente las zonas del equipo contrario', supuesto: 'D17: más de 3 s frente a la Cámara o la Campana rival, o en su rampa; otra cada 5 s más' },
   CRITICAL_KNOCK: { kind: 'TECH', section: '§4.6', es: 'Tirar la Muestra Crítica del equipo contrario de la Repisa de Seguridad', supuesto: 'D21: el sim no juzga la intención; cuenta si un robot rival la tocaba al caer' },
 };
 

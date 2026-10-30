@@ -95,9 +95,11 @@ describe('tipos de robot: solo el pivote y su variante de 180° (27-oct)', () =>
       run(g, 3.0, { toggleIntake: true, forward: 0.2 });
       expect(m.stored).toHaveLength(1);
       expect(m.inClaw).toBe(true);
+      // Con el brazo arriba antes de arrimarse: la garra choca con la madera de la Cámara (D34)
+      run(g, 2.0, { elevator: 3 });
       const w = F.camaraWells()[3];
       g.player.phys.teleport((w.x0 + w.x1) / 2, F.CAMARA_Z_RED[0] - spec.length / 2 - 0.02, -Math.PI / 2);
-      run(g, 2.0, { elevator: 3 });
+      run(g, 1.0);
       run(g, 0.4, { releaseSample: true });
       run(g, 1.5);
       expect(m.stored).toHaveLength(0);

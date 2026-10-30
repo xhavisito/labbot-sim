@@ -22,6 +22,7 @@ import { posDir, posTip, type ElevatorPos } from '../config/robot';
 import type { Phase } from '../core/clock';
 import { opponent, type Alliance, type Level } from '../core/types';
 import { cubePose } from '../game/Mechanisms';
+import { obstructZones } from '../referee/Referee';
 import type { Robot } from '../game/Robot';
 import type { Pieces } from '../physics/Pieces';
 import { AI_PROFILES, type AiLevel, type AiProfile } from './difficulty';
@@ -205,9 +206,59 @@ export class Bot {
     this.clock = timeLeft;
     this.phase = phase;
     const out = this.decide(dt, phase, timeLeft);
+    this.unhook(out);
+    this.unjam(out, dt);
     out.forward *= this.profile.speed;
     this.guard(out, phase === 'ENDGAME');
     return out;
+  }
+
+  /**
+   * La garra choca con la madera (D34): si está arriba de una Cámara (acaba de anotar) y el plan pide
+   * bajarla, al girar hacia abajo se engancharía detrás de la pared. Primero se aparta derecho con la
+   * garra en alto y la baja cuando ya quedó afuera.
+   */
+  private unhook(out: BotOutput): void {
+    const m = this.robot.mech;
+    const s = this.robot.spec;
+    if (posTip(s, out.elevator).y >= m.height - 0.05) return;
+    const tipX = m.tipX();
+    const tip = this.robot.phys.localToWorld(tipX, 0, 0);
+    if (!CAMARAS.some((c) => F.inRect(c, tip.x, tip.z))) return;
+    out.elevator = m.target;
+    out.forward = -Math.sign(tipX || 1) * 0.45;
+    out.turn = 0;
+  }
+
+  /** Segundos mandando moverse sin moverse, y cuánto le queda a la maniobra para zafarse. */
+  private jamT = 0;
+  private freeT = 0;
+  private freeDir = -1;
+
+  /**
+   * Trabado (la garra enganchada en otro robot o en la madera, D34; mandos sin movimiento): sube la
+   * garra por encima de los chasis y se aparta derecho, al revés de como empujaba.
+   */
+  private unjam(out: BotOutput, dt: number): void {
+    const p = this.robot.phys;
+    if (this.freeT > 0) {
+      this.freeT -= dt;
+      out.elevator = 4;
+      out.forward = this.freeDir * 0.4;
+      out.turn = 0;
+      return;
+    }
+    const v = p.body.linvel();
+    const c = p.lastCmd;
+    const pushing = Math.abs(c.forward) > 0.15 || Math.abs(c.turn) > 0.3;
+    this.jamT = pushing && Math.hypot(v.x, v.z) < 0.05 && Math.abs(p.body.angvel().y) < 0.15 ? this.jamT + dt : 0;
+    // Arrimándose a la Cámara o a la Campana (`dock`, que ya sabe zafarse) o estacionado a propósito: no
+    if (this.dockT > 0 || out.release || this.mode === 'block') this.jamT = 0;
+    if (this.jamT > 1.0) {
+      this.jamT = 0;
+      this.freeT = 0.7;
+      this.freeDir = Math.abs(c.forward) > 0.15 ? -Math.sign(c.forward) : -Math.sign(this.robot.mech.tipX() || 1);
+    }
   }
 
   // ------------------------------------------------------------------ tiempos estimados
@@ -292,14 +343,17 @@ export class Bot {
       return out;
     }
 
-    // Frente a la Cámara rival en el TELEOP: salir antes de los 3 s (D17)
+    // En una zona de anotación rival (frente a su Cámara o su Campana, o en su rampa) en el TELEOP:
+    // salir antes de los 3 s (§4.6, D17)
     const pos = r.phys.position();
-    const front = F.rectFor(opponent(r.alliance), { x0: F.CAMARA_X_END_RED - F.CAMARA_LENGTH, x1: F.CAMARA_X_END_RED, z0: F.CAMARA_Z_RED[0] - 1.0, z1: F.CAMARA_Z_RED[0] });
-    this.obstructT = phase !== 'AUTO' && F.inRect(front, pos.x, pos.z) ? this.obstructT + dt : 0;
+    const zones = RIVAL_ZONES[r.alliance];
+    this.obstructT = phase !== 'AUTO' && zones.some((z) => F.inRect(z, pos.x, pos.z)) ? this.obstructT + dt : 0;
     if (this.obstructT > 1.8 && o.role !== 'block') {
       if (this.targetPiece >= 0) this.ignore.set(this.targetPiece, 15);
       this.targetPiece = -1;
-      this.drive({ x: pos.x, z: 0 }, out, false, phase);
+      // De la rampa rival se sale de lado (hacia el centro se quedaría en ella); de lo demás, al centro
+      const onRamp = Math.abs(pos.z) < F.PLATFORM_WIDTH / 2 + 0.1;
+      this.drive({ x: pos.x, z: onRamp ? (Math.sign(pos.z) || 1) * 1.5 : 0 }, out, false, phase, onRamp);
       out.intake = true;
       return out;
     }
@@ -364,7 +418,8 @@ export class Bot {
       const crit = this.pieces.critical(r.alliance);
       const holder = F.forAlliance(r.alliance, F.CRITICAL_HOLDER_RED);
       const ct = crit.body.translation();
-      const available = crit.state.at === 'field' && Math.hypot(ct.x - holder.x, ct.z - holder.z) < 0.3;
+      // Sigue en la rendija (el Human Player la desliza a lo largo, D39)
+      const available = crit.state.at === 'field' && ct.y >= F.CRITICAL_HOLDER_RED.y - 0.02 && Math.abs(ct.z - holder.z) < 0.15;
       if (!available) this.criticalDone = true;
       else {
         const stage = this.critStage();
@@ -955,6 +1010,8 @@ export class Bot {
     const pos = r.phys.position();
     const endgame = phase === 'ENDGAME';
     const lane = this.lane();
+    // La garra arriba: en el piso chocaría con la rampa al subir (D34)
+    out.elevator = 4;
     // Después de soltar la Crítica se queda donde la soltó (más atrás que 0.75 para que caiga al
     // centro de la Repisa): girar para acomodarse barría la pieza con el mecanismo
     const onTop = r.phys.wheelsOnPlatform > 0 && r.phys.wheelsOnCarpet === 0 && this.side * pos.x < (this.critParked ? 1.0 : 0.75);
@@ -1247,6 +1304,14 @@ export class Bot {
     return { x: Math.abs(goal.x) > hx ? Math.sign(goal.x) * cx : goal.x, z: sz * cz };
   }
 }
+
+/** Zonas de anotación rivales que no puede obstruir más de 3 s (§4.6, D17), por alianza propia. */
+const RIVAL_ZONES: Record<Alliance, F.Rect[]> = { red: obstructZones('blue'), blue: obstructZones('red') };
+
+/** Las dos Cámaras (§3.2.3) con 15 cm de margen: la garra y la pieza que lleva sobresalen de su punta. */
+const CAMARAS: readonly F.Rect[] = (['red', 'blue'] as const).map((a) =>
+  F.rectFor(a, { x0: F.CAMARA_X_END_RED - F.CAMARA_LENGTH - 0.15, x1: F.CAMARA_X_END_RED + 0.15, z0: F.CAMARA_Z_RED[0] - 0.15, z1: F.HALF_W }),
+);
 
 /** ¿El segmento (x0,z0)→(x1,z1) toca el rectángulo |x| ≤ hx, |z| ≤ hz? (Liang–Barsky) */
 export function segmentHitsRect(x0: number, z0: number, x1: number, z1: number, hx: number, hz: number): boolean {

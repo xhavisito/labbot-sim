@@ -158,6 +158,11 @@ export const BARRIER_HEIGHT = mm(200);
  * X ≈ 3.92, sobresale ≈0.16 m hacia la cancha. SUPUESTO: apoyada a la altura de la pared (610 mm).
  */
 export const CRITICAL_HOLDER_RED = { x: 3.92, z: -HALF_W + 0.1, y: CAMPANA_HEIGHT };
+/**
+ * Hasta dónde puede deslizar el Human Player la Muestra Crítica a lo largo de la rendija (X del rojo).
+ * SUPUESTO (D39): la rendija es "deslizable" (§3.2.4) y corre a lo largo de la pared de la Campana.
+ */
+export const CRITICAL_SLIDE_RED: readonly [number, number] = [CAMPANA_X_RED[0] + 0.25, HALF_L - 0.25];
 
 // ---------------------------------------------------------------- Plataforma de Contención (§3.2.5)
 export const RAMP_ANGLE = 15 * DEG; // 15°

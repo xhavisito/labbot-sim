@@ -10,7 +10,8 @@
  *
  * Hitbox de los mecanismos (Xhavi, 29-oct: "que todas las partes del robot tengan hitbox"): el brazo,
  * los dos dedos y la placa de la garra y la pieza que lleva también chocan (con las piezas, los otros
- * robots y la pared perimetral; no con las estructuras del juego, D34), y se mueven con el brazo en
+ * robots, la pared perimetral y, desde el 30-oct, la madera de la Cámara, la Campana y la Plataforma;
+ * la viga del brazo no choca con esas estructuras, D34), y se mueven con el brazo en
  * cada paso (`setArmPose`). Van sin masa (densidad
  * 0) para no mover el centro de masa al girar el brazo, y no chocan con la alfombra: la garra pasa
  * rozándola al recoger.
@@ -124,15 +125,15 @@ export class RobotPhysics {
           .setRestitutionCombineRule(RAPIER.CoefficientCombineRule.Min),
       );
     // Mecanismos: brazo, dedos y placa de la garra, pieza agarrada (sin masa; ver arriba)
-    const mech = (desc: RAPIER.ColliderDesc): RAPIER.Collider => {
-      const c = w.createCollider(desc.setDensity(0).setFriction(0.4).setRestitution(0.05).setCollisionGroups(GROUPS.arm).setActiveEvents(RAPIER.ActiveEvents.COLLISION_EVENTS), this.body);
+    const mech = (desc: RAPIER.ColliderDesc, group: number = GROUPS.arm): RAPIER.Collider => {
+      const c = w.createCollider(desc.setDensity(0).setFriction(0.4).setRestitution(0.05).setCollisionGroups(group).setActiveEvents(RAPIER.ActiveEvents.COLLISION_EVENTS), this.body);
       pw.tag(c, { kind: 'robot', robot: index });
       return c;
     };
     const beamLen = Math.max(0.05, spec.arm.length - ARM_BEAM_SHORT);
     const fh = CLAW.fingerHeight / 2;
     this.armColliders = {
-      beam: mech(RAPIER.ColliderDesc.cuboid(beamLen / 2, 0.02, CLAW.fingerZ)),
+      beam: mech(RAPIER.ColliderDesc.cuboid(beamLen / 2, 0.02, CLAW.fingerZ), GROUPS.beam),
       fingers: [
         mech(RAPIER.ColliderDesc.cuboid(CLAW.fingerLength / 2, fh, CLAW.fingerThickness / 2)),
         mech(RAPIER.ColliderDesc.cuboid(CLAW.fingerLength / 2, fh, CLAW.fingerThickness / 2)),

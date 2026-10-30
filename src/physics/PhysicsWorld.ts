@@ -25,6 +25,8 @@ export const G = {
   FLOOR: 1 << 4,
   /** Brazo, garra y pieza agarrada de un robot (hitbox de los mecanismos). */
   ARM: 1 << 5,
+  /** Viga del brazo (ver `GROUPS.beam`). */
+  BEAM: 1 << 6,
 } as const;
 
 /** Empaqueta membresía/filtro en el formato de 32 bits de Rapier. */
@@ -33,18 +35,24 @@ export const groups = (member: number, filter: number): number => ((member & 0xf
 export const GROUPS = {
   floor: groups(G.FLOOR, G.ROBOT | G.PIECE),
   /**
-   * Estructuras del juego (Cámara, Campana, Plataforma, Repisa). El brazo y la garra NO chocan con
-   * ellas (SUPUESTO, D34): los pivotes del sim (CAD sugerido) pasan el brazo a ras de la Repisa y de
-   * las paredes de la Cámara, y en la cancha simplificada se atoraban donde el robot real pasa.
+   * Estructuras del juego (Cámara, Campana y su barra, Plataforma, Repisa). Chocan con todo el robot,
+   * brazo, garra y pieza agarrada incluidos (Xhavi, 30-oct: "hitbox literal a cualquier parte del
+   * robot"; D34): la garra ya no atraviesa la madera al anotar.
    */
-  field: groups(G.FIELD, G.ROBOT | G.PIECE),
+  field: groups(G.FIELD, G.ROBOT | G.PIECE | G.ARM | G.BEAM),
   /** Pared perimetral: choca con todo el robot, brazo y garra incluidos. */
-  wall: groups(G.FIELD, G.ROBOT | G.PIECE | G.ARM),
-  boundary: groups(G.BOUNDARY, G.ROBOT | G.PIECE | G.ARM),
-  robot: groups(G.ROBOT, G.FLOOR | G.FIELD | G.BOUNDARY | G.ROBOT | G.PIECE | G.ARM),
-  piece: groups(G.PIECE, G.FLOOR | G.FIELD | G.BOUNDARY | G.ROBOT | G.PIECE | G.ARM),
-  /** Mecanismos: chocan con la pared perimetral, otros robots (chasis y brazos) y piezas; no con la alfombra. */
-  arm: groups(G.ARM, G.FIELD | G.BOUNDARY | G.ROBOT | G.PIECE | G.ARM),
+  wall: groups(G.FIELD, G.ROBOT | G.PIECE | G.ARM | G.BEAM),
+  boundary: groups(G.BOUNDARY, G.ROBOT | G.PIECE | G.ARM | G.BEAM),
+  robot: groups(G.ROBOT, G.FLOOR | G.FIELD | G.BOUNDARY | G.ROBOT | G.PIECE | G.ARM | G.BEAM),
+  piece: groups(G.PIECE, G.FLOOR | G.FIELD | G.BOUNDARY | G.ROBOT | G.PIECE | G.ARM | G.BEAM),
+  /** Garra (dedos y placa) y pieza agarrada: chocan con todo menos la alfombra (D34). */
+  arm: groups(G.ARM, G.FIELD | G.BOUNDARY | G.ROBOT | G.PIECE | G.ARM | G.BEAM),
+  /**
+   * Viga del brazo: como la garra pero sin las estructuras del juego (SUPUESTO, D34): en el Pivote
+   * 180° la viga sale a 17 cm del piso y, para que la garra llegue arriba del Nivel 3, pasa por
+   * donde está la pared de 80 cm; en el robot real esa parte va por fuera o más alta.
+   */
+  beam: groups(G.BEAM, G.BOUNDARY | G.ROBOT | G.PIECE | G.ARM | G.BEAM),
 };
 
 /** Lo que guardamos de cada colisionador para saber qué tocamos. */
