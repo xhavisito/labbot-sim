@@ -82,6 +82,9 @@ function adoptRobot(s: Settings, id: RobotId): void {
   s.maxSpeed = Math.min(SETTINGS_RANGE.maxSpeed.max, Math.round(spec.maxSpeed * 4) / 4);
 }
 
+/** Posición inicial por defecto al abrir la app: Azul 1 (índice 2; UI_SLOTS la muestra primero). */
+export const DEFAULT_PLAYER = 2;
+
 const stationLabel = (i: number): string => `${t(i < 2 ? 'red' : 'blue')} ${(i % 2) + 1}`;
 
 export class Menu {
@@ -89,7 +92,7 @@ export class Menu {
   onReplays: () => void = () => undefined;
   onEditor: () => void = () => undefined;
   readonly root: HTMLElement;
-  player = 0;
+  player = DEFAULT_PLAYER;
   /** Abre la pantalla de Scouting (la conecta App). */
   onScouting: () => void = () => undefined;
   /** Abre el modo torneo (lo conecta App). */
