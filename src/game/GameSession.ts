@@ -254,13 +254,12 @@ export class GameSession {
     if (!this.playerEnabled() || this.pilot || this.damage.disabled(this.player.index)) return;
     const m = this.player.mech;
     const a = this.tapActs;
-    // Un solo botón por acción para las dos piezas (Xhavi, 30-oct): la garra toma la Muestra Crítica
-    // si la tiene al alcance y a su altura; si no, prende o apaga la garra para las Muestras. Soltar
-    // suelta lo que traiga en la garra.
-    if (inp.toggleIntake) {
-      if (m.grabCritical(this.stepMechEvents)) a.grabCritical = true;
-      else a.intake = m.intakeOn = !m.intakeOn;
-    }
+    // Un solo botón por acción para las dos piezas (Xhavi, 30-oct): la garra trabaja solo mientras se
+    // mantiene presionado; al soltarlo se apaga. Con el botón presionado toma la Muestra Crítica en
+    // cuanto la tiene al alcance y a su altura; si no, agarra Muestras. Soltar suelta lo que traiga
+    // en la garra.
+    if (inp.intake && !m.critical && m.grabCritical(this.stepMechEvents)) a.grabCritical = true;
+    if (m.intakeOn !== inp.intake) a.intake = m.intakeOn = inp.intake;
     if (inp.elevator !== null) a.elevator = m.target = inp.elevator;
     if (inp.releaseSample) {
       if (m.critical) a.releaseCritical = m.release('critical', this.stepMechEvents) || undefined;

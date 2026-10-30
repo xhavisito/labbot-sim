@@ -10,7 +10,7 @@ export const ACTIONS = [
   'left',
   'right',
   'slow',
-  'toggleIntake',
+  'intake',
   'releaseSample',
   'elevatorUp',
   'elevatorDown',
@@ -48,7 +48,7 @@ export const DEFAULT_BINDINGS: Bindings = {
     left: ['KeyA', 'ArrowLeft'],
     right: ['KeyD', 'ArrowRight'],
     slow: ['ShiftLeft', 'ShiftRight'],
-    toggleIntake: ['Space'],
+    intake: ['Space'],
     releaseSample: ['KeyE'],
     elevatorUp: [],
     elevatorDown: [],
@@ -66,7 +66,7 @@ export const DEFAULT_BINDINGS: Bindings = {
     left: [],
     right: [],
     slow: [PAD.LT],
-    toggleIntake: [PAD.A],
+    intake: [PAD.A],
     releaseSample: [PAD.B],
     elevatorUp: [PAD.RB, PAD.UP],
     elevatorDown: [PAD.LB, PAD.DOWN],
@@ -121,9 +121,10 @@ export function sanitizeBindings(raw: unknown): Bindings {
   const pad = (o.pad && typeof o.pad === 'object' ? o.pad : {}) as Record<string, unknown>;
   let out = cloneBindings(d);
   for (const a of ACTIONS) {
-    const k = keys[a];
+    // `intake` antes se llamaba `toggleIntake` (se prendía y apagaba; ahora se mantiene presionado)
+    const k = keys[a] ?? (a === 'intake' ? keys.toggleIntake : undefined);
     if (Array.isArray(k) && k.every((x) => typeof x === 'string' && x.length > 0 && x.length < 40)) out.keys[a] = k.slice(0, MAX_PER_ACTION);
-    const p = pad[a];
+    const p = pad[a] ?? (a === 'intake' ? pad.toggleIntake : undefined);
     if (Array.isArray(p) && p.every((x) => Number.isInteger(x) && x >= 0 && x < 32)) out.pad[a] = p.slice(0, MAX_PER_ACTION);
   }
   // Sin repetidos entre acciones: se queda con la primera acción que lo tenga

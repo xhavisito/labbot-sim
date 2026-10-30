@@ -16,6 +16,9 @@ import type { CameraMode } from '../render/CameraRig';
 import { ic } from './chrome';
 import { keyboardHelp } from './controlsHelp';
 import { t, type Key } from './i18n';
+import { activeStep, type StrategyPlan } from '../core/plan';
+import type { Phase } from '../core/clock';
+import { partnerSummary, stepLabel } from './StrategyScreen';
 
 const el = (tag: string, cls: string, parent?: HTMLElement): HTMLElement => {
   const e = document.createElement(tag);
@@ -50,6 +53,10 @@ export class Hud {
   private camLabel: HTMLElement;
   private resetBtn: HTMLElement;
   private keys: HTMLElement;
+  /** Tarjeta de la estrategia de alianza: paso en curso, lo que hace tu compañero y tu nota. */
+  private planCard: HTMLElement;
+  private plan: StrategyPlan | null = null;
+  private planKey = '';
   private lastKey = '';
   private lastScore = { red: -1, blue: -1 };
 
@@ -98,6 +105,32 @@ export class Hud {
     pause.setAttribute('aria-label', t('paused'));
     pause.addEventListener('click', act.pause);
     this.keys = el('div', 'hud-keys', this.root);
+    this.planCard = el('div', 'plan-card', this.root);
+    this.planCard.style.display = 'none';
+  }
+
+  setPlan(p: StrategyPlan | null): void {
+    this.plan = p;
+    this.planKey = '';
+    this.planCard.style.display = 'none';
+  }
+
+  /** Cambia la tarjeta al empezar otro paso de la estrategia. */
+  planStep(phase: Phase, remaining: number): void {
+    const a = this.plan ? activeStep(this.plan, phase, remaining) : null;
+    const key = a?.key ?? '';
+    if (key === this.planKey) return;
+    this.planKey = key;
+    this.planCard.style.display = a ? '' : 'none';
+    if (!a || !this.plan) return;
+    const esc = (v: string) => v.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
+    this.planCard.innerHTML = `<div class="pc-head"><span>${t('hud_plan')}</span><b>${esc(this.plan.name)}</b></div>
+      <div class="pc-step">${stepLabel(a.key, a.step)}</div>
+      <div class="pc-row mate"><i></i><span><b>${t('hud_mate')}:</b> ${partnerSummary(this.plan, a)}</span></div>
+      ${a.step.me.note || a.step.me.route.length ? `<div class="pc-row me"><i></i><span><b>${t('hud_me')}:</b> ${esc(a.step.me.note || '—')}</span></div>` : ''}`;
+    this.planCard.classList.remove('flash');
+    void this.planCard.offsetWidth;
+    this.planCard.classList.add('flash');
   }
 
   /** Ayuda de teclas con la asignación actual. */

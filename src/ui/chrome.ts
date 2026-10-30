@@ -42,6 +42,7 @@ export const ic = {
   phone: svg('<rect x="6.5" y="2.5" width="11" height="19" rx="2"/><path d="M12 7v7M9 11l3 3 3-3"/>'),
   offline: svg('<path d="M7 18.5h10a4.5 4.5 0 0 0 .6-9 6 6 0 0 0-11.5 1.5A3.8 3.8 0 0 0 7 18.5z"/><path d="m9.5 13.5 2 2 3.5-4"/>'),
   route: svg('<circle cx="5.5" cy="18.5" r="2"/><circle cx="18.5" cy="5.5" r="2"/><path d="M7.5 18.5h7a3.5 3.5 0 0 0 0-7h-5a3.5 3.5 0 0 1 0-7h7"/>'),
+  lock: svg('<rect x="5" y="10.5" width="14" height="10" rx="1.5"/><path d="M8 10.5V7.5a4 4 0 0 1 8 0v3"/>'),
   rec: svg('<circle cx="12" cy="12" r="6.5" fill="currentColor"/>'),
   medal: svg('<path d="M8 3h3l1.5 5M16 3h-3l-1.5 5"/><circle cx="12" cy="15" r="5.5"/><path d="m12 12.3.9 1.8 2 .3-1.4 1.4.3 2-1.8-1-1.8 1 .3-2-1.4-1.4 2-.3z"/>'),
 };

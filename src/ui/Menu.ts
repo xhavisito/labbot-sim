@@ -99,6 +99,7 @@ export class Menu {
   onTournament: () => void = () => undefined;
   /** Abre la lista de retos del entrenamiento (la conecta App). */
   onTraining: () => void = () => undefined;
+  onStrategies: () => void = () => undefined;
 
   constructor(
     host: HTMLElement,
@@ -158,6 +159,7 @@ export class Menu {
             ${tool('replays', ic.film, 'replays', 'replaysDesc')}
             ${tool('editor', ic.cube, 'editor', 'editorDesc')}
             ${tool('autoPractice', ic.route, 'autoPractice', 'autoPracticeDesc')}
+            ${tool('strategies', ic.field, 'strategies', 'strategiesDesc')}
             ${tool('settings', ic.sliders, 'settings', 'settingsDesc')}
             ${tool('controls', ic.gamepad, 'controlsTitle', 'controlsDesc')}
             ${tool('rules', ic.book, 'rules', 'rulesDesc')}
@@ -187,6 +189,7 @@ export class Menu {
     this.on('[data-act="match"]', () => this.onStart({ mode: 'match', player: this.player }));
     this.on('[data-act="practice"]', () => this.onStart({ mode: 'practice', player: this.player }));
     this.on('[data-go="training"]', () => this.onTraining());
+    this.on('[data-go="strategies"]', () => this.onStrategies());
     this.on('[data-go="replays"]', () => this.onReplays());
     this.on('[data-go="editor"]', () => this.onEditor());
     this.on('[data-go="autoPractice"]', () => this.onStart({ mode: 'auto', player: this.player }));
@@ -515,7 +518,7 @@ export class Menu {
     const b = this.input.bindings;
     const m = p.match;
     const key = (a: Action) => (b.keys[a].length ? `<kbd>${keyLabel(b.keys[a][0])}</kbd>` : '');
-    const keyRows: Action[] = ['forward', 'back', 'left', 'right', 'slow', 'toggleIntake', 'releaseSample', 'elevatorUp', 'elevatorDown', 'camera'];
+    const keyRows: Action[] = ['forward', 'back', 'left', 'right', 'slow', 'intake', 'releaseSample', 'elevatorUp', 'elevatorDown', 'camera'];
     this.open(
       `<div class="pause">
         <div class="ps-main">
