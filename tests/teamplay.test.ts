@@ -46,7 +46,7 @@ describe('camino en la rejilla (ai/grid)', () => {
 
 /**
  * El jugador deja su robot parado en un lugar de paso (el Laboratorio, frente a la Cámara roja) todo
- * el TELEOP. La IA no lo empuja: lo rodea o espera (D41).
+ * el TELEOP. La IA no lo empuja: lo rodea o espera (D42).
  */
 function parkedMatch(player: number, spot: { x: number; z: number }) {
   const autos = [COLLECT_HOME, COLLECT_HOME, COLLECT_HOME, COLLECT_HOME];

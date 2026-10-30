@@ -122,3 +122,42 @@ describe('obstruir zonas de anotación rivales (§4.6, D17)', () => {
     expect(m.fouls.some((f) => f.rule === 'OBSTRUCT' && f.offender === 'red')).toBe(true);
   }, 60_000);
 });
+
+describe('holgura al anotar en la Cámara (D41, Xhavi 30-oct)', () => {
+  /** Suelta la precarga en `level` con el chasis a `gap` m de la pared de la Cámara. ¿Entra? */
+  function scoresFrom(spec: typeof PIVOT_ROBOT, level: 1 | 2 | 3, gap: number): boolean {
+    const g = new GameSession({ player: 0, preload: true, solo: true, specs: [spec], hp: { enabled: false, interval: 3 } });
+    const w = F.camaraWells()[level];
+    const face = F.CAMARA_Z_RED[0] - spec.length / 2;
+    // Sube la garra lejos de la pared y luego se coloca a esa distancia
+    g.player.phys.teleport((w.x0 + w.x1) / 2, face - 1.2, -Math.PI / 2);
+    run(g, 2, { elevator: level });
+    g.player.phys.teleport((w.x0 + w.x1) / 2, face - gap, -Math.PI / 2);
+    run(g, 0.2);
+    run(g, 0.1, { releaseSample: true });
+    for (let i = 0; i < 180; i++) {
+      g.step();
+      if ([...g.sensors.scored.values()].some((s) => s.level === level)) return true;
+    }
+    return false;
+  }
+
+  for (const spec of [PIVOT_ROBOT, PIVOT_180_ROBOT]) {
+    it(`${spec.name}: entra en N3 soltando a 20 cm de la pared (antes solo hasta ~11 cm) y en N1/N2 a 40 cm`, () => {
+      expect(scoresFrom(spec, 3, 0.2)).toBe(true);
+      expect(scoresFrom(spec, 3, 0)).toBe(true);
+      expect(scoresFrom(spec, 1, 0.4)).toBe(true);
+      expect(scoresFrom(spec, 2, 0.4)).toBe(true);
+    });
+  }
+
+  it('la Muestra Crítica sale sin empujón (si no, se pasaba de la Repisa)', () => {
+    const g = new GameSession({ player: 0, preload: false, solo: true, specs: [PIVOT_ROBOT] });
+    const c = g.pieces.critical('red');
+    g.player.mech.load(c);
+    g.player.phys.teleport(0, 2.0, 0);
+    run(g, 2, { elevator: 4 });
+    run(g, 1 / 120, { releaseSample: true });
+    expect(Math.hypot(c.body.linvel().x, c.body.linvel().z)).toBeLessThan(0.05);
+  });
+});

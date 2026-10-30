@@ -85,8 +85,8 @@ const CONTACT_GAP = 0.04;
  * cuánto retrocede. SUPUESTOS de diseño: el manual cobra el contacto con un rival (§4.5) y el pinning
  * sin dar duración (D11); el árbitro del sim cobra pinning a los 3 s.
  */
-const PUSH_PATIENCE = 1.2;
-const YIELD_TIME = 0.8;
+const PUSH_PATIENCE = 0.6;
+const YIELD_TIME = 0.5;
 /** Segundos que le deja más espacio a un robot con el que se trabó. */
 const WARY_TIME = 6;
 
@@ -377,7 +377,7 @@ export class Bot {
       .map((o) => {
         const q = o.phys.position();
         // Con un robot pegado, su disco no tapa el punto de salida (si no, no hay camino)
-        return { x: q.x, z: q.z, R: Math.min(0.72 + (this.isWary(o) ? 0.08 : 0), Math.hypot(q.x - pos.x, q.z - pos.z) - 0.05) };
+        return { x: q.x, z: q.z, R: Math.min(0.64 + (this.isWary(o) ? 0.08 : 0), Math.hypot(q.x - pos.x, q.z - pos.z) - 0.05) };
       });
     // Casi todo el margen que el manejo normal no pisa (`PLATFORM_CLEAR`): media diagonal del chasis
     // y algo, para que a toda velocidad y girando no la roce (§4.6)
@@ -418,6 +418,9 @@ export class Bot {
     }
     this.pathWaitT = 0;
     if (!path.length) return null;
+    // Mientras la recta a su objetivo siga tapada por un robot, sigue el rodeo (si no, al acabar
+    // `planT` volvería a la recta y se toparía otra vez)
+    if (robots.some((o) => segPointDist(pos, goal, o) < 0.75)) this.planT = Math.max(this.planT, 1);
     let len = 0;
     let prev = pos;
     for (const q of path) {
@@ -1548,7 +1551,7 @@ export class Bot {
     // Alternativas: de todas las que menos invaden, la más parecida a su mando (giros cortos
     // incluidos: así se despega de una orilla poco a poco en lugar de quedarse quieto)
     const options: Array<[number, number]> = [[0, out.turn], [out.forward, 0], [0, 0]];
-    for (const f of [-0.5, -0.3, 0, 0.3, 0.5]) for (const t of [-1, -0.6, -0.15, 0, 0.15, 0.6, 1]) options.push([f, t]);
+    for (const f of [-0.5, -0.3, -0.12, 0, 0.12, 0.3, 0.5]) for (const t of [-1, -0.6, -0.15, 0, 0.15, 0.6, 1]) options.push([f, t]);
     let best: [number, number] = [out.forward, out.turn];
     let bestV = invasion(out.forward, out.turn);
     let bestD = 0;

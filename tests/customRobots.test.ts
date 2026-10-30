@@ -71,7 +71,7 @@ describe('robot propio del editor', () => {
       expect(c.lengthCm).toBe(60);
       // Brazo y capacidad del preset (los suyos eran de otro mecanismo)
       expect(c.capacity).toBe(1);
-      expect(c.armLengthCm).toBeCloseTo(50, 6);
+      expect(c.armLengthCm).toBeCloseTo(PIVOT_ROBOT.arm.length * 100, 6);
       expect(validateRobot(customSpec(c))).toEqual([]);
     }
   });
