@@ -344,7 +344,7 @@ export function resultFromEntries(red: readonly ScoutEntry[], blue: readonly Sco
 export function resultFromMatch(m: Match, t: Tournament, tm: TMatch): MatchResult {
   const side = (a: Alliance): AllianceMatchResult => {
     const b = m.breakdown(a);
-    return { score: b.total, noFoul: b.subtotal - b.penalties, auto: b.autoLine + b.samplesAuto, endgame: b.platform + b.critical, samples: m.samplesIn(a), rp: m.rankingPoints(a).total };
+    return { score: b.total, noFoul: b.subtotal - b.penalties, auto: b.auto, endgame: b.platform + b.critical, samples: m.samplesIn(a), rp: m.rankingPoints(a).total };
   };
   const ids = [...tm.red, ...tm.blue].map((i) => t.teams[i].id);
   return { red: side('red'), blue: side('blue'), entries: entriesFromMatch(m, ids, tm.id) };

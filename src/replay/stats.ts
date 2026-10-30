@@ -35,6 +35,8 @@ export interface RobotStats {
   /** Muestras que anotó por nivel y periodo, y los puntos que dieron (valor del periodo, §4.4). */
   samples: Record<'AUTO' | 'TELEOP', Record<Level, number>>;
   samplePoints: number;
+  /** Puntos de AUTO: su Línea de Autónomo + sus Muestras del AUTO (§4.4). */
+  autoPoints: number;
   /** Muestras que recogió (intake o garra). */
   pickups: number;
   /** Ráfagas anotadas en el TELEOP y tiempos de ciclo (s). */
@@ -43,7 +45,6 @@ export interface RobotStats {
   bestCycle: number | null;
   /** Tiempo (s) de cada Muestra anotada, para la línea de tiempo. */
   scoreTimes: number[];
-  autoLine: boolean;
   onPlatform: boolean;
   critical: boolean;
 }
@@ -88,6 +89,7 @@ export function robotStats(r: Replay): RobotStats[] {
     }
     const samples = { AUTO: emptyLevels(), TELEOP: emptyLevels() };
     let samplePoints = 0;
+    let autoPoints = h.endgame.autoLine.includes(rb.index) ? GAME.points.autoLine : 0;
     const scoreTimes: number[] = [];
     let pickups = 0;
     for (const e of r.events) {
@@ -95,6 +97,7 @@ export function robotStats(r: Replay): RobotStats[] {
       if (e.type !== 'score' || e.robot !== rb.index) continue;
       samples[e.period][e.level]++;
       samplePoints += e.points;
+      if (e.period === 'AUTO') autoPoints += e.points;
       scoreTimes.push(e.t);
     }
     // Ráfagas del TELEOP → tiempos de ciclo
@@ -116,12 +119,12 @@ export function robotStats(r: Replay): RobotStats[] {
       timeRivalHalf: rival,
       samples,
       samplePoints,
+      autoPoints,
       pickups,
       cycles,
       avgCycle: cycles.length ? cycles.reduce((a, b) => a + b, 0) / cycles.length : null,
       bestCycle: cycles.length ? Math.min(...cycles) : null,
       scoreTimes,
-      autoLine: h.endgame.autoLine.includes(rb.index),
       onPlatform: h.endgame.platform.includes(rb.index),
       critical: h.endgame.critical[rb.alliance] && critBy.get(rb.alliance) === rb.index,
     };
