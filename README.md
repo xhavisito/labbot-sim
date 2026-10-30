@@ -74,6 +74,13 @@ Muestras anotadas por robot y nivel con sus puntos (§4.4), tiempos de ciclo (de
 Muestras a menos de 2.5 s son un ciclo; solo TELEOP), distancia y velocidad. Se descargan como
 `.lbreplay` (≈ 80 KB) para abrirlas en otro equipo.
 
+**Práctica 1 contra 1** (menú → Taller): tu robot con un rival quieto, de la IA o ninguno (se cambia en el
+panel o en Ajustes; por defecto, quieto) y Muestras ilimitadas del Human Player. Un cronómetro de ciclos
+(de recoger la pieza a que cuente en tu Cámara o, la Crítica, en tu Repisa) da, al terminar, intentos vs.
+anotadas, acierto, tiempo promedio, mejor ciclo y puntos de TELEOP (§4.4) por N1/N2/N3 y Crítica, y guarda
+tu mejor ciclo por robot. SUPUESTOS: intento = soltar la pieza en un nivel, acierta si cuenta en 2.5 s;
+el rival usa tu mismo tipo de robot; la IA rival solo anota (sin defensa ni ENDGAME).
+
 **Práctica de AUTO** (menú → Taller): solo tu robot en su Zona de Inicio con la precarga y sin Human
 Player. **Grabar 15 s** guarda lo que haces con los controles en cada paso de física; luego la ruta
 se **repite** igual (también desde una pose movida unos cm o grados) y se califica con los puntos de

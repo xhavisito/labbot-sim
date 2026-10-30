@@ -8,7 +8,7 @@ import { customById } from '../config/customRobots';
 import { allRobotIds, robotSpec, type RobotId } from '../config/robotIds';
 import { GRIP_MODES, MECHANISM_KINDS } from '../config/robot';
 import { GAME } from '../config/game';
-import { DEFAULT_SETTINGS, SETTINGS_RANGE, type Settings } from '../config/settings';
+import { DEFAULT_SETTINGS, PRACTICE_LIMITS, RIVALS, SETTINGS_RANGE, type RivalKind, type Settings } from '../config/settings';
 import { DAMAGE_LEVELS, type DamageLevel, type DamageTargets } from '../core/damage';
 import { RULES } from '../core/fouls';
 import type { Match } from '../core/match';
@@ -28,9 +28,10 @@ const esc = (v: string): string => v.replace(/[&<>"']/g, (c) => `&#${c.charCodeA
 export interface MenuChoice {
   /**
    * 'auto' = práctica de AUTO (`ui/AutoPractice.ts`): solo tu robot, grabar y probar rutas.
+   * 'practice1v1' = práctica con rival y cronómetro de ciclos (`ui/Practice1v1.ts`).
    * 'training' = un reto del entrenamiento (`ui/Training.ts`), el de `drill`.
    */
-  mode: 'match' | 'practice' | 'auto' | 'training';
+  mode: 'match' | 'practice' | 'auto' | 'training' | 'practice1v1';
   player: number;
   drill?: DrillId;
   /** Match del calendario del Scouting (equipos y sus robots); su registro se guarda al terminar. */
@@ -155,6 +156,7 @@ export class Menu {
             <span class="mh-go">${ic.go}</span>
           </button>
           <div class="mm-tools late">
+            ${tool('practice1v1', ic.go, 'p1_title', 'p1_desc')}
             ${tool('training', ic.medal, 'tn_title', 'trainingDesc')}
             ${tool('replays', ic.film, 'replays', 'replaysDesc')}
             ${tool('editor', ic.cube, 'editor', 'editorDesc')}
@@ -189,6 +191,7 @@ export class Menu {
     this.on('[data-act="match"]', () => this.onStart({ mode: 'match', player: this.player }));
     this.on('[data-act="practice"]', () => this.onStart({ mode: 'practice', player: this.player }));
     this.on('[data-go="training"]', () => this.onTraining());
+    this.on('[data-go="practice1v1"]', () => this.onStart({ mode: 'practice1v1', player: this.player }));
     this.on('[data-go="strategies"]', () => this.onStrategies());
     this.on('[data-go="replays"]', () => this.onReplays());
     this.on('[data-go="editor"]', () => this.onEditor());
@@ -298,6 +301,10 @@ export class Menu {
           <label>${t('setHpInterval')}</label>${range('hpInterval', 's')}
           <label>${t('setHpSmart')}</label>${toggle('hpSmart')}
           <p class="full sub">${t('hpSmartNote')}</p>
+          <h3>${t('p1_title')}</h3>
+          <label>${t('p1_rival')}</label>${seg('p1.rival', RIVALS, s.practice.rival, (v) => t(`p1_rival_${v}` as Key))}
+          <label>${t('p1_limit')}</label>${seg('p1.limit', PRACTICE_LIMITS.map(String), String(s.practice.limit), (v) => (v === '0' ? t('p1_free') : `${v} s`))}
+          <p class="full sub">${t('p1_settingsNote')}</p>
         </div></div>
         <div class="panel"><div class="form">
           <h3>${t('sec_robot')}</h3>
@@ -363,7 +370,9 @@ export class Menu {
       b.addEventListener('click', () => {
         const k = b.parentElement!.dataset.seg!;
         const v = b.dataset.v!;
-        if (k === 'grip') s.grip = v as Settings['grip'];
+        if (k === 'p1.rival') s.practice = { ...s.practice, rival: v as RivalKind };
+        else if (k === 'p1.limit') s.practice = { ...s.practice, limit: Number(v) };
+        else if (k === 'grip') s.grip = v as Settings['grip'];
         else if (k === 'damage.level') s.damage = { ...s.damage, level: v as DamageLevel };
         else if (k === 'damage.targets') s.damage = { ...s.damage, targets: v as DamageTargets };
         b.parentElement!.querySelectorAll('button').forEach((x) => x.classList.toggle('on', x === b));

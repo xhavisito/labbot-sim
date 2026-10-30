@@ -35,6 +35,18 @@ export interface MatchSetup {
   start: StartSpot;
 }
 
+/** Rival de la práctica 1 contra 1 (`GameSession` opción `rival`): nadie, uno quieto o uno de la IA. */
+export const RIVALS = ['none', 'passive', 'ai'] as const;
+export type RivalKind = (typeof RIVALS)[number];
+/** Duración de la práctica 1 contra 1 en segundos (0 = libre, hasta que tú termines). */
+export const PRACTICE_LIMITS = [0, 60, 120, 180, 300] as const;
+
+/** Ajustes de la práctica 1 contra 1 (`ui/Practice1v1.ts`). */
+export interface PracticeSettings {
+  rival: RivalKind;
+  limit: number;
+}
+
 export interface Settings {
   /** La IA maneja los otros 3 robots en el TELEOP. */
   ai: boolean;
@@ -62,6 +74,8 @@ export interface Settings {
   grip: GripMode;
   /** Fallas por golpes y al azar (`core/damage.ts`). */
   damage: DamageSettings;
+  /** Práctica 1 contra 1: rival y duración (también se cambian en su panel). */
+  practice: PracticeSettings;
   /** Volumen de los sonidos del campo (`audio/FieldAudio.ts`), 0–100 %; 0 = silencio. */
   volume: number;
 }
@@ -81,6 +95,8 @@ export const DEFAULT_SETTINGS: Settings = {
   quality: 'auto',
   grip: 'compliant',
   damage: { ...DEFAULT_DAMAGE },
+  // SUPUESTO: por defecto el rival está quieto, como un obstáculo que no te quita Muestras
+  practice: { rival: 'passive', limit: 0 },
   volume: 80,
 };
 
@@ -94,6 +110,16 @@ const KEY = 'labbot.settings';
 
 const num = (v: unknown, def: number, r: { min: number; max: number }): number =>
   typeof v === 'number' && Number.isFinite(v) ? Math.max(r.min, Math.min(r.max, v)) : def;
+
+/** Ajustes de la práctica 1 contra 1 válidos (lo que no sirve toma el valor por defecto). */
+export function sanitizePractice(raw: unknown): PracticeSettings {
+  const o = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
+  const d = DEFAULT_SETTINGS.practice;
+  return {
+    rival: RIVALS.find((r) => r === o.rival) ?? d.rival,
+    limit: PRACTICE_LIMITS.find((l) => l === o.limit) ?? d.limit,
+  };
+}
 
 /** Ajustes válidos a partir de cualquier valor (lo que no sirve toma el valor por defecto). */
 export function sanitizeSettings(raw: unknown, autoIds: readonly string[]): Settings {
@@ -132,6 +158,7 @@ export function sanitizeSettings(raw: unknown, autoIds: readonly string[]): Sett
     // 'real' (el agarre estricto del 29-oct, entonces por defecto) pasa a compliants
     grip: GRIP_MODES.find((g) => g === o.grip) ?? d.grip,
     damage: sanitizeDamage(o.damage),
+    practice: sanitizePractice(o.practice),
     volume: num(o.volume, d.volume, SETTINGS_RANGE.volume),
   };
 }

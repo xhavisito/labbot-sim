@@ -69,6 +69,13 @@ export interface SessionOptions {
    * llenan). Nada de esto aplica al match (§4.1.1: 10 Muestras por HP).
    */
   solo?: boolean;
+  /**
+   * Práctica 1 contra 1 (`ui/Practice1v1.ts`, solo con `solo`): además de tu robot, el de enfrente
+   * en la otra alianza. 'passive' = se queda quieto en su Zona de Inicio (un obstáculo); 'ai' = la
+   * IA lo maneja y anota en su Cámara, sin defender ni subir a la Plataforma; su Human Player le
+   * mete Muestras y su Cámara también tiene el vacío. SUPUESTO de diseño (el manual no tiene práctica).
+   */
+  rival?: 'none' | 'passive' | 'ai';
   /** Estrategia de la IA de cada robot (nivel, de dónde junta, papel, ENDGAME; `ai` = su dificultad). */
   bots?: Array<Partial<BotOptions> | undefined>;
   /** Dificultad de la IA de los robots que no la traen en `bots` (`ai/difficulty.ts`; por defecto difícil). */
@@ -117,7 +124,7 @@ export class GameSession {
   /** Dónde se anotó cada Muestra en los pasos del último `update` (partículas y público). */
   readonly scoreFx: Array<{ x: number; y: number; z: number; alliance: Alliance }> = [];
   /** Práctica libre: Muestras anotadas esperando a que el vacío de la Cámara se las trague (índice → s). */
-  private sink = new Map<number, number>();
+  private sink = new Map<number, { t: number; alliance: Alliance }>();
   private sinkView: SinkView | null = null;
   private pieceView: PieceView;
   private robotViews: RobotView[] = [];
@@ -158,7 +165,7 @@ export class GameSession {
     this.pieceView = new PieceView(this.pieces);
     this.root.add(this.pieceView.group);
     for (let i = 0; i < 2 * F.ROBOTS_PER_ALLIANCE; i++) {
-      if (opts.solo && i !== opts.player) continue;
+      if (opts.solo && i !== opts.player && i !== this.rivalIndex) continue;
       const r = new Robot(this.pw, this.pieces, i, i < 2 ? 'red' : 'blue', (i % 2) as 0 | 1, opts.specs?.[i] ?? DEFAULT_ROBOT, opts.starts?.[i]);
       this.robots.push(r);
       const v = new RobotView(r, i === opts.player);
@@ -174,6 +181,18 @@ export class GameSession {
     this.robots.forEach((r, i) => (this.robotViews[i].faults = () => this.damage.faults(r.index)));
     this.referee = new Referee(this.pw, this.robots, () => this.match, { pieces: this.pieces, sensors: this.sensors });
     this.resetField();
+  }
+
+  /** Índice del robot rival de la práctica 1 contra 1 (el de enfrente: misma posición, otra alianza); −1 sin rival. */
+  get rivalIndex(): number {
+    const o = this.opts;
+    if (!o.solo || !o.rival || o.rival === 'none' || o.player < 0) return -1;
+    return o.player < 2 ? o.player + 2 : o.player - 2;
+  }
+
+  /** Robot rival de la práctica 1 contra 1 (si hay). */
+  get rival(): Robot | null {
+    return this.robots.find((r) => r.index === this.rivalIndex) ?? null;
   }
 
   get player(): Robot {
@@ -206,9 +225,18 @@ export class GameSession {
         if (s) r.mech.load(s);
       }
     }
-    // Práctica libre: toda la reserva (la del otro HP y las precargas sin robot) es del HP del jugador
+    // Práctica libre: toda la reserva (la del otro HP y las precargas sin robot) es del HP del jugador;
+    // con un rival de la IA, cada HP se queda con la suya
     this.sink.clear();
-    if (this.opts.solo) for (const p of this.pieces.list) if (p.kind === 'sample' && p.state.at === 'hp') p.state = { at: 'hp', alliance: this.player.alliance };
+    if (this.opts.solo && this.opts.rival !== 'ai') for (const p of this.pieces.list) if (p.kind === 'sample' && p.state.at === 'hp') p.state = { at: 'hp', alliance: this.player.alliance };
+    // Rival de la práctica 1 contra 1 manejado por la IA (nuevo en cada acomodo): anota a su ritmo,
+    // sin defensa ni ENDGAME
+    const rv = this.rival;
+    if (rv && this.opts.rival === 'ai') {
+      this.bots = [];
+      const o = { ai: this.opts.aiLevel ?? 'normal', auto: 'none', teleop: true, role: 'score', endgame: 'none' } as const;
+      this.bots[rv.index] = new Bot(rv, this.pieces, this.robots, o, new Team(rv.alliance, this.hps[rv.alliance]));
+    }
     this.pieceView.capture();
     this.pieceView.capture();
     for (const v of this.robotViews) {
@@ -287,10 +315,11 @@ export class GameSession {
       const b = this.bots[r.index];
       // Sin comunicación (falla) el robot no recibe mandos: se queda quieto
       const off = this.damage.disabled(r.index);
-      const bot = !b || !m || off ? null : phase === 'AUTO' ? (b.opts.auto !== 'none' ? b : null) : isTeleop(phase) && b.opts.teleop ? b : null;
+      // Sin match solo corre la IA del rival de la práctica 1 contra 1 (juega como en el TELEOP)
+      const bot = !b || off ? null : !m ? (b.opts.teleop ? b : null) : phase === 'AUTO' ? (b.opts.auto !== 'none' ? b : null) : isTeleop(phase) && b.opts.teleop ? b : null;
       const runner = off ? null : m && phase === 'AUTO' ? this.autos[r.index] : !m && r === this.player ? this.pilot : null;
       if (bot) {
-        const o = bot.step(dt, phase, m ? m.remaining : Infinity);
+        const o = bot.step(dt, m ? phase : 'TELEOP', m ? m.remaining : Infinity);
         forward = o.forward;
         turn = o.turn;
         r.mech.intakeOn = o.intake;
@@ -322,7 +351,10 @@ export class GameSession {
     }
     // Human Player: Muestras por la ranura durante todo el TeleOp (§3.2.4)
     if (m && isTeleop(phase)) for (const a of ALLIANCES) this.hps[a].step(dt, phase === 'ENDGAME');
-    else if (!m && this.opts.solo) this.hps[this.player.alliance].step(dt, true);
+    else if (!m && this.opts.solo) {
+      this.hps[this.player.alliance].step(dt, true);
+      if (this.bots.some(Boolean)) this.hps[opponent(this.player.alliance)].step(dt, true);
+    }
     this.damage.beforeStep();
     this.pw.step();
     this.time += dt;
@@ -340,7 +372,7 @@ export class GameSession {
       if (m && this.hps[opponent(s.alliance)].fed.has(s.piece.index)) this.stolen[s.alliance]++;
       if (!m) {
         this.practiceCount[s.alliance]++;
-        if (this.opts.solo) this.sink.set(s.piece.index, 0);
+        if (this.opts.solo) this.sink.set(s.piece.index, { t: 0, alliance: s.alliance });
       }
     }
     this.drainSink(dt);
@@ -388,15 +420,16 @@ export class GameSession {
 
   /** El vacío de la Cámara: las Muestras anotadas en práctica regresan a la reserva del HP. */
   private drainSink(dt: number): void {
-    for (const [i, t] of this.sink) {
-      if (t + dt < GameSession.SINK_DELAY) {
-        this.sink.set(i, t + dt);
+    for (const [i, e] of this.sink) {
+      if (e.t + dt < GameSession.SINK_DELAY) {
+        e.t += dt;
         continue;
       }
       this.sink.delete(i);
       const p = this.pieces.list[i];
       if (p.state.at !== 'field') continue;
-      this.pieces.stash(p, { at: 'hp', alliance: this.player.alliance });
+      // Con un rival de la IA cada Cámara le regresa la Muestra a su HP; si no, todo es del jugador
+      this.pieces.stash(p, { at: 'hp', alliance: this.opts.rival === 'ai' ? e.alliance : this.player.alliance });
       this.sensors.scored.delete(i);
     }
   }
