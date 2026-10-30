@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="es-MX">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>LabBot Rescue Sim</title>
+    <meta name="description" content="Simulador 3D del reto interno LabBot Rescue 2026 (Robotics WinterFest, LamBot 3478)." />
+    <meta name="color-scheme" content="dark" />
+    <link rel="icon" href="icons/favicon.svg" type="image/svg+xml" />
+    <meta name="theme-color" content="#722585" />
+    <link rel="manifest" href="manifest.webmanifest" />
+    <link rel="apple-touch-icon" href="icons/icon-180.png" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="LabBot Sim" />
+    <style>html,body{color:#f8f8f8;background:#0b0610;height:100%;margin:0;overflow:hidden}#loading{z-index:100;padding:24px max(24px, env(safe-area-inset-right)) 24px max(24px, env(safe-area-inset-left));background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 600 600' fill='none' stroke-width='1.4'%3E%3Cg stroke='%23e9239d' stroke-opacity='.18'%3E%3Cpath d='M600 120c-90 10-150 60-170 130s-80 120-170 130-150 70-180 160'/%3E%3Cpath d='M600 160c-80 12-130 58-148 122s-76 112-160 124-140 64-168 154'/%3E%3Cpath d='M600 200c-70 14-112 56-128 114s-72 104-150 118-130 58-156 148'/%3E%3C/g%3E%3Cg stroke='%23a8347b' stroke-opacity='.16'%3E%3Cpath d='M600 240c-60 16-94 54-108 106s-68 96-140 112-120 52-144 142'/%3E%3Cpath d='M600 280c-50 18-76 52-88 98s-64 88-130 106-110 46-132 136'/%3E%3C/g%3E%3C/svg%3E") 100% 100%/min(620px,70vmin) no-repeat,radial-gradient(70% 55% at 78% 30%,#72258547,#0000 70%),#0b0610;flex-direction:column;justify-content:center;gap:18px;font:500 14px/1.45 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;display:flex;position:fixed;inset:0}#loading .ld{flex-direction:column;gap:16px;width:min(560px,100%);margin:0 auto;display:flex}#loading .brand{color:#b9a6bd;align-items:center;gap:10px;font:600 12px/1.2 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;display:flex}#loading .logo{background:linear-gradient(135deg,#e9239d,#722585 55%,#2a0830);border-radius:7px;flex:none;width:26px;height:26px;position:relative}#loading .logo:after{content:"";clip-path:polygon(50% 0,100% 25%,100% 75%,50% 100%,0 75%,0 25%);background:#f8f8f8;position:absolute;inset:5px}#loading h1{letter-spacing:-.01em;margin:0;font:700 clamp(44px,11vw,80px)/.95 League Spartan,system-ui,-apple-system,Segoe UI,Roboto,sans-serif}#loading h1 span{color:#e9239d;display:block}#loading-bar{background:#24122b;border-radius:999px;height:6px;position:relative;overflow:hidden}#loading-bar:after{content:"";background:linear-gradient(90deg,#722585,#e9239d);border-radius:999px;width:38%;animation:1.3s ease-in-out infinite ld;position:absolute;top:0;bottom:0}@keyframes ld{0%{left:-38%}to{left:100%}}#loading-text{color:#f57cc6;font-size:13px;font-weight:600}#loading p{color:#b9a6bd;margin:0;font-size:13px}#loading.failed #loading-bar:after{background:#e5413a;width:100%;animation:none;left:0}#loading.failed #loading-text{color:#ff8a83}</style>
+    <script type="module" crossorigin src="./assets/index-5XVZjkGP.js"></script>
+  </head>
+  <body>
+    <div id="loading" role="status" aria-live="polite">
+      <div class="ld">
+        <div class="brand"><i class="logo"></i>Robotics WinterFest 2026 · LamBot 3478</div>
+        <h1>LabBot<span>Rescue</span></h1>
+        <div id="loading-bar"></div>
+        <div id="loading-text">Cargando…</div>
+        <p>
+          Simulador 3D no oficial del reto interno LabBot Rescue 2026. La primera vez descarga unos 2 MB,
+          así que con datos móviles puede tardar unos segundos; después queda guardado y abre sin conexión
+          (también puedes instalarlo en la pantalla de inicio). Si ves
+          un error aquí, mándanos una captura. Funciona en el celular en vertical y en horizontal.
+        </p>
+        <noscript><p>Este simulador necesita JavaScript activado.</p></noscript>
+      </div>
+    </div>
+    <div id="app"></div>
+    <div id="ui"></div>
+  </body>
+</html>
