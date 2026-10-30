@@ -107,7 +107,7 @@ describe('match completo en la física', () => {
       const a = DEFAULT_ROBOT.arm;
       g.player.phys.teleport(c.x, c.z + armTip(a, armAngle(a, DEFAULT_ROBOT.elevatorHeights[4])).x - 0.05, Math.PI / 2);
       steps(g, 1.5, { elevator: 4 });
-      steps(g, 0.1, { grabCritical: true });
+      steps(g, 0.1, { toggleIntake: true });
       expect(g.player.mech.critical).not.toBeNull();
       return g.match!.fouls.map((f) => f.rule);
     };

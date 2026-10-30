@@ -6,7 +6,7 @@
 import { AI_LEVELS, type AiLevel } from '../ai/difficulty';
 import { isStrategy, type StrategyId } from '../ai/strategy';
 import { DEFAULT_DAMAGE, sanitizeDamage, type DamageSettings } from '../core/damage';
-import { DEFAULT_ROBOT, MECHANISM_KINDS, type MechanismKind } from './robot';
+import { DEFAULT_ROBOT, GRIP_MODES, MECHANISM_KINDS, type GripMode, type MechanismKind } from './robot';
 import { allRobotIds, type RobotId } from './robotIds';
 import { CENTER_SPOT, sanitizeSpot, type StartSpot } from './startSpot';
 
@@ -48,8 +48,11 @@ export interface Settings {
   touch: 'auto' | 'on' | 'off';
   /** Calidad gráfica (`render/Renderer.ts`): automática según el equipo y los FPS, o fija. */
   quality: 'auto' | 'low' | 'medium' | 'high';
-  /** Agarre de la garra: realista (alinear y entrar despacio) o fácil (el de antes). `game/Mechanisms.ts`. */
-  grip: 'real' | 'easy';
+  /**
+   * Agarre de la garra (`game/Mechanisms.ts`): con compliants (agarra de cualquier ángulo con la
+   * garra abajo), preciso (alinear y entrar despacio) o fácil (el de antes).
+   */
+  grip: GripMode;
   /** Fallas por golpes y al azar (`core/damage.ts`). */
   damage: DamageSettings;
 }
@@ -66,7 +69,7 @@ export const DEFAULT_SETTINGS: Settings = {
   hpInterval: 3,
   touch: 'auto',
   quality: 'auto',
-  grip: 'real',
+  grip: 'compliant',
   damage: { ...DEFAULT_DAMAGE },
 };
 
@@ -112,7 +115,8 @@ export function sanitizeSettings(raw: unknown, autoIds: readonly string[]): Sett
     hpInterval: num(o.hpInterval, d.hpInterval, SETTINGS_RANGE.hpInterval),
     touch: o.touch === 'on' || o.touch === 'off' ? o.touch : d.touch,
     quality: o.quality === 'low' || o.quality === 'medium' || o.quality === 'high' ? o.quality : d.quality,
-    grip: o.grip === 'easy' || o.grip === 'real' ? o.grip : d.grip,
+    // 'real' (el agarre estricto del 29-oct, entonces por defecto) pasa a compliants
+    grip: GRIP_MODES.find((g) => g === o.grip) ?? d.grip,
     damage: sanitizeDamage(o.damage),
   };
 }

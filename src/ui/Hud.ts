@@ -158,7 +158,7 @@ export class Hud {
       else if (e.type === 'repaired') this.toast(t('faultFixed', { fault: t(`fault_${e.kind}` as Key) }), 'ok');
       else if (e.type === 'dropped') this.toast(t('faultDropped'), 'fault');
     }
-    // Agarre realista: avisa (cada tanto) que la Muestra se resbaló
+    // Agarre con compliants o preciso: avisa (cada tanto) que la Muestra se resbaló
     for (const e of s.events)
       if (e.type === 'grabMiss' && e.robot === me && s.time - this.lastMiss > 4) {
         this.lastMiss = s.time;

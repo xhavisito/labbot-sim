@@ -11,7 +11,7 @@ import { CLAW, CLAW_GAP, DEFAULT_ROBOT, PIVOT_180_ROBOT } from '../src/config/ro
 import { DAMAGE, faultChance, ImpactMeter, impactSide, pickFault, sanitizeDamage } from '../src/core/damage';
 import { rng } from '../src/core/rng';
 import { GameSession, type SessionOptions } from '../src/game/GameSession';
-import { cubeAlignment, GRIP, missChance } from '../src/game/Mechanisms';
+import { COMPLIANT, cubeAlignment, GRIP, missChance, type GripMode } from '../src/game/Mechanisms';
 import { emptyInput, type PlayerInput } from '../src/input/InputManager';
 import { initRapier } from '../src/physics/PhysicsWorld';
 
@@ -136,7 +136,7 @@ describe('hitbox de los mecanismos', () => {
   });
 });
 
-describe('agarre realista', () => {
+describe('agarre preciso', () => {
   it('giro del cubo respecto a la garra: 0 derecho, simétrico, máximo 45°', () => {
     expect(cubeAlignment(yawQ(0), 0).yaw).toBeCloseTo(0, 6);
     expect(cubeAlignment(yawQ(90 * DEG), 0).yaw).toBeCloseTo(0, 6);
@@ -158,7 +158,7 @@ describe('agarre realista', () => {
 
   for (const spec of [DEFAULT_ROBOT, PIVOT_180_ROBOT])
     it(`${spec.name}: derecha y despacio la agarra; girada 40° no; con agarre fácil la toma de lejos`, () => {
-      const go = (yaw: number, grip: 'real' | 'easy', gap: number) => {
+      const go = (yaw: number, grip: GripMode, gap: number) => {
         const g = solo({ grip }, spec);
         const r = g.player;
         r.phys.teleport(0, 2.0, 0);
@@ -168,14 +168,14 @@ describe('agarre realista', () => {
         steps(g, 2.5, { forward: 0.08 });
         return r.mech.inClaw;
       };
-      expect(go(3 * DEG, 'real', 0.35)).toBe(true);
-      expect(go(40 * DEG, 'real', 0.35)).toBe(false);
+      expect(go(3 * DEG, 'precise', 0.35)).toBe(true);
+      expect(go(40 * DEG, 'precise', 0.35)).toBe(false);
       expect(go(40 * DEG, 'easy', 0.35)).toBe(true);
     });
 
-  it('la IA recoge con el agarre realista y anota en un match (sin faltas de cancha)', () => {
+  it('la IA recoge con el agarre preciso y anota en un match (sin faltas de cancha)', () => {
     const specs = [DEFAULT_ROBOT, PIVOT_180_ROBOT, DEFAULT_ROBOT, PIVOT_180_ROBOT];
-    const g = new GameSession({ player: -1, preload: true, ai: true, specs, seed: 7 });
+    const g = new GameSession({ player: -1, preload: true, ai: true, specs, seed: 7, grip: 'precise' });
     g.startMatch();
     let misses = 0;
     for (let i = 0; i < 151 * 120 && !g.match!.finished; i++) {
@@ -187,6 +187,52 @@ describe('agarre realista', () => {
     expect(g.match!.fouls.filter((f) => f.rule === 'OUT_OF_BOUNDS')).toEqual([]);
     expect(misses).toBeGreaterThanOrEqual(0);
   }, 120_000);
+});
+
+describe('agarre con compliants (por defecto; Xhavi, 30-oct)', () => {
+  it('es el agarre por defecto y solo rebota si llega muy rápido', () => {
+    expect(solo().player.mech.grip).toBe('compliant');
+    expect(missChance(1.5, 40 * DEG, 'compliant')).toBe(0);
+    expect(missChance(COMPLIANT.safeSpeed + 1, 0, 'compliant')).toBeGreaterThan(0);
+    expect(missChance(10, 0, 'compliant')).toBeLessThanOrEqual(0.5);
+  });
+
+  /** Se acerca con la garra abajo (o a otra altura) a una Muestra girada y corrida de lado. */
+  const approach = (spec: typeof DEFAULT_ROBOT, yaw: number, side: number, forward: number, elevator: 0 | 1 = 0) => {
+    const g = solo({}, spec);
+    const r = g.player;
+    r.phys.teleport(0, 2.0, 0);
+    steps(g, 1.5, { toggleIntake: true, elevator });
+    const p = g.pieces.list[0];
+    g.pieces.place(p, r.mech.tipX() + 0.5, F.SAMPLE_SIZE / 2, 2.0 + side, yaw);
+    for (let i = 0; i < 3 * 120 && !r.mech.inClaw; i++) steps(g, 1 / 120, { forward });
+    return r.mech.inClaw;
+  };
+
+  for (const spec of [DEFAULT_ROBOT, PIVOT_180_ROBOT])
+    it(`${spec.name}: agarra con cualquier giro, de lado y a cualquier velocidad normal`, () => {
+      for (const yaw of [0, 20, 45]) for (const side of [0, 0.05, 0.1]) for (const fwd of [0.15, 0.4, 0.8]) expect(approach(spec, yaw * DEG, side, fwd), `giro ${yaw}° lado ${side} m vel ${fwd}`).toBe(true);
+    });
+
+  it('con la garra arriba del piso no agarra', () => {
+    expect(approach(DEFAULT_ROBOT, 0, 0, 0.15, 1)).toBe(false);
+  });
+
+  it('agarra la Muestra en la punta de los dedos aunque no llegue a la placa (pegada a una pared)', () => {
+    const tipFront = (grip: GripMode) => {
+      const g = solo({ grip });
+      const r = g.player;
+      r.phys.teleport(0, 2.0, 0);
+      steps(g, 1.5, { toggleIntake: true });
+      const p = g.pieces.list[0];
+      // Quieta, con su borde de atrás en la punta de los dedos y 30° de giro
+      g.pieces.place(p, r.mech.tipX() + CLAW.fingerLength / 2 + F.SAMPLE_SIZE / 2, F.SAMPLE_SIZE / 2, 2.0, 30 * DEG);
+      steps(g, 0.5);
+      return r.mech.inClaw;
+    };
+    expect(tipFront('compliant')).toBe(true);
+    expect(tipFront('precise')).toBe(false);
+  });
 });
 
 describe('fallas por golpes (lógica pura)', () => {

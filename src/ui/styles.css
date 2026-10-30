@@ -669,21 +669,20 @@ body.touch-on .hud-keys { display: none; }
 .touch .stick::before { content: ''; position: absolute; inset: 22%; border-radius: 50%; border: 1px dashed rgba(255, 255, 255, 0.2); }
 .touch .knob { width: 62px; height: 62px; border-radius: 50%; background: rgba(255, 255, 255, 0.4); border: 2px solid rgba(255, 255, 255, 0.85); box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4); }
 .touch .stick span { position: absolute; top: 100%; margin-top: 6px; font: 700 10px/1 var(--display); letter-spacing: 0.12em; text-transform: uppercase; color: rgba(255, 255, 255, 0.6); white-space: nowrap; text-shadow: 0 1px 3px #000; }
-.touch .pad { position: absolute; right: calc(14px + var(--safe-r)); bottom: calc(14px + var(--safe-b)); display: grid; grid-template-columns: repeat(3, 68px); grid-template-rows: repeat(2, auto); grid-auto-flow: column; gap: 8px; }
+.touch .pad { position: absolute; right: calc(14px + var(--safe-r)); bottom: calc(14px + var(--safe-b)); display: grid; grid-template-columns: repeat(2, 68px); grid-template-rows: repeat(2, auto); grid-auto-flow: column; gap: 8px; }
 .touch .tbtn { height: 60px; padding: 2px; border-radius: 50%; border: 2px solid rgba(255, 255, 255, 0.45); background: rgba(17, 18, 22, var(--touch-opacity)); color: #fff;
   font: 700 11px/1.05 var(--display); letter-spacing: 0.04em; text-transform: uppercase; backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); }
 .touch .tbtn.on { background: rgba(255, 199, 44, 0.88); color: #111; border-color: #fff; }
 .touch .b-intake { border-color: var(--accent); }
 .touch .b-intake.active { background: rgba(255, 199, 44, 0.3); }
 .touch .b-up, .touch .b-down { font-size: 20px; }
-.touch .b-grab, .touch .b-dropc { border-color: rgba(185, 255, 208, 0.6); }
 body.touch-on .player { bottom: auto; top: calc(var(--gut) + var(--safe-t)); width: auto; max-width: 15em; padding: 0.5em 0.7em 0.55em 0.95em; }
 body.touch-on .player .chips { margin-top: 0.4em; }
 /* celular horizontal (poca altura) */
 @media (max-height: 460px) {
   .touch .stick { width: 124px; height: 124px; }
   .touch .knob { width: 52px; height: 52px; }
-  .touch .pad { grid-template-columns: repeat(3, 58px); gap: 6px; }
+  .touch .pad { grid-template-columns: repeat(2, 58px); gap: 6px; }
   .touch .tbtn { height: 52px; font-size: 10px; }
 }
 /* vertical: los botones en 2 columnas a la derecha, el marcador más angosto */

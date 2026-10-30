@@ -12,8 +12,6 @@ const BUTTONS: Array<{ action: Action; label: Key | string; cls: string }> = [
   { action: 'releaseSample', label: 'touchDrop', cls: 'b-drop' },
   { action: 'elevatorUp', label: '▲', cls: 'b-up' },
   { action: 'elevatorDown', label: '▼', cls: 'b-down' },
-  { action: 'grabCritical', label: 'touchGrab', cls: 'b-grab' },
-  { action: 'releaseCritical', label: 'touchDropCrit', cls: 'b-dropc' },
 ];
 
 /** ¿El equipo es táctil? (pantalla de dedo, sin mouse fino) */
