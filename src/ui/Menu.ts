@@ -509,7 +509,7 @@ export class Menu {
         </div></div>
       </div>
       <div class="actionbar">${backBtn('data-act="back"')}<div class="grow"></div>
-        <button class="btn" data-act="defaults">${ic.reset}<span>${t('defaults')}</span></button></div>`,
+        <button class="btn" data-act="defaults">${ic.reset}<span>${t('resetControls')}</span></button></div>`,
       'screen solid',
     );
     const apply = (nb: typeof b) => {
@@ -557,6 +557,7 @@ export class Menu {
     });
     this.on('[data-act="defaults"]', () => {
       inp.cancelCapture();
+      if (!window.confirm(t('resetControlsConfirm'))) return;
       apply(cloneBindings(DEFAULT_BINDINGS));
     });
   }
