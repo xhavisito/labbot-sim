@@ -182,6 +182,10 @@ tecla o el botón. Cada tecla o botón hace una sola cosa (si ya estaba en otra 
 hasta 2 por acción y se guarda en el navegador. Ahí también eliges manejar con un stick o con los dos
 (izquierdo avanza, derecho gira), invertir el avance y cuándo mostrar los controles touch.
 
+Ahí mismo se ajusta la **zona muerta** de los sticks. **Ajustes → Accesibilidad** tiene un modo de
+colores para daltonismo (rojo–verde o azul–amarillo: cambia alianzas, tu robot y Muestras Críticas;
+recarga la página al guardar) y el **tamaño del texto** (85–150 %) de toda la interfaz.
+
 Asignación por defecto:
 
 | Acción | Teclado | Control |

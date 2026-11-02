@@ -4,13 +4,14 @@
  * velocidad, Plataforma, Muestra Crítica). Se abre desde los resultados o desde Repeticiones.
  */
 import * as F from '../config/field';
+import { activePalette } from '../config/palette';
 import { levelCat } from '../core/cycles';
 import { GAME } from '../config/game';
 import { bounds } from '../core/clock';
 import { replayDuration, type Replay } from '../replay/format';
 import { HEAT_CELL, HEAT_COLS, HEAT_ROWS, robotStats, totalSamples, type RobotStats } from '../replay/stats';
 import { backBtn, brandbar, ic } from './chrome';
-import { ALLIANCE_RGB, drawShotMap, fieldBase, fieldLines } from './shotMap';
+import { drawShotMap, fieldBase, fieldLines } from './shotMap';
 import { dateTime, t } from './i18n';
 
 const esc = (s: string): string => s.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
@@ -27,7 +28,7 @@ export function drawHeatmap(cv: HTMLCanvasElement, replay: Replay, stats: RobotS
   for (const s of stats) {
     if (only !== null && s.index !== only) continue;
     const rb = replay.header.robots[s.index];
-    const [r, gg, b] = ALLIANCE_RGB[rb.alliance];
+    const [r, gg, b] = activePalette().heat[rb.alliance];
     for (let row = 0; row < HEAT_ROWS; row++)
       for (let c = 0; c < HEAT_COLS; c++) {
         const v = s.heat[row * HEAT_COLS + c];
@@ -44,7 +45,7 @@ export function drawScoreSpots(cv: HTMLCanvasElement, replay: Replay, stats: Rob
   drawShotMap(cv, {
     dots: stats
       .filter((s) => only === null || s.index === only)
-      .map((s) => ({ rgb: ALLIANCE_RGB[replay.header.robots[s.index].alliance], shots: s.scoreSpots.map((p) => ({ x: p.x, z: p.z, cat: levelCat(p.level), ok: true, t: p.t })) })),
+      .map((s) => ({ rgb: activePalette().heat[replay.header.robots[s.index].alliance], shots: s.scoreSpots.map((p) => ({ x: p.x, z: p.z, cat: levelCat(p.level), ok: true, t: p.t })) })),
   });
 }
 

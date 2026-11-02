@@ -8,7 +8,6 @@ import { SHOT_CELL, shotCells, type Shot } from '../core/scoreMap';
 import { ALLIANCES } from '../core/types';
 
 export type RGB = readonly [number, number, number];
-export const ALLIANCE_RGB: Record<'red' | 'blue', RGB> = { red: [229, 65, 58], blue: [47, 125, 246] };
 
 /** Fondo de la cancha; devuelve los píxeles por metro. */
 export function fieldBase(g: CanvasRenderingContext2D, W: number, H: number): number {

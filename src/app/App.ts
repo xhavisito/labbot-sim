@@ -6,6 +6,8 @@ import { LEAVE_ZONE, type AutoRoutine } from '../auto/AutoRoutine';
 import { aiLineup } from '../ai/lineup';
 import { planAutoRoutine, planBotOptions } from '../ai/plan';
 import { SECRET_AUTOS, SECRET_STRATEGIES, STRATEGY_OPTIONS, weighted, type StrategyId } from '../ai/strategy';
+import { activeColorMode } from '../config/palette';
+import { applyAccessibility } from '../ui/a11y';
 import { allAutoRoutines, autoRoutineIds } from '../auto/recorded';
 import { FieldAudio } from '../audio/FieldAudio';
 import { ROBOT_PRESETS, type MechanismKind, type RobotSpec } from '../config/robot';
@@ -138,6 +140,9 @@ export class App {
     this.touch = new TouchControls(ui, this.input);
     this.menu = new Menu(ui, (c) => this.start(c), this.settings, (s) => {
       saveSettings(s);
+      // El color de la cancha y los robots se arma al iniciar: con otro modo de colores se recarga
+      if (s.colorMode !== activeColorMode()) location.reload();
+      applyAccessibility(s.colorMode, s.textScale);
       this.applyQuality();
       this.audio.setVolume(s.volume / 100);
     }, this.input);

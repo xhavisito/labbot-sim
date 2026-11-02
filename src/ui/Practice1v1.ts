@@ -20,7 +20,8 @@ import type { GameSession } from '../game/GameSession';
 import { saveCycleBests } from '../game/cycleStore';
 import { emptyInput, type PlayerInput } from '../input/InputManager';
 import { ic } from './chrome';
-import { ALLIANCE_RGB, drawShotMap } from './shotMap';
+import { activePalette } from '../config/palette';
+import { drawShotMap } from './shotMap';
 import { t, type Key } from './i18n';
 
 type Phase = 'brief' | 'countdown' | 'running' | 'result';
@@ -246,7 +247,7 @@ export class Practice1v1 {
     drawShotMap(cv, {
       cells: mine,
       // En el acumulado hay demasiados tiros para un punto por cada uno: solo las celdas
-      dots: this.mapView === 'all' ? [] : [{ shots: rival, rgb: ALLIANCE_RGB[other] }, { shots: mine, rgb: ALLIANCE_RGB[a] }],
+      dots: this.mapView === 'all' ? [] : [{ shots: rival, rgb: activePalette().heat[other] }, { shots: mine, rgb: activePalette().heat[a] }],
     });
   }
 
