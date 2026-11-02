@@ -26,6 +26,7 @@ import type { PlayerInput } from '../input/InputManager';
 import { buildFieldColliders } from '../physics/FieldColliders';
 import { Pieces } from '../physics/Pieces';
 import { PhysicsWorld } from '../physics/PhysicsWorld';
+import { PracticeFouls } from '../core/practiceFouls';
 import { Referee } from '../referee/Referee';
 import { buildFieldView } from '../render/FieldView';
 import { PieceView } from '../render/PieceView';
@@ -116,6 +117,8 @@ export class GameSession {
   readonly robots: Robot[] = [];
   readonly sensors: Sensors;
   readonly referee: Referee;
+  /** Faltas y tarjetas de la práctica 1 contra 1 (sin match; D50): mismas reglas y puntos que el match. */
+  readonly practiceFouls: PracticeFouls;
   readonly hps: Record<Alliance, HumanPlayer>;
   /** Muestras del Human Player rival que anotó cada alianza en el match (las robó de su Campana). */
   readonly stolen: Record<Alliance, number> = { red: 0, blue: 0 };
@@ -192,7 +195,8 @@ export class GameSession {
     }
     this.damage = new Damage(this.robots, opts.damage ?? { ...DEFAULT_DAMAGE, level: 'off' }, rand, this.humans, this.pw.dt);
     this.robots.forEach((r, i) => (this.robotViews[i].faults = () => this.damage.faults(r.index)));
-    this.referee = new Referee(this.pw, this.robots, () => this.match, { pieces: this.pieces, sensors: this.sensors });
+    this.practiceFouls = new PracticeFouls(this.game);
+    this.referee = new Referee(this.pw, this.robots, () => this.match ?? (this.rivalIndex >= 0 ? this.practiceFouls : null), { pieces: this.pieces, sensors: this.sensors });
     this.resetField();
   }
 
@@ -256,6 +260,7 @@ export class GameSession {
     this.pieces.reset();
     this.sensors.reset();
     this.referee.reset();
+    this.practiceFouls.reset();
     for (const a of ALLIANCES) {
       this.hps[a].reset();
       this.stolen[a] = 0;
@@ -452,7 +457,9 @@ export class GameSession {
     }
     this.drainSink(dt);
     if (m && phase === 'AUTO') for (const r of this.robots) if (this.sensors.outOfStartZone(r)) m.crossAutoLine(r.alliance, r.index);
+    this.practiceFouls.tick(dt);
     this.referee.step(dt, phase, this.stepMechEvents);
+    if (!m) this.matchEvents.push(...this.practiceFouls.drain());
     this.events.push(...this.stepMechEvents);
     const mechEvents = this.tap ? this.stepMechEvents.slice() : [];
     this.stepMechEvents.length = 0;
