@@ -19,6 +19,8 @@ import type { InputManager } from '../input/InputManager';
 import { CAMERA_MODES, type CameraMode } from '../render/CameraRig';
 import { padHelp } from './controlsHelp';
 import { backBtn, brandbar, ic, kbds, langChips, robotSilhouette, UI_ALLIANCES, UI_SLOTS } from './chrome';
+import { formatPlaytime } from '../core/playtime';
+import { loadPlaytime } from '../game/playtimeStore';
 import { getLang, setLang, t, type Key } from './i18n';
 import type { ScoutPlay } from './Scouting';
 import { isIos, isStandalone, promptInstall, pwa } from '../pwa/register';
@@ -176,6 +178,7 @@ export class Menu {
             <div class="bay-head"><span class="bay-label">${t('yourRobot')}</span></div>
             <div class="showcase">${robotSilhouette(robotSpec(s.robotType).mechanism)}<span class="dim">${chassisSize(s.robotType)} · ${t('robotType')}</span></div>
             <div class="robotinfo" data-robotinfo></div>
+            <div class="playtime" title="${t('playtimeTip')}"><span>${t('playtime')}</span><b>${formatPlaytime(loadPlaytime().total)}</b></div>
           </div>
         </div>
       </div>

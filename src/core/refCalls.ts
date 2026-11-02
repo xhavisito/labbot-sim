@@ -4,7 +4,7 @@
  * queda en la Repisa. Cada aviso lleva la sección del manual de donde sale.
  *
  * El manual no habla de anuncios del árbitro ni de sus sonidos: todo el formato (silbato, voz,
- * cartel) es SUPUESTO (D43 en docs/reglas-reto.md). Los puntos que dice el aviso sí son los de §4.4–§4.6.
+ * cartel) es SUPUESTO (D44 en docs/reglas-reto.md). Los puntos que dice el aviso sí son los de §4.4–§4.6.
  */
 import type { GameConfig } from '../config/game';
 import type { Phase } from './clock';
@@ -55,7 +55,7 @@ export function platformPoints(n: number, cfg: GameConfig): number {
 }
 
 /**
- * Segundos que un cambio debe sostenerse para anunciarse (SUPUESTO, D43): un robot que rebota al pie
+ * Segundos que un cambio debe sostenerse para anunciarse (SUPUESTO, D44): un robot que rebota al pie
  * de la rampa o una Muestra Crítica que se tambalea en la orilla no llenan la pantalla de avisos.
  */
 export const ENDGAME_HOLD = 0.5;
