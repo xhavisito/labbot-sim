@@ -13,9 +13,11 @@ import { robotSpec } from '../config/robotIds';
 import { loadSettings, saveSettings, type Settings } from '../config/settings';
 import { formatTimer, timerSeconds } from '../core/clock';
 import { buildMatchLog } from '../core/matchLog';
+import type { Match } from '../core/match';
 import { drillById } from '../core/training';
+import { evaluate, recordScenario, scenarioById, type Scenario, type ScenarioProgress } from '../core/scenarios';
 import { drillSessionOptions } from '../game/drills';
-import { loadTraining } from '../game/trainingStore';
+import { loadScenarios, loadTraining, saveScenarios } from '../game/trainingStore';
 import { GameSession, type SessionOptions } from '../game/GameSession';
 import { loadScout } from '../game/scoutStore';
 import { planById } from '../game/planStore';
@@ -107,7 +109,10 @@ export class App {
   readonly tourney: TournamentScreen;
   /** Entrenamiento por retos: récords (localStorage), lista de retos y el reto en curso. */
   readonly trainingProgress = loadTraining();
+  readonly scenarioProgress: ScenarioProgress = loadScenarios();
   readonly training: TrainingScreen;
+  /** Resumen del escenario terminado (se muestra en los resultados). */
+  private scenarioNote = '';
   trainingRun: TrainingRun | null = null;
   /** Práctica 1 contra 1 en curso (`ui/Practice1v1.ts`). */
   practice1v1: Practice1v1 | null = null;
@@ -154,9 +159,10 @@ export class App {
       history: () => this.scouting.show('history'),
     });
     this.menu.onTournament = () => this.tourney.open();
-    this.training = new TrainingScreen(this.menu.root, this.trainingProgress, () => this.trainingRobot(), {
+    this.training = new TrainingScreen(this.menu.root, this.trainingProgress, this.scenarioProgress, () => this.trainingRobot(), {
       back: () => this.toMenu(),
       play: (drill) => this.start({ mode: 'training', player: this.menu.player, drill }),
+      playScenario: (scenario) => this.start({ mode: 'scenario', player: this.menu.player, scenario }),
     });
     this.menu.onTraining = () => this.training.show();
     this.strategies = new StrategyScreen(this.menu.root);
@@ -191,6 +197,9 @@ export class App {
     const o = c.scout ? this.scoutOptions(c.scout) : this.sessionOptions(c.player);
     const drill = c.mode === 'training' ? drillById(c.drill ?? '') : undefined;
     if (c.mode === 'training' && !drill) return this.toMenu();
+    const scenario = c.mode === 'scenario' ? scenarioById(c.scenario ?? '') : undefined;
+    if (c.mode === 'scenario' && !scenario) return this.toMenu();
+    this.scenarioNote = '';
     const p1 = c.mode === 'practice1v1';
     this.session = new GameSession(
       p1
@@ -199,12 +208,15 @@ export class App {
         ? { ...drillSessionOptions(drill, c.player, this.playerSpec(), this.settings.hpInterval), grip: this.settings.grip }
         : c.scout
           ? o
+          : scenario
+          ? { ...o, ai: true }
           : { ...o, solo: c.mode !== 'match', ...(c.mode === 'auto' ? { hp: { enabled: false, interval: 3 } } : {}) },
     );
     this.renderer.scene.add(this.session.root);
-    if (c.mode === 'match') this.session.startMatch();
+    if (scenario) this.session.startScenario(scenario);
+    else if (c.mode === 'match') this.session.startMatch();
     // La estrategia de alianza solo cuenta en el match (en práctica no hay compañero)
-    const plan = c.mode === 'match' && !drill ? this.activePlan : null;
+    const plan = (c.mode === 'match' || scenario) && !drill ? this.activePlan : null;
     this.planView.set(plan, this.session.player.alliance);
     this.hud.setPlan(plan);
     this.applyPlanBoard();
@@ -430,6 +442,16 @@ export class App {
     this.touch.show(want && this.state === 'playing');
   }
 
+  /** Evalúa y guarda el escenario terminado; devuelve el aviso para los resultados. */
+  private finishScenario(m: Match, s: Scenario): string {
+    const me = this.session.player.alliance;
+    const o = evaluate(m, s, me);
+    const r = recordScenario(this.scenarioProgress, s, this.settings.robotType, o);
+    saveScenarios(this.scenarioProgress);
+    const medal = r.medal ? t(`medal_${r.medal}` as Key) : t('tn_noMedal');
+    return `${t(`sn_${s.id}` as Key)}: ${t(o.met ? 'sn_met' : 'sn_missed')} (${o.diff >= 0 ? '+' : ''}${o.diff}) · ${medal}${r.improved ? ` · ${t('tn_newRecord')}` : ''}`;
+  }
+
   /** Resultados del match terminado, con botones para la repetición y las estadísticas. */
   private showResults(): void {
     const m = this.session.match;
@@ -442,7 +464,7 @@ export class App {
       () => (sc ? this.toScouting() : this.toMenu()),
       () => this.downloadLog(),
       this.choice.player,
-      sc?.tour ? this.tourNote : sc ? t('sc_saved', { match: sc.match }) : '',
+      sc?.tour ? this.tourNote : sc ? t('sc_saved', { match: sc.match }) : this.scenarioNote,
       sc?.tour ? t('tr_continue') : undefined,
     );
     this.revealRivals();
@@ -632,6 +654,8 @@ export class App {
         if (sc && !sc.tour) saveMatchEntries(this.scoutData, m, sc.teams, sc.match);
         // Torneo: el resultado va a su tabla
         this.tourNote = sc?.tour ? this.tourney.record(m, sc) : '';
+        const scn = this.choice.mode === 'scenario' ? scenarioById(this.choice.scenario ?? '') : undefined;
+        this.scenarioNote = scn ? this.finishScenario(m, scn) : '';
         this.lastReplay = this.recorder?.build(this.session) ?? null;
         if (this.lastReplay) void storeReplay(this.lastReplay);
         this.showResults();

@@ -1,4 +1,5 @@
 /** Récords del entrenamiento por retos, guardados en el navegador (localStorage). */
+import { emptyScenarioProgress, parseScenarioProgress, type ScenarioProgress } from '../core/scenarios';
 import { emptyProgress, parseProgress, type TrainingProgress } from '../core/training';
 
 const KEY = 'labbot.training.v1';
@@ -16,5 +17,23 @@ export function saveTraining(p: TrainingProgress): void {
     localStorage.setItem(KEY, JSON.stringify(p));
   } catch {
     /* sin almacenamiento: el récord dura lo que la pestaña */
+  }
+}
+
+const SKEY = 'labbot.scenarios.v1';
+
+export function loadScenarios(): ScenarioProgress {
+  try {
+    return parseScenarioProgress(localStorage.getItem(SKEY));
+  } catch {
+    return emptyScenarioProgress();
+  }
+}
+
+export function saveScenarios(p: ScenarioProgress): void {
+  try {
+    localStorage.setItem(SKEY, JSON.stringify(p));
+  } catch {
+    /* sin almacenamiento */
   }
 }

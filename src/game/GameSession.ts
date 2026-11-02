@@ -17,6 +17,7 @@ import type { StartSpot } from '../config/startSpot';
 import { isTeleop, robotsEnabled, type Phase } from '../core/clock';
 import { DEFAULT_DAMAGE, type DamageSettings } from '../core/damage';
 import { Match, type MatchEvent } from '../core/match';
+import { applyScenario, type Scenario } from '../core/scenarios';
 import { rng } from '../core/rng';
 import type { TimedEvent } from '../core/matchLog';
 import { ALLIANCES, opponent, type Alliance, type Level } from '../core/types';
@@ -30,6 +31,7 @@ import { PieceView } from '../render/PieceView';
 import { RobotView } from '../render/RobotView';
 import { SinkView } from '../render/SinkView';
 import { Damage, type DamageEvent } from './Damage';
+import { camaraStart } from './drills';
 import { HumanPlayer } from './HumanPlayer';
 import type { GripMode, MechEvent } from './Mechanisms';
 import { Robot } from './Robot';
@@ -263,6 +265,22 @@ export class GameSession {
       return this.opts.makeBot?.(r, o, this.robots, this.pieces) ?? new Bot(r, this.pieces, this.robots, o, teams[r.alliance]);
     });
     this.match.start();
+  }
+
+  /**
+   * Escenario de entrenamiento (`core/scenarios.ts`): un match con los 4 robots que arranca a mitad,
+   * con el marcador armado; tu robot sale de la Zona de Inicio o frente a tu Cámara.
+   */
+  startScenario(s: Scenario): void {
+    this.startMatch();
+    const m = this.match!;
+    const me = this.player.alliance;
+    applyScenario(m, s, me);
+    if (s.start === 'camara') {
+      const p = camaraStart(me, this.player.spec);
+      this.player.phys.teleport(p.x, p.z, p.heading);
+    }
+    this.snapViews();
   }
 
   /** Vuelve a práctica libre (sin reloj). */
