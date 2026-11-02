@@ -318,7 +318,7 @@ export class Menu {
       const drawn = loadPaths().map((r) => opt(pathRoutine(r).id, esc(r.name))).join('');
       return fixed + (mine ? `<optgroup label="${t('grp_routes')}">${mine}</optgroup>` : '') + (drawn ? `<optgroup label="${t('grp_paths')}">${drawn}</optgroup>` : '');
     };
-    const toggle = (k: 'ai' | 'hpEnabled' | 'hpSmart' | 'showFps' | 'rumble') => `<button class="toggle ${s[k] ? 'on' : ''}" data-tog="${k}"><i></i>${s[k] ? t('on_') : t('no_')}</button>`;
+    const toggle = (k: 'ai' | 'hpEnabled' | 'hpSmart' | 'showFps' | 'showGhost' | 'rumble') => `<button class="toggle ${s[k] ? 'on' : ''}" data-tog="${k}"><i></i>${s[k] ? t('on_') : t('no_')}</button>`;
     const range = (k: keyof typeof SETTINGS_RANGE, unit: string) => {
       const r = SETTINGS_RANGE[k];
       return `<div class="range"><input type="range" data-k="${k}" min="${r.min}" max="${r.max}" step="${r.step}" value="${s[k]}"><output data-unit="${unit}">${s[k]} ${unit}</output></div>`;
@@ -364,6 +364,7 @@ export class Menu {
           <label>${t('setQuality')}</label><div class="seg" data-qseg>${(['auto', 'low', 'medium', 'high'] as const).map((q) => `<button class="${q === s.quality ? 'on' : ''}" data-v="${q}">${t(`quality_${q}`)}</button>`).join('')}</div>
           <p class="full sub">${t('qualityNote')}</p>
           <label>${t('setShowFps')}</label>${toggle('showFps')}
+          <label>${t('setShowGhost')}</label>${toggle('showGhost')}
           <label>${t('perfTitle')}</label><div class="perf-live" data-perf></div>
           <h3>${t('sec_access')}</h3>
           <label>${t('setColorMode')}</label>${seg('colorMode', COLOR_MODES, s.colorMode, (v) => t(`colorMode_${v}` as Key))}
@@ -392,7 +393,7 @@ export class Menu {
       });
     });
     this.on('[data-tog]', (el) => {
-      const k = el.dataset.tog as 'ai' | 'hpEnabled' | 'hpSmart' | 'showFps' | 'rumble';
+      const k = el.dataset.tog as 'ai' | 'hpEnabled' | 'hpSmart' | 'showFps' | 'showGhost' | 'rumble';
       s[k] = !s[k];
       el.classList.toggle('on', s[k]);
       el.lastChild!.textContent = s[k] ? t('on_') : t('no_');

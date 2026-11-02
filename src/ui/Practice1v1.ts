@@ -48,6 +48,8 @@ export interface Practice1v1Host {
   bests: CycleBests;
   /** Trayectoria del mejor ciclo por robot (el ghost). */
   ghosts: GhostStore;
+  /** Ajuste "Ghost en la práctica 1 contra 1": apagado, no se dibuja ni se menciona. */
+  showGhost: () => boolean;
   /** Mapa de tiro acumulado por robot (se guarda al terminar cada práctica). */
   shots: ShotLog;
   robot: { id: string; name: string };
@@ -138,6 +140,7 @@ export class Practice1v1 {
 
   /** Duración (s) del ghost guardado de este robot; null si no hay. */
   private ghostDur(): number | null {
+    if (!this.h.showGhost()) return null;
     return this.h.ghosts.robots[this.h.robot.id]?.dur ?? null;
   }
 
@@ -145,7 +148,7 @@ export class Practice1v1 {
   private moveGhost(): void {
     const g = this.h.ghosts.robots[this.h.robot.id];
     const tr = this.tracker;
-    if (!g || !tr) return this.s.setGhost(null);
+    if (!g || !tr || !this.h.showGhost()) return this.s.setGhost(null);
     this.s.setGhost(mirrorPose(ghostAt(g, tr.time - tr.cycleStart), this.s.player.alliance));
   }
 
@@ -376,7 +379,7 @@ export class Practice1v1 {
     const assume = this.human ? t('p1_assumeHuman') : t('p1_assume');
     const body =
       ph === 'result' && s
-        ? `${this.newGhost ? `<p class="tn-note"><b class="tn-new">★</b> ${t('p1_ghostNew', { s: secs(this.ghostDur()) })}</p>` : ''}<p class="tn-note">${t('p1_resultNote', { t: secs(s.time), c: s.cycles, m: s.perMinute.toFixed(1) })}</p>
+        ? `${this.newGhost && this.h.showGhost() ? `<p class="tn-note"><b class="tn-new">★</b> ${t('p1_ghostNew', { s: secs(this.ghostDur()) })}</p>` : ''}<p class="tn-note">${t('p1_resultNote', { t: secs(s.time), c: s.cycles, m: s.perMinute.toFixed(1) })}</p>
           <p class="tn-note">${t('p1_splitNote', { b: secs(s.avgSearch), l: secs(s.avg), f: secs(s.avgFull) })}</p>${this.tableHtml(s)}
           ${this.s.rivalIndex >= 0 ? this.refereeHtml(s.points) : ''}
           ${s2 ? `<h3 class="p1-p2">${t('p1_p2Title')}</h3><p class="tn-note">${t('p1_resultNote', { t: secs(s2.time), c: s2.cycles, m: s2.perMinute.toFixed(1) })}</p>${this.tableHtml(s2, false)}${this.mapHtml(true)}` : ''}
