@@ -12,6 +12,10 @@ import { ROBOT_PRESETS, type MechanismKind, type RobotSpec } from '../config/rob
 import { robotSpec } from '../config/robotIds';
 import { loadSettings, saveSettings, type Settings } from '../config/settings';
 import { formatTimer, timerSeconds } from '../core/clock';
+import { callForEvent, EndgameWatcher, type RefCall } from '../core/refCalls';
+import { ALLIANCES } from '../core/types';
+import { GAME } from '../config/game';
+import { refText, voiceLang } from '../ui/refText';
 import { buildMatchLog } from '../core/matchLog';
 import { drillById } from '../core/training';
 import { drillSessionOptions } from '../game/drills';
@@ -88,6 +92,8 @@ export class App {
   readonly settings: Settings = loadSettings(autoRoutineIds());
   /** Sonidos del campo (inicio, TELEOP, ENDGAME, fin). */
   readonly audio = new FieldAudio(this.settings.volume / 100);
+  /** Avisos del árbitro de Plataforma y Muestra Crítica en el ENDGAME (`core/refCalls.ts`). */
+  private endgameWatch = new EndgameWatcher(GAME);
   private last = performance.now();
   /** Último cuadro dibujado detrás de una pantalla opaca (ver `loop`). */
   private lastBehind = 0;
@@ -132,7 +138,9 @@ export class App {
       saveSettings(s);
       this.applyQuality();
       this.audio.setVolume(s.volume / 100);
+      this.audio.setRefMode(s.refAudio);
     }, this.input);
+    this.audio.setRefMode(this.settings.refAudio);
     this.replayBar = new ReplayBar(ui, { camera: () => this.cycleCamera(), stats: () => this.replayStats(), exit: () => this.exitReplay() });
     this.replays = new ReplaysScreen(this.menu.root, {
       back: () => this.toMenu(),
@@ -526,7 +534,35 @@ export class App {
     }, null);
   }
 
+  /**
+   * Avisos del árbitro del cuadro: faltas y tarjetas del match, y en el ENDGAME los robots sobre la
+   * Plataforma y la Muestra Crítica en la Repisa. Cartel en el HUD y silbato/voz según Ajustes.
+   */
+  private refereeCalls(dt: number): void {
+    const s = this.session;
+    const m = s.match;
+    if (!m) return;
+    const calls: RefCall[] = [];
+    for (const e of s.matchEvents) {
+      const c = callForEvent(e, s.game);
+      if (c) calls.push(c);
+    }
+    const platform = { red: 0, blue: 0 };
+    const critical = { red: false, blue: false };
+    if (m.phase === 'ENDGAME') {
+      for (const r of s.robots) if (s.sensors.onPlatform(r)) platform[r.alliance]++;
+      for (const a of ALLIANCES) critical[a] = s.sensors.criticalOnRepisa(a);
+    }
+    this.endgameWatch.cfg = s.game;
+    calls.push(...this.endgameWatch.update(dt, m.phase, platform, critical));
+    if (!calls.length) return;
+    const texts = calls.map(refText);
+    this.hud.referee(texts);
+    calls.forEach((c, i) => this.audio.referee(c.sound, texts[i].voice, voiceLang()));
+  }
+
   toMenu(): void {
+    this.audio.stopVoice();
     this.closeAutoPractice();
     this.closeTraining();
     this.closePractice1v1();
@@ -549,6 +585,7 @@ export class App {
   togglePause(): void {
     if (this.state === 'playing') {
       this.state = 'paused';
+      this.audio.stopVoice();
       const m = this.session.match;
       this.menu.pause({
         match: m,
@@ -615,6 +652,7 @@ export class App {
       this.practice1v1?.update(dt);
       this.hud.events(this.session.matchEvents);
       this.audio.events(this.session.matchEvents);
+      this.refereeCalls(dt);
       this.hud.damage(this.session);
       this.hud.update(this.session, this.cam.mode);
       const sm = this.session.match;

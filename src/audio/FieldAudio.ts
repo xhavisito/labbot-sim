@@ -6,6 +6,25 @@
  * FRC es SUPUESTO. Volumen en Ajustes (0 = silencio).
  */
 import type { MatchEvent } from '../core/match';
+import type { RefSound } from '../core/refCalls';
+import type { RefAudioMode } from '../config/settings';
+
+/**
+ * Avisos del árbitro (`core/refCalls.ts`): silbatos y campanas sintetizados, más la voz del navegador
+ * si se elige (SUPUESTO, D43: el manual no define sonidos del árbitro). Mismo volumen que el campo.
+ */
+/** Segundos mínimos entre dos sonidos iguales del árbitro (dos faltas a la vez suenan una vez). */
+export const REF_SOUND_GAP = 0.3;
+/** Frases de voz en espera como máximo: si se juntan más, las viejas se descartan. */
+export const REF_VOICE_QUEUE = 2;
+
+/** Si toca el sonido `s` en `now` (s) dado cuándo sonó la última vez (y lo anota). */
+export function refSoundDue(last: Map<RefSound, number>, s: RefSound, now: number): boolean {
+  const prev = last.get(s);
+  if (prev !== undefined && now - prev < REF_SOUND_GAP) return false;
+  last.set(s, now);
+  return true;
+}
 
 /** Cue → archivo en `public/sounds/`. */
 const FIELD_SOUNDS = {
@@ -34,6 +53,9 @@ export class FieldAudio {
   private master!: GainNode;
   private samples = new Map<FieldCue, AudioBuffer>();
   private loading = new Map<FieldCue, Promise<AudioBuffer | null>>();
+  private refLast = new Map<RefSound, number>();
+  private voiceQueue = 0;
+  refMode: RefAudioMode = 'whistle';
 
   /** `volume` 0–1. */
   constructor(private volume: number) {
@@ -66,6 +88,86 @@ export class FieldAudio {
   setVolume(v: number): void {
     this.volume = Math.max(0, Math.min(1, v));
     if (this.ctx) this.master.gain.value = this.volume;
+    if (this.volume <= 0) this.stopVoice();
+  }
+
+  setRefMode(m: RefAudioMode): void {
+    this.refMode = m;
+    if (m !== 'voice') this.stopVoice();
+  }
+
+  /** Calla la voz del árbitro (al salir del match, pausar o silenciar). */
+  stopVoice(): void {
+    this.voiceQueue = 0;
+    if (typeof speechSynthesis !== 'undefined') speechSynthesis.cancel();
+  }
+
+  /**
+   * Aviso del árbitro: su silbato o campana y, en modo voz, la frase `speech` (en `lang`). Respeta el
+   * volumen (0 = silencio) y el modo de Ajustes.
+   */
+  referee(sound: RefSound, speech?: string, lang = 'es-MX'): void {
+    if (this.refMode === 'off' || this.volume <= 0) return;
+    const ctx = this.ctx;
+    if (ctx && ctx.state === 'running' && refSoundDue(this.refLast, sound, ctx.currentTime)) this.refSynth(sound, ctx.currentTime);
+    if (this.refMode === 'voice' && speech) this.say(speech, lang);
+  }
+
+  private say(text: string, lang: string): void {
+    if (typeof speechSynthesis === 'undefined' || typeof SpeechSynthesisUtterance === 'undefined') return;
+    if (this.voiceQueue >= REF_VOICE_QUEUE) {
+      // Se juntaron demasiadas: mejor el aviso más nuevo que ir atrasado
+      speechSynthesis.cancel();
+      this.voiceQueue = 0;
+    }
+    const u = new SpeechSynthesisUtterance(text);
+    u.lang = lang;
+    u.volume = this.volume;
+    u.rate = 1.15;
+    const voice = speechSynthesis.getVoices().find((v) => v.lang === lang) ?? speechSynthesis.getVoices().find((v) => v.lang.startsWith(lang.slice(0, 2)));
+    if (voice) u.voice = voice;
+    const done = () => {
+      this.voiceQueue = Math.max(0, this.voiceQueue - 1);
+    };
+    u.onend = done;
+    u.onerror = done;
+    this.voiceQueue++;
+    speechSynthesis.speak(u);
+  }
+
+  /** Silbato de árbitro: tono agudo con el trino de la bolita (modulación rápida). */
+  private whistleBlast(t: number, dur: number): void {
+    const ctx = this.ctx!;
+    const osc = ctx.createOscillator();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(2900, t);
+    const lfo = ctx.createOscillator();
+    const lg = ctx.createGain();
+    lfo.frequency.value = 32;
+    lg.gain.value = 140;
+    lfo.connect(lg).connect(osc.frequency);
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0, t);
+    g.gain.linearRampToValueAtTime(0.2, t + 0.02);
+    g.gain.setValueAtTime(0.2, t + dur - 0.05);
+    g.gain.linearRampToValueAtTime(0, t + dur);
+    osc.connect(g).connect(this.master);
+    for (const o of [osc, lfo]) {
+      o.start(t);
+      o.stop(t + dur + 0.05);
+    }
+  }
+
+  private refSynth(s: RefSound, t: number): void {
+    if (s === 'whistle') this.whistleBlast(t, 0.35);
+    else if (s === 'whistle2') {
+      this.whistleBlast(t, 0.2);
+      this.whistleBlast(t + 0.28, 0.35);
+    } else if (s === 'card') this.whistleBlast(t, 0.9);
+    else {
+      const notes = s === 'chime' ? [880, 1318.5] : [1318.5, 880];
+      notes.forEach((f, i) => this.tone(f, t + i * 0.14, 0.5, { gain: 0.16, attack: 0.005, release: 0.4 }));
+    }
   }
 
   private ensure(): AudioContext | null {
