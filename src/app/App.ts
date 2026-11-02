@@ -90,6 +90,9 @@ export class App {
   private fpsShown = new URLSearchParams(location.search).get('fps') === '1';
   private fpsTick = 0;
   readonly cam: CameraRig;
+  /** Segunda cámara de la pantalla dividida (multijugador local). */
+  private cam2: CameraRig;
+  private splitBar: HTMLElement;
   readonly input = new InputManager();
   /** Menús con el control: foco, A elige, B regresa (`ui/padNav.ts`). */
   readonly padNav = new PadNav();
@@ -165,6 +168,11 @@ export class App {
   constructor(host: HTMLElement, ui: HTMLElement) {
     this.renderer = new Renderer(host);
     this.cam = new CameraRig(this.renderer.renderer.domElement);
+    this.cam2 = new CameraRig(this.renderer.renderer.domElement);
+    this.splitBar = document.createElement('div');
+    this.splitBar.className = 'split-bar';
+    this.splitBar.style.display = 'none';
+    ui.appendChild(this.splitBar);
     this.session = new GameSession();
     this.renderer.scene.add(this.session.root, this.arena.group, this.effects.points);
     this.renderer.onQuality.push((p) => {
@@ -275,6 +283,7 @@ export class App {
     this.session.dispose();
     // Práctica libre y de AUTO: solo el robot del jugador en la cancha (en la de AUTO, sin Human Player)
     const o = c.scout ? this.scoutOptions(c.scout) : this.sessionOptions(c.player);
+    const versus = c.mode === 'versus';
     const drill = c.mode === 'training' ? drillById(c.drill ?? '') : undefined;
     if (c.mode === 'training' && !drill) return this.toMenu();
     const p1 = c.mode === 'practice1v1';
@@ -283,26 +292,36 @@ export class App {
         ? this.practice1v1Options(c.player)
         : drill
         ? { ...drillSessionOptions(drill, c.player, this.playerSpec(), this.settings.hpInterval), grip: this.settings.grip }
-        : c.scout
+        : versus
+          ? this.versusOptions(c.player)
+          : c.scout
           ? o
           : { ...o, solo: c.mode !== 'match', ...(c.mode === 'auto' ? { hp: { enabled: false, interval: 3 } } : {}) },
     );
     this.renderer.scene.add(this.session.root);
-    if (c.mode === 'match') this.session.startMatch();
+    if (c.mode === 'match' || versus) this.session.startMatch();
     // La estrategia de alianza solo cuenta en el match (en práctica no hay compañero)
     const plan = c.mode === 'match' && !drill ? this.activePlan : null;
     this.planView.set(plan, this.session.player.alliance);
     this.hud.setPlan(plan);
     this.applyPlanBoard();
     // Cada match se graba para la repetición y las estadísticas
-    this.recorder = c.mode === 'match' ? new Recorder(this.session, this.session.robots.map((r) => robotLabel(r.spec))) : null;
+    this.recorder = c.mode === 'match' || versus ? new Recorder(this.session, this.session.robots.map((r) => robotLabel(r.spec))) : null;
     this.session.tap = this.recorder;
+    this.setVersus(c.mode === 'versus');
     this.menu.hide();
     this.hud.show(true);
     this.hud.setHelp(this.input.bindings);
     this.state = 'playing';
     this.updateTouch();
     this.cam.setMode(c.player < 2 ? 'driverRed' : 'driverBlue');
+    if (c.mode === 'versus') {
+      // Cada quien ve su robot desde atrás (pantalla dividida)
+      this.cam.setMode('follow');
+      this.cam2.setMode('follow');
+      this.hud.toast(`${t('vs_p1')}: ${t('vs_keys1')}`, 'big');
+      this.hud.toast(`${t('vs_p2')}: ${t('vs_keys2')}`, 'big');
+    }
     if (c.mode === 'auto')
       this.autoPractice = new AutoPractice(this.hud.root.parentElement ?? document.body, {
         session: () => this.session,
@@ -339,6 +358,35 @@ export class App {
         },
         exit: () => this.toMenu(),
       });
+  }
+
+  /**
+   * Multijugador local: tú (`player`) y una segunda persona en el mismo puesto de la otra alianza.
+   * Ambos usan tu robot y tu AUTO de los ajustes (SUPUESTO); los otros dos robots son de la IA.
+   * Sin rivales secretos ni estrategia de alianza: nadie es "rival de la computadora".
+   */
+  private versusOptions(player: number): SessionOptions {
+    const o = this.sessionOptions(player);
+    const p2 = player < 2 ? player + 2 : player - 2;
+    this.secret = [null, null, null, null];
+    this.activePlan = null;
+    const routine = allAutoRoutines().find((r) => r.id === this.settings.playerAuto) ?? LEAVE_ZONE;
+    const specs = [...(o.specs ?? [])];
+    specs[p2] = this.playerSpec();
+    const autos = [...(o.autos ?? [])];
+    autos[p2] = routine;
+    const bots = [...(o.bots ?? [])];
+    bots[p2] = undefined;
+    const starts = [...(o.starts ?? [])];
+    starts[p2] = this.settings.match.start;
+    return { ...o, player2: p2, specs, autos, bots, starts };
+  }
+
+  /** Enciende o apaga el modo de 2 jugadores en la entrada y la pantalla dividida. */
+  private setVersus(on: boolean): void {
+    this.input.versus = on;
+    this.splitBar.style.display = on ? '' : 'none';
+    if (!on) this.renderer.resize(this.cam.camera);
   }
 
   /** Sesión de la práctica 1 contra 1: tu robot y, enfrente, el rival elegido (mismo tipo de robot; SUPUESTO). */
@@ -560,7 +608,7 @@ export class App {
   /** Muestra los controles touch solo jugando (y según el ajuste). */
   private updateTouch(): void {
     const s = this.settings.touch;
-    const want = this.touchForced || s === 'on' || (s === 'auto' && isTouchDevice());
+    const want = !this.input.versus && (this.touchForced || s === 'on' || (s === 'auto' && isTouchDevice()));
     document.body.classList.toggle('touch-on', want);
     this.touch.show(want && this.state === 'playing');
   }
@@ -706,6 +754,7 @@ export class App {
     this.closeAutoPractice();
     this.closeTraining();
     this.closePractice1v1();
+    this.setVersus(false);
     this.state = 'menu';
     this.clearBoard();
     this.touch.show(false);
@@ -841,8 +890,9 @@ export class App {
     }
     if (this.state === 'playing') {
       this.trackPlaytime(dt);
-      if (this.input.camera) this.cycleCamera();
+      if (this.input.camera && !this.session.player2) this.cycleCamera();
       this.session.setInput(this.autoPractice ? this.autoPractice.filter(inp) : this.trainingRun ? this.trainingRun.filter(inp) : this.practice1v1 ? this.practice1v1.filter(inp) : inp);
+      if (this.session.player2) this.session.setInput2(this.input.poll2());
       this.session.update(dt);
       this.autoPractice?.update(dt);
       this.trainingRun?.update(dt);
@@ -902,13 +952,19 @@ export class App {
     const pt = p.position();
     const vr = this.replay ? this.replay.session.robots[this.replay.focus] : this.session.player;
     this.cam.update(dt, this.replay?.focusPose ?? { x: pt.x, y: pt.y, z: pt.z, heading: p.heading() }, { alliance: vr.alliance, station: vr.station, spec: vr.spec });
+    const p2 = this.state === 'menu' ? null : this.session.player2;
+    if (p2) {
+      const q = p2.phys.position();
+      this.cam2.update(dt, { x: q.x, y: q.y, z: q.z, heading: p2.phys.heading() }, { alliance: p2.alliance, station: p2.station, spec: p2.spec });
+    }
     // Detrás de una pantalla opaca (Scouting, Torneo, Editor, Estadísticas…) la cancha casi no se ve:
     // 8 cuadros por segundo bastan y la pantalla responde mejor en celulares
     const behind = this.menu.root.style.display !== 'none' && this.menu.root.classList.contains('solid');
     if (!behind || now - this.lastBehind > 125) {
       this.lastBehind = now;
       const t1 = performance.now();
-      this.renderer.render(this.cam.camera);
+      if (p2 && this.state !== 'replay') this.renderer.renderSplit(this.cam.camera, this.cam2.camera);
+      else this.renderer.render(this.cam.camera);
       const t2 = performance.now();
       this.perf.push(dt, t1 - t0, t2 - t1);
     }

@@ -162,6 +162,34 @@ export class Renderer {
     cam.updateProjectionMatrix();
   }
 
+  /**
+   * Pantalla dividida (multijugador local): dos vistas lado a lado, directo al canvas (sin bloom ni
+   * FXAA; con dos vistas el costo se duplica). `camB` null = pantalla completa normal.
+   */
+  renderSplit(camA: THREE.PerspectiveCamera, camB: THREE.PerspectiveCamera): void {
+    const r = this.renderer;
+    const w = r.domElement.clientWidth || window.innerWidth;
+    const h = r.domElement.clientHeight || window.innerHeight;
+    const half = Math.floor(w / 2);
+    r.setScissorTest(true);
+    const views: Array<[THREE.PerspectiveCamera, number, number]> = [
+      [camA, 0, half - 1],
+      [camB, half + 1, w - half - 1],
+    ];
+    for (const [cam, x, vw] of views) {
+      r.setViewport(x, 0, vw, h);
+      r.setScissor(x, 0, vw, h);
+      const aspect = vw / h;
+      if (Math.abs(cam.aspect - aspect) > 1e-3) {
+        cam.aspect = aspect;
+        cam.updateProjectionMatrix();
+      }
+      r.render(this.scene, cam);
+    }
+    r.setScissorTest(false);
+    r.setViewport(0, 0, w, h);
+  }
+
   render(cam: THREE.Camera): void {
     if (this.composer && this.renderPass) {
       this.renderPass.camera = cam;

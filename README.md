@@ -220,6 +220,14 @@ suelta la Muestra; cuenta cuando cae dentro del nivel. **Para la Muestra Crític
 ponte de frente a la rendija de tu Campana con el brazo en "Repisa" y presiona la garra (Espacio); luego sube
 a la Plataforma y suéltala sobre la Repisa (E).
 
+### Multijugador local (2 jugadores)
+
+Menú → **2 jugadores**: dos personas en la misma pantalla (dividida), una por alianza; los otros dos
+robots los maneja la IA. Jugador 1: `W A S D`, Espacio (garra), `E` (soltar), `0–4` (brazo). Jugador 2:
+flechas, `Enter` (garra), `.` (soltar), `RePág/AvPág` (brazo). Con dos controles conectados, el primero
+es del jugador 1 y el segundo del 2. SUPUESTO: el manual no habla de controles ni de simuladores;
+ambos usan el robot y el AUTO de tus Ajustes. En pantalla dividida no hay bloom ni FXAA.
+
 ## Estructura
 
 ```

@@ -35,9 +35,10 @@ export interface MenuChoice {
   /**
    * 'auto' = práctica de AUTO (`ui/AutoPractice.ts`): solo tu robot, grabar y probar rutas.
    * 'practice1v1' = práctica con rival y cronómetro de ciclos (`ui/Practice1v1.ts`).
+   * 'versus' = multijugador local: tú y una segunda persona, cada quien en una alianza (pantalla dividida).
    * 'training' = un reto del entrenamiento (`ui/Training.ts`), el de `drill`.
    */
-  mode: 'match' | 'practice' | 'auto' | 'training' | 'practice1v1';
+  mode: 'match' | 'practice' | 'auto' | 'training' | 'practice1v1' | 'versus';
   player: number;
   drill?: DrillId;
   /** Match del calendario del Scouting (equipos y sus robots); su registro se guarda al terminar. */
@@ -169,6 +170,7 @@ export class Menu {
             <span class="mh-go">${ic.go}</span>
           </button>
           <div class="mm-tools late">
+            ${tool('versus', ic.gamepad, 'vs_title', 'vs_desc')}
             ${tool('practice1v1', ic.go, 'p1_title', 'p1_desc')}
             ${tool('training', ic.medal, 'tn_title', 'trainingDesc')}
             ${tool('achievements', ic.trophy, 'ach_title', 'achDesc')}
@@ -206,6 +208,7 @@ export class Menu {
     });
     this.on('[data-act="match"]', () => this.onStart({ mode: 'match', player: this.player }));
     this.on('[data-act="practice"]', () => this.onStart({ mode: 'practice', player: this.player }));
+    this.on('[data-go="versus"]', () => this.onStart({ mode: 'versus', player: this.player }));
     this.on('[data-go="training"]', () => this.onTraining());
     this.on('[data-go="practice1v1"]', () => this.onStart({ mode: 'practice1v1', player: this.player }));
     this.on('[data-go="strategies"]', () => this.onStrategies());

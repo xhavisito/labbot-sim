@@ -1376,3 +1376,10 @@ canvas.board-drawing { cursor: crosshair; touch-action: none; }
 .ach-toast { margin-top: 10px; }
 .playtime { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-top: 10px; padding: 8px 10px; border-radius: 8px; background: rgba(255,255,255,0.05); color: var(--muted); font-size: 12px; }
 .playtime b { color: var(--text, #fff); font-variant-numeric: tabular-nums; }
+/* multijugador local: tarjeta del jugador 2 a la derecha y sin ayuda de teclas (pantalla dividida) */
+.player.p2 { left: auto; right: calc(var(--gut) + var(--safe-r)); }
+.player.p2::before { left: auto; right: 0; }
+.hud.versus .hud-keys { display: none; }
+.hud.versus .hud-tr { top: auto; bottom: calc(var(--gut) + var(--safe-b)); left: 50%; right: auto; transform: translateX(-50%); }
+.hud.versus .toasts { top: calc(var(--gut) + var(--safe-t) + 5em); }
+.split-bar { position: absolute; top: 0; bottom: 0; left: 50%; width: 2px; margin-left: -1px; background: rgba(255, 255, 255, 0.55); pointer-events: none; z-index: 1; }
