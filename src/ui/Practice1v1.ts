@@ -7,6 +7,7 @@
  *
  * Estados: listo → cuenta de 3 s → practicando → resultado.
  */
+import { AI_PERSONAS } from '../ai/persona';
 import { PRACTICE_LIMITS, RIVALS, type PracticeSettings } from '../config/settings';
 import { formatTimer } from '../core/clock';
 import { CYCLE_CATS, updateBests, type CycleBests, type CycleCat, type CycleSummary } from '../core/cycles';
@@ -172,6 +173,7 @@ export class Practice1v1 {
       `<div class="seg" data-seg="${k}">${vals.map((v) => `<button class="${v === cur ? 'on' : ''}" data-v="${v}">${label(v as never)}</button>`).join('')}</div>`;
     return `<div class="p1-opts">
       <label>${t('p1_rival')}</label>${seg('rival', RIVALS, p.rival, (v: string) => t(`p1_rival_${v}` as Key))}
+      ${p.rival === 'ai' ? `<label>${t('ms_persona')}</label>${seg('persona', AI_PERSONAS, p.persona, (v: string) => t(`persona_${v}` as Key))}` : ''}
       <label>${t('p1_limit')}</label>${seg('limit', PRACTICE_LIMITS, p.limit, (v: number) => (v === 0 ? t('p1_free') : secs(v)))}
     </div>`;
   }

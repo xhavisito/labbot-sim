@@ -8,6 +8,7 @@
 import * as THREE from 'three';
 import { Bot, type AutoPlan, type BotOptions, type BotOutput } from '../ai/Bot';
 import type { AiLevel } from '../ai/difficulty';
+import type { AiPersona } from '../ai/persona';
 import { Team } from '../ai/Team';
 import { AUTO_REF_SPEED, AutoRunner, LEAVE_ZONE, type AutoOutput, type AutoRoutine } from '../auto/AutoRoutine';
 import * as F from '../config/field';
@@ -80,6 +81,8 @@ export interface SessionOptions {
   bots?: Array<Partial<BotOptions> | undefined>;
   /** Dificultad de la IA de los robots que no la traen en `bots` (`ai/difficulty.ts`; por defecto difícil). */
   aiLevel?: AiLevel;
+  /** Personalidad del rival de la IA en la práctica 1 contra 1 (`ai/persona.ts`). */
+  aiPersona?: AiPersona;
   /** Lugar de cada robot en su Zona de Inicio (§4.1, `config/startSpot.ts`); por defecto centrado. */
   starts?: Array<StartSpot | undefined>;
   /** Agarre de la garra (`game/Mechanisms.ts`): con compliants (por defecto), preciso o fácil. */
@@ -234,7 +237,7 @@ export class GameSession {
     const rv = this.rival;
     if (rv && this.opts.rival === 'ai') {
       this.bots = [];
-      const o = { ai: this.opts.aiLevel ?? 'normal', auto: 'none', teleop: true, role: 'score', endgame: 'none' } as const;
+      const o = { ai: this.opts.aiLevel ?? 'normal', persona: this.opts.aiPersona, auto: 'none', teleop: true, role: 'score', endgame: 'none' } as const;
       this.bots[rv.index] = new Bot(rv, this.pieces, this.robots, o, new Team(rv.alliance, this.hps[rv.alliance]));
     }
     this.pieceView.capture();
