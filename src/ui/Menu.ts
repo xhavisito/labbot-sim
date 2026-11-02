@@ -2,6 +2,7 @@
 import { AUTO_ROUTINES } from '../auto/AutoRoutine';
 import { MECHANISM_KINDS } from '../config/robot';
 import { DEFAULT_SETTINGS, SETTINGS_RANGE, type Settings } from '../config/settings';
+import { shareSummary } from './summaryImage';
 import { RULES } from '../core/fouls';
 import { ACTIONS, assign, clearAction, cloneBindings, DEFAULT_BINDINGS, keyLabel, padLabel, saveBindings, type Action } from '../input/bindings';
 import type { InputManager } from '../input/InputManager';
@@ -250,10 +251,15 @@ export class Menu {
       <div class="row">
         <button class="primary" data-act="restart">${t('restart')}</button>
         <button data-act="menu">${t('backToMenu')}</button>
+        <button data-act="share">${t('shareSummary')}</button>
         <button data-act="log">${t('downloadLog')}</button>
       </div>`);
     this.root.querySelector('[data-act="restart"]')!.addEventListener('click', onRestart);
     this.root.querySelector('[data-act="menu"]')!.addEventListener('click', onMenu);
     this.root.querySelector('[data-act="log"]')!.addEventListener('click', onDownload);
+    const share = this.root.querySelector<HTMLButtonElement>('[data-act="share"]')!;
+    share.addEventListener('click', () => {
+      shareSummary(m).then((r) => { if (r === 'downloaded') share.textContent = t('summaryDownloaded'); }).catch(() => undefined);
+    });
   }
 }
