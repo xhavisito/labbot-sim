@@ -7,6 +7,7 @@ import { aiLineup } from '../ai/lineup';
 import { planAutoRoutine, planBotOptions } from '../ai/plan';
 import { SECRET_AUTOS, SECRET_STRATEGIES, STRATEGY_OPTIONS, weighted, type StrategyId } from '../ai/strategy';
 import { allAutoRoutines, autoRoutineIds } from '../auto/recorded';
+import { clampSpot } from '../config/startSpot';
 import { FieldAudio } from '../audio/FieldAudio';
 import { ROBOT_PRESETS, type MechanismKind, type RobotSpec } from '../config/robot';
 import { robotSpec } from '../config/robotIds';
@@ -48,6 +49,7 @@ import { TrainingRun, TrainingScreen, type TrainingRobot } from '../ui/Training'
 import { Practice1v1 } from '../ui/Practice1v1';
 import { loadCycleBests } from '../game/cycleStore';
 import { StrategyScreen } from '../ui/StrategyScreen';
+import { AutoPathScreen } from '../ui/AutoPathScreen';
 import { PlanView } from '../render/PlanView';
 
 type State = 'menu' | 'playing' | 'paused' | 'results' | 'replay';
@@ -85,6 +87,7 @@ export class App {
     this.hud.planCardOn = b !== 'off';
   }
   readonly strategies: StrategyScreen;
+  readonly autoPaths: AutoPathScreen;
   readonly settings: Settings = loadSettings(autoRoutineIds());
   /** Sonidos del campo (inicio, TELEOP, ENDGAME, fin). */
   readonly audio = new FieldAudio(this.settings.volume / 100);
@@ -161,6 +164,21 @@ export class App {
     this.menu.onTraining = () => this.training.show();
     this.strategies = new StrategyScreen(this.menu.root);
     this.menu.onStrategies = () => this.strategies.show(() => this.toMenu());
+    this.autoPaths = new AutoPathScreen(this.menu.root, {
+      back: () => this.toMenu(),
+      spec: () => this.playerSpec(),
+      use: (id) => {
+        this.settings.playerAuto = id;
+        saveSettings(this.settings);
+      },
+      currentAuto: () => this.settings.playerAuto,
+      play: (id) => {
+        this.settings.playerAuto = id;
+        saveSettings(this.settings);
+        this.start({ mode: 'match', player: this.menu.player });
+      },
+    });
+    this.menu.onAutoPaths = () => this.autoPaths.show();
     this.renderer.scene.add(this.planView.group);
     pwa.onChange = () => {
       if (this.state === 'menu') this.menu.pwaChips();
@@ -347,15 +365,22 @@ export class App {
       if (i === mate && plan) return { ...planBotOptions(plan, i < 2 ? 'red' : 'blue'), ai };
       return { ...STRATEGY_OPTIONS[strategy(i)], ai };
     };
+    const autos = [0, 1, 2, 3].map((i) => (i === player ? routine(s.playerAuto) : botAuto(i)));
+    // Tu robot es el del menú (con tu velocidad y capacidad), salvo en el Scouting: el de tu equipo
+    const specs = types.map((k, i) => (i === player && (!kinds || tour) ? this.playerSpec() : ROBOT_PRESETS[k]));
+    // Una rutina dibujada arranca donde se dibujó si el robot está en esa Zona de Inicio (§4.1)
+    const pathStart = (i: number) => {
+      const p = autos[i].path;
+      return p && p.station === i % 2 ? clampSpot(specs[i].length, specs[i].width, p.start) : undefined;
+    };
     return {
       player,
       preload: true,
       ai: s.ai,
-      // Tu robot es el del menú (con tu velocidad y capacidad), salvo en el Scouting: el de tu equipo
-      specs: types.map((k, i) => (i === player && (!kinds || tour) ? this.playerSpec() : ROBOT_PRESETS[k])),
-      autos: [0, 1, 2, 3].map((i) => (i === player ? routine(s.playerAuto) : botAuto(i))),
+      specs,
+      autos,
       bots: [0, 1, 2, 3].map((i) => (i === player ? undefined : bot(i))),
-      starts: [0, 1, 2, 3].map((i) => (i === player ? m.start : undefined)),
+      starts: [0, 1, 2, 3].map((i) => pathStart(i) ?? (i === player ? m.start : undefined)),
       hp: { enabled: s.hpEnabled, interval: s.hpInterval, smart: s.hpSmart },
       grip: s.grip,
       damage: { ...s.damage },
