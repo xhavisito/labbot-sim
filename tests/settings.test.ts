@@ -86,9 +86,17 @@ describe('registro del match', () => {
 describe('ajustes de la práctica 1 contra 1', () => {
   it('por defecto: rival quieto y práctica libre; lo inválido vuelve al valor por defecto', async () => {
     const { sanitizePractice, DEFAULT_SETTINGS } = await import('../src/config/settings');
-    expect(DEFAULT_SETTINGS.practice).toEqual({ rival: 'passive', limit: 0 });
-    expect(sanitizePractice({ rival: 'ai', limit: 120 })).toEqual({ rival: 'ai', limit: 120 });
-    expect(sanitizePractice({ rival: 'boss', limit: 77 })).toEqual({ rival: 'passive', limit: 0 });
-    expect(sanitizePractice(null)).toEqual({ rival: 'passive', limit: 0 });
+    expect(DEFAULT_SETTINGS.practice).toEqual({ rival: 'passive', persona: 'balanced', limit: 0 });
+    expect(sanitizePractice({ rival: 'ai', persona: 'balanced', limit: 120 })).toEqual({ rival: 'ai', persona: 'balanced', limit: 120 });
+    expect(sanitizePractice({ rival: 'boss', limit: 77 })).toEqual({ rival: 'passive', persona: 'balanced', limit: 0 });
+    expect(sanitizePractice(null)).toEqual({ rival: 'passive', persona: 'balanced', limit: 0 });
+  });
+});
+
+describe('showFps', () => {
+  it('es booleano y por defecto apagado', () => {
+    expect(sanitizeSettings({}, []).showFps).toBe(false);
+    expect(sanitizeSettings({ showFps: true }, []).showFps).toBe(true);
+    expect(sanitizeSettings({ showFps: 'sí' }, []).showFps).toBe(false);
   });
 });

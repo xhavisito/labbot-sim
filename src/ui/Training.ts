@@ -5,7 +5,9 @@
  */
 import type { MechanismKind } from '../config/robot';
 import { formatTimer } from '../core/clock';
+import type { WeeklyChallenge, WeeklyResult } from '../core/weekly';
 import { bestOf, DRILLS, drillTargets, medalCount, MEDALS, PACE, recordRun, type Drill, type DrillId, type Medal, type RunResult, type TrainingProgress } from '../core/training';
+import { scenarioBest, SCENARIOS, type Scenario, type ScenarioId, type ScenarioProgress } from '../core/scenarios';
 import { DrillTracker, setupDrill } from '../game/drills';
 import type { GameSession } from '../game/GameSession';
 import { saveTraining } from '../game/trainingStore';
@@ -50,8 +52,9 @@ export class TrainingScreen {
   constructor(
     private root: HTMLElement,
     private progress: TrainingProgress,
+    private scenarios: ScenarioProgress,
     private robot: () => TrainingRobot,
-    private act: { back: () => void; play: (d: DrillId) => void },
+    private act: { back: () => void; play: (d: DrillId) => void; playScenario: (id: ScenarioId) => void },
   ) {}
 
   show(): void {
@@ -70,6 +73,18 @@ export class TrainingScreen {
           <button class="btn primary" data-play>${ic.play}<span>${t('tn_play')}</span></button>
         </div></div>`;
     };
+    const scn = (s: Scenario): string => {
+      const best = scenarioBest(this.scenarios, s.id, r.id);
+      return `<div class="tn-card" data-scn="${s.id}">
+        ${medalDisc(best?.medal ?? null, 'lg')}
+        <div class="tn-info"><b>${t(`sn_${s.id}` as Key)}</b><p>${t(`sn_${s.id}_goal` as Key)}</p>
+          <small class="tn-meta">${t('sn_from', { s: secs(150 - s.at) })} · ${s.section}</small>
+          <small class="tn-meta">${t(`sn_${s.id}_tip` as Key)}</small></div>
+        <div class="tn-side">
+          <div class="tn-rec">${best ? `<small>${t('tn_record')}</small><b>${best.best >= 0 ? '+' : ''}${best.best} pts</b><small>${t('sn_wins', { w: best.wins, n: best.runs })}</small>` : `<small>${t('tn_noRecord')}</small>`}</div>
+          <button class="btn primary" data-play-scn>${ic.play}<span>${t('tn_play')}</span></button>
+        </div></div>`;
+    };
     this.root.className = 'screen solid';
     this.root.innerHTML = `<div class="inner">
       ${brandbar(t('tn_title'))}
@@ -82,11 +97,17 @@ export class TrainingScreen {
           .join('')}</span>
         <small>${t('tn_robotNote')}${PACE[r.mech] !== 1 ? ` · ${t('tn_pace', { k: PACE[r.mech] })}` : ''}</small></div>
       <div class="tn-list">${DRILLS.map(card).join('')}</div>
+      <h2>${t('sn_title')}</h2>
+      <p class="sub">${t('sn_sub')}</p>
+      <div class="tn-list">${SCENARIOS.map(scn).join('')}</div>
       <div class="actionbar">${backBtn('data-act="back"')}<div class="grow"></div></div>
     </div>`;
     this.root.style.display = '';
     this.root.scrollTop = 0;
     this.root.querySelector('[data-act="back"]')!.addEventListener('click', () => this.act.back());
+    this.root.querySelectorAll<HTMLElement>('[data-play-scn]').forEach((b) =>
+      b.addEventListener('click', () => this.act.playScenario(b.closest<HTMLElement>('[data-scn]')!.dataset.scn as ScenarioId)),
+    );
     this.root.querySelectorAll<HTMLElement>('[data-play]').forEach((b) =>
       b.addEventListener('click', () => this.act.play(b.closest<HTMLElement>('[data-id]')!.dataset.id as DrillId)),
     );
@@ -101,6 +122,8 @@ export interface TrainingRunHost {
   session: () => GameSession;
   progress: TrainingProgress;
   robot: TrainingRobot;
+  /** Desafío semanal: se juega con este reto y la marca va al marcador, no a los récords de entrenamiento. */
+  weekly?: { ch: WeeklyChallenge; submit: (points: number) => WeeklyResult };
   /** Lista de retos. */
   other: () => void;
   exit: () => void;
@@ -112,6 +135,7 @@ export class TrainingRun {
   private clock = 0;
   private tracker: DrillTracker | null = null;
   private last: RunResult | null = null;
+  private wk: { res: WeeklyResult; points: number } | null = null;
   private readonly limit: number;
   private onKey = (e: KeyboardEvent): void => {
     // Solo con el panel a la vista (no en la pausa)
@@ -205,6 +229,13 @@ export class TrainingRun {
     const tr = this.tracker;
     if (!tr) return;
     const r = this.h.robot;
+    if (this.h.weekly) {
+      const points = tr.points;
+      this.wk = { res: this.h.weekly.submit(points), points };
+      this.phase = 'result';
+      this.render();
+      return;
+    }
     this.last = recordRun(this.h.progress, this.drill, r.id, r.mech, tr.outcome());
     saveTraining(this.h.progress);
     this.phase = 'result';
@@ -249,7 +280,21 @@ export class TrainingRun {
     if (pr) pr.textContent = this.progressText();
   }
 
+  private weeklyResultHtml(): string {
+    const { res, points } = this.wk!;
+    const goal = this.h.weekly!.ch.goal;
+    const notes = [
+      res.metGoal ? `<b class="tn-new">${t('wk_met')}</b>` : t('wk_notMet', { n: goal - points }),
+      res.rank ? t('wk_rank', { n: res.rank }) : t('wk_noRank'),
+      res.isBest ? `<b class="tn-new">${t('wk_best')}</b>${res.prevBest !== null ? ` · ${t('tn_prev', { v: `${res.prevBest} pts` })}` : ''}` : t('tn_best', { v: `${res.prevBest} pts` }),
+    ];
+    return `<div class="tn-res ${res.metGoal ? 'gold' : 'none'}">${medalDisc(res.metGoal ? 'gold' : null, 'xl')}
+        <div><small>${t('wk_score')}</small><b>${points} pts</b></div></div>
+      ${notes.map((n) => `<p class="tn-note">${n}</p>`).join('')}`;
+  }
+
   private resultHtml(): string {
+    if (this.wk) return this.weeklyResultHtml();
     const d = this.drill;
     const r = this.last!;
     const tr = this.tracker;
@@ -278,7 +323,7 @@ export class TrainingRun {
     // Los controles touch solo hacen falta durante el reto (si no, el panel los tapa)
     document.body.classList.toggle('ap-open', ph !== 'running');
     if (ph === 'countdown' || ph === 'running') {
-      const label = ph === 'countdown' ? t('tn_getReady') : drillName(d);
+      const label = ph === 'countdown' ? t('tn_getReady') : this.h.weekly ? t('wk_title') : drillName(d);
       this.root.innerHTML = `<div class="ap-chip tn-chip ${ph}">${ic.medal}<span>${label}</span><em data-prog></em><b data-clock></b>
         <button class="hud-btn" data-a="stop" title="${t('tn_stop')}">${ic.x}</button></div>`;
       this.root.querySelector('[data-a="stop"]')!.addEventListener('click', () => this.reset());
@@ -287,20 +332,25 @@ export class TrainingRun {
     }
     const mech = this.h.robot.mech;
     const best = bestOf(this.h.progress, d.id, this.h.robot.id);
+    const wkc = this.h.weekly?.ch;
     const body =
       ph === 'result'
         ? this.resultHtml()
-        : `<p class="tn-goal"><b>${t('tn_goal')}:</b> ${t(`tn_${d.id}_goal` as Key)}</p>
+        : wkc
+          ? `<p class="tn-goal"><b>${t('tn_goal')}:</b> ${t('wk_goal', { n: wkc.goal, s: wkc.def.limit })}</p>
+          <p class="ap-note"><b>${t('tn_tips')}:</b> ${t(`tn_${d.id}_tip` as Key)}</p>
+          <p class="tn-note dim">${t('wk_assume')} · ${esc(this.h.robot.name)}</p>`
+          : `<p class="tn-goal"><b>${t('tn_goal')}:</b> ${t(`tn_${d.id}_goal` as Key)}</p>
           <p class="ap-note"><b>${t('tn_tips')}:</b> ${t(`tn_${d.id}_tip` as Key)}</p>
           ${cutsHtml(d, mech, best?.medal ?? null)}
           <p class="tn-note dim">${best ? t('tn_best', { v: fmtValue(d, best.best) }) : t('tn_noRecord')} · ${esc(this.h.robot.name)}</p>`;
     this.root.innerHTML = `<div class="ap-panel tn-panel">
-      <div class="ap-head">${ic.medal}<b>${drillName(d)}</b>
+      <div class="ap-head">${ic.medal}<b>${this.h.weekly ? t('wk_title') : drillName(d)}</b>
         <button class="hud-btn" data-a="exit" title="${t('tn_exit')}">${ic.x}</button></div>
       <small class="tn-meta">${t('tn_limit', { s: secs(this.limit) })} · ${d.section}</small>
       <div class="ap-sec">${body}</div>
       <div class="ap-actions tn-actions">
-        <button class="btn" data-a="other">${ic.back}<span>${t('tn_other')}</span></button>
+        <button class="btn" data-a="other">${ic.back}<span>${this.h.weekly ? t('wk_back') : t('tn_other')}</span></button>
         <button class="btn primary" data-a="start">${ph === 'result' ? ic.reset : ic.play}<span>${ph === 'result' ? t('tn_retry') : t('tn_start')}</span><kbd>Enter</kbd></button>
       </div></div>`;
     const on = (a: string, fn: () => void) => this.root.querySelectorAll<HTMLElement>(`[data-a="${a}"]`).forEach((el) => el.addEventListener('click', fn));

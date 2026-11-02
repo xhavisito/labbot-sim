@@ -4,37 +4,31 @@
  * velocidad, Plataforma, Muestra Crítica). Se abre desde los resultados o desde Repeticiones.
  */
 import * as F from '../config/field';
+import { activePalette } from '../config/palette';
+import { levelCat } from '../core/cycles';
 import { GAME } from '../config/game';
 import { bounds } from '../core/clock';
-import { ALLIANCES } from '../core/types';
 import { replayDuration, type Replay } from '../replay/format';
 import { HEAT_CELL, HEAT_COLS, HEAT_ROWS, robotStats, totalSamples, type RobotStats } from '../replay/stats';
 import { backBtn, brandbar, ic } from './chrome';
+import { drawShotMap, fieldBase, fieldLines } from './shotMap';
 import { dateTime, t } from './i18n';
 
 const esc = (s: string): string => s.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
-const COLORS = { red: [229, 65, 58], blue: [47, 125, 246] } as const;
 
 /** Etiqueta corta de la estación: R1, R2, A1, A2. */
 export const stationTag = (alliance: 'red' | 'blue', station: number): string => `${t(alliance === 'red' ? 'red' : 'blue').charAt(0)}${station + 1}`;
 
 /** Dibuja la cancha vista desde arriba (X a la derecha = rojo, Z hacia abajo) y el mapa de calor. */
 export function drawHeatmap(cv: HTMLCanvasElement, replay: Replay, stats: RobotStats[], only: number | null): void {
-  const W = cv.width;
-  const H = cv.height;
-  const k = W / F.FIELD_LENGTH;
-  const X = (x: number) => (x + F.HALF_L) * k;
-  const Z = (z: number) => (z + F.HALF_W) * k;
   const g = cv.getContext('2d');
   if (!g) return;
-  g.clearRect(0, 0, W, H);
-  g.fillStyle = '#15191f';
-  g.fillRect(0, 0, W, H);
+  const k = fieldBase(g, cv.width, cv.height);
   // Calor: una capa por robot, del color de su alianza; la intensidad es la raíz del tiempo en la celda
   for (const s of stats) {
     if (only !== null && s.index !== only) continue;
     const rb = replay.header.robots[s.index];
-    const [r, gg, b] = COLORS[rb.alliance];
+    const [r, gg, b] = activePalette().heat[rb.alliance];
     for (let row = 0; row < HEAT_ROWS; row++)
       for (let c = 0; c < HEAT_COLS; c++) {
         const v = s.heat[row * HEAT_COLS + c];
@@ -43,39 +37,24 @@ export function drawHeatmap(cv: HTMLCanvasElement, replay: Replay, stats: RobotS
         g.fillRect(c * HEAT_CELL * k, row * HEAT_CELL * k, HEAT_CELL * k + 0.5, HEAT_CELL * k + 0.5);
       }
   }
-  // Cancha: línea central, Zonas de Inicio, Cámaras, Campanas, Plataforma y Laboratorio
-  const rect = (rc: F.Rect, stroke: string, fill = '') => {
-    if (fill) {
-      g.fillStyle = fill;
-      g.fillRect(X(rc.x0), Z(rc.z0), (rc.x1 - rc.x0) * k, (rc.z1 - rc.z0) * k);
-    }
-    g.strokeStyle = stroke;
-    g.strokeRect(X(rc.x0), Z(rc.z0), (rc.x1 - rc.x0) * k, (rc.z1 - rc.z0) * k);
-  };
-  g.lineWidth = 1.5;
-  g.strokeStyle = 'rgba(255,255,255,0.35)';
-  g.strokeRect(1, 1, W - 2, H - 2);
-  g.setLineDash([6, 5]);
-  g.beginPath();
-  g.moveTo(X(0), 0);
-  g.lineTo(X(0), H);
-  g.stroke();
-  g.setLineDash([]);
-  for (const a of ALLIANCES) {
-    const col = a === 'red' ? 'rgba(255,138,131,0.9)' : 'rgba(143,182,255,0.9)';
-    for (const z of F.START_ZONES_RED) rect(F.rectFor(a, z), col);
-    rect(F.rectFor(a, { x0: F.CAMARA_X_END_RED - F.CAMARA_LENGTH, x1: F.CAMARA_X_END_RED, z0: F.CAMARA_Z_RED[0], z1: F.CAMARA_Z_RED[1] }), col, 'rgba(255,255,255,0.06)');
-    rect(F.rectFor(a, { x0: F.CAMPANA_X_RED[0], x1: F.CAMPANA_X_RED[1], z0: -F.HALF_W, z1: -F.HALF_W + 0.08 }), col, col);
-  }
-  rect({ x0: -F.PLATFORM_LENGTH / 2, x1: F.PLATFORM_LENGTH / 2, z0: -F.PLATFORM_WIDTH / 2, z1: F.PLATFORM_WIDTH / 2 }, 'rgba(255,199,44,0.8)', 'rgba(255,199,44,0.06)');
-  g.fillStyle = 'rgba(217,201,168,0.55)';
-  for (const p of F.labSpots()) g.fillRect(X(p.x) - 3, Z(p.z) - 3, 6, 6);
+  fieldLines(g, cv.width, cv.height);
+}
+
+/** Dónde anotó cada robot del match (al soltar la Muestra): un punto por anotación. */
+export function drawScoreSpots(cv: HTMLCanvasElement, replay: Replay, stats: RobotStats[], only: number | null): void {
+  drawShotMap(cv, {
+    dots: stats
+      .filter((s) => only === null || s.index === only)
+      .map((s) => ({ rgb: activePalette().heat[replay.header.robots[s.index].alliance], shots: s.scoreSpots.map((p) => ({ x: p.x, z: p.z, cat: levelCat(p.level), ok: true, t: p.t })) })),
+  });
 }
 
 const num = (v: number | null, d = 1, unit = ''): string => (v === null ? '–' : `${v.toFixed(d)}${unit}`);
 
 export class StatsPanel {
   private only: number | null = null;
+  /** Mapa de calor de dónde anduvo o mapa de tiro de dónde anotó. */
+  private view: 'heat' | 'shots' = 'heat';
   private stats: RobotStats[];
 
   constructor(
@@ -120,8 +99,9 @@ export class StatsPanel {
       <div class="panels stats">
         <div class="panel"><h3>${t('st_heat')}</h3>
           <div class="seg" data-only>${ordered.map(([i, r]) => `<button class="${r.alliance} ${this.only === i ? 'on' : ''}" data-i="${i}">${tag(i)}</button>`).join('')}<button class="${this.only === null ? 'on' : ''}" data-i="all">${t('st_all')}</button></div>
+          <div class="seg" data-view><button class="${this.view === 'heat' ? 'on' : ''}" data-v="heat">${t('st_viewHeat')}</button><button class="${this.view === 'shots' ? 'on' : ''}" data-v="shots">${t('st_viewShots')}</button></div>
           <canvas class="heat" width="${Math.round(F.FIELD_LENGTH * 80)}" height="${Math.round(F.FIELD_WIDTH * 80)}"></canvas>
-          <p class="sub">${t('st_heatNote')}</p>
+          <p class="sub" data-heatnote>${t(this.view === 'heat' ? 'st_heatNote' : 'st_shotsNote')}</p>
         </div>
         <div class="panel"><h3>${t('st_timeline')}</h3>
           <div class="timeline">${timeline}</div>
@@ -159,12 +139,23 @@ export class StatsPanel {
         this.draw();
       }),
     );
+    this.root.querySelectorAll<HTMLElement>('[data-view] button').forEach((b) =>
+      b.addEventListener('click', () => {
+        this.view = b.dataset.v === 'shots' ? 'shots' : 'heat';
+        b.parentElement!.querySelectorAll('button').forEach((x) => x.classList.toggle('on', x === b));
+        const note = this.root.querySelector('[data-heatnote]');
+        if (note) note.textContent = t(this.view === 'heat' ? 'st_heatNote' : 'st_shotsNote');
+        this.draw();
+      }),
+    );
     this.root.querySelector('[data-act="back"]')?.addEventListener('click', () => this.onBack());
     this.root.querySelector('[data-act="watch"]')?.addEventListener('click', () => this.onWatch?.());
   }
 
   private draw(): void {
     const cv = this.root.querySelector<HTMLCanvasElement>('canvas.heat');
-    if (cv) drawHeatmap(cv, this.replay, this.stats, this.only);
+    if (!cv) return;
+    if (this.view === 'shots') drawScoreSpots(cv, this.replay, this.stats, this.only);
+    else drawHeatmap(cv, this.replay, this.stats, this.only);
   }
 }

@@ -18,7 +18,7 @@
  * y no chocan con la alfombra: la garra pasa rozándola al recoger.
  * CCD en el cuerpo: a toda velocidad o girando no atraviesa las paredes de 8 mm de la Cámara.
  */
-import { CLAW, armTip, type RobotSpec } from '../config/robot';
+import { armTip, clawOf, type ClawDims, type RobotSpec } from '../config/robot';
 import { CRITICAL_SIZE, SAMPLE_SIZE } from '../config/field';
 import { G, GROUPS, RAPIER, groups, type PhysicsWorld } from './PhysicsWorld';
 
@@ -55,7 +55,7 @@ function qmul(a: Pose['r'], b: Pose['r']): Pose['r'] {
   };
 }
 /** El brazo (colisionador) termina antes de la punta: ahí van la placa y los dedos de la garra. */
-const ARM_BEAM_SHORT = CLAW.fingerLength / 2 + CLAW.palmThickness + 0.01;
+const beamShort = (c: ClawDims): number => c.fingerLength / 2 + c.palmThickness + 0.01;
 
 /** Hacia dónde abre la garra: +1 si la punta está delante del eje del brazo, −1 si está detrás. */
 export const clawDir = (a: number, arm?: { linear?: boolean; stowTip?: unknown }): number => (arm?.stowTip || arm?.linear ? 1 : Math.cos(a) >= 0 ? 1 : -1);
@@ -82,6 +82,7 @@ export class RobotPhysics {
   turnBias = 0;
   /** Colisionadores del brazo, la garra y la pieza agarrada (se mueven con el brazo). */
   /** Formas (un poco más chicas) para preguntar si el brazo se metería en la madera. */
+  private claw: ClawDims;
   private armQuery: Record<'beam' | 'finger' | 'palm' | 'sample' | 'critical', RAPIER.Shape>;
   readonly armColliders: { beam: RAPIER.Collider; fingers: [RAPIER.Collider, RAPIER.Collider]; palm: RAPIER.Collider; sample: RAPIER.Collider; critical: RAPIER.Collider };
   private wheelLocal: Array<[number, number]> = [];
@@ -177,22 +178,24 @@ export class RobotPhysics {
       pw.tag(c, { kind: 'robot', robot: index });
       return c;
     };
-    const beamLen = Math.max(0.05, spec.arm.length - ARM_BEAM_SHORT);
-    const fh = CLAW.fingerHeight / 2;
+    const claw = clawOf(spec);
+    this.claw = claw;
+    const beamLen = Math.max(0.05, spec.arm.length - beamShort(claw));
+    const fh = claw.fingerHeight / 2;
     this.armQuery = {
-      beam: shrunk(beamLen / 2, 0.02, CLAW.fingerZ),
-      finger: shrunk(CLAW.fingerLength / 2, fh, CLAW.fingerThickness / 2),
-      palm: shrunk(CLAW.palmThickness / 2, fh * 0.75, CLAW.fingerZ + CLAW.fingerThickness / 2),
+      beam: shrunk(beamLen / 2, 0.02, claw.fingerZ),
+      finger: shrunk(claw.fingerLength / 2, fh, claw.fingerThickness / 2),
+      palm: shrunk(claw.palmThickness / 2, fh * 0.75, claw.fingerZ + claw.fingerThickness / 2),
       sample: shrunk(SAMPLE_SIZE / 2, SAMPLE_SIZE / 2, SAMPLE_SIZE / 2),
       critical: shrunk(CRITICAL_SIZE / 2, CRITICAL_SIZE / 2, CRITICAL_SIZE / 2),
     };
     this.armColliders = {
-      beam: mech(RAPIER.ColliderDesc.cuboid(beamLen / 2, 0.02, CLAW.fingerZ)),
+      beam: mech(RAPIER.ColliderDesc.cuboid(beamLen / 2, 0.02, claw.fingerZ)),
       fingers: [
-        mech(RAPIER.ColliderDesc.cuboid(CLAW.fingerLength / 2, fh, CLAW.fingerThickness / 2)),
-        mech(RAPIER.ColliderDesc.cuboid(CLAW.fingerLength / 2, fh, CLAW.fingerThickness / 2)),
+        mech(RAPIER.ColliderDesc.cuboid(claw.fingerLength / 2, fh, claw.fingerThickness / 2)),
+        mech(RAPIER.ColliderDesc.cuboid(claw.fingerLength / 2, fh, claw.fingerThickness / 2)),
       ],
-      palm: mech(RAPIER.ColliderDesc.cuboid(CLAW.palmThickness / 2, fh * 0.75, CLAW.fingerZ + CLAW.fingerThickness / 2)),
+      palm: mech(RAPIER.ColliderDesc.cuboid(claw.palmThickness / 2, fh * 0.75, claw.fingerZ + claw.fingerThickness / 2)),
       sample: mech(RAPIER.ColliderDesc.cuboid(SAMPLE_SIZE / 2, SAMPLE_SIZE / 2, SAMPLE_SIZE / 2)),
       critical: mech(RAPIER.ColliderDesc.cuboid(CRITICAL_SIZE / 2, CRITICAL_SIZE / 2, CRITICAL_SIZE / 2)),
     };
@@ -202,26 +205,26 @@ export class RobotPhysics {
   /** Pose local (respecto al cuerpo) de cada colisionador del brazo con el brazo en el ángulo `a`. */
   private armPoses(a: number): Record<'beam' | 'finger0' | 'finger1' | 'palm' | 'sample' | 'critical', Pose> {
     const arm = this.spec.arm;
-    const beamLen = Math.max(0.05, arm.length - ARM_BEAM_SHORT);
+    const beamLen = Math.max(0.05, arm.length - beamShort(this.claw));
     const ca = Math.cos(a);
     const sa = Math.sin(a);
     const tip = armTip(arm, a);
-    const fy = tip.y + CLAW.fingerHeight / 2;
+    const fy = tip.y + this.claw.fingerHeight / 2;
     // Viga: un arco desde el eje; plegada (`stowTip`) apunta del eje a la punta; en el elevador es la
     // viga horizontal del carro
     let beam: Pose = { t: { x: arm.pivotX + (ca * beamLen) / 2, y: arm.pivotY + (sa * beamLen) / 2, z: 0 }, r: { x: 0, y: 0, z: Math.sin(a / 2), w: Math.cos(a / 2) } };
     if (arm.linear) {
       // Elevador: el carro sale de la torre con una viga horizontal a la altura de la punta
-      beam = { t: { x: tip.x - CLAW.fingerLength / 2 - beamLen / 2, y: tip.y, z: 0 }, r: NO_ROT };
+      beam = { t: { x: tip.x - this.claw.fingerLength / 2 - beamLen / 2, y: tip.y, z: 0 }, r: NO_ROT };
     } else if (arm.stowTip && a > Math.PI / 2) {
       const b = Math.atan2(tip.y - arm.pivotY, tip.x - arm.pivotX);
       beam = { t: { x: arm.pivotX + (Math.cos(b) * beamLen) / 2, y: arm.pivotY + (Math.sin(b) * beamLen) / 2, z: 0 }, r: { x: 0, y: 0, z: Math.sin(b / 2), w: Math.cos(b / 2) } };
     }
     return {
       beam,
-      finger0: { t: { x: tip.x, y: fy, z: CLAW.fingerZ }, r: NO_ROT },
-      finger1: { t: { x: tip.x, y: fy, z: -CLAW.fingerZ }, r: NO_ROT },
-      palm: { t: { x: tip.x - clawDir(a, arm) * (CLAW.fingerLength / 2 + CLAW.palmThickness / 2), y: fy, z: 0 }, r: NO_ROT },
+      finger0: { t: { x: tip.x, y: fy, z: this.claw.fingerZ }, r: NO_ROT },
+      finger1: { t: { x: tip.x, y: fy, z: -this.claw.fingerZ }, r: NO_ROT },
+      palm: { t: { x: tip.x - clawDir(a, arm) * (this.claw.fingerLength / 2 + this.claw.palmThickness / 2), y: fy, z: 0 }, r: NO_ROT },
       sample: { t: { x: tip.x, y: tip.y + SAMPLE_SIZE / 2, z: 0 }, r: NO_ROT },
       critical: { t: { x: tip.x, y: tip.y + CRITICAL_SIZE / 2, z: 0 }, r: NO_ROT },
     };
@@ -335,7 +338,7 @@ export class RobotPhysics {
    */
   outline(a: number): Array<{ x: number; z: number }> {
     const tip = armTip(this.spec.arm, a).x;
-    const reach = CLAW.fingerLength / 2 + CLAW.palmThickness;
+    const reach = this.claw.fingerLength / 2 + this.claw.palmThickness;
     const x0 = Math.min(-this.halfL, tip - reach);
     const x1 = Math.max(this.halfL, tip + reach);
     return [

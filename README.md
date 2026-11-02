@@ -4,7 +4,7 @@ Simulador 3D web del reto interno **LabBot Rescue 2026** (Robotics WinterFest, L
 Cancha, piezas, robots tanque, reloj, puntuación, faltas y Ranking Points según el manual del reto.
 
 - **Reglas:** [`docs/reglas-reto.md`](docs/reglas-reto.md) resume el manual con la sección de cada
-  regla (§x.y), las medidas tomadas de las figuras y la lista de dudas y supuestos (D1–D36).
+  regla (§x.y), las medidas tomadas de las figuras y la lista de dudas y supuestos (D1–D47).
 - **Plan y arquitectura:** [`docs/PLAN.md`](docs/PLAN.md).
 
 ## Instalar y correr
@@ -33,7 +33,7 @@ genera `vite.config.ts` con la lista del build) y el simulador abre y juega sin 
 muestra "Sin conexión" cuando ya está listo. Para instalarlo en el celular: en Android, el botón
 **Instalar** del menú (o "Agregar a la pantalla principal" de Chrome); en iPhone, Safari → Compartir →
 **Agregar a inicio**. Cada build nuevo cambia la versión de la caché: la app se actualiza sola al
-abrirla con conexión (los cambios se ven la siguiente vez que se abre). Íconos: `public/icons/`
+abrirla con conexión; cuando la versión nueva ya quedó guardada aparece el botón **Actualizar** en el menú, y sin internet aparece "Sin internet". Se pide almacenamiento persistente para que el navegador no borre la caché. Prueba real sin conexión: `npm run build && npm run e2e:offline` (en la nube, con `CHROMIUM_PATH=/opt/pw-browsers/chromium`). Íconos: `public/icons/`
 (`node scripts/icons.mjs` los regenera desde `icon.svg`).
 
 ## Cómo se juega
@@ -78,7 +78,12 @@ Muestras a menos de 2.5 s son un ciclo; solo TELEOP), distancia y velocidad. Se 
 panel o en Ajustes; por defecto, quieto) y Muestras ilimitadas del Human Player. Un cronómetro de ciclos
 (de recoger la pieza a que cuente en tu Cámara o, la Crítica, en tu Repisa) da, al terminar, intentos vs.
 anotadas, acierto, tiempo promedio, mejor ciclo y puntos de TELEOP (§4.4) por N1/N2/N3 y Crítica, y guarda
-tu mejor ciclo por robot. SUPUESTOS: intento = soltar la pieza en un nivel, acierta si cuenta en 2.5 s;
+tu mejor ciclo por robot, parte cada ciclo en **buscar** (de que contó la anterior a recoger) y **llevar**
+(de recoger a anotar) y dibuja el **mapa de tiro**: desde dónde soltaste cada pieza (lleno = contó, × = falló),
+celdas de rojo a verde por acierto, lo que anotó el rival y una tabla por zona (cerca / media / lejos de tu
+Cámara) con tu mejor zona. Se acumula por robot (últimos 400 tiros, llevados al lado rojo). En las
+Estadísticas de una repetición, el mapa tiene la vista **Dónde anotó**. SUPUESTOS: zonas a 0.6 y 1.5 m de la
+orilla de la Cámara (`core/scoreMap.ts`); intento = soltar la pieza en un nivel, acierta si cuenta en 2.5 s;
 el rival usa tu mismo tipo de robot; la IA rival solo anota (sin defensa ni ENDGAME).
 
 **Práctica de AUTO** (menú → Taller): solo tu robot en su Zona de Inicio con la precarga y sin Human
@@ -89,6 +94,18 @@ SUPUESTO Foul) o si la pose movida ya no cabe en la Zona de Inicio (§4.1). **Pr
 corre la ruta sin dibujar desde N poses al azar (± cm, ± °) y dice cuántas dan los mismos puntos y
 cuánto se desvía la pose final. **Guardar** la deja en Ajustes → AUTO de tu robot para el match.
 Ojo: repite tus controles, así que con otro robot u otra Zona de Inicio termina en otro lugar.
+
+**Rutinas de AUTO** (menú → Taller): dibuja la trayectoria de los 15 s del AUTO (§2, §4.2) tocando la
+cancha (arrastra los puntos para moverlos) y dile al robot qué hacer en cada uno: velocidad, de reversa,
+girar a un rumbo, mover el brazo, prender la garra, soltar la pieza y esperar. Atajos para **anotar en
+N1/N2/N3**, **recoger una Muestra** del Laboratorio y **alejarse** de la Cámara. Muestra el tiempo estimado
+contra los 15 s y avisa si la ruta pasa de 15 s, no saca al robot de su Zona de Inicio (§4.4, D1), pisa la
+Plataforma (§4.6) o atraviesa la Cámara o la Campana. **Probar solo** da los puntos de AUTO (§4.4);
+**Probar contra la IA** corre 6 AUTOs de un match 2 contra 2 (tu compañero y los rivales en "Anotar y
+recolectar") y da puntos de tu alianza vs. rival, línea y faltas. A diferencia de las rutas grabadas, el
+robot corrige con su posición real, así que sirve con cualquier robot y desde una pose movida. **Usar como
+mi AUTO** la elige en Ajustes y en Preparar match (también para tu compañero de la IA); se guardan en el
+navegador. SUPUESTOS: D47.
 
 **Entrenamiento por retos** (menú → Taller): ejercicios cortos con tu robot solo en la cancha, con
 medalla (bronce, plata, oro) y récord personal por robot guardados en el navegador. Cada reto tiene
@@ -144,7 +161,7 @@ En el menú eliges tu robot (Rojo 1–2, Azul 1–2) y el modo:
   - *Pivote* (sugerencia de CAD en MDF): chasis 60×60 cm, brazo de 50 cm con garra y eje a 44 cm.
     Empieza guardado con la precarga; con el brazo en el piso (tecla 0) y la garra encendida agarra
     una Muestra y la suelta al frente en N1–N3. Lleva una sola pieza (Muestra o Crítica).
-  - *Brazo largo*, *Elevador* y *Doble intake* (2-nov, SUPUESTOS D43): tres mecanismos más para comparar
+  - *Brazo largo*, *Elevador* y *Doble intake* (2-nov, SUPUESTOS D49): tres mecanismos más para comparar
     con la misma estrategia (`npm run batch -- --set compare`). Todos dentro de §7.2 (65 × 65 cm,
     100 cm, 40 cm de extensión) y de §4.1 (guardados dentro del perímetro al inicio).
   - *Pivote 180°* (estilo Jack in the Bot 2025): recoge **atrás** y anota al frente sin girar el
@@ -180,6 +197,10 @@ tecla o el botón. Cada tecla o botón hace una sola cosa (si ya estaba en otra 
 hasta 2 por acción y se guarda en el navegador. Ahí también eliges manejar con un stick o con los dos
 (izquierdo avanza, derecho gira), invertir el avance y cuándo mostrar los controles touch.
 
+Ahí mismo se ajusta la **zona muerta** de los sticks. **Ajustes → Accesibilidad** tiene un modo de
+colores para daltonismo (rojo–verde o azul–amarillo: cambia alianzas, tu robot y Muestras Críticas;
+recarga la página al guardar) y el **tamaño del texto** (85–150 %) de toda la interfaz.
+
 Asignación por defecto:
 
 | Acción | Teclado | Control |
@@ -201,6 +222,14 @@ subir/bajar el brazo (los mismos para la Muestra y la Crítica), más cámara y 
 suelta la Muestra; cuenta cuando cae dentro del nivel. **Para la Muestra Crítica**, en el ENDGAME
 ponte de frente a la rendija de tu Campana con el brazo en "Repisa" y presiona la garra (Espacio); luego sube
 a la Plataforma y suéltala sobre la Repisa (E).
+
+### Multijugador local (2 jugadores)
+
+Menú → **2 jugadores**: dos personas en la misma pantalla (dividida), una por alianza; los otros dos
+robots los maneja la IA. Jugador 1: `W A S D`, Espacio (garra), `E` (soltar), `0–4` (brazo). Jugador 2:
+flechas, `Enter` (garra), `.` (soltar), `RePág/AvPág` (brazo). Con dos controles conectados, el primero
+es del jugador 1 y el segundo del 2. SUPUESTO: el manual no habla de controles ni de simuladores;
+ambos usan el robot y el AUTO de tus Ajustes. En pantalla dividida no hay bloom ni FXAA.
 
 ## Estructura
 
@@ -234,7 +263,7 @@ src/
   replay/     format.ts (repetición en binario compacto), Recorder.ts (graba cada match, cuelga de
               GameSession.tap), ReplayPlayer.ts (sesión "títere" que pone las poses grabadas),
               stats.ts (mapa de calor, Muestras por robot y tiempos de ciclo) y store.ts (IndexedDB, .lbreplay)
-  pwa/        register.ts (service worker, botón Instalar) y sw-template.js (precache del build)
+  pwa/        register.ts (service worker, Instalar/Actualizar), precache.ts (lista de precache, con pruebas) y sw-template.js
 tests/        field, physics, robot, match (reglas y casos borde), session (match completo),
               bot (IA en un match completo, sin faltas de cancha), settings (ajustes y registro),
               lineup (tipos de la IA y niveles de dificultad)
@@ -261,3 +290,14 @@ Cada regla en el código cita su sección del manual.
   medidas, masa, tracción y mecanismo, pero no la geometría de cada tipo.
 - Al pasar por la vertical, el brazo del pivote con una Muestra llega a ~109 cm; el manual no aclara
   si los 100 cm aplican con mecanismos en movimiento (§7.2) y la simulación no lo cobra.
+
+## Rendimiento en celulares
+
+- **Calidad Auto** (Ajustes → Gráficos): cada 2 s jugando mide los FPS; con menos de 45 baja primero la
+  resolución (60–100 %) y, si no alcanza, un nivel de calidad. Recupera resolución tras 8 s sobre 57 FPS,
+  pero no vuelve a un nivel del que ya bajó. Lógica pura en `src/render/perf.ts` (con pruebas).
+- **Perfil de FPS**: Ajustes muestra en vivo FPS, 1 % peor, ms de simulación y de dibujo, calidad y
+  resolución. "Mostrar FPS en el match" (o F3, o `?fps=1`) los pone arriba en pantalla.
+- URL: `?quality=low|medium|high` fija la calidad, `?dynres=0` apaga la resolución dinámica.
+- `node scripts/perf.mjs --qualities low,medium,high --only mobile --throttle 4` mide FPS por calidad
+  (requiere `npm run build`; en la nube `CHROMIUM_PATH=/opt/pw-browsers/chromium`).

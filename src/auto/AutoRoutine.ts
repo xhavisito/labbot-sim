@@ -4,6 +4,8 @@
  * viendo hacia el centro, así que sirven igual para rojo y azul.
  */
 import type { ElevatorPos } from '../config/robot';
+import type { AutoPath } from '../core/autoPath';
+import { PathFollower, type PathRobot } from './pathFollower';
 
 /**
  * Velocidad de referencia de las rutinas (m/s): `forward` de un paso 'drive' es fracción de esto, no
@@ -26,6 +28,8 @@ export interface AutoRoutine {
   bot?: { scoreOnly: boolean };
   /** Ruta grabada en la práctica de AUTO (`auto/recorded.ts`): los controles de cada paso, en lugar de `steps`. */
   track?: AutoTrack;
+  /** Rutina dibujada en el editor de rutinas (`core/autoPath.ts`): la sigue `PathFollower` con la pose real. */
+  path?: AutoPath;
 }
 
 /** Acción de un solo disparo en el paso `i` de una ruta grabada. */
@@ -84,16 +88,24 @@ export class AutoRunner {
   private t = 0;
   private started = -1;
 
-  constructor(readonly routine: AutoRoutine) {}
+  /** Seguidor de la rutina dibujada (si la rutina es de ese tipo). */
+  readonly follower: PathFollower | null;
+
+  constructor(readonly routine: AutoRoutine) {
+    this.follower = routine.path ? new PathFollower(routine.path) : null;
+  }
 
   /** Siguiente acción de la ruta grabada. */
   private a = 0;
 
   get done(): boolean {
+    if (this.follower) return this.follower.done;
     return this.i >= (this.routine.track?.forward.length ?? this.routine.steps.length);
   }
 
-  step(dt: number): AutoOutput {
+  /** `robot`: la pose real, para las rutinas dibujadas (sin él, se quedan quietas). */
+  step(dt: number, robot?: PathRobot): AutoOutput {
+    if (this.follower) return robot ? this.follower.step(dt, robot) : { forward: 0, turn: 0, raw: true };
     const tr = this.routine.track;
     if (tr) return this.trackStep(tr);
     const out: AutoOutput = { forward: 0, turn: 0 };

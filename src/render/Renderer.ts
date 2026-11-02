@@ -53,6 +53,8 @@ export class Renderer {
   preset: QualityPreset = QUALITY.high;
   /** Se llama al cambiar la calidad (público, partículas…). */
   readonly onQuality: Array<(p: QualityPreset) => void> = [];
+  /** Escala de resolución dinámica encima del preset (la ajusta App con `QualityGovernor`). */
+  dynScale = 1;
   private composer: EffectComposer | null = null;
   private renderPass: RenderPass | null = null;
   private envMap: THREE.Texture;
@@ -136,7 +138,14 @@ export class Renderer {
   }
 
   get pixelRatio(): number {
-    return Math.min(window.devicePixelRatio || 1, this.preset.maxPixelRatio) * this.preset.renderScale;
+    return Math.min(window.devicePixelRatio || 1, this.preset.maxPixelRatio) * this.preset.renderScale * this.dynScale;
+  }
+
+  /** Cambia la escala de resolución dinámica (sin reconstruir nada más que el tamaño). */
+  setDynScale(s: number, cam: THREE.PerspectiveCamera): void {
+    if (Math.abs(s - this.dynScale) < 1e-6) return;
+    this.dynScale = s;
+    this.resize(cam);
   }
 
   resize(cam: THREE.PerspectiveCamera): void {
@@ -151,6 +160,34 @@ export class Renderer {
     this.composer?.setSize(w, h);
     cam.aspect = w / h;
     cam.updateProjectionMatrix();
+  }
+
+  /**
+   * Pantalla dividida (multijugador local): dos vistas lado a lado, directo al canvas (sin bloom ni
+   * FXAA; con dos vistas el costo se duplica). `camB` null = pantalla completa normal.
+   */
+  renderSplit(camA: THREE.PerspectiveCamera, camB: THREE.PerspectiveCamera): void {
+    const r = this.renderer;
+    const w = r.domElement.clientWidth || window.innerWidth;
+    const h = r.domElement.clientHeight || window.innerHeight;
+    const half = Math.floor(w / 2);
+    r.setScissorTest(true);
+    const views: Array<[THREE.PerspectiveCamera, number, number]> = [
+      [camA, 0, half - 1],
+      [camB, half + 1, w - half - 1],
+    ];
+    for (const [cam, x, vw] of views) {
+      r.setViewport(x, 0, vw, h);
+      r.setScissor(x, 0, vw, h);
+      const aspect = vw / h;
+      if (Math.abs(cam.aspect - aspect) > 1e-3) {
+        cam.aspect = aspect;
+        cam.updateProjectionMatrix();
+      }
+      r.render(this.scene, cam);
+    }
+    r.setScissorTest(false);
+    r.setViewport(0, 0, w, h);
   }
 
   render(cam: THREE.Camera): void {

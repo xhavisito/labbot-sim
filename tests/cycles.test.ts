@@ -201,6 +201,16 @@ describe('práctica 1 contra 1 en la física', () => {
     expect(s.byCat.n2.scored).toBe(0);
     expect(s.points).toBe(GAME.points.sampleTeleop[3] + GAME.points.sampleTeleop[1]);
     expect(tr.rivalScored).toBe(1);
+    // Mapa de tiro: tus dos aciertos donde estaba tu robot (entraron sin soltarlas) y el del rival
+    const me = g.player.phys.position();
+    expect(tr.stats.shots.map((x) => [x.cat, x.ok])).toEqual([
+      ['n3', true],
+      ['n1', true],
+    ]);
+    expect(tr.stats.shots[0].x).toBeCloseTo(me.x, 1);
+    expect(tr.rivalShots).toHaveLength(1);
+    expect(tr.rivalShots[0]).toMatchObject({ cat: 'n2', ok: true });
+    expect(tr.rivalShots[0].x).toBeCloseTo(g.rival!.phys.position().x, 1);
   });
 
   it('con límite de tiempo, la práctica se acaba a los segundos pedidos', () => {

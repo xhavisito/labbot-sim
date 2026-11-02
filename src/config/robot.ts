@@ -100,7 +100,50 @@ export interface RobotSpec {
   elevatorHeights: [number, number, number, number, number];
   /** Nivel más alto que alcanza (por defecto 3). Las posiciones de arriba repiten la de ese nivel. */
   maxLevel?: Level;
+  /** Intake de la garra (constructor de robots); sin él, la garra de siempre (`DEFAULT_INTAKE`). */
+  intake?: IntakeSpec;
 }
+
+/**
+ * Intake de la garra (constructor de robots, Xhavi 2-nov). El manual no fija mecanismos (§7.2): todo
+ * es SUPUESTO de diseño, con los límites que sí da el manual (40 cm de extensión y 100 cm de altura,
+ * §7.2; motores, §7.3; medidas de las piezas, §4.1.1).
+ * - `compliant`: garra con ruedas flexibles en la boca de los dedos (la de siempre, D37): jala la
+ *   Muestra de cualquier ángulo y la empuja al soltar. Más rápidas las ruedas, cierra antes y empuja
+ *   más fuerte (`rollerSpeed`).
+ * - `pinza`: garra sin ruedas que cierra (servo o neumática): la Muestra tiene que entrar derecha
+ *   hasta la placa y tarda `closeTime` en cerrar (el agarre "Preciso" de D36), sin empujón al soltar.
+ */
+export type IntakeKind = 'compliant' | 'pinza';
+export const INTAKE_KINDS: readonly IntakeKind[] = ['compliant', 'pinza'];
+
+export interface IntakeSpec {
+  kind: IntakeKind;
+  /** Espacio libre entre los dedos (m). La Muestra mide 150 mm y la Crítica 200 mm (±5, §4.1.1). */
+  gap: number;
+  /** Largo de los dedos (m), a lo largo del robot. Cuenta para los 40 cm de extensión (§7.2). */
+  fingerLength: number;
+  /** Ruedas de los compliants (m/s en la superficie): velocidad con la que empujan al soltar. */
+  rollerSpeed: number;
+  /** Pinza: segundos que tarda en cerrar con la Muestra adentro. */
+  closeTime: number;
+}
+
+/** Intake de los dos pivotes: garra con compliants, abierta 23 cm, dedos de 20 cm (D36, D37, D41). */
+export const DEFAULT_INTAKE: IntakeSpec = { kind: 'compliant', gap: mm(230), fingerLength: mm(200), rollerSpeed: 1.0, closeTime: 0.18 };
+
+/** Rangos que acepta el constructor (SUPUESTOS de diseño, fuera de ellos no tiene sentido construirla). */
+export const INTAKE_RANGE = {
+  gap: [mm(140), mm(340)],
+  fingerLength: [mm(100), mm(320)],
+  rollerSpeed: [0.3, 3],
+  closeTime: [0.05, 0.8],
+} as const;
+
+export const intakeOf = (s: { intake?: IntakeSpec }): IntakeSpec => s.intake ?? DEFAULT_INTAKE;
+
+/** ¿Le cabe la Muestra Crítica (200 mm, §4.1.1) entre los dedos? Si no, la IA no la intenta. */
+export const canHoldCritical = (s: { intake?: IntakeSpec }): boolean => intakeOf(s).gap >= mm(200) - 1e-9;
 
 /**
  * Garra (la misma medida en la física y en el dibujo). SUPUESTO de diseño: dos dedos de 20 × 16 cm
@@ -120,6 +163,14 @@ export const CLAW = {
 } as const;
 /** Espacio libre entre los dedos (m). */
 export const CLAW_GAP = 2 * CLAW.fingerZ - CLAW.fingerThickness;
+
+export type ClawDims = { fingerLength: number; fingerHeight: number; fingerThickness: number; fingerZ: number; palmThickness: number };
+
+/** Medidas de la garra de un robot (las de `CLAW` con la apertura y el largo de dedos de su intake). */
+export function clawOf(s: { intake?: IntakeSpec }): ClawDims {
+  const i = intakeOf(s);
+  return { ...CLAW, fingerLength: i.fingerLength, fingerZ: i.gap / 2 + CLAW.fingerThickness / 2 };
+}
 
 /** Agarre de la garra (`game/Mechanisms.ts`): con compliants (por defecto), preciso o fácil. */
 export type GripMode = 'compliant' | 'precise' | 'easy';
@@ -290,10 +341,11 @@ export function validateRobot(s: RobotSpec, pieceSize = mm(200)): string[] {
   if (s.length > ROBOT_LIMITS.maxChassis + 1e-9 || s.width > ROBOT_LIMITS.maxChassis + 1e-9) out.push('chasis mayor a 65 × 65 cm (§7.2)');
   if (s.baseHeight > ROBOT_LIMITS.maxHeight + 1e-9) out.push('más alto que 100 cm (§7.2)');
   if (s.capacity < 1) out.push('la garra lleva al menos una pieza');
+  // Lo que más sale de la punta: la pieza agarrada (hasta la Crítica, 200 mm, parte del robot) o los dedos
+  const reach = Math.max(pieceSize, clawOf(s).fingerLength) / 2;
   for (const pos of [0, 1, 2, 3, 4] as const) {
     const tip = posTip(s, pos);
-    // La pieza agarrada (hasta la Crítica, 200 mm) cuenta como parte del robot
-    if (Math.abs(tip.x) + pieceSize / 2 - s.length / 2 > ROBOT_LIMITS.maxExtension + 1e-9) {
+    if (Math.abs(tip.x) + reach - s.length / 2 > ROBOT_LIMITS.maxExtension + 1e-9) {
       out.push('la garra sale más de 40 cm (§7.2)');
       break;
     }
@@ -303,7 +355,8 @@ export function validateRobot(s: RobotSpec, pieceSize = mm(200)): string[] {
   if (s.elevatorHeights[4] + pieceSize > ROBOT_LIMITS.maxHeight + 1e-9) out.push('garra + Muestra Crítica pasa de 100 cm (§7.2)');
   // Guardado al inicio con la precarga (150 mm): dentro del perímetro y bajo 100 cm (§4.1, §7.2)
   const st = armTip(s.arm, s.arm.stowAngle ?? armAngle(s.arm, s.elevatorHeights[0]));
-  const half = mm(150) / 2;
+  // Dedos más largos que los de siempre (20 cm, ya cubiertos por el diseño base) también deben caber
+  const half = (mm(150) + Math.max(0, clawOf(s).fingerLength - DEFAULT_INTAKE.fingerLength)) / 2;
   if (st.x + half > s.length / 2 + 1e-9 || st.x - half < -s.length / 2 - 1e-9 || st.y + mm(150) > ROBOT_LIMITS.maxHeight + 1e-9)
     out.push('el brazo guardado no cabe en el perímetro al inicio (§4.1)');
   // Con hopper (capacidad > 1) el brazo pasa por arriba con una Muestra cada vez que la guarda (D24)

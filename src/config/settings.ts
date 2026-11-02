@@ -4,10 +4,12 @@
  * válidos (un valor raro guardado en el navegador no rompe el juego).
  */
 import { AI_LEVELS, type AiLevel } from '../ai/difficulty';
+import { isPersona, type AiPersona } from '../ai/persona';
 import { isStrategy, type StrategyId } from '../ai/strategy';
 import { DEFAULT_DAMAGE, sanitizeDamage, type DamageSettings } from '../core/damage';
 import { DEFAULT_ROBOT, GRIP_MODES, MECHANISM_KINDS, type GripMode, type MechanismKind } from './robot';
 import { allRobotIds, type RobotId } from './robotIds';
+import { COLOR_MODES, nearestTextScale, type ColorMode, type TextScale } from './palette';
 import { CENTER_SPOT, sanitizeSpot, type StartSpot } from './startSpot';
 
 /** Un robot en la configuración del match (los de la IA; del tuyo solo cuenta tu rutina de AUTO). */
@@ -18,6 +20,8 @@ export interface MatchRobot {
   strategy: StrategyId;
   /** Dificultad de la IA (`ai/difficulty.ts`). */
   ai: AiLevel;
+  /** Personalidad de la IA (`ai/persona.ts`). */
+  persona: AiPersona;
   /** Rutina de AUTO (id de `AUTO_ROUTINES`). */
   auto: string;
   /**
@@ -44,6 +48,8 @@ export const PRACTICE_LIMITS = [0, 60, 120, 180, 300] as const;
 /** Ajustes de la práctica 1 contra 1 (`ui/Practice1v1.ts`). */
 export interface PracticeSettings {
   rival: RivalKind;
+  /** Personalidad del rival de la IA. */
+  persona: AiPersona;
   limit: number;
 }
 
@@ -67,6 +73,8 @@ export interface Settings {
   touch: 'auto' | 'on' | 'off';
   /** Calidad gráfica (`render/Renderer.ts`): automática según el equipo y los FPS, o fija. */
   quality: 'auto' | 'low' | 'medium' | 'high';
+  /** Mostrar FPS y tiempos en pantalla durante el match (también con F3 o `?fps=1`). */
+  showFps: boolean;
   /**
    * Agarre de la garra (`game/Mechanisms.ts`): con compliants (agarra de cualquier ángulo con la
    * garra abajo), preciso (alinear y entrar despacio) o fácil (el de antes).
@@ -78,17 +86,26 @@ export interface Settings {
   practice: PracticeSettings;
   /** Volumen de los sonidos del campo (`audio/FieldAudio.ts`), 0–100 %; 0 = silencio. */
   volume: number;
+  /** Avisos del árbitro (`core/refCalls.ts`): silbato y voz, solo silbato, o sin sonido (el cartel siempre sale). */
+  refAudio: RefAudioMode;
   /**
    * Pizarra de la estrategia de alianza en el match (`render/PlanView.ts` y la tarjeta del HUD):
    * líneas en la cancha y tarjeta, solo la tarjeta, o nada.
    */
   planBoard: PlanBoard;
+  /** Accesibilidad: paleta para daltonismo (`config/palette.ts`) y tamaño del texto de la interfaz. */
+  colorMode: ColorMode;
+  textScale: TextScale;
 }
+
+/** Sonido de los avisos del árbitro: silbato y voz, solo silbato, o nada. */
+export type RefAudioMode = 'voice' | 'whistle' | 'off';
+export const REF_AUDIO_MODES: readonly RefAudioMode[] = ['voice', 'whistle', 'off'];
 
 export type PlanBoard = 'all' | 'card' | 'off';
 export const PLAN_BOARDS: readonly PlanBoard[] = ['all', 'card', 'off'];
 
-const botDefault = (): MatchRobot => ({ kind: 'random', strategy: 'auto', ai: 'hard', auto: 'preload', plan: '' });
+const botDefault = (): MatchRobot => ({ kind: 'random', strategy: 'auto', ai: 'hard', persona: 'balanced', auto: 'preload', plan: '' });
 
 export const DEFAULT_SETTINGS: Settings = {
   ai: true,
@@ -101,12 +118,16 @@ export const DEFAULT_SETTINGS: Settings = {
   hpSmart: true,
   touch: 'auto',
   quality: 'auto',
+  showFps: false,
   grip: 'compliant',
   damage: { ...DEFAULT_DAMAGE },
   // SUPUESTO: por defecto el rival está quieto, como un obstáculo que no te quita Muestras
-  practice: { rival: 'passive', limit: 0 },
+  practice: { rival: 'passive', persona: 'balanced', limit: 0 },
   volume: 80,
+  refAudio: 'whistle',
   planBoard: 'all',
+  colorMode: 'normal',
+  textScale: 1,
 };
 
 export const SETTINGS_RANGE = {
@@ -126,6 +147,7 @@ export function sanitizePractice(raw: unknown): PracticeSettings {
   const d = DEFAULT_SETTINGS.practice;
   return {
     rival: RIVALS.find((r) => r === o.rival) ?? d.rival,
+    persona: isPersona(o.persona) ? o.persona : d.persona,
     limit: PRACTICE_LIMITS.find((l) => l === o.limit) ?? d.limit,
   };
 }
@@ -148,6 +170,7 @@ export function sanitizeSettings(raw: unknown, autoIds: readonly string[]): Sett
       kind: r.kind === 'random' ? 'random' : (MECHANISM_KINDS.find((k) => k === r.kind) ?? 'random'),
       strategy: isStrategy(r.strategy) ? r.strategy : 'auto',
       ai: AI_LEVELS.find((l) => l === r.ai) ?? oldAi ?? botDefault().ai,
+      persona: isPersona(r.persona) ? r.persona : 'balanced',
       auto: auto(r.auto, oldAuto),
       plan: typeof r.plan === 'string' ? r.plan.slice(0, 40) : '',
     };
@@ -164,12 +187,16 @@ export function sanitizeSettings(raw: unknown, autoIds: readonly string[]): Sett
     hpSmart: typeof o.hpSmart === 'boolean' ? o.hpSmart : d.hpSmart,
     touch: o.touch === 'on' || o.touch === 'off' ? o.touch : d.touch,
     quality: o.quality === 'low' || o.quality === 'medium' || o.quality === 'high' ? o.quality : d.quality,
+    showFps: typeof o.showFps === 'boolean' ? o.showFps : d.showFps,
     // 'real' (el agarre estricto del 29-oct, entonces por defecto) pasa a compliants
     grip: GRIP_MODES.find((g) => g === o.grip) ?? d.grip,
     damage: sanitizeDamage(o.damage),
     practice: sanitizePractice(o.practice),
     volume: num(o.volume, d.volume, SETTINGS_RANGE.volume),
+    refAudio: REF_AUDIO_MODES.find((m) => m === o.refAudio) ?? d.refAudio,
     planBoard: PLAN_BOARDS.find((b) => b === o.planBoard) ?? d.planBoard,
+    colorMode: COLOR_MODES.find((m) => m === o.colorMode) ?? d.colorMode,
+    textScale: nearestTextScale(o.textScale ?? d.textScale),
   };
 }
 

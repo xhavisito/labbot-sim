@@ -7,7 +7,8 @@
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
 import { CRITICAL_SIZE, SAMPLE_SIZE } from '../config/field';
-import { CLAW, armTip } from '../config/robot';
+import { armTip, clawOf, type ClawDims } from '../config/robot';
+import { PALETTES } from '../config/palette';
 import { clawDir } from '../physics/RobotPhysics';
 import type { Robot } from '../game/Robot';
 import { ALLIANCE_COLOR } from './FieldView';
@@ -22,7 +23,7 @@ const hubMat = new THREE.MeshStandardMaterial({ color: 0xe0a419, roughness: 0.35
 const sampleMat = sampleMaterial();
 const WHEEL_R = 0.05;
 /** Color de la placa y los LEDs del robot propio, en cualquier alianza. */
-export const OWN_ROBOT_COLOR = 0x8a2ba3;
+export const ROBOT_STYLE = { own: PALETTES.normal.own, fault: PALETTES.normal.fault, plate: { ...PALETTES.normal.plate } };
 
 export class RobotView {
   readonly group = new THREE.Group();
@@ -33,11 +34,12 @@ export class RobotView {
   /** LEDs bajo el chasis: parpadean en ámbar con una falla y se apagan a ratos sin comunicación. */
   private led: THREE.MeshStandardMaterial;
   private ledColor: THREE.Color;
-  private static readonly AMBER = new THREE.Color(0xff8a1c);
-  /** Fallas activas del robot (las pone la sesión, `game/Damage.ts`). */
+  private faultColor = new THREE.Color();
+    /** Fallas activas del robot (las pone la sesión, `game/Damage.ts`). */
   faults: () => ReadonlyMap<string, number> = () => new Map();
   /** Placa de la garra (del lado del brazo). */
   private palm: THREE.Mesh;
+  private claw: ClawDims;
   private wheels: Array<{ mesh: THREE.Object3D; side: number }> = [];
   private lastP = new THREE.Vector3();
   private lastYaw = 0;
@@ -60,7 +62,7 @@ export class RobotView {
       parent.add(m);
       return m;
     };
-    const color = own ? OWN_ROBOT_COLOR : ALLIANCE_COLOR[robot.alliance];
+    const color = own ? ROBOT_STYLE.own : ALLIANCE_COLOR[robot.alliance];
     // Chasis redondeado y tanque: tres ruedas por lado con cubo dorado (giran al avanzar) y oruga
     add(new RoundedBoxGeometry(L, 0.16, W - 0.12, 3, 0.025), dark, 0, 0.13, 0);
     this.halfW = W / 2 - 0.03;
@@ -84,7 +86,7 @@ export class RobotView {
     this.led = led;
     this.ledColor = new THREE.Color(color);
     for (const z of [-1, 1]) add(new THREE.BoxGeometry(L * 0.8, 0.012, 0.01), led, 0, 0.065, z * (W / 2 - 0.115));
-    const num = textTexture(`${robot.alliance === 'red' ? 'R' : 'B'}${robot.station + 1}`, { w: 128, h: 64, bg: robot.alliance === 'red' ? '#a01e24' : '#173f9e' });
+    const num = textTexture(`${robot.alliance === 'red' ? 'R' : 'B'}${robot.station + 1}`, { w: 128, h: 64, bg: ROBOT_STYLE.plate[robot.alliance] });
     if (num) {
       const numMat = new THREE.MeshStandardMaterial({ map: num, roughness: 0.5 });
       for (const z of [-1, 1]) {
@@ -111,6 +113,8 @@ export class RobotView {
     const claw = new THREE.Group();
     claw.position.set(a.linear ? 0 : a.length, 0, 0);
     this.arm.add(claw);
+    const CLAW = clawOf(s);
+    this.claw = CLAW;
     // Elevador: viga horizontal del carro, de los rieles a la garra
     if (a.linear) for (const z of [-0.09, 0.09]) add(new THREE.BoxGeometry(a.length - 0.1, 0.04, 0.03), alu, -(a.length - 0.1) / 2 - CLAW.fingerLength / 2, 0, z, claw);
     // Mismas medidas que la hitbox (`CLAW`, `RobotPhysics.setArmPose`): dos dedos y la placa
@@ -179,7 +183,7 @@ export class RobotView {
         claw.rotation.z = -m.angle;
       }
     }
-    this.palm.position.x = -clawDir(m.angle, sa) * (CLAW.fingerLength / 2 + CLAW.palmThickness / 2);
+    this.palm.position.x = -clawDir(m.angle, sa) * (this.claw.fingerLength / 2 + this.claw.palmThickness / 2);
     this.clawSample.visible = m.inClaw;
     // Con falla: LEDs en ámbar parpadeando (sin comunicación, parpadeo rápido como la luz del robot)
     const f = this.faults();
@@ -190,7 +194,7 @@ export class RobotView {
     } else {
       const fast = f.has('commLoss');
       const on = Math.sin(now * (fast ? 22 : 7)) > 0;
-      this.led.emissive.copy(fast ? this.ledColor : RobotView.AMBER);
+      this.led.emissive.copy(fast ? this.ledColor : this.faultColor.set(ROBOT_STYLE.fault));
       this.led.emissiveIntensity = on ? 2.8 : 0.2;
     }
   }

@@ -8,6 +8,7 @@ import { DEFAULT_ROBOT, MECHANISM_KINDS, type MechanismKind } from '../config/ro
 import type { Match } from '../core/match';
 import { bestPartners, entriesFromMatch, entryPoints, summarize, type LevelCounts, type Role, type ScoutEntry, type TeamSummary } from '../core/scouting';
 import { addEvent, byRobotKind, careers, eventFromScouting, sanitizeHistory, seasons, teamEventRows, type HistoryData, type HistoryEvent } from '../core/history';
+import { kindCombos, otherOf, PRIOR, styleCombos, teamAdvice, observations, type ComboRow, type PlayStyle } from '../core/allianceAnalyzer';
 import { computeOpr, oprError, oprMatchesFromEntries, type OprMatch, type OprRow } from '../core/opr';
 import { makeSchedule, predictPlayoffs, rankTeams, suggestDraft, type DraftAlliance, type QualMatch } from '../core/tournament';
 import { loadHistory, saveHistory } from '../game/historyStore';
@@ -16,8 +17,8 @@ import { simulateMatch } from '../sim/quickSim';
 import { backBtn, brandbar, ic, UI_SLOTS } from './chrome';
 import { t, type Key } from './i18n';
 
-export type ScoutTab = 'teams' | 'schedule' | 'record' | 'table' | 'opr' | 'robots' | 'alliances' | 'history';
-const TABS: ScoutTab[] = ['schedule', 'table', 'opr', 'robots', 'alliances', 'history', 'record', 'teams'];
+export type ScoutTab = 'teams' | 'schedule' | 'record' | 'table' | 'opr' | 'robots' | 'alliances' | 'analyzer' | 'history';
+const TABS: ScoutTab[] = ['schedule', 'table', 'opr', 'robots', 'alliances', 'analyzer', 'history', 'record', 'teams'];
 
 /** Partido del calendario que se juega en el simulador (lo usa App para el registro al terminar). */
 export interface ScoutPlay {
@@ -69,6 +70,9 @@ export class ScoutingScreen {
   /** Historial: temporada filtrada ('' = todas) y evento abierto. */
   private season = '';
   private eventOpen = '';
+  /** Equipo y temporada del Analizador. */
+  private anFocus = '';
+  private anSeason = '';
 
   constructor(
     private root: HTMLElement,
@@ -107,6 +111,7 @@ export class ScoutingScreen {
       opr: () => this.oprHtml(),
       robots: () => this.robotsHtml(),
       alliances: () => this.alliancesHtml(),
+      analyzer: () => this.analyzerHtml(),
       history: () => this.historyHtml(),
     };
     const y = this.root.scrollTop;
@@ -140,6 +145,7 @@ export class ScoutingScreen {
       opr: () => undefined,
       robots: () => this.wireRobots(),
       alliances: () => this.wireAlliances(),
+      analyzer: () => this.wireAnalyzer(),
       history: () => this.wireHistory(),
     };
     wire[tab]();
@@ -823,6 +829,84 @@ export class ScoutingScreen {
       },
       'change',
     );
+  }
+  // ------------------------------------------------------------------ analizador
+  private analyzerHtml(): string {
+    const h = loadHistory();
+    const ss = seasons(h);
+    if (this.anSeason && !ss.includes(this.anSeason)) this.anSeason = '';
+    const season = this.anSeason || undefined;
+    const obs = observations(h, GAME, season);
+    if (!obs.length) return `<p class="msg">${t('an_none')}</p>`;
+    // Nombre más reciente de cada equipo en el historial
+    const names = new Map<string, string>();
+    for (const e of h.events) if (!season || e.season === season) for (const tm of e.teams) names.set(tm.id, tm.name);
+    const nm = (id: string) => esc(names.get(id) ?? id);
+    const teams = [...new Set(obs.flatMap((o) => o.teams))].sort();
+    if (!teams.includes(this.anFocus)) this.anFocus = [...h.events].reverse().find((e) => e.player && teams.includes(e.player))?.player ?? teams[0];
+    const adv = teamAdvice(h, this.anFocus, GAME, MECHANISM_KINDS, season);
+    const st = (x: PlayStyle) => t(`st_${x}` as Key);
+    const kd = (x: MechanismKind) => t(`type_${x}` as Key);
+    const sign = (x: number) => `${x > 0 ? '+' : ''}${f1(x)}`;
+    const few = (n: number) => (n < PRIOR ? ` <span class="dim">· ${t('an_few')}</span>` : '');
+    const card = (label: string, value: string, r: ComboRow<string> | null) =>
+      `<div class="acard"><div class="who"><small class="dim">${label}</small><div><b>${value}</b></div>
+        ${r ? `<div class="dim">${t('an_comboLine', { pts: f1(r.points), win: pct(r.winRate), n: r.matches })}${few(r.matches)}</div>` : ''}</div>
+        ${r ? `<div class="pred"><b class="${r.lift >= 0 ? '' : 'neg'}">${sign(r.lift)}</b><small>${t('an_lift')}</small></div>` : ''}</div>`;
+    const tips = adv.style
+      ? [
+          adv.partnerKind && adv.kind ? card(t('an_partnerKind'), kd(otherOf(adv.partnerKind.pair, adv.kind)), adv.partnerKind) : '',
+          adv.partnerStyle ? card(t('an_partnerStyle'), st(otherOf(adv.partnerStyle.pair, adv.style)), adv.partnerStyle) : '',
+          adv.ownStyle ? card(t('an_ownStyle'), st(adv.ownStyle.pair[0]), adv.ownStyle) : '',
+        ].join('')
+      : `<p class="msg">${t('an_noMatches')}</p>`;
+    const partnerRows = adv.partners
+      .slice(0, 8)
+      .map(
+        (p) => `<tr><td><b>${nm(p.team)}</b> <span class="dim">${kd(p.kind)}</span></td>
+        <td class="num strong">${Math.round(p.prediction.points)}${p.prediction.foulPts ? ` <small class="neg">−${Math.round(p.prediction.foulPts)}</small>` : ''}</td>
+        <td class="num">${p.together ? `${f1(p.togetherPoints!)} <span class="dim">· ${pct(p.togetherWin!)} · ${p.together} M</span>` : `<span class="dim">${t('an_never')}</span>`}</td>
+        <td class="roles">${p.prediction.teams.map((x, i) => `<span><b>${nm(x)}</b> · ${this.roleLabel(p.prediction.roles[i])}</span>`).join('')}</td></tr>`,
+      )
+      .join('');
+    const table = <T extends string>(rows: ComboRow<T>[], label: (x: T) => string, mine: T | null) =>
+      `<div class="scroll"><table class="stable summary"><tr><th>${t('an_pair')}</th><th>M</th><th>${t('an_rating')}</th><th>${t('sc_points')}</th><th>${t('an_win')}</th><th>RP</th><th>${t('an_synergy')}</th></tr>
+      ${rows
+        .map(
+          (r) => `<tr class="${mine !== null && r.pair.includes(mine) ? 'me' : ''}"><td><b>${label(r.pair[0])}</b> + <b>${label(r.pair[1])}</b></td><td class="num">${r.matches}</td>
+          <td class="num strong">${f1(r.rating)}</td><td class="num">${f1(r.points)}</td><td class="num">${pct(r.winRate)}</td><td class="num">${f1(r.rp)}</td>
+          <td class="num ${r.synergy < 0 ? 'neg' : ''}">${sign(r.synergy)}</td></tr>`,
+        )
+        .join('')}</table></div>`;
+    const seg = `<div class="seg" data-anseason><button class="${this.anSeason ? '' : 'on'}" data-v="">${t('hi_allSeasons')}</button>${ss.map((x) => `<button class="${x === this.anSeason ? 'on' : ''}" data-v="${esc(x)}">${esc(x)}</button>`).join('')}</div>`;
+    return `<p class="sub">${t('an_note')}</p>${seg}
+      <div class="panels">
+      <div class="panel"><h3>${t('an_advice', { team: nm(this.anFocus) })}</h3>
+        <div class="form"><label>${t('an_team')}</label><select data-anfocus>${teams.map((x) => `<option value="${esc(x)}" ${x === this.anFocus ? 'selected' : ''}>${nm(x)}</option>`).join('')}</select></div>
+        ${adv.kind && adv.style ? `<p class="sub">${t('an_usual', { kind: kd(adv.kind), style: st(adv.style), n: adv.matches })}</p>` : ''}
+        <div class="alist">${tips}</div></div>
+      <div class="panel"><h3>${t('an_partners')}</h3>
+        <div class="scroll"><table class="stable partners"><tr><th>${t('sc_partner')}</th><th>${t('an_predicted')}</th><th>${t('an_together')}</th><th>${t('sc_roles')}</th></tr>${partnerRows}</table></div>
+        <p class="sub">${t('an_partnersNote')}</p></div></div>
+      <div class="panels">
+      <div class="panel"><h3>${t('an_byKind')}</h3>${table(kindCombos(obs, MECHANISM_KINDS), kd, adv.kind)}</div>
+      <div class="panel"><h3>${t('an_byStyle')}</h3>${table(styleCombos(obs), st, adv.style)}</div></div>
+      <p class="sub">${t('an_tableNote', { k: PRIOR })}</p>`;
+  }
+
+  private wireAnalyzer(): void {
+    this.on(
+      '[data-anfocus]',
+      (el) => {
+        this.anFocus = (el as HTMLSelectElement).value;
+        this.show();
+      },
+      'change',
+    );
+    this.on('[data-anseason] button', (el) => {
+      this.anSeason = el.dataset.v ?? '';
+      this.show();
+    });
   }
 }
 

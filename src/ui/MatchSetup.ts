@@ -11,9 +11,11 @@
  * - tu rutina de AUTO.
  */
 import { AI_LEVELS, type AiLevel } from '../ai/difficulty';
+import { AI_PERSONAS, type AiPersona } from '../ai/persona';
 import { STRATEGIES, type StrategyId } from '../ai/strategy';
 import { AUTO_ROUTINES } from '../auto/AutoRoutine';
 import { routeRoutine, savedRoutes } from '../auto/recorded';
+import { loadPaths, pathRoutine } from '../game/autoPathStore';
 import { loadPlans } from '../game/planStore';
 import * as F from '../config/field';
 import { MECHANISM_KINDS, type MechanismKind, type RobotSpec } from '../config/robot';
@@ -71,9 +73,12 @@ export class MatchSetup {
     const spec = inp.playerSpec;
     m.start = clampSpot(spec.length, spec.width, m.start);
     const opt = (v: string, label: string, sel: string) => `<option value="${v}" ${v === sel ? 'selected' : ''}>${label}</option>`;
+    const paths = loadPaths();
     const autoOpts = (sel: string, mine: boolean) =>
       AUTO_ROUTINES.map((r) => opt(r.id, t(`auto_${r.id}` as Key), sel)).join('') +
-      (mine && savedRoutes.length ? `<optgroup label="${t('grp_routes')}">${savedRoutes.map((r) => opt(routeRoutine(r).id, esc(r.name), sel)).join('')}</optgroup>` : '');
+      (mine && savedRoutes.length ? `<optgroup label="${t('grp_routes')}">${savedRoutes.map((r) => opt(routeRoutine(r).id, esc(r.name), sel)).join('')}</optgroup>` : '') +
+      // Las dibujadas sirven para cualquier robot (corrigen con la pose real), también para tu compañero
+      (paths.length ? `<optgroup label="${t('grp_paths')}">${paths.map((r) => opt(pathRoutine(r).id, esc(r.name), sel)).join('')}</optgroup>` : '');
     const kindCell = (i: number, r: MatchRobot) => {
       if (inp.kinds) return `<span class="ms-fixed">${t(`type_${inp.kinds[i]}` as Key)}</span>`;
       return `<select data-kind="${i}">${opt('random', t('ms_random'), r.kind)}${MECHANISM_KINDS.map((k) => opt(k, t(`type_${k}` as Key), r.kind)).join('')}</select>`;
@@ -81,6 +86,8 @@ export class MatchSetup {
     // Dificultad: un solo control con la actual; al tocarlo se despliega la lista (antes eran 3 botones que no cabían)
     const aiOpts = (cur: string) => AI_LEVELS.map((l) => opt(l, t(`ai_${l}`), cur)).join('');
     const aiSel = (i: number, cur: AiLevel) => `<select data-ai="${i}" aria-label="${t('ms_difficulty')}">${aiOpts(cur)}</select>`;
+    const personaSel = (i: number, cur: AiPersona) =>
+      `<select data-persona="${i}" aria-label="${t('ms_persona')}" title="${t(`persona_${cur}_desc` as Key)}">${AI_PERSONAS.map((x) => opt(x, t(`persona_${x}` as Key), cur)).join('')}</select>`;
     /** "Toda la IA": muestra la dificultad común o "Mixta" si los robots de la IA no coinciden. */
     const allAiOpts = () => {
       const levels = new Set(m.robots.filter((_, i) => i !== player).map((r) => r.ai));
@@ -111,6 +118,7 @@ export class MatchSetup {
         <div class="ms-f"><span>${t('ms_type')}</span>${inp.kinds ? `<span class="ms-fixed">${t(`type_${inp.kinds[i]}` as Key)}</span>` : lock}</div>
         <div class="ms-f"><span>${t('ms_strategy')}</span>${lock}</div>
         <div class="ms-f"><span>${t('ms_difficulty')}</span>${aiSel(i, r.ai)}</div>
+        <div class="ms-f"><span>${t('ms_persona')}</span>${personaSel(i, r.persona)}</div>
         <div class="ms-f"><span>AUTO</span>${lock}</div>
         <p class="ms-desc">${t('ms_rivalDesc')}</p></div>`;
       const plan = planOf(r);
@@ -118,6 +126,7 @@ export class MatchSetup {
         <div class="ms-f"><span>${t('ms_type')}</span>${kindCell(i, r)}</div>
         <div class="ms-f"><span>${t('ms_strategy')}</span>${stratSel(i, r)}</div>
         <div class="ms-f"><span>${t('ms_difficulty')}</span>${aiSel(i, r.ai)}</div>
+        <div class="ms-f"><span>${t('ms_persona')}</span>${personaSel(i, r.persona)}</div>
         <div class="ms-f"><span>AUTO</span>${plan ? `<span class="ms-fixed">${t('ms_fromPlan')}</span>` : `<select data-auto="${i}">${autoOpts(r.auto, false)}</select>`}</div>
         <p class="ms-desc" data-desc="${i}">${plan ? t('ms_planDesc', { name: esc(plan.name) }) : t(`strat_${r.strategy}_desc` as Key)}
           <button class="chipbtn" data-plans="${plan ? esc(plan.id) : ''}">${ic.route}<span>${t('ms_editPlans')}</span></button></p></div>`;
@@ -238,6 +247,13 @@ export class MatchSetup {
         s.playerAuto = (e.target as HTMLSelectElement).value;
         this.act.save();
       });
+      box.querySelectorAll<HTMLSelectElement>('[data-persona]').forEach((el) =>
+        el.addEventListener('change', () => {
+          m.robots[Number(el.dataset.persona)].persona = el.value as AiPersona;
+          el.title = t(`persona_${el.value}_desc` as Key);
+          this.act.save();
+        }),
+      );
       box.querySelectorAll<HTMLSelectElement>('[data-ai]').forEach((el) =>
         el.addEventListener('change', () => {
           m.robots[Number(el.dataset.ai)].ai = el.value as AiLevel;

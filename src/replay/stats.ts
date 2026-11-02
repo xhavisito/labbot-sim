@@ -45,8 +45,35 @@ export interface RobotStats {
   bestCycle: number | null;
   /** Tiempo (s) de cada Muestra anotada, para la línea de tiempo. */
   scoreTimes: number[];
+  /** Dónde estaba el robot al soltar cada Muestra que anotó (o al contar, si no hay soltada cerca). */
+  scoreSpots: ScoreSpot[];
   onPlatform: boolean;
   critical: boolean;
+}
+
+/** Lugar de una anotación para el mapa de tiro (`core/scoreMap.ts`). */
+export interface ScoreSpot {
+  x: number;
+  z: number;
+  level: Level;
+  t: number;
+}
+
+/** Segundos hacia atrás en que una soltada del mismo robot se toma como la de esa anotación (SUPUESTO, la ventana de intento + caída). */
+export const DROP_LOOKBACK = 3;
+
+/** Cuadro más cercano a un tiempo (los cuadros van en orden). */
+export function frameAt(r: Replay, t: number): number {
+  let lo = 0;
+  let hi = r.header.frames - 1;
+  if (hi < 0) return 0;
+  while (lo < hi) {
+    const mid = (lo + hi) >> 1;
+    if (frameTime(r, mid) < t) lo = mid + 1;
+    else hi = mid;
+  }
+  if (lo > 0 && Math.abs(frameTime(r, lo - 1) - t) < Math.abs(frameTime(r, lo) - t)) lo--;
+  return lo;
 }
 
 const emptyLevels = (): Record<Level, number> => ({ 1: 0, 2: 0, 3: 0 });
@@ -91,14 +118,22 @@ export function robotStats(r: Replay): RobotStats[] {
     let samplePoints = 0;
     let autoPoints = h.endgame.autoLine.includes(rb.index) ? GAME.points.autoLine : 0;
     const scoreTimes: number[] = [];
+    const scoreSpots: ScoreSpot[] = [];
     let pickups = 0;
+    let lastDrop = -Infinity;
     for (const e of r.events) {
       if (e.type === 'intake' && e.robot === rb.index) pickups++;
+      if (e.type === 'release' && e.robot === rb.index && e.kind === 'sample') lastDrop = e.t;
       if (e.type !== 'score' || e.robot !== rb.index) continue;
       samples[e.period][e.level]++;
       samplePoints += e.points;
       if (e.period === 'AUTO') autoPoints += e.points;
       scoreTimes.push(e.t);
+      if (h.frames > 0) {
+        const at = e.t - lastDrop <= DROP_LOOKBACK ? lastDrop : e.t;
+        const p = robotFrame(r, frameAt(r, at), i);
+        scoreSpots.push({ x: p.x, z: p.z, level: e.level, t: e.t });
+      }
     }
     // Ráfagas del TELEOP → tiempos de ciclo
     const bursts: number[] = [];
@@ -125,6 +160,7 @@ export function robotStats(r: Replay): RobotStats[] {
       avgCycle: cycles.length ? cycles.reduce((a, b) => a + b, 0) / cycles.length : null,
       bestCycle: cycles.length ? Math.min(...cycles) : null,
       scoreTimes,
+      scoreSpots,
       onPlatform: h.endgame.platform.includes(rb.index),
       critical: h.endgame.critical[rb.alliance] && critBy.get(rb.alliance) === rb.index,
     };
