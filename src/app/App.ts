@@ -51,6 +51,7 @@ import { TournamentScreen, WATCH_CAMERA } from '../ui/TournamentScreen';
 import { TrainingRun, TrainingScreen, type TrainingRobot } from '../ui/Training';
 import { Practice1v1 } from '../ui/Practice1v1';
 import { loadCycleBests } from '../game/cycleStore';
+import { loadShotLog } from '../game/shotStore';
 import type { Match } from '../core/match';
 import { matchFacts, recordMatch, emptyAch, type AchProgress } from '../core/achievements';
 import { loadAch, saveAch } from '../game/achievementStore';
@@ -133,6 +134,8 @@ export class App {
   /** Práctica 1 contra 1 en curso (`ui/Practice1v1.ts`). */
   practice1v1: Practice1v1 | null = null;
   readonly cycleBests = loadCycleBests();
+  /** Mapa de tiro acumulado por robot de la práctica por ciclos. */
+  readonly shotLog = loadShotLog();
   /** Logros y progreso (localStorage) y su pantalla; `achNew` = logros del último match. */
   private ach: AchProgress = loadAch();
   private achNew: string[] = [];
@@ -282,6 +285,7 @@ export class App {
           this.start(c);
         },
         bests: this.cycleBests,
+        shots: this.shotLog,
         robot: { id: this.settings.robotType, name: robotLabel(this.session.player.spec) },
         exit: () => this.toMenu(),
       });
