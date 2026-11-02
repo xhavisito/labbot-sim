@@ -311,7 +311,7 @@ export class Menu {
       const drawn = loadPaths().map((r) => opt(pathRoutine(r).id, esc(r.name))).join('');
       return fixed + (mine ? `<optgroup label="${t('grp_routes')}">${mine}</optgroup>` : '') + (drawn ? `<optgroup label="${t('grp_paths')}">${drawn}</optgroup>` : '');
     };
-    const toggle = (k: 'ai' | 'hpEnabled' | 'hpSmart' | 'showFps') => `<button class="toggle ${s[k] ? 'on' : ''}" data-tog="${k}"><i></i>${s[k] ? t('on_') : t('no_')}</button>`;
+    const toggle = (k: 'ai' | 'hpEnabled' | 'hpSmart' | 'showFps' | 'rumble') => `<button class="toggle ${s[k] ? 'on' : ''}" data-tog="${k}"><i></i>${s[k] ? t('on_') : t('no_')}</button>`;
     const range = (k: keyof typeof SETTINGS_RANGE, unit: string) => {
       const r = SETTINGS_RANGE[k];
       return `<div class="range"><input type="range" data-k="${k}" min="${r.min}" max="${r.max}" step="${r.step}" value="${s[k]}"><output data-unit="${unit}">${s[k]} ${unit}</output></div>`;
@@ -365,6 +365,7 @@ export class Menu {
           <h3>${t('sec_sound')}</h3>
           <label>${t('setVolume')}</label>${range('volume', '%')}
           <p class="full sub">${t('soundNote')}</p>
+          <label>${t('setRumble')}</label>${toggle('rumble')}
           <label>${t('setRefAudio')}</label>${seg('refAudio', REF_AUDIO_MODES, s.refAudio, (v) => t(`refAudio_${v}` as Key))}
           <p class="full sub">${t('refAudioNote')}</p>
         </div></div>
@@ -384,7 +385,7 @@ export class Menu {
       });
     });
     this.on('[data-tog]', (el) => {
-      const k = el.dataset.tog as 'ai' | 'hpEnabled' | 'hpSmart' | 'showFps';
+      const k = el.dataset.tog as 'ai' | 'hpEnabled' | 'hpSmart' | 'showFps' | 'rumble';
       s[k] = !s[k];
       el.classList.toggle('on', s[k]);
       el.lastChild!.textContent = s[k] ? t('on_') : t('no_');

@@ -35,6 +35,7 @@ import { loadScout } from '../game/scoutStore';
 import { planById } from '../game/planStore';
 import type { StrategyPlan } from '../core/plan';
 import { InputManager } from '../input/InputManager';
+import { rumblePad } from '../input/rumble';
 import { CAMERA_MODES, CameraRig, type CameraMode } from '../render/CameraRig';
 import { Arena } from '../render/Arena';
 import { Effects } from '../render/Effects';
@@ -808,10 +809,20 @@ export class App {
     }
     this.endgameWatch.cfg = s.game;
     calls.push(...this.endgameWatch.update(dt, m.phase, platform, critical));
+    this.rumbleEvents(s, calls);
     if (!calls.length) return;
     const texts = calls.map(refText);
     this.hud.referee(texts);
     calls.forEach((c, i) => this.audio.referee(c.sound, texts[i].voice, voiceLang()));
+  }
+
+  /** Vibración del control (`input/rumble.ts`): al anotar tu alianza y con faltas o tarjetas en tu contra. */
+  private rumbleEvents(s: GameSession, calls: readonly RefCall[]): void {
+    if (!this.settings.rumble) return;
+    const mine = s.robots[s.opts.player]?.alliance;
+    if (!mine) return;
+    if (s.matchEvents.some((e) => e.type === 'sample' && e.alliance === mine)) rumblePad(this.input.pad(), 'score');
+    if (calls.some((c) => c.alliance === mine && (c.kind === 'foul' || c.kind === 'tech' || c.kind === 'yellow' || c.kind === 'red'))) rumblePad(this.input.pad(), 'foul');
   }
 
   toMenu(): void {
