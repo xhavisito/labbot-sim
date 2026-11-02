@@ -6,6 +6,7 @@ import { RULES } from '../core/fouls';
 import { ACTIONS, assign, clearAction, cloneBindings, DEFAULT_BINDINGS, keyLabel, padLabel, saveBindings, type Action } from '../input/bindings';
 import type { InputManager } from '../input/InputManager';
 import { keyboardHelp, padHelp } from './controlsHelp';
+import { clearHistory, loadHistory } from '../core/history';
 import type { Match } from '../core/match';
 import { ALLIANCES, type Alliance } from '../core/types';
 import { getLang, setLang, t, type Key } from './i18n';
@@ -59,7 +60,7 @@ export class Menu {
         <button class="primary" data-act="match">${t('match')}</button>
         <button data-act="practice">${t('practice')}</button>
       </div>
-      <div class="row"><button data-act="settings">${t('settings')}</button><button data-act="controls">${t('controlsTitle')}</button></div>
+      <div class="row"><button data-act="settings">${t('settings')}</button><button data-act="controls">${t('controlsTitle')}</button><button data-act="history">${t('history')}</button></div>
       <button class="link" data-act="lang">${t('language')}</button>`);
     this.root.querySelectorAll<HTMLButtonElement>('[data-slot]').forEach((b) =>
       b.addEventListener('click', () => {
@@ -78,9 +79,39 @@ export class Menu {
     this.root.querySelector('[data-act="practice"]')!.addEventListener('click', () => this.onStart({ mode: 'practice', player: this.player }));
     this.root.querySelector('[data-act="settings"]')!.addEventListener('click', () => this.settingsPanel());
     this.root.querySelector('[data-act="controls"]')!.addEventListener('click', () => this.controlsPanel(() => this.main()));
+    this.root.querySelector('[data-act="history"]')!.addEventListener('click', () => this.historyPanel());
     this.root.querySelector('[data-act="lang"]')!.addEventListener('click', () => {
       setLang(getLang() === 'es' ? 'en' : 'es');
       location.reload();
+    });
+  }
+
+  /** Historial de partidas, del más reciente al más antiguo. */
+  historyPanel(): void {
+    const list = loadHistory();
+    const fmt = new Intl.DateTimeFormat(getLang() === 'es' ? 'es-MX' : 'en-US', { dateStyle: 'medium', timeStyle: 'short' });
+    const rows = list
+      .map((h) => {
+        const a: Alliance = h.player < 2 ? 'red' : 'blue';
+        const res = h.score.red === h.score.blue ? t('tie') : h.score.red > h.score.blue ? t('red') : t('blue');
+        return `<li><b>${fmt.format(new Date(h.date))}</b> · ${res}<br>
+          <span class="red">${t('red')} ${h.score.red}</span> – <span class="blue">${h.score.blue} ${t('blue')}</span> · ${t('historyRp')} ${h.rp.red}–${h.rp.blue}<br>
+          <span class="help">${t('historyYou', { slot: `${t(a)} ${(h.player % 2) + 1}`, robot: t(`type_${h.playerRobot}` as Key) })}</span></li>`;
+      })
+      .join('');
+    this.open(`
+      <h2>${t('history')}</h2>
+      ${list.length ? `<ul class="fouls">${rows}</ul>` : `<p class="help">${t('historyEmpty')}</p>`}
+      <div class="row">
+        <button class="primary" data-act="back">${t('back')}</button>
+        ${list.length ? `<button data-act="clear">${t('historyClear')}</button>` : ''}
+      </div>`);
+    this.root.querySelector('[data-act="back"]')!.addEventListener('click', () => this.main());
+    this.root.querySelector('[data-act="clear"]')?.addEventListener('click', () => {
+      if (confirm(t('historyClearConfirm'))) {
+        clearHistory();
+        this.historyPanel();
+      }
     });
   }
 
