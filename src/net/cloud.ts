@@ -71,6 +71,11 @@ export async function onUserChange(cb: (u: CloudUser | null) => void): Promise<v
   (await getClient()).auth.onAuthStateChange((_e, s) => cb(toCloudUser(s?.user)));
 }
 
+/** El mensaje de Supabase indica que el servidor quiere mandar correos (Confirm email activo). */
+export function isEmailSetupError(msg: string): boolean {
+  return /rate limit|confirm|sending .*email|smtp/i.test(msg);
+}
+
 /** Crea la cuenta y entra. Devuelve el mensaje de error, o null si salió bien. */
 export async function signUp(username: string, password: string): Promise<string | null> {
   const name = normalizeUsername(username);
@@ -79,7 +84,9 @@ export async function signUp(username: string, password: string): Promise<string
     password,
     options: { data: { username: name } },
   });
-  if (error) return error.message;
+  // "email rate limit exceeded" = Supabase intentó mandar el correo de confirmación (la opción
+  // "Confirm email" sigue activa): se trata igual que si no hubiera sesión.
+  if (error) return isEmailSetupError(error.message) ? 'confirm-email-on' : error.message;
   // Con "Confirm email" activado no hay sesión: la cuenta no serviría, se avisa al administrador.
   return data.session ? null : 'confirm-email-on';
 }
