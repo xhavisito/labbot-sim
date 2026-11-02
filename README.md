@@ -4,7 +4,7 @@ Simulador 3D web del reto interno **LabBot Rescue 2026** (Robotics WinterFest, L
 Cancha, piezas, robots tanque, reloj, puntuación, faltas y Ranking Points según el manual del reto.
 
 - **Reglas:** [`docs/reglas-reto.md`](docs/reglas-reto.md) resume el manual con la sección de cada
-  regla (§x.y), las medidas tomadas de las figuras y la lista de dudas y supuestos (D1–D46).
+  regla (§x.y), las medidas tomadas de las figuras y la lista de dudas y supuestos (D1–D47).
 - **Plan y arquitectura:** [`docs/PLAN.md`](docs/PLAN.md).
 
 ## Instalar y correr
@@ -105,7 +105,7 @@ Plataforma (§4.6) o atraviesa la Cámara o la Campana. **Probar solo** da los p
 recolectar") y da puntos de tu alianza vs. rival, línea y faltas. A diferencia de las rutas grabadas, el
 robot corrige con su posición real, así que sirve con cualquier robot y desde una pose movida. **Usar como
 mi AUTO** la elige en Ajustes y en Preparar match (también para tu compañero de la IA); se guardan en el
-navegador. SUPUESTOS: D46.
+navegador. SUPUESTOS: D47.
 
 **Entrenamiento por retos** (menú → Taller): ejercicios cortos con tu robot solo en la cancha, con
 medalla (bronce, plata, oro) y récord personal por robot guardados en el navegador. Cada reto tiene
