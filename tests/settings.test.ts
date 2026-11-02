@@ -100,3 +100,14 @@ describe('showFps', () => {
     expect(sanitizeSettings({ showFps: 'sí' }, []).showFps).toBe(false);
   });
 });
+
+describe('interruptores del HUD', () => {
+  it('todos encendidos por defecto y se respetan los apagados', async () => {
+    const { HUD_KEYS } = await import('../src/config/settings');
+    const d = sanitizeSettings({}, []);
+    for (const k of HUD_KEYS) expect(d[k]).toBe(true);
+    const s = sanitizeSettings({ hudFouls: false, hudHelp: 'x' }, []);
+    expect(s.hudFouls).toBe(false);
+    expect(s.hudHelp).toBe(true);
+  });
+});

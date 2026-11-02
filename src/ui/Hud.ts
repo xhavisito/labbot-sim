@@ -4,6 +4,7 @@
  * brazo), botones de cámara / reacomodar / pausa, ayuda de teclas y avisos del match.
  * En práctica libre el marcador se cambia por una píldora con las Muestras anotadas.
  */
+import type { Settings } from '../config/settings';
 import { GAME } from '../config/game';
 import { bounds, formatTimer, timerSeconds } from '../core/clock';
 import type { FaultKind } from '../core/damage';
@@ -63,6 +64,8 @@ export class Hud {
   private planNext: HTMLElement | null = null;
   private planNextText = '';
   private lastKey = '';
+  private flags = { hudToasts: true, hudFouls: true };
+  private tr!: HTMLElement;
   private lastScore = { red: -1, blue: -1 };
 
   constructor(host: HTMLElement, act: HudActions) {
@@ -96,7 +99,7 @@ export class Hud {
     this.player2.style.display = 'none';
     this.toasts = el('div', 'toasts', this.root);
 
-    const tr = el('div', 'hud-tr', this.root);
+    const tr = (this.tr = el('div', 'hud-tr', this.root));
     const cam = el('button', 'hud-btn cam', tr);
     cam.innerHTML = `${ic.camera}<span></span><kbd>C</kbd>`;
     cam.title = t('camera');
@@ -164,6 +167,18 @@ export class Hud {
     this.lastKey = '';
   }
 
+  /** Muestra u oculta cada parte del HUD según Ajustes (solo visual). */
+  applySettings(s: Settings): void {
+    this.flags = { hudToasts: s.hudToasts, hudFouls: s.hudFouls };
+    const hide = (e: HTMLElement | null, on: boolean) => e && (e.style.display = on ? '' : 'none');
+    hide(this.board, s.hudScore);
+    hide(this.pill, s.hudScore);
+    hide(this.player, s.hudRobot);
+    hide(this.tr, s.hudButtons);
+    hide(this.keys, s.hudHelp);
+    hide(this.toasts, s.hudToasts || s.hudFouls);
+  }
+
   show(v: boolean): void {
     this.player2.style.display = 'none';
     this.root.style.display = v ? '' : 'none';
@@ -172,6 +187,7 @@ export class Hud {
   }
 
   toast(text: string, cls = ''): void {
+    if (!this.flags.hudToasts) return;
     const d = el('div', `toast ${cls}`, this.toasts);
     d.textContent = text;
     setTimeout(() => d.classList.add('out'), 2600);
@@ -194,6 +210,7 @@ export class Hud {
 
   /** Carteles del árbitro: faltas, tarjetas, Plataforma y Muestra Crítica, con la sección del manual. */
   referee(calls: readonly RefText[]): void {
+    if (!this.flags.hudFouls) return;
     for (const c of calls) {
       const d = el('div', `toast refcall ${c.cls}`, this.toasts);
       el('b', 'rc-title', d).textContent = c.title;

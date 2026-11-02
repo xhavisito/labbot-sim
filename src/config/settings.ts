@@ -56,6 +56,9 @@ export interface PracticeSettings {
   limit: number;
 }
 
+export const HUD_KEYS = ['hudScore', 'hudRobot', 'hudToasts', 'hudFouls', 'hudButtons', 'hudHelp'] as const;
+export type HudKey = (typeof HUD_KEYS)[number];
+
 export interface Settings {
   /** La IA maneja los otros 3 robots en el TELEOP. */
   ai: boolean;
@@ -74,6 +77,13 @@ export interface Settings {
   hpSmart: boolean;
   /** Controles touch en pantalla: según el equipo, siempre o nunca. */
   touch: 'auto' | 'on' | 'off';
+  /** Partes del HUD del match que se ven (solo visual: el árbitro y los puntos no cambian). */
+  hudScore: boolean;
+  hudRobot: boolean;
+  hudToasts: boolean;
+  hudFouls: boolean;
+  hudButtons: boolean;
+  hudHelp: boolean;
   /** Calidad gráfica (`render/Renderer.ts`): automática según el equipo y los FPS, o fija. */
   quality: 'auto' | 'low' | 'medium' | 'high';
   /** Mostrar FPS y tiempos en pantalla durante el match (también con F3 o `?fps=1`). */
@@ -148,6 +158,12 @@ export const DEFAULT_SETTINGS: Settings = {
   hpInterval: 3,
   hpSmart: true,
   touch: 'auto',
+  hudScore: true,
+  hudRobot: true,
+  hudToasts: true,
+  hudFouls: true,
+  hudButtons: true,
+  hudHelp: true,
   quality: 'auto',
   showFps: false,
   showGhost: true,
@@ -250,6 +266,7 @@ export function sanitizeSettings(raw: unknown, autoIds: readonly string[]): Sett
     hpInterval: num(o.hpInterval, d.hpInterval, SETTINGS_RANGE.hpInterval),
     hpSmart: typeof o.hpSmart === 'boolean' ? o.hpSmart : d.hpSmart,
     touch: o.touch === 'on' || o.touch === 'off' ? o.touch : d.touch,
+    ...(Object.fromEntries(HUD_KEYS.map((k) => [k, typeof o[k] === 'boolean' ? o[k] : d[k]])) as Record<HudKey, boolean>),
     quality: o.quality === 'low' || o.quality === 'medium' || o.quality === 'high' ? o.quality : d.quality,
     showFps: typeof o.showFps === 'boolean' ? o.showFps : d.showFps,
     showGhost: typeof o.showGhost === 'boolean' ? o.showGhost : d.showGhost,
