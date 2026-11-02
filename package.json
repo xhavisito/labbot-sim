@@ -12,6 +12,7 @@
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
     "shots": "node scripts/screenshot.mjs",
+    "e2e:offline": "node scripts/offline.mjs",
     "ui-shots": "node scripts/ui-shots.mjs",
     "ui-hit": "node scripts/ui-hit.mjs",
     "batch": "node scripts/batch.mjs",
