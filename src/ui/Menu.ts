@@ -2,7 +2,7 @@
  * Pantallas en DOM con el estilo de rebuilt-sim: menú principal (la cancha gira detrás), ajustes,
  * controles (reasignar), reglas, pausa y resultados.
  */
-import { clearMatchHistory, loadMatchHistory } from '../core/matchHistory';
+import { clearMatchHistory, filterMatchHistory, historyFacets, loadMatchHistory } from '../core/matchHistory';
 import { AUTO_ROUTINES } from '../auto/AutoRoutine';
 import { routeRoutine, savedRoutes } from '../auto/recorded';
 import { loadPaths, pathRoutine } from '../game/autoPathStore';
@@ -564,8 +564,10 @@ export class Menu {
   // ------------------------------------------------------------------ reglas
   /** Resumen de `config/game.ts` con la sección del manual de cada número. */
   /** Historial de partidas, del más reciente al más antiguo. */
-  matchHistoryPanel(): void {
-    const list = loadMatchHistory();
+  matchHistoryPanel(filter: { mode?: string; robot?: string } = {}): void {
+    const all = loadMatchHistory();
+    const list = filterMatchHistory(all, filter);
+    const facets = historyFacets(all);
     const fmt = new Intl.DateTimeFormat(getLang() === 'es' ? 'es-MX' : 'en-US', { dateStyle: 'medium', timeStyle: 'short' });
     const name = (id: string) => {
       try {
@@ -585,11 +587,15 @@ export class Menu {
     this.open(
       `${brandbar(t('mhTitle'))}
       <h1>${t('mhTitle')}</h1>
-      ${list.length ? `<ul class="fouls">${rows}</ul>` : `<p class="sub">${t('mhEmpty')}</p>`}
-      <div class="actionbar">${backBtn('data-act="back"')}<div class="grow"></div>${list.length ? `<button class="btn" data-act="clear">${t('mhClear')}</button>` : ''}</div>`,
+      ${all.length ? `<div class="actionbar"><label>${t('mhFilterMode')} <select data-f="mode"><option value="">${t('mhAll')}</option>${facets.modes.map((m) => `<option value="${m}"${m === filter.mode ? ' selected' : ''}>${m}</option>`).join('')}</select></label>
+        <label>${t('mhFilterRobot')} <select data-f="robot"><option value="">${t('mhAll')}</option>${facets.robots.map((r) => `<option value="${r}"${r === filter.robot ? ' selected' : ''}>${name(r)}</option>`).join('')}</select></label></div>` : ''}
+      ${list.length ? `<ul class="fouls">${rows}</ul>` : `<p class="sub">${t(all.length ? 'mhNoMatch' : 'mhEmpty')}</p>`}
+      <div class="actionbar">${backBtn('data-act="back"')}<div class="grow"></div>${all.length ? `<button class="btn" data-act="clear">${t('mhClear')}</button>` : ''}</div>`,
       'screen solid',
     );
     this.on('[data-act="back"]', () => this.main());
+    const sel = (k: 'mode' | 'robot') => (document.querySelector(`select[data-f="${k}"]`) as HTMLSelectElement | null)?.value ?? '';
+    document.querySelectorAll('select[data-f]').forEach((el) => el.addEventListener('change', () => this.matchHistoryPanel({ mode: sel('mode'), robot: sel('robot') })));
     this.on('[data-act="clear"]', () => {
       if (confirm(t('mhClearConfirm'))) {
         clearMatchHistory();

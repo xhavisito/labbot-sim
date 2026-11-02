@@ -75,6 +75,23 @@ export function addMatchHistory(e: MatchHistoryEntry, store: MatchHistoryStore |
   return list;
 }
 
+/** Filtro del historial: modo y robot ('' = todos). */
+export interface MatchHistoryFilter {
+  mode?: string;
+  robot?: string;
+}
+
+/** Entradas que cumplen el filtro (el robot es el que manejaste). */
+export function filterMatchHistory(list: readonly MatchHistoryEntry[], f: MatchHistoryFilter): MatchHistoryEntry[] {
+  return list.filter((h) => (!f.mode || h.mode === f.mode) && (!f.robot || h.playerRobot === f.robot));
+}
+
+/** Modos y robots presentes en el historial (para llenar los selectores). */
+export function historyFacets(list: readonly MatchHistoryEntry[]): { modes: string[]; robots: string[] } {
+  const u = (xs: string[]) => [...new Set(xs.filter(Boolean))].sort();
+  return { modes: u(list.map((h) => h.mode)), robots: u(list.map((h) => h.playerRobot)) };
+}
+
 export function matchHistoryEntry(m: Match, player: number, playerRobot: string, botRobot: string, mode = 'match', now = new Date()): MatchHistoryEntry {
   const score = {} as Record<Alliance, number>;
   const rp = {} as Record<Alliance, number>;
