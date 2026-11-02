@@ -53,8 +53,15 @@ import { TournamentScreen, WATCH_CAMERA } from '../ui/TournamentScreen';
 import { TrainingRun, TrainingScreen, type TrainingRobot } from '../ui/Training';
 import { Practice1v1 } from '../ui/Practice1v1';
 import { loadCycleBests } from '../game/cycleStore';
+import { matchFacts, recordMatch, emptyAch, type AchProgress } from '../core/achievements';
+import { loadAch, saveAch } from '../game/achievementStore';
+import { AchievementsScreen } from '../ui/Achievements';
 import { StrategyScreen } from '../ui/StrategyScreen';
 import { PlanView } from '../render/PlanView';
+import * as THREE from 'three';
+import { Board } from '../core/board';
+import { BoardView } from '../render/BoardView';
+import { BoardBar } from '../ui/BoardBar';
 
 type State = 'menu' | 'playing' | 'paused' | 'results' | 'replay';
 
@@ -90,6 +97,12 @@ export class App {
     this.planView.visible = b === 'all';
     this.hud.planCardOn = b !== 'off';
   }
+  /** Pizarra táctica: trazos dibujados con el match en pausa (`core/board.ts`). */
+  readonly board = new Board();
+  private boardView = new BoardView();
+  private boardRev = 0;
+  private boardCam: CameraMode = 'free';
+  readonly boardBar: BoardBar;
   readonly strategies: StrategyScreen;
   readonly settings: Settings = loadSettings(autoRoutineIds());
   /** Sonidos del campo (inicio, TELEOP, ENDGAME, fin). */
@@ -124,6 +137,10 @@ export class App {
   /** Práctica 1 contra 1 en curso (`ui/Practice1v1.ts`). */
   practice1v1: Practice1v1 | null = null;
   readonly cycleBests = loadCycleBests();
+  /** Logros y progreso (localStorage) y su pantalla; `achNew` = logros del último match. */
+  private ach: AchProgress = loadAch();
+  private achNew: string[] = [];
+  readonly achievements: AchievementsScreen;
   /** Aviso de resultados del último match del torneo (se guarda una vez; los resultados se reabren). */
   private tourNote = '';
   /** `?touch=1` fuerza los controles touch (para probar en escritorio). */
@@ -175,9 +192,22 @@ export class App {
       playScenario: (scenario) => this.start({ mode: 'scenario', player: this.menu.player, scenario }),
     });
     this.menu.onTraining = () => this.training.show();
+    this.achievements = new AchievementsScreen(this.menu.root, () => this.ach, {
+      back: () => this.toMenu(),
+      reset: () => {
+        this.ach = emptyAch();
+        saveAch(this.ach);
+      },
+    });
+    this.menu.onAchievements = () => this.achievements.show();
     this.strategies = new StrategyScreen(this.menu.root);
     this.menu.onStrategies = () => this.strategies.show(() => this.toMenu());
-    this.renderer.scene.add(this.planView.group);
+    this.renderer.scene.add(this.planView.group, this.boardView.group);
+    this.boardBar = new BoardBar(ui, this.renderer.renderer.domElement, this.board, {
+      pick: (x, y) => this.pickField(x, y),
+      changed: () => this.boardRev++,
+      done: () => this.closeBoard(),
+    });
     pwa.onChange = () => {
       if (this.state === 'menu') this.menu.pwaChips();
     };
@@ -203,6 +233,7 @@ export class App {
     this.closeAutoPractice();
     this.closeTraining();
     this.closePractice1v1();
+    this.clearBoard();
     this.renderer.scene.remove(this.session.root);
     this.session.dispose();
     // Práctica libre y de AUTO: solo el robot del jugador en la cancha (en la de AUTO, sin Human Player)
@@ -464,11 +495,22 @@ export class App {
     return `${t(`sn_${s.id}` as Key)}: ${t(o.met ? 'sn_met' : 'sn_missed')} (${o.diff >= 0 ? '+' : ''}${o.diff}) · ${medal}${r.improved ? ` · ${t('tn_newRecord')}` : ''}`;
   }
 
+  /** Suma el match terminado al progreso de logros (solo si manejas un robot en un match). */
+  private recordAchievements(m: Match): void {
+    this.achNew = [];
+    if (this.choice.mode !== 'match' || this.choice.player < 0) return;
+    const r = recordMatch(this.ach, matchFacts(m, this.choice.player, m.cfg));
+    this.ach = r.progress;
+    saveAch(this.ach);
+    this.achNew = r.earned.map((a) => t(`ach_${a.id}` as Key));
+  }
+
   /** Resultados del match terminado, con botones para la repetición y las estadísticas. */
   private showResults(): void {
     const m = this.session.match;
     if (!m) return this.toMenu();
     this.state = 'results';
+    this.clearBoard();
     const sc = this.choice.scout;
     this.menu.results(
       m,
@@ -478,6 +520,7 @@ export class App {
       this.choice.player,
       sc?.tour ? this.tourNote : sc ? t('sc_saved', { match: sc.match }) : this.scenarioNote,
       sc?.tour ? t('tr_continue') : undefined,
+      this.achNew,
     );
     this.revealRivals();
     const rep = this.lastReplay;
@@ -566,6 +609,7 @@ export class App {
     this.closeTraining();
     this.closePractice1v1();
     this.state = 'menu';
+    this.clearBoard();
     this.touch.show(false);
     this.hud.show(false);
     this.planView.set(null, 'red');
@@ -582,20 +626,10 @@ export class App {
   }
 
   togglePause(): void {
+    if (this.boardBar.isOpen) return this.closeBoard();
     if (this.state === 'playing') {
       this.state = 'paused';
-      const m = this.session.match;
-      this.menu.pause({
-        match: m,
-        timer: m ? formatTimer(timerSeconds(m.t, this.session.game)) : '',
-        phase: m ? t(`phase_${m.phase}` as Key) : '',
-        camera: this.cam.mode,
-        setCamera: (c) => this.setCamera(c),
-        onResume: () => this.togglePause(),
-        onRestart: this.choice.scout?.tour ? undefined : () => this.start(this.choice),
-        onMenu: () => (this.choice.scout ? this.toScouting() : this.toMenu()),
-        menuLabel: this.choice.scout?.tour ? t('tr_backTo') : undefined,
-      });
+      this.pauseMenu();
     } else if (this.state === 'paused') {
       this.state = 'playing';
       this.menu.hide();
@@ -603,6 +637,57 @@ export class App {
       this.hud.setHelp(this.input.bindings);
     }
     this.updateTouch();
+  }
+
+  private pauseMenu(): void {
+    const m = this.session.match;
+    this.menu.pause({
+      match: m,
+      timer: m ? formatTimer(timerSeconds(m.t, this.session.game)) : '',
+      phase: m ? t(`phase_${m.phase}` as Key) : '',
+      camera: this.cam.mode,
+      setCamera: (c) => this.setCamera(c),
+      onResume: () => this.togglePause(),
+      onRestart: this.choice.scout?.tour ? undefined : () => this.start(this.choice),
+      onBoard: m ? () => this.openBoard() : undefined,
+      onMenu: () => (this.choice.scout ? this.toScouting() : this.toMenu()),
+      menuLabel: this.choice.scout?.tour ? t('tr_backTo') : undefined,
+    });
+  }
+
+  /** Pizarra táctica: cámara superior y trazos con el puntero; el match sigue en pausa. */
+  private openBoard(): void {
+    if (this.state !== 'paused') return;
+    this.boardCam = this.cam.mode;
+    this.setCamera('top');
+    this.menu.hide();
+    this.renderer.renderer.domElement.classList.add('board-drawing');
+    this.boardBar.show(true);
+  }
+
+  private closeBoard(): void {
+    if (!this.boardBar.isOpen) return;
+    this.boardBar.show(false);
+    this.renderer.renderer.domElement.classList.remove('board-drawing');
+    this.setCamera(this.boardCam);
+    if (this.state === 'paused') this.pauseMenu();
+  }
+
+  private clearBoard(): void {
+    this.boardBar.show(false);
+    this.renderer.renderer.domElement.classList.remove('board-drawing');
+    this.board.clear();
+    this.boardRev++;
+  }
+
+  /** Punto de la cancha (plano y=0) bajo un punto de la pantalla; null si cae fuera de ella. */
+  private pickField(cx: number, cy: number): { x: number; z: number } | null {
+    const r = this.renderer.renderer.domElement.getBoundingClientRect();
+    const ndc = new THREE.Vector2(((cx - r.left) / r.width) * 2 - 1, -((cy - r.top) / r.height) * 2 + 1);
+    const ray = new THREE.Raycaster();
+    ray.setFromCamera(ndc, this.cam.camera);
+    const hit = ray.ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0, 1, 0), 0), new THREE.Vector3());
+    return hit ? { x: hit.x, z: hit.z } : null;
   }
 
   /** La UI que el control navega ahora; jugando (manejando el robot) ninguna. */
@@ -683,6 +768,7 @@ export class App {
         this.tourNote = sc?.tour ? this.tourney.record(m, sc) : '';
         const scn = this.choice.mode === 'scenario' ? scenarioById(this.choice.scenario ?? '') : undefined;
         this.scenarioNote = scn ? this.finishScenario(m, scn) : '';
+        this.recordAchievements(m);
         this.lastReplay = this.recorder?.build(this.session) ?? null;
         if (this.lastReplay) void storeReplay(this.lastReplay);
         this.showResults();
@@ -705,6 +791,8 @@ export class App {
     if (this.state !== 'paused' && this.state !== 'replay') this.session.update(this.state === 'playing' ? 0 : dt);
     this.watchFps(dt);
     this.effects.update(this.state === 'paused' ? 0 : dt);
+    this.boardView.update(this.board, this.boardRev);
+    this.boardView.group.visible = this.state !== 'replay';
     this.arena.update(now / 1000, this.cam.camera.position.y);
     const sm = this.session.match;
     const sb = this.replay?.scoreboard;

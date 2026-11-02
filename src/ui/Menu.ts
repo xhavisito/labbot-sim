@@ -10,7 +10,8 @@ import { GRIP_MODES, MECHANISM_KINDS } from '../config/robot';
 import { GAME } from '../config/game';
 import { DEFAULT_SETTINGS, PLAN_BOARDS, PRACTICE_LIMITS, RIVALS, SETTINGS_RANGE, type PlanBoard, type RivalKind, type Settings } from '../config/settings';
 import { DAMAGE_LEVELS, type DamageLevel, type DamageTargets } from '../core/damage';
-import { RULES } from '../core/fouls';
+import { buildRefereeReport } from '../core/refereeReport';
+import { refereeHtml } from './refereeView';
 import type { Match } from '../core/match';
 import type { DrillId } from '../core/training';
 import { ALLIANCES, type Alliance } from '../core/types';
@@ -56,6 +57,8 @@ export interface PauseInfo {
   onResume: () => void;
   /** Sin reiniciar (match del torneo: el resultado cuenta). */
   onRestart?: () => void;
+  /** Abre la pizarra táctica (solo en el match). */
+  onBoard?: () => void;
   onMenu: () => void;
   /** Texto del botón de salir (p. ej. volver al torneo). */
   menuLabel?: string;
@@ -107,6 +110,8 @@ export class Menu {
   /** Abre la lista de retos del entrenamiento (la conecta App). */
   onTraining: () => void = () => undefined;
   onStrategies: () => void = () => undefined;
+  /** Abre la pantalla de logros (la conecta App). */
+  onAchievements: () => void = () => undefined;
 
   constructor(
     host: HTMLElement,
@@ -164,6 +169,7 @@ export class Menu {
           <div class="mm-tools late">
             ${tool('practice1v1', ic.go, 'p1_title', 'p1_desc')}
             ${tool('training', ic.medal, 'tn_title', 'trainingDesc')}
+            ${tool('achievements', ic.trophy, 'ach_title', 'achDesc')}
             ${tool('replays', ic.film, 'replays', 'replaysDesc')}
             ${tool('editor', ic.cube, 'editor', 'editorDesc')}
             ${tool('autoPractice', ic.route, 'autoPractice', 'autoPracticeDesc')}
@@ -200,6 +206,7 @@ export class Menu {
     this.on('[data-go="training"]', () => this.onTraining());
     this.on('[data-go="practice1v1"]', () => this.onStart({ mode: 'practice1v1', player: this.player }));
     this.on('[data-go="strategies"]', () => this.onStrategies());
+    this.on('[data-go="achievements"]', () => this.onAchievements());
     this.on('[data-go="replays"]', () => this.onReplays());
     this.on('[data-go="editor"]', () => this.onEditor());
     this.on('[data-go="autoPractice"]', () => this.onStart({ mode: 'auto', player: this.player }));
@@ -577,6 +584,7 @@ export class Menu {
           <div class="ps-menu">
             <button class="primary" data-act="resume">${ic.play}<span>${t('resume')}</span>${key('pause')}</button>
             ${p.onRestart ? `<button data-act="restart">${ic.reset}<span>${t('restart')}</span></button>` : ''}
+            ${p.onBoard ? `<button data-act="board">${ic.route}<span>${t('board_open')}</span></button>` : ''}
             <button data-act="controls">${ic.gamepad}<span>${t('controlsTitle')}</span></button>
             <button class="quit" data-act="menu">${ic.home}<span>${p.menuLabel ?? t('backToMenu')}</span></button>
           </div>
@@ -598,6 +606,7 @@ export class Menu {
       this.root.querySelectorAll('[data-cam]').forEach((x) => x.classList.toggle('on', x === el));
     });
     this.on('[data-act="controls"]', () => this.controlsPanel(() => this.pause(p)));
+    if (p.onBoard) this.on('[data-act="board"]', p.onBoard);
     this.on('[data-act="resume"]', p.onResume);
     if (p.onRestart) this.on('[data-act="restart"]', p.onRestart);
     this.on('[data-act="menu"]', p.onMenu);
@@ -609,7 +618,7 @@ export class Menu {
    * `note`: aviso arriba de las acciones (p. ej. que el match se guardó en el scouting). `cont`: match
    * del torneo, sin "Jugar de nuevo" (el resultado ya cuenta) y el botón principal es este.
    */
-  results(m: Match, onRestart: () => void, onMenu: () => void, onDownload: () => void, player: number, note = '', cont?: string): void {
+  results(m: Match, onRestart: () => void, onMenu: () => void, onDownload: () => void, player: number, note = '', cont?: string, earned: string[] = []): void {
     const b = { red: m.breakdown('red'), blue: m.breakdown('blue') };
     const rp = { red: m.rankingPoints('red'), blue: m.rankingPoints('blue') };
     const winner: Alliance | null = b.red.total === b.blue.total ? null : b.red.total > b.blue.total ? 'red' : 'blue';
@@ -629,14 +638,7 @@ export class Menu {
       `<div class="rpcard ${a}"><div class="rptotal"><b>${rp[a].total}</b> / ${rpMax} RP</div>` +
       `<div class="rpmeter">${Array.from({ length: rpMax }, (_, i) => `<i class="${i < rp[a].total ? 'on' : ''}"></i>`).join('')}</div>` +
       `<div class="rprow">${chip(rp[a].win > 0, `${t('rpWin')} +${rp[a].win}`)}${chip(rp[a].autoLine, t('rpAuto'))}${chip(rp[a].critical, t('rpCritical'))}${chip(rp[a].dominance, `${t('dominance')} ${m.samplesIn(a)}/${GAME.rp.dominanceSamples}`)}</div></div>`;
-    const fouls = m.fouls.length
-      ? m.fouls
-          .map(
-            (f) =>
-              `<li><span class="tag ${f.offender}">${t(f.offender).toUpperCase()} ${f.robot % 2 + 1}</span>${f.kind === 'TECH' ? 'Tech Foul' : 'Foul'} · ${RULES[f.rule].es}<em>${RULES[f.rule].section} · ${Math.max(0, Math.floor(f.time))} s</em></li>`,
-          )
-          .join('')
-      : `<li class="none">${t('noFouls')}</li>`;
+    const fouls = refereeHtml(buildRefereeReport(m));
     this.open(
       `<div class="dialog results">
         <div class="kicker"><span></span>${t('resultsKick')}${player >= 0 ? ` · ${t('yourRobot')}: ${stationLabel(player)}` : ''}</div>
@@ -659,8 +661,9 @@ export class Menu {
         </div>
         <h3>${t('rp')}</h3>
         <div class="rpgrid">${UI_ALLIANCES.map(rpCell).join('')}</div>
-        <h3>${t('fouls')}</h3><ul class="fouls">${fouls}</ul>
+        <h3>${t('ref_title')}</h3>${fouls}
         ${note ? `<div class="msg ok">${ic.check}${note}</div>` : ''}
+        ${earned.map((n) => `<div class="msg ok ach-toast">${ic.medal}<b>${t('ach_new')}:</b>&nbsp;${n}</div>`).join('')}
         <div class="actions">
           ${cont ? `<button class="btn primary" data-act="menu">${ic.go}<span>${cont}</span></button>` : `<button class="btn primary" data-act="restart">${ic.reset}<span>${t('playAgain')}</span></button>
           <button class="btn" data-act="menu">${ic.home}<span>${t('backToMenu')}</span></button>`}
