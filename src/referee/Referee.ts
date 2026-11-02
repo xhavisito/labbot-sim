@@ -6,7 +6,7 @@
 import * as F from '../config/field';
 import { isTeleop, type Phase } from '../core/clock';
 import type { RuleCode } from '../core/fouls';
-import type { Match } from '../core/match';
+import type { FoulSink } from '../core/practiceFouls';
 import { ALLIANCES, type Alliance } from '../core/types';
 import type { MechEvent } from '../game/Mechanisms';
 import type { Robot } from '../game/Robot';
@@ -74,7 +74,7 @@ export class Referee {
   constructor(
     private pw: PhysicsWorld,
     private robots: Robot[],
-    private match: () => Match | null,
+    private match: () => FoulSink | null,
     /** Para la Muestra Crítica en la Repisa (§4.6); sin ellos no se revisa. */
     private field?: { pieces: Pieces; sensors: Sensors },
   ) {}
@@ -123,7 +123,10 @@ export class Referee {
   /** Revisa un paso. `phase` es la fase del match en ese paso. */
   step(dt: number, phase: Phase, mechEvents: readonly MechEvent[]): void {
     const m = this.match();
-    if (!m?.running || !(phase === 'AUTO' || isTeleop(phase))) return;
+    // Práctica 1 contra 1 (sin match, phase 'PRE'): cuenta como TELEOP, pero sin las reglas de fase (D50)
+    const practice = phase === 'PRE';
+    if (!m?.running || !(practice || phase === 'AUTO' || isTeleop(phase))) return;
+    if (practice) phase = 'TELEOP';
     const t = m.t;
 
     for (const r of this.robots) {
@@ -137,7 +140,7 @@ export class Referee {
       const clear = on ? 0 : (this.platformClear.get(r.index) ?? 1) + dt;
       this.platformClear.set(r.index, clear);
       const key = `plat:${r.index}`;
-      if (on && phase !== 'ENDGAME' && !this.flags.get(key)) {
+      if (on && !practice && phase !== 'ENDGAME' && !this.flags.get(key)) {
         this.charge('PLATFORM_EARLY', r);
         this.flags.set(key, true);
       }
@@ -168,7 +171,7 @@ export class Referee {
 
     // §4.6: tomar la Muestra Crítica antes del endgame
     for (const e of mechEvents) {
-      const r = e.type === 'grabCritical' && phase !== 'ENDGAME' ? this.robots.find((x) => x.index === e.robot) : undefined;
+      const r = e.type === 'grabCritical' && !practice && phase !== 'ENDGAME' ? this.robots.find((x) => x.index === e.robot) : undefined;
       if (r) this.charge('CRITICAL_EARLY', r);
     }
 

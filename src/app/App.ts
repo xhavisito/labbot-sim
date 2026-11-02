@@ -798,7 +798,8 @@ export class App {
   private refereeCalls(dt: number): void {
     const s = this.session;
     const m = s.match;
-    if (!m) return;
+    // Práctica 1 contra 1: el árbitro también cobra faltas y tarjetas (sin ENDGAME; D50)
+    if (!m && !this.practice1v1) return;
     const calls: RefCall[] = [];
     for (const e of s.matchEvents) {
       const c = callForEvent(e, s.game);
@@ -806,12 +807,14 @@ export class App {
     }
     const platform = { red: 0, blue: 0 };
     const critical = { red: false, blue: false };
-    if (m.phase === 'ENDGAME') {
-      for (const r of s.robots) if (s.sensors.onPlatform(r)) platform[r.alliance]++;
-      for (const a of ALLIANCES) critical[a] = s.sensors.criticalOnRepisa(a);
+    if (m) {
+      if (m.phase === 'ENDGAME') {
+        for (const r of s.robots) if (s.sensors.onPlatform(r)) platform[r.alliance]++;
+        for (const a of ALLIANCES) critical[a] = s.sensors.criticalOnRepisa(a);
+      }
+      this.endgameWatch.cfg = s.game;
+      calls.push(...this.endgameWatch.update(dt, m.phase, platform, critical));
     }
-    this.endgameWatch.cfg = s.game;
-    calls.push(...this.endgameWatch.update(dt, m.phase, platform, critical));
     this.rumbleEvents(s, calls);
     if (!calls.length) return;
     const texts = calls.map(refText);
