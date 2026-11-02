@@ -862,7 +862,7 @@ export class App {
 
   /** Suma el cuadro al tiempo jugado del modo en curso (nunca en pausa, menús ni resultados). */
   private trackPlaytime(dt: number): void {
-    addPlaytime(this.playtime, this.choice.mode, dt);
+    addPlaytime(this.playtime, this.choice.mode === 'versus' ? 'match' : this.choice.mode, dt);
     this.playtimeDirty += dt;
     if (this.playtimeDirty >= 5) this.flushPlaytime();
   }
