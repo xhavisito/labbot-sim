@@ -6,7 +6,7 @@
  * - Muestra Crítica: uno la lleva a la Repisa en el ENDGAME (§4.3.1); el otro solo sube.
  * - Cámara: un solo robot cabe frente al Nivel 3; el otro espera su turno a un lado.
  */
-import type { MechanismKind } from '../config/robot';
+import { canHoldCritical, type MechanismKind } from '../config/robot';
 import type { Alliance } from '../core/types';
 import type { HumanPlayer } from '../game/HumanPlayer';
 import type { Bot } from './Bot';
@@ -45,8 +45,8 @@ export class Team {
   /** Reparte la Crítica y el Human Player (respeta lo que pida cada `BotOptions`). */
   plan(): void {
     const scorers = this.members.filter((b) => b.opts.role === 'score');
-    const explicitCrit = scorers.find((b) => b.opts.endgame === 'critical');
-    const critCand = scorers.filter((b) => b.opts.endgame === undefined && b.profile.critical);
+    const explicitCrit = scorers.find((b) => b.opts.endgame === 'critical' && canHoldCritical(b.robot.spec));
+    const critCand = scorers.filter((b) => b.opts.endgame === undefined && b.profile.critical && canHoldCritical(b.robot.spec));
     const best = (list: Bot[], score: (b: Bot) => number) => list.reduce<Bot | null>((a, b) => (!a || score(b) > score(a) ? b : a), null);
     const crit = explicitCrit ?? best(critCand, (b) => CRIT_PREF[b.robot.spec.mechanism] * 10 - b.robot.index * 0.1);
     this.critBy = crit ? crit.robot.index : null;
