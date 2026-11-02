@@ -24,6 +24,9 @@ import type { Match } from '../core/match';
 import { drillById } from '../core/training';
 import { evaluate, recordScenario, scenarioById, type Scenario, type ScenarioProgress } from '../core/scenarios';
 import { drillSessionOptions } from '../game/drills';
+import { addEntry, weeklyChallenge } from '../core/weekly';
+import { loadWeekly, saveWeekly } from '../game/weeklyStore';
+import { WeeklyScreen } from '../ui/Weekly';
 import { loadScenarios, loadTraining, saveScenarios } from '../game/trainingStore';
 import { addPlaytime } from '../core/playtime';
 import { loadPlaytime, savePlaytime } from '../game/playtimeStore';
@@ -155,6 +158,8 @@ export class App {
   /** Resumen del escenario terminado (se muestra en los resultados). */
   private scenarioNote = '';
   trainingRun: TrainingRun | null = null;
+  readonly weeklyBoard = loadWeekly();
+  readonly weekly: WeeklyScreen;
   /** Práctica 1 contra 1 en curso (`ui/Practice1v1.ts`). */
   practice1v1: Practice1v1 | null = null;
   readonly cycleBests = loadCycleBests();
@@ -223,6 +228,11 @@ export class App {
       playScenario: (scenario) => this.start({ mode: 'scenario', player: this.menu.player, scenario }),
     });
     this.menu.onTraining = () => this.training.show();
+    this.weekly = new WeeklyScreen(this.menu.root, this.weeklyBoard, () => robotLabel(this.playerSpec()), {
+      back: () => this.toMenu(),
+      play: () => this.start({ mode: 'training', player: this.menu.player, drill: weeklyChallenge().drill.id, weekly: true }),
+    });
+    this.menu.onWeekly = () => this.weekly.show();
     this.achievements = new AchievementsScreen(this.menu.root, () => this.ach, {
       back: () => this.toMenu(),
       reset: () => {
@@ -288,8 +298,8 @@ export class App {
     this.session.dispose();
     // Práctica libre y de AUTO: solo el robot del jugador en la cancha (en la de AUTO, sin Human Player)
     const o = c.scout ? this.scoutOptions(c.scout) : this.sessionOptions(c.player);
+    const drill = c.mode === 'training' ? (c.weekly ? weeklyChallenge().drill : drillById(c.drill ?? '')) : undefined;
     const versus = c.mode === 'versus';
-    const drill = c.mode === 'training' ? drillById(c.drill ?? '') : undefined;
     if (c.mode === 'training' && !drill) return this.toMenu();
     const scenario = c.mode === 'scenario' ? scenarioById(c.scenario ?? '') : undefined;
     if (c.mode === 'scenario' && !scenario) return this.toMenu();
@@ -363,9 +373,20 @@ export class App {
         session: () => this.session,
         progress: this.trainingProgress,
         robot: this.trainingRobot(),
+        weekly: c.weekly
+          ? {
+              ch: weeklyChallenge(),
+              submit: (points) => {
+                const res = addEntry(this.weeklyBoard, weeklyChallenge(), { points, robot: robotLabel(this.session.player.spec), at: new Date().toISOString() });
+                saveWeekly(this.weeklyBoard);
+                return res;
+              },
+            }
+          : undefined,
         other: () => {
           this.toMenu();
-          this.training.show();
+          if (c.weekly) this.weekly.show();
+          else this.training.show();
         },
         exit: () => this.toMenu(),
       });

@@ -41,6 +41,8 @@ export interface MenuChoice {
   mode: 'match' | 'practice' | 'auto' | 'training' | 'practice1v1' | 'versus' | 'scenario';
   player: number;
   drill?: DrillId;
+  /** Desafío semanal (`ui/Weekly.ts`): se juega el reto de la semana en vez de `drill`. */
+  weekly?: boolean;
   /** Escenario de entrenamiento (`core/scenarios.ts`), con mode 'scenario'. */
   scenario?: string;
   /** Match del calendario del Scouting (equipos y sus robots); su registro se guarda al terminar. */
@@ -114,6 +116,8 @@ export class Menu {
   /** Abre la lista de retos del entrenamiento (la conecta App). */
   onTraining: () => void = () => undefined;
   onStrategies: () => void = () => undefined;
+  /** Abre el desafío semanal (lo conecta App). */
+  onWeekly: () => void = () => undefined;
   onAutoPaths: () => void = () => undefined;
   /** Abre la pantalla de logros (la conecta App). */
   onAchievements: () => void = () => undefined;
@@ -175,6 +179,7 @@ export class Menu {
             ${tool('versus', ic.gamepad, 'vs_title', 'vs_desc')}
             ${tool('practice1v1', ic.go, 'p1_title', 'p1_desc')}
             ${tool('training', ic.medal, 'tn_title', 'trainingDesc')}
+            ${tool('weekly', ic.trophy, 'weekly', 'weeklyDesc')}
             ${tool('achievements', ic.trophy, 'ach_title', 'achDesc')}
             ${tool('replays', ic.film, 'replays', 'replaysDesc')}
             ${tool('editor', ic.cube, 'editor', 'editorDesc')}
@@ -212,6 +217,7 @@ export class Menu {
     this.on('[data-act="practice"]', () => this.onStart({ mode: 'practice', player: this.player }));
     this.on('[data-go="versus"]', () => this.onStart({ mode: 'versus', player: this.player }));
     this.on('[data-go="training"]', () => this.onTraining());
+    this.on('[data-go="weekly"]', () => this.onWeekly());
     this.on('[data-go="practice1v1"]', () => this.onStart({ mode: 'practice1v1', player: this.player }));
     this.on('[data-go="strategies"]', () => this.onStrategies());
     this.on('[data-go="autoPaths"]', () => this.onAutoPaths());
