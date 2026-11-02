@@ -99,6 +99,30 @@ export interface Settings {
   /** Accesibilidad: paleta para daltonismo (`config/palette.ts`) y tamaño del texto de la interfaz. */
   colorMode: ColorMode;
   textScale: TextScale;
+  /** Multijugador local (2 jugadores): equipos y lo que elige cada persona (`ui/VersusSetup.ts`). */
+  versus: VersusSettings;
+}
+
+/** Con qué controla una persona en 2 jugadores: el teclado de WASD, el de flechas, o el 1.º o 2.º control. */
+export const VERSUS_DEVICES = ['keys1', 'keys2', 'pad1', 'pad2'] as const;
+export type VersusDevice = (typeof VERSUS_DEVICES)[number];
+
+/** Lo que elige cada persona en 2 jugadores: su robot, su AUTO, su lugar en la Zona de Inicio y sus controles. */
+export interface VersusSide {
+  robot: RobotId;
+  auto: string;
+  start: StartSpot;
+  device: VersusDevice;
+}
+
+/**
+ * 2 jugadores: `opp` = alianzas contrarias (cada quien contra el otro); `same` = la misma alianza
+ * (la IA rellena los otros dos robots). SUPUESTO del simulador: el manual no habla de controles.
+ */
+export interface VersusSettings {
+  team: 'opp' | 'same';
+  p1: VersusSide;
+  p2: VersusSide;
 }
 
 /** Sonido de los avisos del árbitro: silbato y voz, solo silbato, o nada. */
@@ -131,6 +155,11 @@ export const DEFAULT_SETTINGS: Settings = {
   planBoard: 'all',
   colorMode: 'normal',
   textScale: 1,
+  versus: {
+    team: 'opp',
+    p1: { robot: DEFAULT_ROBOT.mechanism, auto: 'leave', start: { ...CENTER_SPOT }, device: 'keys1' },
+    p2: { robot: DEFAULT_ROBOT.mechanism, auto: 'leave', start: { ...CENTER_SPOT }, device: 'keys2' },
+  },
 };
 
 export const SETTINGS_RANGE = {
@@ -152,6 +181,32 @@ export function sanitizePractice(raw: unknown): PracticeSettings {
     rival: RIVALS.find((r) => r === o.rival) ?? d.rival,
     persona: isPersona(o.persona) ? o.persona : d.persona,
     limit: PRACTICE_LIMITS.find((l) => l === o.limit) ?? d.limit,
+  };
+}
+
+const VERSUS_SIDE_DEFAULTS: [VersusDevice, StartSpot][] = [
+  ['keys1', { ...CENTER_SPOT }],
+  ['keys2', { ...CENTER_SPOT }],
+];
+
+/** Ajustes de 2 jugadores válidos (lo que no sirve toma el valor por defecto). */
+export function sanitizeVersus(raw: unknown, autoIds: readonly string[]): VersusSettings {
+  const o = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
+  const ids = allRobotIds();
+  const side = (v: unknown, def: number): VersusSide => {
+    const r = (v && typeof v === 'object' ? v : {}) as Record<string, unknown>;
+    const [dev, start] = VERSUS_SIDE_DEFAULTS[def];
+    return {
+      robot: ids.find((k) => k === r.robot) ?? DEFAULT_SETTINGS.robotType,
+      auto: typeof r.auto === 'string' && autoIds.includes(r.auto) ? r.auto : 'leave',
+      start: r.start === undefined ? { ...start } : sanitizeSpot(r.start),
+      device: VERSUS_DEVICES.find((x) => x === r.device) ?? dev,
+    };
+  };
+  return {
+    team: o.team === 'same' ? 'same' : 'opp',
+    p1: side(o.p1, 0),
+    p2: side(o.p2, 1),
   };
 }
 
@@ -200,6 +255,7 @@ export function sanitizeSettings(raw: unknown, autoIds: readonly string[]): Sett
     planBoard: PLAN_BOARDS.find((b) => b === o.planBoard) ?? d.planBoard,
     colorMode: COLOR_MODES.find((m) => m === o.colorMode) ?? d.colorMode,
     textScale: nearestTextScale(o.textScale ?? d.textScale),
+    versus: sanitizeVersus(o.versus, autoIds),
   };
 }
 

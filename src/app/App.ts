@@ -54,6 +54,7 @@ import { Hud } from '../ui/Hud';
 import { t, type Key } from '../ui/i18n';
 import { ic } from '../ui/chrome';
 import { MatchSetup } from '../ui/MatchSetup';
+import { partnerStation, VersusSetup } from '../ui/VersusSetup';
 import { PadNav } from '../ui/padNav';
 import { DEFAULT_PLAYER, Menu, type MenuChoice } from '../ui/Menu';
 import { saveMatchEntries, ScoutingScreen, type ScoutPlay } from '../ui/Scouting';
@@ -289,6 +290,7 @@ export class App {
    */
   start(c: MenuChoice): void {
     if (c.mode === 'match' && !c.ready && c.player >= 0) return this.openSetup(c);
+    if (c.mode === 'versus' && !c.ready) return this.openVersusSetup(c);
     this.choice = c;
     this.closeAutoPractice();
     this.closeTraining();
@@ -401,24 +403,32 @@ export class App {
    */
   private versusOptions(player: number): SessionOptions {
     const o = this.sessionOptions(player);
-    const p2 = player < 2 ? player + 2 : player - 2;
+    const v = this.settings.versus;
+    const p2 = partnerStation(player, v.team);
     this.secret = [null, null, null, null];
     this.activePlan = null;
-    const routine = allAutoRoutines().find((r) => r.id === this.settings.playerAuto) ?? LEAVE_ZONE;
+    const routine = (id: string) => allAutoRoutines().find((r) => r.id === id) ?? LEAVE_ZONE;
+    // Cada persona: su robot, su AUTO y su lugar de inicio (`ui/VersusSetup.ts`)
+    const side = (i: number, s: typeof v.p1) => ({ spec: { ...robotSpec(s.robot), maxSpeed: this.settings.maxSpeed }, auto: routine(s.auto), start: s.start, i });
+    const sides = [side(player, v.p1), side(p2, v.p2)];
     const specs = [...(o.specs ?? [])];
-    specs[p2] = this.playerSpec();
     const autos = [...(o.autos ?? [])];
-    autos[p2] = routine;
     const bots = [...(o.bots ?? [])];
-    bots[p2] = undefined;
     const starts = [...(o.starts ?? [])];
-    starts[p2] = this.settings.match.start;
+    for (const x of sides) {
+      specs[x.i] = x.spec;
+      autos[x.i] = x.auto;
+      bots[x.i] = undefined;
+      starts[x.i] = x.start;
+    }
     return { ...o, player2: p2, specs, autos, bots, starts };
   }
 
   /** Enciende o apaga el modo de 2 jugadores en la entrada y la pantalla dividida. */
   private setVersus(on: boolean): void {
     this.input.versus = on;
+    const v = this.settings.versus;
+    this.input.layout = { p1: v.p1.device, p2: v.p2.device };
     this.splitBar.style.display = on ? '' : 'none';
     if (!on) this.renderer.resize(this.cam.camera);
   }
@@ -458,6 +468,18 @@ export class App {
    * "Preparar match": tu posición inicial y la estrategia, dificultad, tipo y AUTO de cada robot de
    * la IA. En el Scouting y el torneo los tipos y la estación los fija el calendario.
    */
+  /** "Preparar 2 jugadores": controles, robot, AUTO y posición de cada persona; luego empieza el match. */
+  private openVersusSetup(c: MenuChoice): void {
+    new VersusSetup(this.menu.root, this.settings, {
+      back: () => this.toMenu(),
+      save: () => saveSettings(this.settings),
+      start: (player) => {
+        this.menu.player = player;
+        this.start({ ...c, player, ready: true });
+      },
+    }).show(c.player);
+  }
+
   private openSetup(c: MenuChoice): void {
     const sc = c.scout;
     const back = () => {

@@ -217,14 +217,17 @@ export class GameSession {
     return this.robots.find((r) => r.index === this.opts.player) ?? this.robots[0];
   }
 
-  /** Índice del robot del jugador 2 (multijugador local); −1 si no hay. Siempre de la otra alianza. */
+  /**
+   * Índice del robot del jugador 2 (multijugador local); −1 si no hay. Puede ser de la otra alianza
+   * (cada quien contra el otro) o de la misma (compañeros; la IA rellena los otros dos robots).
+   */
   get player2Index(): number {
     const { player, player2, solo, rival } = this.opts;
     if (player < 0) return -1;
     // Práctica 1 contra 1 con otra persona: el robot de enfrente lo maneja ella
     if (solo) return rival === 'human' ? this.rivalIndex : -1;
-    if (player2 === undefined || player2 < 0 || player2 > 3) return -1;
-    return player2 < 2 !== player < 2 ? player2 : -1;
+    if (player2 === undefined || player2 < 0 || player2 > 3 || player2 === player) return -1;
+    return player2;
   }
 
   /** Robot del jugador 2 (multijugador local), si hay. */
