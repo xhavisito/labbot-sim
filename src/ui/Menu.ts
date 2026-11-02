@@ -8,7 +8,7 @@ import { customById } from '../config/customRobots';
 import { allRobotIds, robotSpec, type RobotId } from '../config/robotIds';
 import { GRIP_MODES, MECHANISM_KINDS } from '../config/robot';
 import { GAME } from '../config/game';
-import { DEFAULT_SETTINGS, PLAN_BOARDS, PRACTICE_LIMITS, RIVALS, SETTINGS_RANGE, type PlanBoard, type RivalKind, type Settings } from '../config/settings';
+import { DEFAULT_SETTINGS, PLAN_BOARDS, PRACTICE_LIMITS, REF_AUDIO_MODES, RIVALS, SETTINGS_RANGE, type PlanBoard, type RefAudioMode, type RivalKind, type Settings } from '../config/settings';
 import { DAMAGE_LEVELS, type DamageLevel, type DamageTargets } from '../core/damage';
 import { buildRefereeReport } from '../core/refereeReport';
 import { refereeHtml } from './refereeView';
@@ -345,6 +345,8 @@ export class Menu {
           <h3>${t('sec_sound')}</h3>
           <label>${t('setVolume')}</label>${range('volume', '%')}
           <p class="full sub">${t('soundNote')}</p>
+          <label>${t('setRefAudio')}</label>${seg('refAudio', REF_AUDIO_MODES, s.refAudio, (v) => t(`refAudio_${v}` as Key))}
+          <p class="full sub">${t('refAudioNote')}</p>
         </div></div>
       </div>
       <div class="actionbar">${backBtn('data-act="cancel"')}<div class="grow"></div>
@@ -398,6 +400,7 @@ export class Menu {
         else if (k === 'damage.level') s.damage = { ...s.damage, level: v as DamageLevel };
         else if (k === 'damage.targets') s.damage = { ...s.damage, targets: v as DamageTargets };
         else if (k === 'planBoard') s.planBoard = v as PlanBoard;
+        else if (k === 'refAudio') s.refAudio = v as RefAudioMode;
         else if (k === 'colorMode') s.colorMode = v as ColorMode;
         else if (k === 'textScale') {
           s.textScale = nearestTextScale(Number(v));
@@ -421,7 +424,7 @@ export class Menu {
       this.main();
     });
     this.on('[data-act="defaults"]', () => {
-      Object.assign(this.settings, { ...structuredClone(DEFAULT_SETTINGS), touch: this.settings.touch, quality: this.settings.quality, volume: this.settings.volume, colorMode: this.settings.colorMode, textScale: this.settings.textScale });
+      Object.assign(this.settings, { ...structuredClone(DEFAULT_SETTINGS), touch: this.settings.touch, quality: this.settings.quality, volume: this.settings.volume, refAudio: this.settings.refAudio, colorMode: this.settings.colorMode, textScale: this.settings.textScale });
       this.onSettings(this.settings);
       this.settingsPanel();
     });
