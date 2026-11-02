@@ -2,6 +2,7 @@
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { defineConfig, type Plugin } from 'vite';
+import { buildPrecacheList, renderServiceWorker } from './src/pwa/precache';
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string };
 
@@ -24,10 +25,8 @@ function serviceWorkerPlugin(): Plugin {
     name: 'labbot-sw',
     apply: 'build',
     generateBundle(_opts, bundle) {
-      const files = new Set<string>(['./', 'index.html', ...Object.keys(bundle), ...listPublic('public')]);
-      const source = readFileSync('src/pwa/sw-template.js', 'utf8')
-        .replace('__CACHE_VERSION__', `${pkg.version}-${Date.now().toString(36)}`)
-        .replace('__PRECACHE__', JSON.stringify([...files].sort()));
+      const files = buildPrecacheList(Object.keys(bundle), listPublic('public'));
+      const source = renderServiceWorker(readFileSync('src/pwa/sw-template.js', 'utf8'), `${pkg.version}-${Date.now().toString(36)}`, files);
       this.emitFile({ type: 'asset', fileName: 'sw.js', source });
     },
   };
