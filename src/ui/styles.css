@@ -1244,3 +1244,13 @@ body.touch-on .plan-card { left: auto; right: calc(var(--gut) + var(--safe-r)); 
 .p1-table tbody th { text-align: left; font-weight: 700; }
 .p1-table tr.dim { opacity: 0.45; }
 .p1-table tr.total { font-weight: 800; color: var(--accent); }
+
+/* ---------------------------------------------------------------- Desafío semanal (ui/Weekly.ts) */
+.wk-card { grid-template-columns: auto 1fr auto; max-width: 760px; }
+.wk-h { margin: 18px 0 4px; font: 700 18px/1.2 var(--display); letter-spacing: 0; }
+.wk-board { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 4px; max-width: 760px; }
+.wk-board li { display: grid; grid-template-columns: 2em 6em 1fr auto; gap: 10px; align-items: baseline; padding: 8px 12px; border: 1px solid var(--line); background: var(--surface); }
+.wk-board li.met { border-color: #f2b632; }
+.wk-board i { font-style: normal; color: var(--muted); font-weight: 700; }
+.wk-board small { color: var(--muted); }
+@media (max-width: 560px) { .wk-card { grid-template-columns: auto 1fr; } .wk-board li { grid-template-columns: 2em 5em 1fr; } .wk-board small { display: none; } }

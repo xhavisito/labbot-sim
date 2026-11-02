@@ -16,6 +16,9 @@ import { buildMatchLog } from '../core/matchLog';
 import { drillById } from '../core/training';
 import { drillSessionOptions } from '../game/drills';
 import { loadTraining } from '../game/trainingStore';
+import { addEntry, weeklyChallenge } from '../core/weekly';
+import { loadWeekly, saveWeekly } from '../game/weeklyStore';
+import { WeeklyScreen } from '../ui/Weekly';
 import { GameSession, type SessionOptions } from '../game/GameSession';
 import { loadScout } from '../game/scoutStore';
 import { planById } from '../game/planStore';
@@ -109,6 +112,8 @@ export class App {
   readonly trainingProgress = loadTraining();
   readonly training: TrainingScreen;
   trainingRun: TrainingRun | null = null;
+  readonly weeklyBoard = loadWeekly();
+  readonly weekly: WeeklyScreen;
   /** Práctica 1 contra 1 en curso (`ui/Practice1v1.ts`). */
   practice1v1: Practice1v1 | null = null;
   readonly cycleBests = loadCycleBests();
@@ -159,6 +164,11 @@ export class App {
       play: (drill) => this.start({ mode: 'training', player: this.menu.player, drill }),
     });
     this.menu.onTraining = () => this.training.show();
+    this.weekly = new WeeklyScreen(this.menu.root, this.weeklyBoard, () => robotLabel(this.playerSpec()), {
+      back: () => this.toMenu(),
+      play: () => this.start({ mode: 'training', player: this.menu.player, drill: weeklyChallenge().drill.id, weekly: true }),
+    });
+    this.menu.onWeekly = () => this.weekly.show();
     this.strategies = new StrategyScreen(this.menu.root);
     this.menu.onStrategies = () => this.strategies.show(() => this.toMenu());
     this.renderer.scene.add(this.planView.group);
@@ -189,7 +199,7 @@ export class App {
     this.session.dispose();
     // Práctica libre y de AUTO: solo el robot del jugador en la cancha (en la de AUTO, sin Human Player)
     const o = c.scout ? this.scoutOptions(c.scout) : this.sessionOptions(c.player);
-    const drill = c.mode === 'training' ? drillById(c.drill ?? '') : undefined;
+    const drill = c.mode === 'training' ? (c.weekly ? weeklyChallenge().drill : drillById(c.drill ?? '')) : undefined;
     if (c.mode === 'training' && !drill) return this.toMenu();
     const p1 = c.mode === 'practice1v1';
     this.session = new GameSession(
@@ -246,9 +256,20 @@ export class App {
         session: () => this.session,
         progress: this.trainingProgress,
         robot: this.trainingRobot(),
+        weekly: c.weekly
+          ? {
+              ch: weeklyChallenge(),
+              submit: (points) => {
+                const res = addEntry(this.weeklyBoard, weeklyChallenge(), { points, robot: robotLabel(this.session.player.spec), at: new Date().toISOString() });
+                saveWeekly(this.weeklyBoard);
+                return res;
+              },
+            }
+          : undefined,
         other: () => {
           this.toMenu();
-          this.training.show();
+          if (c.weekly) this.weekly.show();
+          else this.training.show();
         },
         exit: () => this.toMenu(),
       });

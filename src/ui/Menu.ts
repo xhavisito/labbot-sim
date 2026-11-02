@@ -34,6 +34,8 @@ export interface MenuChoice {
   mode: 'match' | 'practice' | 'auto' | 'training' | 'practice1v1';
   player: number;
   drill?: DrillId;
+  /** Desafío semanal (`ui/Weekly.ts`): se juega el reto de la semana en vez de `drill`. */
+  weekly?: boolean;
   /** Match del calendario del Scouting (equipos y sus robots); su registro se guarda al terminar. */
   scout?: ScoutPlay;
   /** Ya pasó por "Preparar match" (o es una repetición de ese match): empieza directo. */
@@ -101,6 +103,8 @@ export class Menu {
   /** Abre la lista de retos del entrenamiento (la conecta App). */
   onTraining: () => void = () => undefined;
   onStrategies: () => void = () => undefined;
+  /** Abre el desafío semanal (lo conecta App). */
+  onWeekly: () => void = () => undefined;
 
   constructor(
     host: HTMLElement,
@@ -158,6 +162,7 @@ export class Menu {
           <div class="mm-tools late">
             ${tool('practice1v1', ic.go, 'p1_title', 'p1_desc')}
             ${tool('training', ic.medal, 'tn_title', 'trainingDesc')}
+            ${tool('weekly', ic.trophy, 'weekly', 'weeklyDesc')}
             ${tool('replays', ic.film, 'replays', 'replaysDesc')}
             ${tool('editor', ic.cube, 'editor', 'editorDesc')}
             ${tool('autoPractice', ic.route, 'autoPractice', 'autoPracticeDesc')}
@@ -191,6 +196,7 @@ export class Menu {
     this.on('[data-act="match"]', () => this.onStart({ mode: 'match', player: this.player }));
     this.on('[data-act="practice"]', () => this.onStart({ mode: 'practice', player: this.player }));
     this.on('[data-go="training"]', () => this.onTraining());
+    this.on('[data-go="weekly"]', () => this.onWeekly());
     this.on('[data-go="practice1v1"]', () => this.onStart({ mode: 'practice1v1', player: this.player }));
     this.on('[data-go="strategies"]', () => this.onStrategies());
     this.on('[data-go="replays"]', () => this.onReplays());
