@@ -157,7 +157,7 @@ export class Menu {
       </div>
       <div class="row">
         <button class="primary" data-act="back">${t('back')}</button>
-        <button data-act="defaults">${t('defaults')}</button>
+        <button data-act="defaults">${t('resetControls')}</button>
       </div>`);
     const apply = (nb: typeof b) => {
       inp.bindings = nb;
@@ -195,6 +195,7 @@ export class Menu {
     });
     this.root.querySelector('[data-act="defaults"]')!.addEventListener('click', () => {
       inp.cancelCapture();
+      if (!window.confirm(t('resetControlsConfirm'))) return;
       apply(cloneBindings(DEFAULT_BINDINGS));
     });
   }
