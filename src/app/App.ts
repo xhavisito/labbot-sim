@@ -75,6 +75,7 @@ import { loadPerf, savePerf } from '../game/perfStore';
 import { CompareScreen } from '../ui/CompareScreen';
 import { allRobotIds } from '../config/robotIds';
 import { AchievementsScreen } from '../ui/Achievements';
+import { AccountScreen } from '../ui/Account';
 import { StrategyScreen } from '../ui/StrategyScreen';
 import { AutoPathScreen } from '../ui/AutoPathScreen';
 import { PlanView } from '../render/PlanView';
@@ -182,6 +183,7 @@ export class App {
   private ach: AchProgress = loadAch();
   private achNew: string[] = [];
   readonly achievements: AchievementsScreen;
+  readonly account: AccountScreen;
   /** Aviso de resultados del último match del torneo (se guarda una vez; los resultados se reabren). */
   private tourNote = '';
   /** `?touch=1` fuerza los controles touch (para probar en escritorio). */
@@ -254,6 +256,8 @@ export class App {
       },
     });
     this.menu.onAchievements = () => this.achievements.show();
+    this.account = new AccountScreen(this.menu.root, () => this.toMenu());
+    this.menu.onAccount = () => this.account.show();
     this.compare = new CompareScreen(
       this.menu.root,
       () => allRobotIds().map((id) => summarize(id, robotLabel(robotSpec(id)), this.cycleBests, this.shotLog, this.robotPerf)),
