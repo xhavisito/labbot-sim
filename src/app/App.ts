@@ -96,7 +96,7 @@ export class App {
   private autoQuality: Quality = guessQuality();
   /** Gobernador de "Auto": baja resolución y luego calidad si los FPS caen. */
   private governor = new QualityGovernor(this.autoQuality);
-  private govWin = { frames: 0, time: 0 };
+  private govWin = { frames: 0, time: 0, warm: 0 };
   /** Perfil de FPS y tiempos (F3, `?fps=1` o Ajustes). */
   readonly perf = new PerfProfile();
   private fpsEl: HTMLElement | null = null;
@@ -612,11 +612,17 @@ export class App {
    */
   private watchFps(dt: number): void {
     if (this.settings.quality !== 'auto' || this.state !== 'playing') {
-      this.govWin.frames = this.govWin.time = 0;
+      this.govWin.frames = this.govWin.time = this.govWin.warm = 0;
       return;
     }
-    // Un cuadro enorme (pestaña en segundo plano) no cuenta
-    if (dt >= 0.1) return;
+    // Un cuadro de más de 1 s (pestaña en segundo plano, bloqueo) no cuenta. Antes el corte era 0.1 s y
+    // un celular a menos de 10 FPS, justo el que más necesita bajar la calidad, nunca se medía.
+    if (dt >= 1) return;
+    // Los primeros 3 s de juego (compilar shaders, cargar CAD) no cuentan: no bajar calidad por el arranque.
+    if (this.govWin.warm < 3) {
+      this.govWin.warm += dt;
+      return;
+    }
     this.govWin.frames++;
     this.govWin.time += dt;
     if (this.govWin.time < 2) return;
