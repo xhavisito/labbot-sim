@@ -10,7 +10,7 @@
  */
 import type { Level } from '../core/types';
 import { mm } from './field';
-import { DEFAULT_ROBOT, MECHANISM_KINDS, ROBOT_PRESETS, validateRobot, type MechanismKind, type RobotSpec } from './robot';
+import { canHoldCritical, DEFAULT_INTAKE, DEFAULT_ROBOT, INTAKE_KINDS, INTAKE_RANGE, MECHANISM_KINDS, ROBOT_PRESETS, validateRobot, type IntakeKind, type MechanismKind, type RobotSpec } from './robot';
 
 export type MotorKind = 'cim' | 'x60' | 'x44' | 'neo';
 export const MOTOR_KINDS: readonly MotorKind[] = ['cim', 'x60', 'x44', 'neo'];
@@ -69,6 +69,12 @@ export interface CustomRobot {
   plaG: number;
   /** Otros kg (neumática, sensores, contrapeso). */
   extraKg: number;
+  /** Intake de la garra (constructor de robots, 2-nov): tipo, apertura entre dedos y largo de dedos (cm), velocidad de las ruedas (m/s) y tiempo de cierre de la pinza (s). */
+  intakeKind: IntakeKind;
+  gapCm: number;
+  fingerCm: number;
+  rollerSpeed: number;
+  closeTime: number;
   /** Masa pesada en báscula (kg); null = usar la estimada. */
   massKg: number | null;
 }
@@ -104,6 +110,11 @@ export function customFromSpec(s: RobotSpec, name: string, id = newId()): Custom
     mdfM2: null,
     plaG: 0,
     extraKg: 0,
+    intakeKind: s.intake?.kind ?? DEFAULT_INTAKE.kind,
+    gapCm: cm((s.intake ?? DEFAULT_INTAKE).gap),
+    fingerCm: cm((s.intake ?? DEFAULT_INTAKE).fingerLength),
+    rollerSpeed: (s.intake ?? DEFAULT_INTAKE).rollerSpeed,
+    closeTime: (s.intake ?? DEFAULT_INTAKE).closeTime,
     massKg: null,
   };
 }
@@ -189,6 +200,7 @@ export function customSpec(c: CustomRobot): RobotSpec {
     capacity: base.capacity,
     arm: { ...base.arm, pivotX: mm(c.armPivotXCm * 10), pivotY: mm(c.armPivotYCm * 10), length: mm(c.armLengthCm * 10), speed: c.liftSpeed },
     maxLevel: c.maxLevel,
+    intake: { kind: c.intakeKind, gap: mm(c.gapCm * 10), fingerLength: mm(c.fingerCm * 10), rollerSpeed: c.rollerSpeed, closeTime: c.closeTime },
   };
   return s;
 }
@@ -207,6 +219,8 @@ export function checkCustom(c: CustomRobot): Check[] {
   const n = motorCount(c);
   for (const k of MOTOR_KINDS) if (n[k] > MOTOR_LIMITS[k]) out.push({ level: 'error', text: `${n[k]} ${MOTORS[k].name}: el máximo es ${MOTOR_LIMITS[k]} (§7.3)` });
   if (c.plaG > PLA_LIMIT_G) out.push({ level: 'error', text: `${c.plaG} g de PLA: cada equipo tiene ${PLA_LIMIT_G} g (§7.1.1)` });
+  if (!canHoldCritical(customSpec(c))) out.push({ level: 'warn', text: `apertura de ${c.gapCm} cm: la Muestra Crítica mide 20 cm (§4.1.1), no le cabe y este robot no la lleva` });
+  if (c.gapCm < 15.5) out.push({ level: 'warn', text: `apertura de ${c.gapCm} cm: la Muestra mide 15 cm ±5 mm (§4.1.1), con menos de 15.5 cm casi no entra` });
   if (c.driveCount < 2 || c.driveCount % 2 !== 0) out.push({ level: 'warn', text: 'tracción tanque: los motores van en pares, uno o más por lado (§7.2)' });
   const sp = driveSpeed(c);
   if (sp > 5) out.push({ level: 'warn', text: `${sp.toFixed(1)} m/s es muy rápido para una cancha de 9 m: más reducción da más empuje` });
@@ -261,6 +275,11 @@ export function sanitizeCustom(raw: unknown): CustomRobot | null {
     armLengthCm: arm(o.armLengthCm, d.armLengthCm, 20, 90),
     mdfM2: o.mdfM2 === null || o.mdfM2 === undefined ? null : finite(o.mdfM2, 1, 0, 10),
     plaG: finite(o.plaG, 0, 0, 1000),
+    intakeKind: INTAKE_KINDS.find((k) => k === o.intakeKind) ?? d.intakeKind,
+    gapCm: finite(o.gapCm, d.gapCm, INTAKE_RANGE.gap[0] * 100, INTAKE_RANGE.gap[1] * 100),
+    fingerCm: finite(o.fingerCm, d.fingerCm, INTAKE_RANGE.fingerLength[0] * 100, INTAKE_RANGE.fingerLength[1] * 100),
+    rollerSpeed: finite(o.rollerSpeed, d.rollerSpeed, INTAKE_RANGE.rollerSpeed[0], INTAKE_RANGE.rollerSpeed[1]),
+    closeTime: finite(o.closeTime, d.closeTime, INTAKE_RANGE.closeTime[0], INTAKE_RANGE.closeTime[1]),
     extraKg: finite(o.extraKg, 0, 0, 40),
     massKg: o.massKg === null || o.massKg === undefined ? null : finite(o.massKg, 30, 8, 120),
   };
