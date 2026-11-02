@@ -432,7 +432,6 @@ input[type='range'] { width: 100%; accent-color: var(--accent); }
 .ref-red { color: #ff8a83; }
 .ref-impact { margin-top: 2px; color: var(--muted); }
 .fouls.ref-list { max-height: 220px; }
-.fouls .tag.blue { background: rgba(47, 125, 246, 0.22); color: #bcd5ff; }
 .fouls .tag { display: inline-block; margin-right: 6px; padding: 2px 6px; border-radius: var(--radius-sm); font: 700 calc(10px * var(--ts)) var(--font); }
 .fouls .tag.red { background: rgba(229, 65, 58, 0.22); color: var(--red-tint); }
 .fouls .tag.blue { background: rgba(47, 125, 246, 0.22); color: var(--blue-tint); }
