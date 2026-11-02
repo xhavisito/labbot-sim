@@ -115,6 +115,21 @@ export class Match {
     return out;
   }
 
+  /**
+   * Escenarios de entrenamiento: lleva el reloj al segundo `t` (sin eventos de fase) y anota `n`
+   * Muestras de TELEOP en `level` como si ya hubieran caído (`core/scenarios.ts`).
+   */
+  jumpTo(t: number): void {
+    this.t = t;
+    this.phase = phaseAt(t, this.cfg);
+    this.pending = [];
+    this.history.push({ t, red: this.score('red'), blue: this.score('blue') });
+  }
+
+  seedSamples(alliance: Alliance, level: Level, n: number, time: number): void {
+    for (let i = 0; i < n; i++) this.state[alliance].samples.push({ level, period: 'TELEOP', time });
+  }
+
   /** Segundos que faltan para el final del TELEOP. */
   get remaining(): number {
     return bounds(this.cfg).teleopEnd - this.t;

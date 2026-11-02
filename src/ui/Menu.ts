@@ -38,9 +38,11 @@ export interface MenuChoice {
    * 'versus' = multijugador local: tú y una segunda persona, cada quien en una alianza (pantalla dividida).
    * 'training' = un reto del entrenamiento (`ui/Training.ts`), el de `drill`.
    */
-  mode: 'match' | 'practice' | 'auto' | 'training' | 'practice1v1' | 'versus';
+  mode: 'match' | 'practice' | 'auto' | 'training' | 'practice1v1' | 'versus' | 'scenario';
   player: number;
   drill?: DrillId;
+  /** Escenario de entrenamiento (`core/scenarios.ts`), con mode 'scenario'. */
+  scenario?: string;
   /** Match del calendario del Scouting (equipos y sus robots); su registro se guarda al terminar. */
   scout?: ScoutPlay;
   /** Ya pasó por "Preparar match" (o es una repetición de ese match): empieza directo. */
