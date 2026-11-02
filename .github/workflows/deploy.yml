@@ -26,9 +26,6 @@ jobs:
       - run: npm ci
       - run: npm test
       - run: npm run build
-        env:
-          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
-          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
       - name: Publicar dist/ en gh-pages
         env:
           TOKEN: ${{ secrets.GITHUB_TOKEN }}
