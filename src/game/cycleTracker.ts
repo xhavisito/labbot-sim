@@ -4,6 +4,7 @@
  */
 import { GAME } from '../config/game';
 import { CycleStats, levelCat, type CycleCat, type Spot } from '../core/cycles';
+import { GhostRecorder } from '../core/ghost';
 import type { Shot } from '../core/scoreMap';
 import { PHYSICS_HZ, type GameSession, type ScoredSample, type SessionTap } from './GameSession';
 import type { MechEvent } from './Mechanisms';
@@ -16,6 +17,9 @@ export class CycleTracker implements SessionTap {
   steps = 0;
   /** Al llegar al límite de tiempo (si la práctica tiene). */
   ended = false;
+  /** Trayectoria del ciclo más rápido de esta práctica (ghost). */
+  readonly ghost: GhostRecorder;
+  private recSeen = 0;
   private critOn = 0;
   private critAt = -1;
   /** Muestras anotadas por el rival de la IA (solo para mostrar). */
@@ -32,12 +36,19 @@ export class CycleTracker implements SessionTap {
     /** Robot que se mide (por defecto el del jugador; con 2 personas, el del jugador 2 tiene el suyo). */
     readonly who: number = s.player.index,
   ) {
+    this.ghost = new GhostRecorder(this.robot(s).alliance);
     // La precarga (§4.1) empieza su ciclo al arrancar
     for (const p of this.robot(s).mech.stored) this.stats.carrying(p.index, 0);
   }
 
   private robot(s: GameSession) {
     return s.robots.find((r) => r.index === this.who) ?? s.player;
+  }
+
+  /** Segundo de práctica en que empezó el ciclo en curso (cuando contó la última pieza). */
+  get cycleStart(): number {
+    const r = this.stats.records;
+    return r.length ? r[r.length - 1].end : 0;
   }
 
   get time(): number {
@@ -98,6 +109,12 @@ export class CycleTracker implements SessionTap {
       }
     } else this.critOn = 0;
     st.advance(t);
+    const p = me.phys.position();
+    this.ghost.sample(t, { x: p.x, z: p.z, heading: me.phys.heading() });
+    if (st.records.length > this.recSeen) {
+      this.recSeen = st.records.length;
+      this.ghost.cycleDone(st.records[st.records.length - 1].end);
+    }
     if (this.limit !== null && t >= this.limit - 1e-9) this.ended = true;
   }
 }

@@ -13,12 +13,14 @@ import { AI_PERSONAS } from '../ai/persona';
 import { PRACTICE_LIMITS, RIVALS, type PracticeSettings } from '../config/settings';
 import { formatTimer } from '../core/clock';
 import { CYCLE_CATS, updateBests, type CycleBests, type CycleCat, type CycleSummary } from '../core/cycles';
+import { ghostAt, mirrorPose, updateGhost, type GhostStore } from '../core/ghost';
 import { addShots, asRed, zoneStats, ZONES, type Shot, type ShotLog } from '../core/scoreMap';
 import * as F from '../config/field';
 import { CycleTracker } from '../game/cycleTracker';
 import { saveShotLog } from '../game/shotStore';
 import type { GameSession, SessionTap } from '../game/GameSession';
 import { saveCycleBests } from '../game/cycleStore';
+import { saveGhosts } from '../game/ghostStore';
 import { emptyInput, type PlayerInput } from '../input/InputManager';
 import { ic } from './chrome';
 import { activePalette } from '../config/palette';
@@ -40,6 +42,8 @@ export interface Practice1v1Host {
   /** Cambia rival o duración: la sesión se arma de nuevo con ellos. */
   change: (p: PracticeSettings) => void;
   bests: CycleBests;
+  /** Trayectoria del mejor ciclo por robot (el ghost). */
+  ghosts: GhostStore;
   /** Mapa de tiro acumulado por robot (se guarda al terminar cada práctica). */
   shots: ShotLog;
   robot: { id: string; name: string };
@@ -58,6 +62,8 @@ export class Practice1v1 {
   private summary: CycleSummary | null = null;
   private newBests: CycleCat[] = [];
   private newBests2: CycleCat[] = [];
+  /** Salió un ghost más rápido en esta práctica. */
+  private newGhost = false;
   private lastShots2: { mine: Shot[]; rival: Shot[] } | null = null;
   private get id2(): string {
     return `${this.h.robot.id}#j2`;
@@ -117,8 +123,24 @@ export class Practice1v1 {
       else this.chip();
     } else if (this.phase === 'running') {
       if (this.tracker?.ended) this.finish();
-      else this.chip();
+      else {
+        this.moveGhost();
+        this.chip();
+      }
     }
+  }
+
+  /** Duración (s) del ghost guardado de este robot; null si no hay. */
+  private ghostDur(): number | null {
+    return this.h.ghosts.robots[this.h.robot.id]?.dur ?? null;
+  }
+
+  /** Pone el ghost donde iba el mejor ciclo guardado, a los mismos segundos que lleva el ciclo en curso. */
+  private moveGhost(): void {
+    const g = this.h.ghosts.robots[this.h.robot.id];
+    const tr = this.tracker;
+    if (!g || !tr) return this.s.setGhost(null);
+    this.s.setGhost(mirrorPose(ghostAt(g, tr.time - tr.cycleStart), this.s.player.alliance));
   }
 
   /** Backspace / detener: de vuelta al panel con la cancha acomodada. */
@@ -135,6 +157,7 @@ export class Practice1v1 {
   }
 
   private stop(): void {
+    this.s.setGhost(null);
     if (this.tap && this.s.tap === this.tap) this.s.tap = null;
     this.tap = null;
     this.tracker = null;
@@ -182,6 +205,9 @@ export class Practice1v1 {
     this.newBests2 = this.summary2 ? updateBests(this.h.bests, this.id2, this.summary2) : [];
     this.newBests = updateBests(this.h.bests, this.h.robot.id, this.summary);
     saveCycleBests(this.h.bests);
+    // Ghost: la trayectoria del ciclo completo más rápido (de esta práctica contra la guardada)
+    this.newGhost = updateGhost(this.h.ghosts, this.h.robot.id, tr.ghost.best);
+    if (this.newGhost) saveGhosts(this.h.ghosts);
     const a = this.s.player.alliance;
     this.lastShots = { mine: [...tr.stats.shots], rival: [...tr.rivalShots] };
     addShots(this.h.shots, this.h.robot.id, tr.stats.shots.map((x) => asRed(x, a)));
@@ -217,7 +243,9 @@ export class Practice1v1 {
       const last = r ? ` · ${t('p1_last')} ${secs(r.search + r.time)} (${t('p1_split', { b: secs(r.search), l: secs(r.time) })})` : '';
       const s2 = this.tracker2?.stats.summary();
       const other = s2 ? ` · ${t('p1_p2chip', { n: s2.cycles, p: s2.points })}` : '';
-      pr.textContent = `${t('p1_chip', { n: s.cycles, p: s.points })}${other}${last}`;
+      const gd = this.ghostDur();
+      const ghost = gd === null ? '' : ` · ${t('p1_ghostChip', { s: secs(gd) })}`;
+      pr.textContent = `${t('p1_chip', { n: s.cycles, p: s.points })}${other}${last}${ghost}`;
     }
   }
 
@@ -312,11 +340,11 @@ export class Practice1v1 {
     const assume = this.human ? t('p1_assumeHuman') : t('p1_assume');
     const body =
       ph === 'result' && s
-        ? `<p class="tn-note">${t('p1_resultNote', { t: secs(s.time), c: s.cycles, m: s.perMinute.toFixed(1) })}</p>
+        ? `${this.newGhost ? `<p class="tn-note"><b class="tn-new">★</b> ${t('p1_ghostNew', { s: secs(this.ghostDur()) })}</p>` : ''}<p class="tn-note">${t('p1_resultNote', { t: secs(s.time), c: s.cycles, m: s.perMinute.toFixed(1) })}</p>
           <p class="tn-note">${t('p1_splitNote', { b: secs(s.avgSearch), l: secs(s.avg), f: secs(s.avgFull) })}</p>${this.tableHtml(s)}
           ${s2 ? `<h3 class="p1-p2">${t('p1_p2Title')}</h3><p class="tn-note">${t('p1_resultNote', { t: secs(s2.time), c: s2.cycles, m: s2.perMinute.toFixed(1) })}</p>${this.tableHtml(s2, false)}${this.mapHtml(true)}` : ''}
           <p class="ap-note">${assume}</p>${this.mapHtml()}`
-        : `<p class="tn-goal">${t('p1_goal')}</p><p class="ap-note">${assume}</p>${this.mapHtml()}`;
+        : `<p class="tn-goal">${t('p1_goal')}</p>${this.ghostDur() === null ? '' : `<p class="tn-note">${t('p1_ghostBrief', { s: secs(this.ghostDur()) })}</p>`}<p class="ap-note">${assume}</p>${this.mapHtml()}`;
     this.root.innerHTML = `<div class="ap-panel tn-panel p1-panel">
       <div class="ap-head">${ic.medal}<b>${t('p1_title')}</b>
         <button class="hud-btn" data-a="exit" title="${t('tn_exit')}">${ic.x}</button></div>
