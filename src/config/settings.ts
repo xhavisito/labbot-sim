@@ -67,6 +67,8 @@ export interface Settings {
   touch: 'auto' | 'on' | 'off';
   /** Calidad gráfica (`render/Renderer.ts`): automática según el equipo y los FPS, o fija. */
   quality: 'auto' | 'low' | 'medium' | 'high';
+  /** Mostrar FPS y tiempos en pantalla durante el match (también con F3 o `?fps=1`). */
+  showFps: boolean;
   /**
    * Agarre de la garra (`game/Mechanisms.ts`): con compliants (agarra de cualquier ángulo con la
    * garra abajo), preciso (alinear y entrar despacio) o fácil (el de antes).
@@ -101,6 +103,7 @@ export const DEFAULT_SETTINGS: Settings = {
   hpSmart: true,
   touch: 'auto',
   quality: 'auto',
+  showFps: false,
   grip: 'compliant',
   damage: { ...DEFAULT_DAMAGE },
   // SUPUESTO: por defecto el rival está quieto, como un obstáculo que no te quita Muestras
@@ -164,6 +167,7 @@ export function sanitizeSettings(raw: unknown, autoIds: readonly string[]): Sett
     hpSmart: typeof o.hpSmart === 'boolean' ? o.hpSmart : d.hpSmart,
     touch: o.touch === 'on' || o.touch === 'off' ? o.touch : d.touch,
     quality: o.quality === 'low' || o.quality === 'medium' || o.quality === 'high' ? o.quality : d.quality,
+    showFps: typeof o.showFps === 'boolean' ? o.showFps : d.showFps,
     // 'real' (el agarre estricto del 29-oct, entonces por defecto) pasa a compliants
     grip: GRIP_MODES.find((g) => g === o.grip) ?? d.grip,
     damage: sanitizeDamage(o.damage),
