@@ -4,6 +4,7 @@
  * válidos (un valor raro guardado en el navegador no rompe el juego).
  */
 import { AI_LEVELS, type AiLevel } from '../ai/difficulty';
+import { isPersona, type AiPersona } from '../ai/persona';
 import { isStrategy, type StrategyId } from '../ai/strategy';
 import { DEFAULT_DAMAGE, sanitizeDamage, type DamageSettings } from '../core/damage';
 import { DEFAULT_ROBOT, GRIP_MODES, MECHANISM_KINDS, type GripMode, type MechanismKind } from './robot';
@@ -19,6 +20,8 @@ export interface MatchRobot {
   strategy: StrategyId;
   /** Dificultad de la IA (`ai/difficulty.ts`). */
   ai: AiLevel;
+  /** Personalidad de la IA (`ai/persona.ts`). */
+  persona: AiPersona;
   /** Rutina de AUTO (id de `AUTO_ROUTINES`). */
   auto: string;
   /**
@@ -45,6 +48,8 @@ export const PRACTICE_LIMITS = [0, 60, 120, 180, 300] as const;
 /** Ajustes de la práctica 1 contra 1 (`ui/Practice1v1.ts`). */
 export interface PracticeSettings {
   rival: RivalKind;
+  /** Personalidad del rival de la IA. */
+  persona: AiPersona;
   limit: number;
 }
 
@@ -100,7 +105,7 @@ export const REF_AUDIO_MODES: readonly RefAudioMode[] = ['voice', 'whistle', 'of
 export type PlanBoard = 'all' | 'card' | 'off';
 export const PLAN_BOARDS: readonly PlanBoard[] = ['all', 'card', 'off'];
 
-const botDefault = (): MatchRobot => ({ kind: 'random', strategy: 'auto', ai: 'hard', auto: 'preload', plan: '' });
+const botDefault = (): MatchRobot => ({ kind: 'random', strategy: 'auto', ai: 'hard', persona: 'balanced', auto: 'preload', plan: '' });
 
 export const DEFAULT_SETTINGS: Settings = {
   ai: true,
@@ -117,7 +122,7 @@ export const DEFAULT_SETTINGS: Settings = {
   grip: 'compliant',
   damage: { ...DEFAULT_DAMAGE },
   // SUPUESTO: por defecto el rival está quieto, como un obstáculo que no te quita Muestras
-  practice: { rival: 'passive', limit: 0 },
+  practice: { rival: 'passive', persona: 'balanced', limit: 0 },
   volume: 80,
   refAudio: 'whistle',
   planBoard: 'all',
@@ -142,6 +147,7 @@ export function sanitizePractice(raw: unknown): PracticeSettings {
   const d = DEFAULT_SETTINGS.practice;
   return {
     rival: RIVALS.find((r) => r === o.rival) ?? d.rival,
+    persona: isPersona(o.persona) ? o.persona : d.persona,
     limit: PRACTICE_LIMITS.find((l) => l === o.limit) ?? d.limit,
   };
 }
@@ -164,6 +170,7 @@ export function sanitizeSettings(raw: unknown, autoIds: readonly string[]): Sett
       kind: r.kind === 'random' ? 'random' : (MECHANISM_KINDS.find((k) => k === r.kind) ?? 'random'),
       strategy: isStrategy(r.strategy) ? r.strategy : 'auto',
       ai: AI_LEVELS.find((l) => l === r.ai) ?? oldAi ?? botDefault().ai,
+      persona: isPersona(r.persona) ? r.persona : 'balanced',
       auto: auto(r.auto, oldAuto),
       plan: typeof r.plan === 'string' ? r.plan.slice(0, 40) : '',
     };

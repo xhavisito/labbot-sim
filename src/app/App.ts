@@ -20,12 +20,14 @@ import { ALLIANCES } from '../core/types';
 import { GAME } from '../config/game';
 import { refText, voiceLang } from '../ui/refText';
 import { buildMatchLog } from '../core/matchLog';
+import type { Match } from '../core/match';
 import { drillById } from '../core/training';
+import { evaluate, recordScenario, scenarioById, type Scenario, type ScenarioProgress } from '../core/scenarios';
 import { drillSessionOptions } from '../game/drills';
-import { loadTraining } from '../game/trainingStore';
 import { addEntry, weeklyChallenge } from '../core/weekly';
 import { loadWeekly, saveWeekly } from '../game/weeklyStore';
 import { WeeklyScreen } from '../ui/Weekly';
+import { loadScenarios, loadTraining, saveScenarios } from '../game/trainingStore';
 import { addPlaytime } from '../core/playtime';
 import { loadPlaytime, savePlaytime } from '../game/playtimeStore';
 import { GameSession, type SessionOptions } from '../game/GameSession';
@@ -61,7 +63,6 @@ import { TrainingRun, TrainingScreen, type TrainingRobot } from '../ui/Training'
 import { Practice1v1 } from '../ui/Practice1v1';
 import { loadCycleBests } from '../game/cycleStore';
 import { loadShotLog } from '../game/shotStore';
-import type { Match } from '../core/match';
 import { matchFacts, recordMatch, emptyAch, type AchProgress } from '../core/achievements';
 import { loadAch, saveAch } from '../game/achievementStore';
 import { AchievementsScreen } from '../ui/Achievements';
@@ -149,10 +150,13 @@ export class App {
   readonly tourney: TournamentScreen;
   /** Entrenamiento por retos: récords (localStorage), lista de retos y el reto en curso. */
   readonly trainingProgress = loadTraining();
+  readonly scenarioProgress: ScenarioProgress = loadScenarios();
   /** Tiempo realmente jugado (solo en estado `playing`); se guarda cada ~5 s y al ocultar la página. */
   private playtime = loadPlaytime();
   private playtimeDirty = 0;
   readonly training: TrainingScreen;
+  /** Resumen del escenario terminado (se muestra en los resultados). */
+  private scenarioNote = '';
   trainingRun: TrainingRun | null = null;
   readonly weeklyBoard = loadWeekly();
   readonly weekly: WeeklyScreen;
@@ -218,9 +222,10 @@ export class App {
       history: () => this.scouting.show('history'),
     });
     this.menu.onTournament = () => this.tourney.open();
-    this.training = new TrainingScreen(this.menu.root, this.trainingProgress, () => this.trainingRobot(), {
+    this.training = new TrainingScreen(this.menu.root, this.trainingProgress, this.scenarioProgress, () => this.trainingRobot(), {
       back: () => this.toMenu(),
       play: (drill) => this.start({ mode: 'training', player: this.menu.player, drill }),
+      playScenario: (scenario) => this.start({ mode: 'scenario', player: this.menu.player, scenario }),
     });
     this.menu.onTraining = () => this.training.show();
     this.weekly = new WeeklyScreen(this.menu.root, this.weeklyBoard, () => robotLabel(this.playerSpec()), {
@@ -296,6 +301,9 @@ export class App {
     const drill = c.mode === 'training' ? (c.weekly ? weeklyChallenge().drill : drillById(c.drill ?? '')) : undefined;
     const versus = c.mode === 'versus';
     if (c.mode === 'training' && !drill) return this.toMenu();
+    const scenario = c.mode === 'scenario' ? scenarioById(c.scenario ?? '') : undefined;
+    if (c.mode === 'scenario' && !scenario) return this.toMenu();
+    this.scenarioNote = '';
     const p1 = c.mode === 'practice1v1';
     this.session = new GameSession(
       p1
@@ -306,12 +314,15 @@ export class App {
           ? this.versusOptions(c.player)
           : c.scout
           ? o
+          : scenario
+          ? { ...o, ai: true }
           : { ...o, solo: c.mode !== 'match', ...(c.mode === 'auto' ? { hp: { enabled: false, interval: 3 } } : {}) },
     );
     this.renderer.scene.add(this.session.root);
-    if (c.mode === 'match' || versus) this.session.startMatch();
+    if (scenario) this.session.startScenario(scenario);
+    else if (c.mode === 'match' || versus) this.session.startMatch();
     // La estrategia de alianza solo cuenta en el match (en práctica no hay compañero)
-    const plan = c.mode === 'match' && !drill ? this.activePlan : null;
+    const plan = (c.mode === 'match' || scenario) && !drill ? this.activePlan : null;
     this.planView.set(plan, this.session.player.alliance);
     this.hud.setPlan(plan);
     this.applyPlanBoard();
@@ -417,7 +428,7 @@ export class App {
     const specs: RobotSpec[] = [];
     specs[player] = spec;
     specs[rival] = spec;
-    return { player, preload: true, solo: true, ai: false, specs, rival: this.settings.practice.rival, hp: { enabled: true, interval: this.settings.hpInterval }, grip: this.settings.grip };
+    return { player, preload: true, solo: true, ai: false, specs, rival: this.settings.practice.rival, aiPersona: this.settings.practice.persona, hp: { enabled: true, interval: this.settings.hpInterval }, grip: this.settings.grip };
   }
 
   private closePractice1v1(): void {
@@ -499,9 +510,9 @@ export class App {
       return strategy(i) === 'park' && a.bot ? LEAVE_ZONE : a;
     };
     const bot = (i: number) => {
-      const ai = m.robots[i].ai;
-      if (i === mate && plan) return { ...planBotOptions(plan, i < 2 ? 'red' : 'blue'), ai };
-      return { ...STRATEGY_OPTIONS[strategy(i)], ai };
+      const { ai, persona } = m.robots[i];
+      if (i === mate && plan) return { ...planBotOptions(plan, i < 2 ? 'red' : 'blue'), ai, persona };
+      return { ...STRATEGY_OPTIONS[strategy(i)], ai, persona };
     };
     const autos = [0, 1, 2, 3].map((i) => (i === player ? routine(s.playerAuto) : botAuto(i)));
     // Tu robot es el del menú (con tu velocidad y capacidad), salvo en el Scouting: el de tu equipo
@@ -634,6 +645,16 @@ export class App {
     this.touch.show(want && this.state === 'playing');
   }
 
+  /** Evalúa y guarda el escenario terminado; devuelve el aviso para los resultados. */
+  private finishScenario(m: Match, s: Scenario): string {
+    const me = this.session.player.alliance;
+    const o = evaluate(m, s, me);
+    const r = recordScenario(this.scenarioProgress, s, this.settings.robotType, o);
+    saveScenarios(this.scenarioProgress);
+    const medal = r.medal ? t(`medal_${r.medal}` as Key) : t('tn_noMedal');
+    return `${t(`sn_${s.id}` as Key)}: ${t(o.met ? 'sn_met' : 'sn_missed')} (${o.diff >= 0 ? '+' : ''}${o.diff}) · ${medal}${r.improved ? ` · ${t('tn_newRecord')}` : ''}`;
+  }
+
   /** Suma el match terminado al progreso de logros (solo si manejas un robot en un match). */
   private recordAchievements(m: Match): void {
     this.achNew = [];
@@ -657,7 +678,7 @@ export class App {
       () => (sc ? this.toScouting() : this.toMenu()),
       () => this.downloadLog(),
       this.choice.player,
-      sc?.tour ? this.tourNote : sc ? t('sc_saved', { match: sc.match }) : '',
+      sc?.tour ? this.tourNote : sc ? t('sc_saved', { match: sc.match }) : this.scenarioNote,
       sc?.tour ? t('tr_continue') : undefined,
       this.achNew,
     );
@@ -883,7 +904,7 @@ export class App {
 
   /** Suma el cuadro al tiempo jugado del modo en curso (nunca en pausa, menús ni resultados). */
   private trackPlaytime(dt: number): void {
-    addPlaytime(this.playtime, this.choice.mode === 'versus' ? 'match' : this.choice.mode, dt);
+    addPlaytime(this.playtime, this.choice.mode === 'versus' ? 'match' : this.choice.mode === 'scenario' ? 'training' : this.choice.mode, dt);
     this.playtimeDirty += dt;
     if (this.playtimeDirty >= 5) this.flushPlaytime();
   }
@@ -938,6 +959,8 @@ export class App {
         if (sc && !sc.tour) saveMatchEntries(this.scoutData, m, sc.teams, sc.match);
         // Torneo: el resultado va a su tabla
         this.tourNote = sc?.tour ? this.tourney.record(m, sc) : '';
+        const scn = this.choice.mode === 'scenario' ? scenarioById(this.choice.scenario ?? '') : undefined;
+        this.scenarioNote = scn ? this.finishScenario(m, scn) : '';
         this.recordAchievements(m);
         this.lastReplay = this.recorder?.build(this.session) ?? null;
         if (this.lastReplay) void storeReplay(this.lastReplay);

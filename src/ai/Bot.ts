@@ -34,6 +34,7 @@ import { clawDir } from '../physics/RobotPhysics';
 import { pushTouch, touches } from './contact';
 import { planPath } from './grid';
 import { AI_PROFILES, type AiLevel, type AiProfile } from './difficulty';
+import { applyPersona, type AiPersona } from './persona';
 import type { PlanDirective, PlanDriver } from './plan';
 import { Team } from './Team';
 
@@ -108,6 +109,8 @@ export interface BotOptions {
   endgame?: EndgamePlan;
   /** Dificultad. */
   ai: AiLevel;
+  /** Personalidad (`ai/persona.ts`): estilo de juego encima de la dificultad; no cambia las reglas ni los filtros de faltas. */
+  persona?: AiPersona;
   /**
    * Estrategia de alianza que le dibujaste (`ai/plan.ts`, solo tu compañero): en cada paso recorre
    * su ruta y luego junta en su zona, de donde y al nivel que diga el plan.
@@ -194,7 +197,7 @@ export class Bot {
     team?: Team,
   ) {
     this.opts = { auto: 'collect', teleop: true, role: 'score', ai: 'hard', ...opts };
-    this.profile = AI_PROFILES[this.opts.ai];
+    this.profile = applyPersona(AI_PROFILES[this.opts.ai], this.opts.persona);
     this.team = team ?? new Team(robot.alliance);
     this.team.join(this);
   }

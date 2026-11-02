@@ -8,6 +8,7 @@
 import * as THREE from 'three';
 import { Bot, type AutoPlan, type BotOptions, type BotOutput } from '../ai/Bot';
 import type { AiLevel } from '../ai/difficulty';
+import type { AiPersona } from '../ai/persona';
 import { Team } from '../ai/Team';
 import { AUTO_REF_SPEED, AutoRunner, LEAVE_ZONE, type AutoOutput, type AutoRoutine } from '../auto/AutoRoutine';
 import * as F from '../config/field';
@@ -17,6 +18,7 @@ import type { StartSpot } from '../config/startSpot';
 import { isTeleop, robotsEnabled, type Phase } from '../core/clock';
 import { DEFAULT_DAMAGE, type DamageSettings } from '../core/damage';
 import { Match, type MatchEvent } from '../core/match';
+import { applyScenario, type Scenario } from '../core/scenarios';
 import { rng } from '../core/rng';
 import type { TimedEvent } from '../core/matchLog';
 import { ALLIANCES, opponent, type Alliance, type Level } from '../core/types';
@@ -30,6 +32,7 @@ import { PieceView } from '../render/PieceView';
 import { RobotView } from '../render/RobotView';
 import { SinkView } from '../render/SinkView';
 import { Damage, type DamageEvent } from './Damage';
+import { camaraStart } from './drills';
 import { HumanPlayer } from './HumanPlayer';
 import type { GripMode, MechEvent } from './Mechanisms';
 import { Robot } from './Robot';
@@ -86,6 +89,8 @@ export interface SessionOptions {
   bots?: Array<Partial<BotOptions> | undefined>;
   /** Dificultad de la IA de los robots que no la traen en `bots` (`ai/difficulty.ts`; por defecto difícil). */
   aiLevel?: AiLevel;
+  /** Personalidad del rival de la IA en la práctica 1 contra 1 (`ai/persona.ts`). */
+  aiPersona?: AiPersona;
   /** Lugar de cada robot en su Zona de Inicio (§4.1, `config/startSpot.ts`); por defecto centrado. */
   starts?: Array<StartSpot | undefined>;
   /** Agarre de la garra (`game/Mechanisms.ts`): con compliants (por defecto), preciso o fácil. */
@@ -261,7 +266,7 @@ export class GameSession {
     const rv = this.rival;
     if (rv && this.opts.rival === 'ai') {
       this.bots = [];
-      const o = { ai: this.opts.aiLevel ?? 'normal', auto: 'none', teleop: true, role: 'score', endgame: 'none' } as const;
+      const o = { ai: this.opts.aiLevel ?? 'normal', persona: this.opts.aiPersona, auto: 'none', teleop: true, role: 'score', endgame: 'none' } as const;
       this.bots[rv.index] = new Bot(rv, this.pieces, this.robots, o, new Team(rv.alliance, this.hps[rv.alliance]));
     }
     this.pieceView.capture();
@@ -290,6 +295,22 @@ export class GameSession {
       return this.opts.makeBot?.(r, o, this.robots, this.pieces) ?? new Bot(r, this.pieces, this.robots, o, teams[r.alliance]);
     });
     this.match.start();
+  }
+
+  /**
+   * Escenario de entrenamiento (`core/scenarios.ts`): un match con los 4 robots que arranca a mitad,
+   * con el marcador armado; tu robot sale de la Zona de Inicio o frente a tu Cámara.
+   */
+  startScenario(s: Scenario): void {
+    this.startMatch();
+    const m = this.match!;
+    const me = this.player.alliance;
+    applyScenario(m, s, me);
+    if (s.start === 'camara') {
+      const p = camaraStart(me, this.player.spec);
+      this.player.phys.teleport(p.x, p.z, p.heading);
+    }
+    this.snapViews();
   }
 
   /** Vuelve a práctica libre (sin reloj). */

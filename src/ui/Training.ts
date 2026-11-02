@@ -7,6 +7,7 @@ import type { MechanismKind } from '../config/robot';
 import { formatTimer } from '../core/clock';
 import type { WeeklyChallenge, WeeklyResult } from '../core/weekly';
 import { bestOf, DRILLS, drillTargets, medalCount, MEDALS, PACE, recordRun, type Drill, type DrillId, type Medal, type RunResult, type TrainingProgress } from '../core/training';
+import { scenarioBest, SCENARIOS, type Scenario, type ScenarioId, type ScenarioProgress } from '../core/scenarios';
 import { DrillTracker, setupDrill } from '../game/drills';
 import type { GameSession } from '../game/GameSession';
 import { saveTraining } from '../game/trainingStore';
@@ -51,8 +52,9 @@ export class TrainingScreen {
   constructor(
     private root: HTMLElement,
     private progress: TrainingProgress,
+    private scenarios: ScenarioProgress,
     private robot: () => TrainingRobot,
-    private act: { back: () => void; play: (d: DrillId) => void },
+    private act: { back: () => void; play: (d: DrillId) => void; playScenario: (id: ScenarioId) => void },
   ) {}
 
   show(): void {
@@ -71,6 +73,18 @@ export class TrainingScreen {
           <button class="btn primary" data-play>${ic.play}<span>${t('tn_play')}</span></button>
         </div></div>`;
     };
+    const scn = (s: Scenario): string => {
+      const best = scenarioBest(this.scenarios, s.id, r.id);
+      return `<div class="tn-card" data-scn="${s.id}">
+        ${medalDisc(best?.medal ?? null, 'lg')}
+        <div class="tn-info"><b>${t(`sn_${s.id}` as Key)}</b><p>${t(`sn_${s.id}_goal` as Key)}</p>
+          <small class="tn-meta">${t('sn_from', { s: secs(150 - s.at) })} · ${s.section}</small>
+          <small class="tn-meta">${t(`sn_${s.id}_tip` as Key)}</small></div>
+        <div class="tn-side">
+          <div class="tn-rec">${best ? `<small>${t('tn_record')}</small><b>${best.best >= 0 ? '+' : ''}${best.best} pts</b><small>${t('sn_wins', { w: best.wins, n: best.runs })}</small>` : `<small>${t('tn_noRecord')}</small>`}</div>
+          <button class="btn primary" data-play-scn>${ic.play}<span>${t('tn_play')}</span></button>
+        </div></div>`;
+    };
     this.root.className = 'screen solid';
     this.root.innerHTML = `<div class="inner">
       ${brandbar(t('tn_title'))}
@@ -83,11 +97,17 @@ export class TrainingScreen {
           .join('')}</span>
         <small>${t('tn_robotNote')}${PACE[r.mech] !== 1 ? ` · ${t('tn_pace', { k: PACE[r.mech] })}` : ''}</small></div>
       <div class="tn-list">${DRILLS.map(card).join('')}</div>
+      <h2>${t('sn_title')}</h2>
+      <p class="sub">${t('sn_sub')}</p>
+      <div class="tn-list">${SCENARIOS.map(scn).join('')}</div>
       <div class="actionbar">${backBtn('data-act="back"')}<div class="grow"></div></div>
     </div>`;
     this.root.style.display = '';
     this.root.scrollTop = 0;
     this.root.querySelector('[data-act="back"]')!.addEventListener('click', () => this.act.back());
+    this.root.querySelectorAll<HTMLElement>('[data-play-scn]').forEach((b) =>
+      b.addEventListener('click', () => this.act.playScenario(b.closest<HTMLElement>('[data-scn]')!.dataset.scn as ScenarioId)),
+    );
     this.root.querySelectorAll<HTMLElement>('[data-play]').forEach((b) =>
       b.addEventListener('click', () => this.act.play(b.closest<HTMLElement>('[data-id]')!.dataset.id as DrillId)),
     );
