@@ -557,7 +557,6 @@ export class Menu {
     });
     this.on('[data-act="defaults"]', () => {
       inp.cancelCapture();
-      if (!window.confirm(t('resetControlsConfirm'))) return;
       apply(cloneBindings(DEFAULT_BINDINGS));
     });
   }
