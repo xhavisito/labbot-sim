@@ -2,19 +2,25 @@
  * Práctica 1 contra 1: tu robot en la cancha con un rival quieto, uno de la IA o ninguno (se
  * cambia aquí o en Ajustes), sin reloj de match y con Muestras ilimitadas del Human Player. Un
  * cronómetro de ciclos (recoger → anotar) lleva las estadísticas por Muestra: N1/N2/N3 y Crítica,
- * intentos vs. anotadas, tiempo promedio y mejor ciclo. La lógica está en `core/cycles.ts` y la
- * cuenta sobre la física en `game/cycleTracker.ts`.
+ * intentos vs. anotadas, tiempo promedio y mejor ciclo, con cada ciclo partido en buscar y llevar.
+ * El mapa de tiro dice desde dónde soltaste cada pieza (y si contó), el del rival y tu mapa
+ * acumulado por robot. La lógica está en `core/cycles.ts` y `core/scoreMap.ts`; la cuenta sobre la
+ * física en `game/cycleTracker.ts`.
  *
  * Estados: listo → cuenta de 3 s → practicando → resultado.
  */
 import { PRACTICE_LIMITS, RIVALS, type PracticeSettings } from '../config/settings';
 import { formatTimer } from '../core/clock';
 import { CYCLE_CATS, updateBests, type CycleBests, type CycleCat, type CycleSummary } from '../core/cycles';
+import { addShots, asRed, zoneStats, ZONES, type Shot, type ShotLog } from '../core/scoreMap';
+import * as F from '../config/field';
 import { CycleTracker } from '../game/cycleTracker';
+import { saveShotLog } from '../game/shotStore';
 import type { GameSession } from '../game/GameSession';
 import { saveCycleBests } from '../game/cycleStore';
 import { emptyInput, type PlayerInput } from '../input/InputManager';
 import { ic } from './chrome';
+import { ALLIANCE_RGB, drawShotMap } from './shotMap';
 import { t, type Key } from './i18n';
 
 type Phase = 'brief' | 'countdown' | 'running' | 'result';
@@ -32,6 +38,8 @@ export interface Practice1v1Host {
   /** Cambia rival o duración: la sesión se arma de nuevo con ellos. */
   change: (p: PracticeSettings) => void;
   bests: CycleBests;
+  /** Mapa de tiro acumulado por robot (se guarda al terminar cada práctica). */
+  shots: ShotLog;
   robot: { id: string; name: string };
   exit: () => void;
 }
@@ -43,6 +51,9 @@ export class Practice1v1 {
   private tracker: CycleTracker | null = null;
   private summary: CycleSummary | null = null;
   private newBests: CycleCat[] = [];
+  /** Tiros de la última práctica (tuyos y del rival), en coordenadas de la cancha. */
+  private lastShots: { mine: Shot[]; rival: Shot[] } | null = null;
+  private mapView: 'session' | 'all' = 'session';
   private onKey = (e: KeyboardEvent): void => {
     if (e.code !== 'Enter' || (this.phase !== 'brief' && this.phase !== 'result') || this.root.style.display === 'none') return;
     e.preventDefault();
@@ -140,6 +151,11 @@ export class Practice1v1 {
     this.summary = tr.stats.summary();
     this.newBests = updateBests(this.h.bests, this.h.robot.id, this.summary);
     saveCycleBests(this.h.bests);
+    const a = this.s.player.alliance;
+    this.lastShots = { mine: [...tr.stats.shots], rival: [...tr.rivalShots] };
+    addShots(this.h.shots, this.h.robot.id, tr.stats.shots.map((x) => asRed(x, a)));
+    saveShotLog(this.h.shots);
+    this.mapView = 'session';
     this.stop();
     this.phase = 'result';
     this.render();
@@ -160,7 +176,8 @@ export class Practice1v1 {
     el.classList.toggle('low', left !== null && left <= 5);
     if (pr) {
       const s = tr.stats.summary();
-      const last = s.last === null ? '' : ` · ${t('p1_last')} ${secs(s.last)}`;
+      const r = tr.stats.records[tr.stats.records.length - 1];
+      const last = r ? ` · ${t('p1_last')} ${secs(r.search + r.time)} (${t('p1_split', { b: secs(r.search), l: secs(r.time) })})` : '';
       pr.textContent = `${t('p1_chip', { n: s.cycles, p: s.points })}${last}`;
     }
   }
@@ -190,6 +207,49 @@ export class Practice1v1 {
       <tbody>${rows}${total}</tbody></table>`;
   }
 
+  /** Tiros del mapa elegido y la Cámara contra la que se miden las zonas. */
+  private mapShots(): { mine: Shot[]; rival: Shot[]; camara: F.Rect } {
+    const all = this.h.shots.robots[this.h.robot.id] ?? [];
+    if (this.mapView === 'all' || !this.lastShots) return { mine: all, rival: [], camara: F.camaraRect('red') };
+    return { ...this.lastShots, camara: F.camaraRect(this.s.player.alliance) };
+  }
+
+  /** Mapa de tiro con su selector (esta práctica / acumulado) y la tabla de zonas. */
+  private mapHtml(): string {
+    const all = this.h.shots.robots[this.h.robot.id] ?? [];
+    if (!this.lastShots && !all.length) return '';
+    if (!this.lastShots) this.mapView = 'all';
+    const { mine, camara } = this.mapShots();
+    const z = zoneStats(mine, camara);
+    const rows = ZONES.map((k) => {
+      const x = z.byZone[k];
+      const star = z.best === k ? ` <b class="tn-new" title="${t('p1_bestZone')}">★</b>` : '';
+      return `<tr class="${x.tried ? '' : 'dim'}"><th>${t(`p1_zone_${k}` as Key)}${star}</th><td>${x.made}/${x.tried}</td><td>${pct(x.accuracy)}</td></tr>`;
+    }).join('');
+    const seg = this.lastShots
+      ? `<div class="seg" data-map><button class="${this.mapView === 'session' ? 'on' : ''}" data-v="session">${t('p1_mapSession')}</button><button class="${this.mapView === 'all' ? 'on' : ''}" data-v="all">${t('p1_mapAll', { n: all.length })}</button></div>`
+      : `<small class="tn-meta">${t('p1_mapAll', { n: all.length })}</small>`;
+    const note = this.mapView === 'all' ? t('p1_mapAllNote') : this.lastShots?.rival.length ? t('p1_mapRivalNote') : '';
+    return `<div class="p1-map"><div class="p1-map-head"><b>${t('p1_mapTitle')}</b>${seg}</div>
+      <canvas class="heat p1-shots" width="${Math.round(F.FIELD_LENGTH * 80)}" height="${Math.round(F.FIELD_WIDTH * 80)}"></canvas>
+      <p class="p1-legend">${t('p1_mapLegend')}${note ? ` ${note}` : ''}</p>
+      <table class="p1-table p1-zones"><thead><tr><th>${t('p1_th_zone')}</th><th>${t('p1_th_scored')}</th><th>${t('p1_th_acc')}</th></tr></thead><tbody>${rows}</tbody></table>
+      <p class="ap-note">${t('p1_mapAssume')}</p></div>`;
+  }
+
+  private drawMap(): void {
+    const cv = this.root.querySelector<HTMLCanvasElement>('canvas.p1-shots');
+    if (!cv) return;
+    const { mine, rival } = this.mapShots();
+    const a = this.mapView === 'all' ? 'red' : this.s.player.alliance;
+    const other = a === 'red' ? 'blue' : 'red';
+    drawShotMap(cv, {
+      cells: mine,
+      // En el acumulado hay demasiados tiros para un punto por cada uno: solo las celdas
+      dots: this.mapView === 'all' ? [] : [{ shots: rival, rgb: ALLIANCE_RGB[other] }, { shots: mine, rgb: ALLIANCE_RGB[a] }],
+    });
+  }
+
   private render(): void {
     const ph = this.phase;
     document.body.classList.toggle('ap-open', ph !== 'running');
@@ -206,9 +266,10 @@ export class Practice1v1 {
     const s = this.summary;
     const body =
       ph === 'result' && s
-        ? `<p class="tn-note">${t('p1_resultNote', { t: secs(s.time), c: s.cycles, m: s.perMinute.toFixed(1) })}</p>${this.tableHtml(s)}
-          <p class="ap-note">${t('p1_assume')}</p>`
-        : `<p class="tn-goal">${t('p1_goal')}</p><p class="ap-note">${t('p1_assume')}</p>`;
+        ? `<p class="tn-note">${t('p1_resultNote', { t: secs(s.time), c: s.cycles, m: s.perMinute.toFixed(1) })}</p>
+          <p class="tn-note">${t('p1_splitNote', { b: secs(s.avgSearch), l: secs(s.avg), f: secs(s.avgFull) })}</p>${this.tableHtml(s)}
+          <p class="ap-note">${t('p1_assume')}</p>${this.mapHtml()}`
+        : `<p class="tn-goal">${t('p1_goal')}</p><p class="ap-note">${t('p1_assume')}</p>${this.mapHtml()}`;
     this.root.innerHTML = `<div class="ap-panel tn-panel p1-panel">
       <div class="ap-head">${ic.medal}<b>${t('p1_title')}</b>
         <button class="hud-btn" data-a="exit" title="${t('tn_exit')}">${ic.x}</button></div>
@@ -220,6 +281,13 @@ export class Practice1v1 {
     const on = (a: string, fn: () => void) => this.root.querySelectorAll<HTMLElement>(`[data-a="${a}"]`).forEach((el) => el.addEventListener('click', fn));
     on('exit', () => this.h.exit());
     on('start', () => this.start());
+    this.drawMap();
+    this.root.querySelectorAll<HTMLElement>('[data-map] button').forEach((b) =>
+      b.addEventListener('click', () => {
+        this.mapView = b.dataset.v === 'all' ? 'all' : 'session';
+        this.render();
+      }),
+    );
     this.root.querySelectorAll<HTMLElement>('[data-seg] button').forEach((b) =>
       b.addEventListener('click', () => {
         const k = b.parentElement!.dataset.seg as keyof PracticeSettings;

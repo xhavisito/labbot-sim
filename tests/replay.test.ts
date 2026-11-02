@@ -6,7 +6,9 @@ import { initRapier } from '../src/physics/PhysicsWorld';
 import { decodeReplay, encodeReplay, frameScore, frameTime, REPLAY_HZ, robotFrame, type Replay } from '../src/replay/format';
 import { Recorder } from '../src/replay/Recorder';
 import { ReplayPlayer } from '../src/replay/ReplayPlayer';
-import { robotStats, totalSamples } from '../src/replay/stats';
+import { frameAt, robotStats, totalSamples } from '../src/replay/stats';
+import * as F from '../src/config/field';
+import { distToRect } from '../src/core/scoreMap';
 
 beforeAll(async () => {
   await initRapier();
@@ -70,6 +72,18 @@ describe('repeticiones', () => {
       expect(s.distance).toBeGreaterThan(1);
       expect(s.maxSpeed).toBeLessThanOrEqual(PIVOT_ROBOT.maxSpeed + 0.5);
     }
+  });
+
+  it('dónde anotó: un lugar por Muestra, cerca de su Cámara (§3.2.3)', () => {
+    for (const s of robotStats(replay)) {
+      expect(s.scoreSpots.length).toBe(s.scoreTimes.length);
+      const cam = F.camaraRect(replay.header.robots[s.index].alliance);
+      // El pivote suelta con el brazo estirado: el centro del robot queda a menos de ~1.5 m de la Cámara
+      for (const p of s.scoreSpots) expect(distToRect(p.x, p.z, cam)).toBeLessThan(1.5);
+    }
+    expect(frameAt(replay, -5)).toBe(0);
+    expect(frameAt(replay, 1e6)).toBe(replay.header.frames - 1);
+    expect(frameTime(replay, frameAt(replay, 10))).toBeCloseTo(10, 0);
   });
 
   it('el archivo se lee igual que se escribió', () => {

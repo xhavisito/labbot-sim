@@ -1244,3 +1244,10 @@ body.touch-on .plan-card { left: auto; right: calc(var(--gut) + var(--safe-r)); 
 .p1-table tbody th { text-align: left; font-weight: 700; }
 .p1-table tr.dim { opacity: 0.45; }
 .p1-table tr.total { font-weight: 800; color: var(--accent); }
+
+/* Mapa de tiro de la práctica por ciclos */
+.p1-map { margin-top: 1em; padding-top: 0.8em; border-top: 1px solid var(--line); }
+.p1-map-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.5em; }
+.p1-map canvas.p1-shots { margin: 0.6em 0 0.4em; }
+.p1-legend { margin: 0; color: var(--muted); font-size: 0.8em; line-height: 1.4; }
+.p1-zones { max-width: 18em; }

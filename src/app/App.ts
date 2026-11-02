@@ -47,6 +47,7 @@ import { TournamentScreen, WATCH_CAMERA } from '../ui/TournamentScreen';
 import { TrainingRun, TrainingScreen, type TrainingRobot } from '../ui/Training';
 import { Practice1v1 } from '../ui/Practice1v1';
 import { loadCycleBests } from '../game/cycleStore';
+import { loadShotLog } from '../game/shotStore';
 import { StrategyScreen } from '../ui/StrategyScreen';
 import { PlanView } from '../render/PlanView';
 
@@ -112,6 +113,8 @@ export class App {
   /** Práctica 1 contra 1 en curso (`ui/Practice1v1.ts`). */
   practice1v1: Practice1v1 | null = null;
   readonly cycleBests = loadCycleBests();
+  /** Mapa de tiro acumulado por robot de la práctica por ciclos. */
+  readonly shotLog = loadShotLog();
   /** Aviso de resultados del último match del torneo (se guarda una vez; los resultados se reabren). */
   private tourNote = '';
   /** `?touch=1` fuerza los controles touch (para probar en escritorio). */
@@ -238,6 +241,7 @@ export class App {
           this.start(c);
         },
         bests: this.cycleBests,
+        shots: this.shotLog,
         robot: { id: this.settings.robotType, name: robotLabel(this.session.player.spec) },
         exit: () => this.toMenu(),
       });
