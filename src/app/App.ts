@@ -35,6 +35,7 @@ import { loadScout } from '../game/scoutStore';
 import { planById } from '../game/planStore';
 import type { StrategyPlan } from '../core/plan';
 import { InputManager } from '../input/InputManager';
+import { rumblePad } from '../input/rumble';
 import { CAMERA_MODES, CameraRig, type CameraMode } from '../render/CameraRig';
 import { Arena } from '../render/Arena';
 import { Effects } from '../render/Effects';
@@ -63,6 +64,7 @@ import { TournamentScreen, WATCH_CAMERA } from '../ui/TournamentScreen';
 import { TrainingRun, TrainingScreen, type TrainingRobot } from '../ui/Training';
 import { Practice1v1 } from '../ui/Practice1v1';
 import { loadCycleBests } from '../game/cycleStore';
+import { loadGhosts } from '../game/ghostStore';
 import { loadShotLog } from '../game/shotStore';
 import { matchFacts, recordMatch, emptyAch, type AchProgress } from '../core/achievements';
 import { loadAch, saveAch } from '../game/achievementStore';
@@ -164,6 +166,7 @@ export class App {
   /** Práctica 1 contra 1 en curso (`ui/Practice1v1.ts`). */
   practice1v1: Practice1v1 | null = null;
   readonly cycleBests = loadCycleBests();
+  readonly ghosts = loadGhosts();
   /** Mapa de tiro acumulado por robot de la práctica por ciclos. */
   readonly shotLog = loadShotLog();
   /** Logros y progreso (localStorage) y su pantalla; `achNew` = logros del último match. */
@@ -368,6 +371,7 @@ export class App {
           this.start(c);
         },
         bests: this.cycleBests,
+        ghosts: this.ghosts,
         shots: this.shotLog,
         robot: { id: this.settings.robotType, name: robotLabel(this.session.player.spec) },
         exit: () => this.toMenu(),
@@ -808,10 +812,20 @@ export class App {
     }
     this.endgameWatch.cfg = s.game;
     calls.push(...this.endgameWatch.update(dt, m.phase, platform, critical));
+    this.rumbleEvents(s, calls);
     if (!calls.length) return;
     const texts = calls.map(refText);
     this.hud.referee(texts);
     calls.forEach((c, i) => this.audio.referee(c.sound, texts[i].voice, voiceLang()));
+  }
+
+  /** Vibración del control (`input/rumble.ts`): al anotar tu alianza y con faltas o tarjetas en tu contra. */
+  private rumbleEvents(s: GameSession, calls: readonly RefCall[]): void {
+    if (!this.settings.rumble) return;
+    const mine = s.robots[s.opts.player]?.alliance;
+    if (!mine) return;
+    if (s.matchEvents.some((e) => e.type === 'sample' && e.alliance === mine)) rumblePad(this.input.pad(), 'score');
+    if (calls.some((c) => c.alliance === mine && (c.kind === 'foul' || c.kind === 'tech' || c.kind === 'yellow' || c.kind === 'red'))) rumblePad(this.input.pad(), 'foul');
   }
 
   toMenu(): void {

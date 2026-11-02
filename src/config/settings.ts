@@ -78,6 +78,8 @@ export interface Settings {
   quality: 'auto' | 'low' | 'medium' | 'high';
   /** Mostrar FPS y tiempos en pantalla durante el match (también con F3 o `?fps=1`). */
   showFps: boolean;
+  /** Vibración del control al anotar y con faltas en tu contra (`input/rumble.ts`). */
+  rumble: boolean;
   /**
    * Agarre de la garra (`game/Mechanisms.ts`): con compliants (agarra de cualquier ángulo con la
    * garra abajo), preciso (alinear y entrar despacio) o fácil (el de antes).
@@ -146,6 +148,7 @@ export const DEFAULT_SETTINGS: Settings = {
   touch: 'auto',
   quality: 'auto',
   showFps: false,
+  rumble: true,
   grip: 'compliant',
   damage: { ...DEFAULT_DAMAGE },
   // SUPUESTO: por defecto el rival está quieto, como un obstáculo que no te quita Muestras
@@ -246,6 +249,7 @@ export function sanitizeSettings(raw: unknown, autoIds: readonly string[]): Sett
     touch: o.touch === 'on' || o.touch === 'off' ? o.touch : d.touch,
     quality: o.quality === 'low' || o.quality === 'medium' || o.quality === 'high' ? o.quality : d.quality,
     showFps: typeof o.showFps === 'boolean' ? o.showFps : d.showFps,
+    rumble: typeof o.rumble === 'boolean' ? o.rumble : d.rumble,
     // 'real' (el agarre estricto del 29-oct, entonces por defecto) pasa a compliants
     grip: GRIP_MODES.find((g) => g === o.grip) ?? d.grip,
     damage: sanitizeDamage(o.damage),
