@@ -7,7 +7,7 @@
 import { GAME } from '../config/game';
 import { bounds, formatTimer, timerSeconds } from '../core/clock';
 import type { FaultKind } from '../core/damage';
-import { RULES } from '../core/fouls';
+import type { RefText } from './refText';
 import type { MatchEvent } from '../core/match';
 import { ALLIANCES } from '../core/types';
 import type { GameSession } from '../game/GameSession';
@@ -49,6 +49,8 @@ export class Hud {
   private pill: HTMLElement;
   private pillCount: HTMLElement;
   private player: HTMLElement;
+  /** Tarjeta del jugador 2 (multijugador local). */
+  private player2: HTMLElement;
   private toasts: HTMLElement;
   private camLabel: HTMLElement;
   private resetBtn: HTMLElement;
@@ -90,6 +92,8 @@ export class Hud {
     this.pillCount = el('div', 'pp-count', this.pill);
 
     this.player = el('div', 'player', this.root);
+    this.player2 = el('div', 'player p2', this.root);
+    this.player2.style.display = 'none';
     this.toasts = el('div', 'toasts', this.root);
 
     const tr = el('div', 'hud-tr', this.root);
@@ -161,6 +165,7 @@ export class Hud {
   }
 
   show(v: boolean): void {
+    this.player2.style.display = 'none';
     this.root.style.display = v ? '' : 'none';
     this.lastKey = '';
     this.lastScore = { red: -1, blue: -1 };
@@ -183,11 +188,20 @@ export class Hud {
         else if (e.phase === 'ENDGAME') this.toast(t('endgameStart'), 'big warn');
       } else if (e.type === 'sample') this.toast(t('sampleScored', { level: e.level, alliance: t(e.alliance), points: e.points }), e.alliance);
       else if (e.type === 'autoLine') this.toast(t('autoLineMsg', { alliance: t(e.alliance), robot: (e.robot % 2) + 1 }), e.alliance);
-      else if (e.type === 'foul') {
-        const r = RULES[e.foul.rule];
-        this.toast(t('foulMsg', { kind: e.foul.kind === 'TECH' ? 'Tech Foul' : 'Foul', alliance: t(e.foul.offender), robot: (e.foul.robot % 2) + 1, rule: `${r.es} (${r.section})` }), 'foul');
-      } else if (e.type === 'card')
-        this.toast(`${e.card.type} CARD · ${t(e.card.alliance)} ${(e.card.robot % 2) + 1}: ${e.card.reason}`, e.card.type === 'RED' ? 'card-red' : 'card-yellow');
+      // Las faltas y tarjetas las anuncia el árbitro (`referee`, con su sección del manual)
+    }
+  }
+
+  /** Carteles del árbitro: faltas, tarjetas, Plataforma y Muestra Crítica, con la sección del manual. */
+  referee(calls: readonly RefText[]): void {
+    for (const c of calls) {
+      const d = el('div', `toast refcall ${c.cls}`, this.toasts);
+      el('b', 'rc-title', d).textContent = c.title;
+      el('span', 'rc-detail', d).textContent = c.detail;
+      el('span', 'rc-sec', d).textContent = c.section;
+      setTimeout(() => d.classList.add('out'), 3400);
+      setTimeout(() => d.remove(), 4000);
+      while (this.toasts.children.length > 4) this.toasts.firstElementChild?.remove();
     }
   }
 
@@ -224,13 +238,14 @@ export class Hud {
     const m = s.match;
     const me = s.player;
     const mech = me.mech;
-    const kind = me.spec.mechanism;
     const elev = mech.stowed ? t('stowed') : t('elevatorNames').split('|')[mech.target];
     const time = m ? formatTimer(timerSeconds(m.t, s.game)) : '';
     const score = { red: m ? m.score('red') : s.practiceCount.red, blue: m ? m.score('blue') : s.practiceCount.blue };
     const faults = [...s.damage.faults(me.index)];
     const faultKey = faults.map(([k, left]) => `${k}${left === Infinity ? '' : Math.ceil(left)}`).join(',');
-    const key = `${score.red}|${score.blue}|${time}|${m?.phase}|${me.index}|${mech.capacity}|${mech.stored.length}|${!!mech.critical}|${elev}|${mech.intakeOn}|${mech.inClaw}|${cam}|${faultKey}`;
+    const p2 = s.player2;
+    this.root.classList.toggle('versus', !!p2);
+    const key = `${p2 ? p2.mech.stored.length + '/' + !!p2.mech.critical + '/' + p2.mech.intakeOn + '/' + p2.mech.target + '/' + [...s.damage.faults(p2.index).keys()] : ''}|${score.red}|${score.blue}|${time}|${m?.phase}|${me.index}|${mech.capacity}|${mech.stored.length}|${!!mech.critical}|${elev}|${mech.intakeOn}|${mech.inClaw}|${cam}|${faultKey}`;
     if (key === this.lastKey) return;
     this.lastKey = key;
     this.root.classList.toggle('practice', !m);
@@ -264,17 +279,28 @@ export class Hud {
     } else
       this.pillCount.innerHTML = `<b>${score[me.alliance]}</b><span>${t('practiceScored')}</span>${s.hps[me.alliance].enabled ? `<span class="pp-hp">HP ∞</span>` : ''}`;
 
+    this.card(this.player, s, me, p2 ? t('vs_p1') : t('you'));
+    this.player2.style.display = p2 ? '' : 'none';
+    if (p2) this.card(this.player2, s, p2, t('vs_p2'));
+    this.camLabel.querySelector('span')!.textContent = t(`cam_${cam}` as Key);
+  }
+
+  /** Tarjeta de un robot manejado por una persona: Muestras, garra, brazo y fallas. */
+  private card(box: HTMLElement, s: GameSession, me: GameSession['player'], tag: string): void {
+    const mech = me.mech;
+    const kind = me.spec.mechanism;
+    const elev = mech.stowed ? t('stowed') : t('elevatorNames').split('|')[mech.target];
+    const faults = [...s.damage.faults(me.index)];
     const full = mech.stored.length >= mech.capacity;
-    this.player.className = `player ${me.alliance} ${full ? 'full' : ''}`;
-    this.player.innerHTML = `
-      <div class="p-head"><span class="p-num">${t(me.alliance).slice(0, 1)}${me.station + 1}</span><span class="p-name">${t(`type_${kind}` as Key)}</span><span class="p-tag">${t('you')}</span></div>
+    box.className = `player ${box.classList.contains('p2') ? 'p2 ' : ''}${me.alliance} ${full ? 'full' : ''}`;
+    box.innerHTML = `
+      <div class="p-head"><span class="p-num">${t(me.alliance).slice(0, 1)}${me.station + 1}</span><span class="p-name">${t(`type_${kind}` as Key)}</span><span class="p-tag">${tag}</span></div>
       <div class="p-hopper"><div class="p-fuel"><b>${mech.stored.length}</b><small>/${mech.capacity}</small><span>${t('stored')}</span></div>
         <div class="hbar">${Array.from({ length: mech.capacity }, (_, i) => `<i class="${i < mech.stored.length ? 'on' : ''}"></i>`).join('')}</div></div>
       <div class="chips"><span class="${mech.intakeOn ? 'on' : 'off'}">${t('intake')} ${mech.intakeOn ? t('on') : t('off')}</span>
         <span class="${mech.critical ? 'on' : 'off'}">${t('critical')} ${mech.critical ? '■' : '–'}</span>
         <span class="${mech.inClaw ? 'on' : 'off'}">${t('claw')} ${mech.inClaw ? '■' : '–'}</span>
         <span>${t('arm')}: ${elev}</span></div>${faults.length ? `<div class="faults">${faults.map(([k, left]) => faultChip(k, left)).join('')}</div>` : ''}`;
-    this.player.classList.toggle('damaged', faults.length > 0);
-    this.camLabel.querySelector('span')!.textContent = t(`cam_${cam}` as Key);
+    box.classList.toggle('damaged', faults.length > 0);
   }
 }

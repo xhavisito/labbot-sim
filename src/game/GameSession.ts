@@ -53,6 +53,12 @@ export interface SessionTap {
 export interface SessionOptions {
   /** Robot que maneja el jugador (0–1 rojo, 2–3 azul). */
   player: number;
+  /**
+   * Multijugador local (`ui/VersusSetup.ts`): robot que maneja una segunda persona, en la alianza
+   * contraria (SUPUESTO de diseño: el manual no habla de simuladores; cada alianza tiene su driver,
+   * §1). Se ignora si es de la misma alianza que `player`, si no existe o en una sesión `solo`.
+   */
+  player2?: number;
   /** Precarga de 1 Muestra por robot (§4.1). */
   preload: boolean;
   specs?: RobotSpec[];
@@ -132,7 +138,8 @@ export class GameSession {
   /** IA de cada robot (AUTO de IA y/o TELEOP), coordinada por alianza en un `Team`. */
   bots: Array<BotDriver | null> = [];
   private acc = 0;
-  private input: PlayerInput | null = null;
+  /** Mandos de las personas para el siguiente paso, por robot (el jugador y, en multijugador, el jugador 2). */
+  private inputs = new Map<number, PlayerInput>();
   private stepMechEvents: MechEvent[] = [];
   /** Tiempo de simulación (s). */
   time = 0;
@@ -177,7 +184,7 @@ export class GameSession {
       r.mech.grip = opts.grip ?? 'compliant';
       r.mech.rand = rand;
     }
-    this.damage = new Damage(this.robots, opts.damage ?? { ...DEFAULT_DAMAGE, level: 'off' }, rand, opts.player, this.pw.dt);
+    this.damage = new Damage(this.robots, opts.damage ?? { ...DEFAULT_DAMAGE, level: 'off' }, rand, this.humans, this.pw.dt);
     this.robots.forEach((r, i) => (this.robotViews[i].faults = () => this.damage.faults(r.index)));
     this.referee = new Referee(this.pw, this.robots, () => this.match, { pieces: this.pieces, sensors: this.sensors });
     this.resetField();
@@ -197,6 +204,26 @@ export class GameSession {
 
   get player(): Robot {
     return this.robots.find((r) => r.index === this.opts.player) ?? this.robots[0];
+  }
+
+  /** Índice del robot del jugador 2 (multijugador local); −1 si no hay. Siempre de la otra alianza. */
+  get player2Index(): number {
+    const { player, player2, solo } = this.opts;
+    if (solo || player < 0 || player2 === undefined || player2 < 0 || player2 > 3) return -1;
+    return player2 < 2 !== player < 2 ? player2 : -1;
+  }
+
+  /** Robot del jugador 2 (multijugador local), si hay. */
+  get player2(): Robot | null {
+    const i = this.player2Index;
+    return i < 0 ? null : (this.robots.find((r) => r.index === i) ?? null);
+  }
+
+  /** Robots que manejan personas (la IA no los toca en el TELEOP). */
+  get humans(): number[] {
+    const out = this.opts.player >= 0 ? [this.opts.player] : [];
+    const p2 = this.player2Index;
+    return p2 >= 0 ? [...out, p2] : out;
   }
 
   /** Fase actual ('PRE' en práctica, sin match). */
@@ -255,7 +282,7 @@ export class GameSession {
     const teams = { red: new Team('red', this.hps.red), blue: new Team('blue', this.hps.blue) };
     this.bots = this.robots.map((r) => {
       const routine = this.autos[r.index].routine.bot;
-      const teleop = !!this.opts.ai && r.index !== this.opts.player;
+      const teleop = !!this.opts.ai && !this.humans.includes(r.index);
       if (!routine && !teleop) return null;
       // El robot del jugador con AUTO de IA juega como "difícil" (es su rutina, no un rival)
       const ai = teleop ? (this.opts.aiLevel ?? 'hard') : 'hard';
@@ -272,16 +299,30 @@ export class GameSession {
     this.resetField();
   }
 
-  /** Entrada del jugador para el siguiente cuadro. */
+  /** Entrada del jugador para el siguiente cuadro (también vacía los eventos del cuadro anterior). */
   setInput(inp: PlayerInput): void {
-    this.input = inp;
     this.events.length = 0;
     this.matchEvents.length = 0;
     this.damageEvents.length = 0;
+    if (this.pilot) {
+      this.inputs.delete(this.player.index);
+      return;
+    }
+    this.applyInput(this.player, inp, this.tapActs);
+  }
+
+  /** Entrada del jugador 2 (multijugador local) para el siguiente cuadro; llamar después de `setInput`. */
+  setInput2(inp: PlayerInput): void {
+    const r = this.player2;
+    if (r) this.applyInput(r, inp, {});
+  }
+
+  /** Mandos de una persona sobre su robot: manejo en el paso y acciones de la garra y el brazo ya. */
+  private applyInput(r: Robot, inp: PlayerInput, a: Omit<AutoOutput, 'forward' | 'turn'>): void {
+    this.inputs.set(r.index, inp);
     // En AUTO el robot sigue su rutina; fuera del match habilitado (PRE en match, DONE) no se mueve
-    if (!this.playerEnabled() || this.pilot || this.damage.disabled(this.player.index)) return;
-    const m = this.player.mech;
-    const a = this.tapActs;
+    if (!this.playerEnabled() || this.damage.disabled(r.index)) return;
+    const m = r.mech;
     // Un solo botón por acción para las dos piezas (Xhavi, 30-oct): la garra trabaja solo mientras se
     // mantiene presionado; al soltarlo se apaga. Con el botón presionado toma la Muestra Crítica en
     // cuanto la tiene al alcance y a su altura; si no, agarra Muestras. Soltar suelta lo que traiga
@@ -328,7 +369,7 @@ export class GameSession {
         if (o.grabCritical) r.mech.grabCritical(this.stepMechEvents);
         if (o.releaseCritical) r.mech.release('critical', this.stepMechEvents);
       } else if (runner) {
-        const o = runner.step(dt);
+        const o = runner.step(dt, r);
         forward = Math.max(-1, Math.min(1, o.raw ? o.forward : (o.forward * AUTO_REF_SPEED) / r.spec.maxSpeed));
         turn = o.turn;
         if (o.elevator !== undefined) r.mech.target = o.elevator;
@@ -336,13 +377,16 @@ export class GameSession {
         if (o.release) r.mech.release('sample', this.stepMechEvents);
         if (o.grabCritical) r.mech.grabCritical(this.stepMechEvents);
         if (o.releaseCritical) r.mech.release('critical', this.stepMechEvents);
-      } else if (enabled && !off && r === this.player && this.input) {
-        forward = this.input.forward;
-        turn = this.input.turn;
-        slow = this.input.slow;
-        const k = slow ? 0.5 : 1;
-        this.inputTap?.({ forward: forward * k, turn: turn * k, ...this.tapActs });
-        this.tapActs = {};
+      } else if (enabled && !off && this.inputs.has(r.index) && this.playerEnabled()) {
+        const inp = this.inputs.get(r.index)!;
+        forward = inp.forward;
+        turn = inp.turn;
+        slow = inp.slow;
+        if (r === this.player) {
+          const k = slow ? 0.5 : 1;
+          this.inputTap?.({ forward: forward * k, turn: turn * k, ...this.tapActs });
+          this.tapActs = {};
+        }
       }
       if (!enabled || off) r.mech.intakeOn = false;
       const k = slow ? 0.5 : 1;

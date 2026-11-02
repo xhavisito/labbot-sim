@@ -13,9 +13,20 @@
  *    cae en la Cámara rival (D14: sería para el rival), en el piso, o la vuelves a recoger, falla.
  *  - El intento se cuenta en el nivel donde cayó la pieza si anotó; si falló, en el nivel al que
  *    apuntaba el elevador.
+ *  - Cada ciclo se parte en "buscar" (de que contó la anterior, o de que arrancó la práctica, a
+ *    recoger esta) y "llevar" (de recoger a que cuente). El ciclo completo es la suma.
+ *  - Cada intento guarda dónde estaba el robot al soltar (o al contar, si entró sin soltarla) para
+ *    el mapa de tiro (`core/scoreMap.ts`).
  */
 import type { GameConfig } from '../config/game';
+import type { Shot } from './scoreMap';
 import type { Level } from './types';
+
+/** Posición del robot en el piso (m). */
+export interface Spot {
+  x: number;
+  z: number;
+}
 
 /** Categorías de las estadísticas: los tres niveles de la Cámara (§3.2.3) y la Muestra Crítica (§3.2.5). */
 export type CycleCat = 'n1' | 'n2' | 'n3' | 'critical';
@@ -30,7 +41,10 @@ export interface CycleRecord {
   /** Segundo (desde que arrancó la práctica) en que se recogió y en que anotó. */
   start: number;
   end: number;
+  /** Lo que tardó en llevarla (de recoger a anotar). */
   time: number;
+  /** Lo que tardó en buscarla: de que contó la anterior (o del arranque) a recogerla. */
+  search: number;
   points: number;
 }
 
@@ -56,6 +70,9 @@ export interface CycleSummary {
   best: number | null;
   last: number | null;
   points: number;
+  /** Promedio (s) de buscar y de ciclo completo (buscar + llevar); null sin anotar. */
+  avgSearch: number | null;
+  avgFull: number | null;
   /** Muestras anotadas por minuto (sin la Crítica). */
   perMinute: number;
   byCat: Record<CycleCat, CatStats>;
@@ -67,6 +84,7 @@ interface Pending {
   at: number;
   /** Cuándo se recogió (inicio del ciclo). */
   start: number;
+  spot: Spot | null;
 }
 
 /**
@@ -76,6 +94,10 @@ interface Pending {
 export class CycleStats {
   readonly records: CycleRecord[] = [];
   readonly failed: Record<CycleCat, number> = { n1: 0, n2: 0, n3: 0, critical: 0 };
+  /** Intentos con la posición del robot (aciertos y fallos), para el mapa de tiro. */
+  readonly shots: Shot[] = [];
+  /** Cuándo contó la última pieza (inicio de la búsqueda de la siguiente). */
+  private lastEnd = 0;
   /** Pieza → segundo en que la recogió (ciclo abierto). */
   private carried = new Map<number, number>();
   /** Intentos esperando a ver si cuentan. */
@@ -98,24 +120,26 @@ export class CycleStats {
   }
 
   /** Soltó una pieza. `cat` = a dónde apuntaba (null = abajo, no es intento). */
-  release(piece: number, cat: CycleCat | null, t: number): void {
+  release(piece: number, cat: CycleCat | null, t: number, spot: Spot | null = null): void {
     this.advance(t);
     const start = this.carried.get(piece);
     this.carried.delete(piece);
     if (cat === null || start === undefined) return;
-    this.pending.push({ piece, cat, at: t, start });
+    this.pending.push({ piece, cat, at: t, start, spot });
   }
 
   /**
    * La pieza contó en tu Cámara (o la Crítica en tu Repisa). Si no había intento (la empujó o la
    * soltó abajo y entró) cuenta igual, como intento acertado, con el ciclo desde que la recogió.
    */
-  scored(piece: number, cat: CycleCat, t: number): void {
+  scored(piece: number, cat: CycleCat, t: number, spot: Spot | null = null): void {
     this.advance(t);
     const i = this.pending.findIndex((p) => p.piece === piece);
     let start: number | undefined;
+    let at = spot;
     if (i >= 0) {
       start = this.pending[i].start;
+      at = this.pending[i].spot ?? spot;
       this.pending.splice(i, 1);
     } else {
       start = this.carried.get(piece);
@@ -123,7 +147,10 @@ export class CycleStats {
     }
     const points = cat === 'critical' ? this.game.points.critical : this.game.points.sampleTeleop[cat === 'n1' ? 1 : cat === 'n2' ? 2 : 3];
     const s = start ?? t;
-    this.records.push({ cat, start: s, end: t, time: Math.max(0, t - s), points });
+    const search = Math.max(0, s - this.lastEnd);
+    this.lastEnd = Math.max(this.lastEnd, t);
+    this.records.push({ cat, start: s, end: t, time: Math.max(0, t - s), search, points });
+    if (at) this.shots.push({ x: at.x, z: at.z, cat, ok: true, t });
   }
 
   /** La pieza cayó en la Cámara rival (D14): el intento falló. */
@@ -145,7 +172,9 @@ export class CycleStats {
   }
 
   private fail(i: number): void {
-    this.failed[this.pending[i].cat]++;
+    const p = this.pending[i];
+    this.failed[p.cat]++;
+    if (p.spot) this.shots.push({ x: p.spot.x, z: p.spot.z, cat: p.cat, ok: false, t: p.at });
     this.pending.splice(i, 1);
   }
 
@@ -170,6 +199,8 @@ export class CycleStats {
       best: best(this.records),
       last: this.records.length ? this.records[this.records.length - 1].time : null,
       points: sum(this.records),
+      avgSearch: this.records.length ? this.records.reduce((a, r) => a + r.search, 0) / this.records.length : null,
+      avgFull: this.records.length ? this.records.reduce((a, r) => a + r.search + r.time, 0) / this.records.length : null,
       perMinute: this.time > 0 ? (samples * 60) / this.time : 0,
       byCat,
     };

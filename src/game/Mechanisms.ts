@@ -21,7 +21,7 @@
  * Todos esos números son SUPUESTOS de diseño (el manual no habla de mecanismos, §7.2).
  */
 import { inCamara } from '../config/field';
-import { CLAW, CLAW_GAP, armTip, posAngle, posDir, type ElevatorPos, type GripMode } from '../config/robot';
+import { CLAW_GAP, armTip, clawOf, intakeOf, posAngle, posDir, type ElevatorPos, type GripMode } from '../config/robot';
 import { SAMPLE_SIZE } from '../config/field';
 import { clawDir } from '../physics/RobotPhysics';
 import type { Alliance } from '../core/types';
@@ -248,7 +248,10 @@ export class Mechanisms {
     }
     const p = this.phys;
     const base = p.position().y;
-    const mode = this.grip;
+    // Pinza (sin ruedas): agarre preciso con su tiempo de cierre; compliants: según `grip` (Ajustes)
+    const intake = intakeOf(p.spec);
+    const CLAW = clawOf(p.spec);
+    const mode: GripMode = intake.kind === 'pinza' ? 'precise' : this.grip;
     // Lugar de la Muestra en la garra (agarre preciso): recargada en la placa (del lado del brazo)
     const dir = clawDir(this.angle);
     const tip = this.tipX();
@@ -282,7 +285,7 @@ export class Mechanisms {
         found = { piece, yaw: 0 };
         break;
       }
-      if (Math.abs(lx - cx) > GRIP.pocketX || Math.abs(lz) > GRIP.pocketZ) continue;
+      if (Math.abs(lx - cx) > GRIP.pocketX || Math.abs(lz) > Math.min(GRIP.pocketZ, Math.max(0.01, (intake.gap - SAMPLE_SIZE) / 2))) continue;
       const al = cubeAlignment(piece.body.rotation(), h);
       if (al.yaw > GRIP.maxYaw || al.tilt > GRIP.maxTilt) continue;
       found = { piece, yaw: al.yaw };
@@ -297,7 +300,7 @@ export class Mechanisms {
       // La garra tarda en cerrar; si la Muestra se sale (o es otra), empieza de nuevo
       if (!this.closing || this.closing.piece !== piece.index) this.closing = { piece: piece.index, t: 0 };
       this.closing.t += dt;
-      if (this.closing.t < (mode === 'compliant' ? COMPLIANT.closeTime : GRIP.closeTime)) return;
+      if (this.closing.t < (mode === 'compliant' ? COMPLIANT.closeTime / Math.max(0.3, intake.rollerSpeed) : intake.kind === 'pinza' ? intake.closeTime : GRIP.closeTime)) return;
       this.closing = null;
       const v = p.body.linvel();
       const pv = piece.body.linvel();
@@ -378,7 +381,8 @@ export class Mechanisms {
     const at = p.localToWorld(this.tipX(), this.height + size / 2, 0);
     const h = p.heading();
     const v = p.body.linvel();
-    const out = kind === 'sample' && !force && this.grip !== 'precise' ? OUTTAKE.speed * clawDir(this.angle) : 0;
+    const intake = intakeOf(p.spec);
+    const out = kind === 'sample' && !force && intake.kind === 'compliant' && this.grip !== 'precise' ? intake.rollerSpeed * clawDir(this.angle) : 0;
     this.pieces.place(piece, at.x, at.y, at.z, h, { x: v.x + Math.cos(h) * out, y: 0, z: v.z - Math.sin(h) * out });
     piece.lastRobot = p.index;
     this.cooldown = EJECT_COOLDOWN;

@@ -6,12 +6,19 @@ import { LEAVE_ZONE, type AutoRoutine } from '../auto/AutoRoutine';
 import { aiLineup } from '../ai/lineup';
 import { planAutoRoutine, planBotOptions } from '../ai/plan';
 import { SECRET_AUTOS, SECRET_STRATEGIES, STRATEGY_OPTIONS, weighted, type StrategyId } from '../ai/strategy';
+import { activeColorMode } from '../config/palette';
+import { applyAccessibility } from '../ui/a11y';
 import { allAutoRoutines, autoRoutineIds } from '../auto/recorded';
+import { clampSpot } from '../config/startSpot';
 import { FieldAudio } from '../audio/FieldAudio';
 import { ROBOT_PRESETS, type MechanismKind, type RobotSpec } from '../config/robot';
 import { robotSpec } from '../config/robotIds';
 import { loadSettings, saveSettings, type Settings } from '../config/settings';
 import { formatTimer, timerSeconds } from '../core/clock';
+import { callForEvent, EndgameWatcher, type RefCall } from '../core/refCalls';
+import { ALLIANCES } from '../core/types';
+import { GAME } from '../config/game';
+import { refText, voiceLang } from '../ui/refText';
 import { buildMatchLog } from '../core/matchLog';
 import { drillById } from '../core/training';
 import { drillSessionOptions } from '../game/drills';
@@ -19,6 +26,8 @@ import { loadTraining } from '../game/trainingStore';
 import { addEntry, weeklyChallenge } from '../core/weekly';
 import { loadWeekly, saveWeekly } from '../game/weeklyStore';
 import { WeeklyScreen } from '../ui/Weekly';
+import { addPlaytime } from '../core/playtime';
+import { loadPlaytime, savePlaytime } from '../game/playtimeStore';
 import { GameSession, type SessionOptions } from '../game/GameSession';
 import { loadScout } from '../game/scoutStore';
 import { planById } from '../game/planStore';
@@ -28,6 +37,7 @@ import { CAMERA_MODES, CameraRig, type CameraMode } from '../render/CameraRig';
 import { Arena } from '../render/Arena';
 import { Effects } from '../render/Effects';
 import { guessQuality, QUALITIES, Renderer, type Quality } from '../render/Renderer';
+import { PerfProfile, QualityGovernor } from '../render/perf';
 import { pwa } from '../pwa/register';
 import type { Replay } from '../replay/format';
 import { Recorder } from '../replay/Recorder';
@@ -50,8 +60,18 @@ import { TournamentScreen, WATCH_CAMERA } from '../ui/TournamentScreen';
 import { TrainingRun, TrainingScreen, type TrainingRobot } from '../ui/Training';
 import { Practice1v1 } from '../ui/Practice1v1';
 import { loadCycleBests } from '../game/cycleStore';
+import { loadShotLog } from '../game/shotStore';
+import type { Match } from '../core/match';
+import { matchFacts, recordMatch, emptyAch, type AchProgress } from '../core/achievements';
+import { loadAch, saveAch } from '../game/achievementStore';
+import { AchievementsScreen } from '../ui/Achievements';
 import { StrategyScreen } from '../ui/StrategyScreen';
+import { AutoPathScreen } from '../ui/AutoPathScreen';
 import { PlanView } from '../render/PlanView';
+import * as THREE from 'three';
+import { Board } from '../core/board';
+import { BoardView } from '../render/BoardView';
+import { BoardBar } from '../ui/BoardBar';
 
 type State = 'menu' | 'playing' | 'paused' | 'results' | 'replay';
 
@@ -64,8 +84,18 @@ export class App {
   readonly effects = new Effects();
   /** Calidad elegida por "Automática" (baja un nivel si los FPS caen). */
   private autoQuality: Quality = guessQuality();
-  private fps = { frames: 0, time: 0, drops: 0 };
+  /** Gobernador de "Auto": baja resolución y luego calidad si los FPS caen. */
+  private governor = new QualityGovernor(this.autoQuality);
+  private govWin = { frames: 0, time: 0 };
+  /** Perfil de FPS y tiempos (F3, `?fps=1` o Ajustes). */
+  readonly perf = new PerfProfile();
+  private fpsEl: HTMLElement | null = null;
+  private fpsShown = new URLSearchParams(location.search).get('fps') === '1';
+  private fpsTick = 0;
   readonly cam: CameraRig;
+  /** Segunda cámara de la pantalla dividida (multijugador local). */
+  private cam2: CameraRig;
+  private splitBar: HTMLElement;
   readonly input = new InputManager();
   /** Menús con el control: foco, A elige, B regresa (`ui/padNav.ts`). */
   readonly padNav = new PadNav();
@@ -87,10 +117,19 @@ export class App {
     this.planView.visible = b === 'all';
     this.hud.planCardOn = b !== 'off';
   }
+  /** Pizarra táctica: trazos dibujados con el match en pausa (`core/board.ts`). */
+  readonly board = new Board();
+  private boardView = new BoardView();
+  private boardRev = 0;
+  private boardCam: CameraMode = 'free';
+  readonly boardBar: BoardBar;
   readonly strategies: StrategyScreen;
+  readonly autoPaths: AutoPathScreen;
   readonly settings: Settings = loadSettings(autoRoutineIds());
   /** Sonidos del campo (inicio, TELEOP, ENDGAME, fin). */
   readonly audio = new FieldAudio(this.settings.volume / 100);
+  /** Avisos del árbitro de Plataforma y Muestra Crítica en el ENDGAME (`core/refCalls.ts`). */
+  private endgameWatch = new EndgameWatcher(GAME);
   private last = performance.now();
   /** Último cuadro dibujado detrás de una pantalla opaca (ver `loop`). */
   private lastBehind = 0;
@@ -110,6 +149,9 @@ export class App {
   readonly tourney: TournamentScreen;
   /** Entrenamiento por retos: récords (localStorage), lista de retos y el reto en curso. */
   readonly trainingProgress = loadTraining();
+  /** Tiempo realmente jugado (solo en estado `playing`); se guarda cada ~5 s y al ocultar la página. */
+  private playtime = loadPlaytime();
+  private playtimeDirty = 0;
   readonly training: TrainingScreen;
   trainingRun: TrainingRun | null = null;
   readonly weeklyBoard = loadWeekly();
@@ -117,6 +159,12 @@ export class App {
   /** Práctica 1 contra 1 en curso (`ui/Practice1v1.ts`). */
   practice1v1: Practice1v1 | null = null;
   readonly cycleBests = loadCycleBests();
+  /** Mapa de tiro acumulado por robot de la práctica por ciclos. */
+  readonly shotLog = loadShotLog();
+  /** Logros y progreso (localStorage) y su pantalla; `achNew` = logros del último match. */
+  private ach: AchProgress = loadAch();
+  private achNew: string[] = [];
+  readonly achievements: AchievementsScreen;
   /** Aviso de resultados del último match del torneo (se guarda una vez; los resultados se reabren). */
   private tourNote = '';
   /** `?touch=1` fuerza los controles touch (para probar en escritorio). */
@@ -125,6 +173,11 @@ export class App {
   constructor(host: HTMLElement, ui: HTMLElement) {
     this.renderer = new Renderer(host);
     this.cam = new CameraRig(this.renderer.renderer.domElement);
+    this.cam2 = new CameraRig(this.renderer.renderer.domElement);
+    this.splitBar = document.createElement('div');
+    this.splitBar.className = 'split-bar';
+    this.splitBar.style.display = 'none';
+    ui.appendChild(this.splitBar);
     this.session = new GameSession();
     this.renderer.scene.add(this.session.root, this.arena.group, this.effects.points);
     this.renderer.onQuality.push((p) => {
@@ -135,9 +188,14 @@ export class App {
     this.touch = new TouchControls(ui, this.input);
     this.menu = new Menu(ui, (c) => this.start(c), this.settings, (s) => {
       saveSettings(s);
+      // El color de la cancha y los robots se arma al iniciar: con otro modo de colores se recarga
+      if (s.colorMode !== activeColorMode()) location.reload();
+      applyAccessibility(s.colorMode, s.textScale);
       this.applyQuality();
       this.audio.setVolume(s.volume / 100);
+      this.audio.setRefMode(s.refAudio);
     }, this.input);
+    this.audio.setRefMode(this.settings.refAudio);
     this.replayBar = new ReplayBar(ui, { camera: () => this.cycleCamera(), stats: () => this.replayStats(), exit: () => this.exitReplay() });
     this.replays = new ReplaysScreen(this.menu.root, {
       back: () => this.toMenu(),
@@ -145,6 +203,7 @@ export class App {
       stats: (r) => this.showStats(r, () => this.openReplays(), () => this.watchReplay(r, () => this.openReplays())),
     });
     this.menu.onReplays = () => this.openReplays();
+    this.menu.perfInfo = () => this.perfText();
     this.editor = new RobotEditor(this.menu.root, () => this.toMenu(), (id) => this.menu.useRobot(id));
     this.menu.onEditor = () => this.editor.show(null);
     this.scouting = new ScoutingScreen(this.menu.root, this.scoutData, () => this.toMenu(), (p) => this.start({ mode: 'match', player: p.player, scout: p }));
@@ -169,9 +228,37 @@ export class App {
       play: () => this.start({ mode: 'training', player: this.menu.player, drill: weeklyChallenge().drill.id, weekly: true }),
     });
     this.menu.onWeekly = () => this.weekly.show();
+    this.achievements = new AchievementsScreen(this.menu.root, () => this.ach, {
+      back: () => this.toMenu(),
+      reset: () => {
+        this.ach = emptyAch();
+        saveAch(this.ach);
+      },
+    });
+    this.menu.onAchievements = () => this.achievements.show();
     this.strategies = new StrategyScreen(this.menu.root);
     this.menu.onStrategies = () => this.strategies.show(() => this.toMenu());
-    this.renderer.scene.add(this.planView.group);
+    this.autoPaths = new AutoPathScreen(this.menu.root, {
+      back: () => this.toMenu(),
+      spec: () => this.playerSpec(),
+      use: (id) => {
+        this.settings.playerAuto = id;
+        saveSettings(this.settings);
+      },
+      currentAuto: () => this.settings.playerAuto,
+      play: (id) => {
+        this.settings.playerAuto = id;
+        saveSettings(this.settings);
+        this.start({ mode: 'match', player: this.menu.player });
+      },
+    });
+    this.menu.onAutoPaths = () => this.autoPaths.show();
+    this.renderer.scene.add(this.planView.group, this.boardView.group);
+    this.boardBar = new BoardBar(ui, this.renderer.renderer.domElement, this.board, {
+      pick: (x, y) => this.pickField(x, y),
+      changed: () => this.boardRev++,
+      done: () => this.closeBoard(),
+    });
     pwa.onChange = () => {
       if (this.state === 'menu') this.menu.pwaChips();
     };
@@ -180,8 +267,14 @@ export class App {
     window.addEventListener('resize', onResize);
     window.addEventListener('keydown', (e) => {
       if (e.code === 'Backspace' && !this.input.capturing) this.resetPractice();
+      if (e.code === 'F3') {
+        e.preventDefault();
+        this.fpsShown = !this.fpsShown;
+      }
     });
     onResize();
+    document.addEventListener('visibilitychange', () => document.hidden && this.flushPlaytime());
+    addEventListener('pagehide', () => this.flushPlaytime());
     requestAnimationFrame(this.loop);
   }
 
@@ -195,11 +288,13 @@ export class App {
     this.closeAutoPractice();
     this.closeTraining();
     this.closePractice1v1();
+    this.clearBoard();
     this.renderer.scene.remove(this.session.root);
     this.session.dispose();
     // Práctica libre y de AUTO: solo el robot del jugador en la cancha (en la de AUTO, sin Human Player)
     const o = c.scout ? this.scoutOptions(c.scout) : this.sessionOptions(c.player);
     const drill = c.mode === 'training' ? (c.weekly ? weeklyChallenge().drill : drillById(c.drill ?? '')) : undefined;
+    const versus = c.mode === 'versus';
     if (c.mode === 'training' && !drill) return this.toMenu();
     const p1 = c.mode === 'practice1v1';
     this.session = new GameSession(
@@ -207,26 +302,36 @@ export class App {
         ? this.practice1v1Options(c.player)
         : drill
         ? { ...drillSessionOptions(drill, c.player, this.playerSpec(), this.settings.hpInterval), grip: this.settings.grip }
-        : c.scout
+        : versus
+          ? this.versusOptions(c.player)
+          : c.scout
           ? o
           : { ...o, solo: c.mode !== 'match', ...(c.mode === 'auto' ? { hp: { enabled: false, interval: 3 } } : {}) },
     );
     this.renderer.scene.add(this.session.root);
-    if (c.mode === 'match') this.session.startMatch();
+    if (c.mode === 'match' || versus) this.session.startMatch();
     // La estrategia de alianza solo cuenta en el match (en práctica no hay compañero)
     const plan = c.mode === 'match' && !drill ? this.activePlan : null;
     this.planView.set(plan, this.session.player.alliance);
     this.hud.setPlan(plan);
     this.applyPlanBoard();
     // Cada match se graba para la repetición y las estadísticas
-    this.recorder = c.mode === 'match' ? new Recorder(this.session, this.session.robots.map((r) => robotLabel(r.spec))) : null;
+    this.recorder = c.mode === 'match' || versus ? new Recorder(this.session, this.session.robots.map((r) => robotLabel(r.spec))) : null;
     this.session.tap = this.recorder;
+    this.setVersus(c.mode === 'versus');
     this.menu.hide();
     this.hud.show(true);
     this.hud.setHelp(this.input.bindings);
     this.state = 'playing';
     this.updateTouch();
     this.cam.setMode(c.player < 2 ? 'driverRed' : 'driverBlue');
+    if (c.mode === 'versus') {
+      // Cada quien ve su robot desde atrás (pantalla dividida)
+      this.cam.setMode('follow');
+      this.cam2.setMode('follow');
+      this.hud.toast(`${t('vs_p1')}: ${t('vs_keys1')}`, 'big');
+      this.hud.toast(`${t('vs_p2')}: ${t('vs_keys2')}`, 'big');
+    }
     if (c.mode === 'auto')
       this.autoPractice = new AutoPractice(this.hud.root.parentElement ?? document.body, {
         session: () => this.session,
@@ -248,6 +353,7 @@ export class App {
           this.start(c);
         },
         bests: this.cycleBests,
+        shots: this.shotLog,
         robot: { id: this.settings.robotType, name: robotLabel(this.session.player.spec) },
         exit: () => this.toMenu(),
       });
@@ -273,6 +379,35 @@ export class App {
         },
         exit: () => this.toMenu(),
       });
+  }
+
+  /**
+   * Multijugador local: tú (`player`) y una segunda persona en el mismo puesto de la otra alianza.
+   * Ambos usan tu robot y tu AUTO de los ajustes (SUPUESTO); los otros dos robots son de la IA.
+   * Sin rivales secretos ni estrategia de alianza: nadie es "rival de la computadora".
+   */
+  private versusOptions(player: number): SessionOptions {
+    const o = this.sessionOptions(player);
+    const p2 = player < 2 ? player + 2 : player - 2;
+    this.secret = [null, null, null, null];
+    this.activePlan = null;
+    const routine = allAutoRoutines().find((r) => r.id === this.settings.playerAuto) ?? LEAVE_ZONE;
+    const specs = [...(o.specs ?? [])];
+    specs[p2] = this.playerSpec();
+    const autos = [...(o.autos ?? [])];
+    autos[p2] = routine;
+    const bots = [...(o.bots ?? [])];
+    bots[p2] = undefined;
+    const starts = [...(o.starts ?? [])];
+    starts[p2] = this.settings.match.start;
+    return { ...o, player2: p2, specs, autos, bots, starts };
+  }
+
+  /** Enciende o apaga el modo de 2 jugadores en la entrada y la pantalla dividida. */
+  private setVersus(on: boolean): void {
+    this.input.versus = on;
+    this.splitBar.style.display = on ? '' : 'none';
+    if (!on) this.renderer.resize(this.cam.camera);
   }
 
   /** Sesión de la práctica 1 contra 1: tu robot y, enfrente, el rival elegido (mismo tipo de robot; SUPUESTO). */
@@ -368,15 +503,22 @@ export class App {
       if (i === mate && plan) return { ...planBotOptions(plan, i < 2 ? 'red' : 'blue'), ai };
       return { ...STRATEGY_OPTIONS[strategy(i)], ai };
     };
+    const autos = [0, 1, 2, 3].map((i) => (i === player ? routine(s.playerAuto) : botAuto(i)));
+    // Tu robot es el del menú (con tu velocidad y capacidad), salvo en el Scouting: el de tu equipo
+    const specs = types.map((k, i) => (i === player && (!kinds || tour) ? this.playerSpec() : ROBOT_PRESETS[k]));
+    // Una rutina dibujada arranca donde se dibujó si el robot está en esa Zona de Inicio (§4.1)
+    const pathStart = (i: number) => {
+      const p = autos[i].path;
+      return p && p.station === i % 2 ? clampSpot(specs[i].length, specs[i].width, p.start) : undefined;
+    };
     return {
       player,
       preload: true,
       ai: s.ai,
-      // Tu robot es el del menú (con tu velocidad y capacidad), salvo en el Scouting: el de tu equipo
-      specs: types.map((k, i) => (i === player && (!kinds || tour) ? this.playerSpec() : ROBOT_PRESETS[k])),
-      autos: [0, 1, 2, 3].map((i) => (i === player ? routine(s.playerAuto) : botAuto(i))),
+      specs,
+      autos,
       bots: [0, 1, 2, 3].map((i) => (i === player ? undefined : bot(i))),
-      starts: [0, 1, 2, 3].map((i) => (i === player ? m.start : undefined)),
+      starts: [0, 1, 2, 3].map((i) => pathStart(i) ?? (i === player ? m.start : undefined)),
       hp: { enabled: s.hpEnabled, interval: s.hpInterval, smart: s.hpSmart },
       grip: s.grip,
       damage: { ...s.damage },
@@ -398,27 +540,68 @@ export class App {
   /** Calidad gráfica: `?quality=` manda; si no, el ajuste (o la automática). */
   applyQuality(): void {
     const forced = new URLSearchParams(location.search).get('quality') as Quality | null;
-    const q = forced && QUALITIES.includes(forced) ? forced : this.settings.quality === 'auto' ? this.autoQuality : this.settings.quality;
+    const auto = !forced && this.settings.quality === 'auto';
+    const q = forced && QUALITIES.includes(forced) ? forced : auto ? this.autoQuality : (this.settings.quality as Quality);
     if (q !== this.renderer.quality || !this.qualityApplied) this.renderer.setQuality(q, this.cam.camera);
     this.qualityApplied = true;
+    // Resolución dinámica: solo en Auto (`?dynres=0` la apaga)
+    const dyn = auto && new URLSearchParams(location.search).get('dynres') !== '0';
+    this.renderer.setDynScale(dyn ? this.governor.state.scale : 1, this.cam.camera);
   }
 
   private qualityApplied = false;
 
-  /** "Automática": si el promedio de 4 s baja de 40 FPS jugando, un nivel menos (hasta 2 veces). */
+  /**
+   * "Automática": cada 2 s jugando mide los FPS y deja que el gobernador baje la resolución y, si no
+   * alcanza, un nivel de calidad (`render/perf.ts`).
+   */
   private watchFps(dt: number): void {
-    if (this.settings.quality !== 'auto' || this.state !== 'playing' || this.fps.drops >= 2) return;
-    this.fps.frames++;
-    this.fps.time += dt;
-    if (this.fps.time < 4) return;
-    const avg = this.fps.frames / this.fps.time;
-    this.fps.frames = this.fps.time = 0;
-    const i = QUALITIES.indexOf(this.autoQuality);
-    if (avg < 40 && i > 0) {
-      this.autoQuality = QUALITIES[i - 1];
-      this.fps.drops++;
-      this.applyQuality();
+    if (this.settings.quality !== 'auto' || this.state !== 'playing') {
+      this.govWin.frames = this.govWin.time = 0;
+      return;
     }
+    // Un cuadro enorme (pestaña en segundo plano) no cuenta
+    if (dt >= 0.1) return;
+    this.govWin.frames++;
+    this.govWin.time += dt;
+    if (this.govWin.time < 2) return;
+    const avg = this.govWin.frames / this.govWin.time;
+    this.govWin.frames = this.govWin.time = 0;
+    if (this.governor.step(avg)) {
+      this.autoQuality = this.governor.state.quality;
+      this.applyQuality();
+      this.perf.reset();
+    }
+  }
+
+  /** Texto del perfil de rendimiento para Ajustes (null si no se ha medido). */
+  perfText(): string | null {
+    const s = this.perf.summary();
+    if (!s.frames) return null;
+    const res = Math.round(this.renderer.preset.renderScale * this.renderer.dynScale * 100);
+    return (
+      t('perfLive', { fps: s.fps.toFixed(0), low: s.low1.toFixed(0), sim: s.simMs.toFixed(1), draw: s.renderMs.toFixed(1) }) +
+      '\n' +
+      t('perfUsing', { q: t(`quality_${this.renderer.quality}` as Key), res })
+    );
+  }
+
+  /** Marcador de FPS en pantalla (F3, `?fps=1` o Ajustes). */
+  private updateFpsOverlay(): void {
+    const on = this.fpsShown || this.settings.showFps;
+    if (!on) {
+      if (this.fpsEl) this.fpsEl.style.display = 'none';
+      return;
+    }
+    if (!this.fpsEl) {
+      this.fpsEl = document.createElement('div');
+      this.fpsEl.className = 'fps-overlay';
+      document.body.appendChild(this.fpsEl);
+    }
+    this.fpsEl.style.display = '';
+    if (++this.fpsTick % 15 !== 0) return;
+    const s = this.perf.summary();
+    this.fpsEl.textContent = `${s.fps.toFixed(0)} FPS · 1% ${s.low1.toFixed(0)} · sim ${s.simMs.toFixed(1)} · dibujo ${s.renderMs.toFixed(1)} ms · ${this.renderer.quality} ${Math.round(this.renderer.dynScale * 100)}%`;
   }
 
   /** Reacomoda la cancha en práctica (Backspace o el botón del HUD). */
@@ -446,9 +629,19 @@ export class App {
   /** Muestra los controles touch solo jugando (y según el ajuste). */
   private updateTouch(): void {
     const s = this.settings.touch;
-    const want = this.touchForced || s === 'on' || (s === 'auto' && isTouchDevice());
+    const want = !this.input.versus && (this.touchForced || s === 'on' || (s === 'auto' && isTouchDevice()));
     document.body.classList.toggle('touch-on', want);
     this.touch.show(want && this.state === 'playing');
+  }
+
+  /** Suma el match terminado al progreso de logros (solo si manejas un robot en un match). */
+  private recordAchievements(m: Match): void {
+    this.achNew = [];
+    if (this.choice.mode !== 'match' || this.choice.player < 0) return;
+    const r = recordMatch(this.ach, matchFacts(m, this.choice.player, m.cfg));
+    this.ach = r.progress;
+    saveAch(this.ach);
+    this.achNew = r.earned.map((a) => t(`ach_${a.id}` as Key));
   }
 
   /** Resultados del match terminado, con botones para la repetición y las estadísticas. */
@@ -456,6 +649,7 @@ export class App {
     const m = this.session.match;
     if (!m) return this.toMenu();
     this.state = 'results';
+    this.clearBoard();
     const sc = this.choice.scout;
     this.menu.results(
       m,
@@ -465,6 +659,7 @@ export class App {
       this.choice.player,
       sc?.tour ? this.tourNote : sc ? t('sc_saved', { match: sc.match }) : '',
       sc?.tour ? t('tr_continue') : undefined,
+      this.achNew,
     );
     this.revealRivals();
     const rep = this.lastReplay;
@@ -547,11 +742,42 @@ export class App {
     }, null);
   }
 
+  /**
+   * Avisos del árbitro del cuadro: faltas y tarjetas del match, y en el ENDGAME los robots sobre la
+   * Plataforma y la Muestra Crítica en la Repisa. Cartel en el HUD y silbato/voz según Ajustes.
+   */
+  private refereeCalls(dt: number): void {
+    const s = this.session;
+    const m = s.match;
+    if (!m) return;
+    const calls: RefCall[] = [];
+    for (const e of s.matchEvents) {
+      const c = callForEvent(e, s.game);
+      if (c) calls.push(c);
+    }
+    const platform = { red: 0, blue: 0 };
+    const critical = { red: false, blue: false };
+    if (m.phase === 'ENDGAME') {
+      for (const r of s.robots) if (s.sensors.onPlatform(r)) platform[r.alliance]++;
+      for (const a of ALLIANCES) critical[a] = s.sensors.criticalOnRepisa(a);
+    }
+    this.endgameWatch.cfg = s.game;
+    calls.push(...this.endgameWatch.update(dt, m.phase, platform, critical));
+    if (!calls.length) return;
+    const texts = calls.map(refText);
+    this.hud.referee(texts);
+    calls.forEach((c, i) => this.audio.referee(c.sound, texts[i].voice, voiceLang()));
+  }
+
   toMenu(): void {
+    this.audio.stopVoice();
+    this.flushPlaytime();
     this.closeAutoPractice();
     this.closeTraining();
     this.closePractice1v1();
+    this.setVersus(false);
     this.state = 'menu';
+    this.clearBoard();
     this.touch.show(false);
     this.hud.show(false);
     this.planView.set(null, 'red');
@@ -568,20 +794,11 @@ export class App {
   }
 
   togglePause(): void {
+    if (this.boardBar.isOpen) return this.closeBoard();
     if (this.state === 'playing') {
       this.state = 'paused';
-      const m = this.session.match;
-      this.menu.pause({
-        match: m,
-        timer: m ? formatTimer(timerSeconds(m.t, this.session.game)) : '',
-        phase: m ? t(`phase_${m.phase}` as Key) : '',
-        camera: this.cam.mode,
-        setCamera: (c) => this.setCamera(c),
-        onResume: () => this.togglePause(),
-        onRestart: this.choice.scout?.tour ? undefined : () => this.start(this.choice),
-        onMenu: () => (this.choice.scout ? this.toScouting() : this.toMenu()),
-        menuLabel: this.choice.scout?.tour ? t('tr_backTo') : undefined,
-      });
+      this.audio.stopVoice();
+      this.pauseMenu();
     } else if (this.state === 'paused') {
       this.state = 'playing';
       this.menu.hide();
@@ -589,6 +806,57 @@ export class App {
       this.hud.setHelp(this.input.bindings);
     }
     this.updateTouch();
+  }
+
+  private pauseMenu(): void {
+    const m = this.session.match;
+    this.menu.pause({
+      match: m,
+      timer: m ? formatTimer(timerSeconds(m.t, this.session.game)) : '',
+      phase: m ? t(`phase_${m.phase}` as Key) : '',
+      camera: this.cam.mode,
+      setCamera: (c) => this.setCamera(c),
+      onResume: () => this.togglePause(),
+      onRestart: this.choice.scout?.tour ? undefined : () => this.start(this.choice),
+      onBoard: m ? () => this.openBoard() : undefined,
+      onMenu: () => (this.choice.scout ? this.toScouting() : this.toMenu()),
+      menuLabel: this.choice.scout?.tour ? t('tr_backTo') : undefined,
+    });
+  }
+
+  /** Pizarra táctica: cámara superior y trazos con el puntero; el match sigue en pausa. */
+  private openBoard(): void {
+    if (this.state !== 'paused') return;
+    this.boardCam = this.cam.mode;
+    this.setCamera('top');
+    this.menu.hide();
+    this.renderer.renderer.domElement.classList.add('board-drawing');
+    this.boardBar.show(true);
+  }
+
+  private closeBoard(): void {
+    if (!this.boardBar.isOpen) return;
+    this.boardBar.show(false);
+    this.renderer.renderer.domElement.classList.remove('board-drawing');
+    this.setCamera(this.boardCam);
+    if (this.state === 'paused') this.pauseMenu();
+  }
+
+  private clearBoard(): void {
+    this.boardBar.show(false);
+    this.renderer.renderer.domElement.classList.remove('board-drawing');
+    this.board.clear();
+    this.boardRev++;
+  }
+
+  /** Punto de la cancha (plano y=0) bajo un punto de la pantalla; null si cae fuera de ella. */
+  private pickField(cx: number, cy: number): { x: number; z: number } | null {
+    const r = this.renderer.renderer.domElement.getBoundingClientRect();
+    const ndc = new THREE.Vector2(((cx - r.left) / r.width) * 2 - 1, -((cy - r.top) / r.height) * 2 + 1);
+    const ray = new THREE.Raycaster();
+    ray.setFromCamera(ndc, this.cam.camera);
+    const hit = ray.ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0, 1, 0), 0), new THREE.Vector3());
+    return hit ? { x: hit.x, z: hit.z } : null;
   }
 
   /** La UI que el control navega ahora; jugando (manejando el robot) ninguna. */
@@ -613,7 +881,21 @@ export class App {
     this.cam.setMode(m);
   }
 
+  /** Suma el cuadro al tiempo jugado del modo en curso (nunca en pausa, menús ni resultados). */
+  private trackPlaytime(dt: number): void {
+    addPlaytime(this.playtime, this.choice.mode === 'versus' ? 'match' : this.choice.mode, dt);
+    this.playtimeDirty += dt;
+    if (this.playtimeDirty >= 5) this.flushPlaytime();
+  }
+
+  private flushPlaytime(): void {
+    if (this.playtimeDirty <= 0) return;
+    this.playtimeDirty = 0;
+    savePlaytime(this.playtime);
+  }
+
   private loop = (now: number): void => {
+    const t0 = performance.now();
     const dt = Math.min(0.1, (now - this.last) / 1000);
     this.last = now;
     // Mientras el Scouting simula matches no se mueve ni se dibuja la cancha de fondo (la pantalla la
@@ -628,14 +910,17 @@ export class App {
       else this.togglePause();
     }
     if (this.state === 'playing') {
-      if (this.input.camera) this.cycleCamera();
+      this.trackPlaytime(dt);
+      if (this.input.camera && !this.session.player2) this.cycleCamera();
       this.session.setInput(this.autoPractice ? this.autoPractice.filter(inp) : this.trainingRun ? this.trainingRun.filter(inp) : this.practice1v1 ? this.practice1v1.filter(inp) : inp);
+      if (this.session.player2) this.session.setInput2(this.input.poll2());
       this.session.update(dt);
       this.autoPractice?.update(dt);
       this.trainingRun?.update(dt);
       this.practice1v1?.update(dt);
       this.hud.events(this.session.matchEvents);
       this.audio.events(this.session.matchEvents);
+      this.refereeCalls(dt);
       this.hud.damage(this.session);
       this.hud.update(this.session, this.cam.mode);
       const sm = this.session.match;
@@ -653,6 +938,7 @@ export class App {
         if (sc && !sc.tour) saveMatchEntries(this.scoutData, m, sc.teams, sc.match);
         // Torneo: el resultado va a su tabla
         this.tourNote = sc?.tour ? this.tourney.record(m, sc) : '';
+        this.recordAchievements(m);
         this.lastReplay = this.recorder?.build(this.session) ?? null;
         if (this.lastReplay) void storeReplay(this.lastReplay);
         this.showResults();
@@ -675,6 +961,8 @@ export class App {
     if (this.state !== 'paused' && this.state !== 'replay') this.session.update(this.state === 'playing' ? 0 : dt);
     this.watchFps(dt);
     this.effects.update(this.state === 'paused' ? 0 : dt);
+    this.boardView.update(this.board, this.boardRev);
+    this.boardView.group.visible = this.state !== 'replay';
     this.arena.update(now / 1000, this.cam.camera.position.y);
     const sm = this.session.match;
     const sb = this.replay?.scoreboard;
@@ -683,14 +971,25 @@ export class App {
     else this.arena.setScreen(this.state === 'menu' ? 'LABBOT RESCUE' : t('practiceMode').toUpperCase(), '', '');
     const p = this.session.player.phys;
     const pt = p.position();
-    this.cam.update(dt, this.replay?.focusPose ?? { x: pt.x, y: pt.y, z: pt.z, heading: p.heading() });
+    const vr = this.replay ? this.replay.session.robots[this.replay.focus] : this.session.player;
+    this.cam.update(dt, this.replay?.focusPose ?? { x: pt.x, y: pt.y, z: pt.z, heading: p.heading() }, { alliance: vr.alliance, station: vr.station, spec: vr.spec });
+    const p2 = this.state === 'menu' ? null : this.session.player2;
+    if (p2) {
+      const q = p2.phys.position();
+      this.cam2.update(dt, { x: q.x, y: q.y, z: q.z, heading: p2.phys.heading() }, { alliance: p2.alliance, station: p2.station, spec: p2.spec });
+    }
     // Detrás de una pantalla opaca (Scouting, Torneo, Editor, Estadísticas…) la cancha casi no se ve:
     // 8 cuadros por segundo bastan y la pantalla responde mejor en celulares
     const behind = this.menu.root.style.display !== 'none' && this.menu.root.classList.contains('solid');
     if (!behind || now - this.lastBehind > 125) {
       this.lastBehind = now;
-      this.renderer.render(this.cam.camera);
+      const t1 = performance.now();
+      if (p2 && this.state !== 'replay') this.renderer.renderSplit(this.cam.camera, this.cam2.camera);
+      else this.renderer.render(this.cam.camera);
+      const t2 = performance.now();
+      this.perf.push(dt, t1 - t0, t2 - t1);
     }
+    this.updateFpsOverlay();
     requestAnimationFrame(this.loop);
   };
 }
