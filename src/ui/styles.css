@@ -1314,6 +1314,17 @@ body.touch-on .plan-card { left: auto; right: calc(var(--gut) + var(--safe-r)); 
 .p1-table tr.dim { opacity: 0.45; }
 .p1-table tr.total { font-weight: 800; color: var(--accent); }
 
+/* ===================================================================== pizarra táctica */
+.boardbar-wrap { position: absolute; inset: 0; pointer-events: none; font-size: clamp(11px, min(1.1vw, 2vh), 16px); }
+.boardbar { position: absolute; left: 50%; transform: translateX(-50%); bottom: calc(10px + var(--safe-b)); pointer-events: auto; display: flex; flex-direction: column; gap: 0.5em; align-items: center; max-width: calc(100vw - 20px); padding: 0.6em 0.8em; border: 1px solid var(--line-2); border-radius: 0.9em; background: rgba(18, 9, 22, 0.86); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); }
+.bb-hint { margin: 0; font-size: 0.85em; color: var(--muted); text-align: center; }
+.bb-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 0.6em; }
+.bb-colors { display: flex; gap: 0.4em; }
+.bb-dot { width: 2.2em; height: 2.2em; border-radius: 50%; background: var(--c); border: 2px solid transparent; padding: 0; cursor: pointer; }
+.bb-dot.on { border-color: #fff; box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.25); }
+canvas.board-drawing { cursor: crosshair; touch-action: none; }
+
+
 /* Logros y progreso */
 .ach-stats { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0 14px; }
 .ach-stat { display: grid; gap: 2px; padding: 8px 12px; border: 1px solid var(--line-2); border-radius: 10px; min-width: 88px; }
