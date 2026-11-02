@@ -10,6 +10,7 @@ import { fieldSolids } from '../src/config/fieldLayout';
 import { CLAW, CLAW_GAP, DEFAULT_ROBOT, PIVOT_180_ROBOT, posDir } from '../src/config/robot';
 import { DAMAGE, faultChance, ImpactMeter, impactSide, pickFault, sanitizeDamage } from '../src/core/damage';
 import { rng } from '../src/core/rng';
+import { Damage } from '../src/game/Damage';
 import { GameSession, type SessionOptions } from '../src/game/GameSession';
 import { COMPLIANT, cubeAlignment, GRIP, missChance, type GripMode } from '../src/game/Mechanisms';
 import { emptyInput, type PlayerInput } from '../src/input/InputManager';
@@ -269,8 +270,8 @@ describe('fallas por golpes (lógica pura)', () => {
     const seen = new Set<string>();
     for (let i = 0; i < 200; i++) seen.add(pickFault(rand, 'front', new Set(['armSlow']))!);
     expect(seen.has('armSlow')).toBe(false);
-    expect(seen.size).toBe(3);
-    expect(pickFault(rand, 'side', new Set(['clawJam', 'armSlow', 'motorWeak', 'commLoss']))).toBeNull();
+    expect(seen.size).toBe(2);
+    expect(pickFault(rand, 'side', new Set(['clawJam', 'armSlow', 'motorWeak']))).toBeNull();
   });
 
   it('ajustes guardados raros vuelven a los de por defecto', () => {
@@ -315,16 +316,16 @@ describe('fallas en la física', () => {
     expect(broke!.player.phys.driveScale).toBe(1);
   });
 
-  it('cada falla hace lo suyo: sin comunicación no obedece, motor débil es más lento, garra atascada no agarra', () => {
-    const g = solo({ damage: { level: 'normal', targets: 'all', random: false } });
-    const r = g.player;
-    r.phys.teleport(-1.0, 1.5, 0);
-    g.damage.inflict(0, 'commLoss', 2);
-    steps(g, 1.0, { forward: 1 });
-    expect(Math.abs(r.phys.position().x + 1.0)).toBeLessThan(0.02);
-    // Se le quita sola
-    steps(g, 1.5);
-    expect(g.damage.has(0, 'commLoss')).toBe(false);
+  it('no existe la falla de comunicación: al azar solo se atasca la garra', () => {
+    const g = solo({ damage: { level: 'high', targets: 'all', random: true } });
+    // rand() = 0 fuerza el azar en cada paso: la única falla que puede salir sin golpe es la garra
+    const d = new Damage(g.robots, { level: 'high', targets: 'all', random: true }, () => 0, [0], 1 / 120);
+    const kinds = new Set<string>();
+    for (let i = 0; i < 10; i++) for (const e of d.afterStep(1 / 120, true, [])) if (e.type === 'fault') kinds.add(e.kind);
+    expect([...kinds]).toEqual(['clawJam']);
+  });
+
+  it('cada falla hace lo suyo: motor débil es más lento, garra atascada no agarra', () => {
     // Motor débil: más lento y se va de lado
     const speed = (weak: boolean) => {
       const h = solo({ damage: { level: 'normal', targets: 'all', random: false } });

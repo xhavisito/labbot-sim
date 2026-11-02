@@ -354,7 +354,7 @@ export class GameSession {
   private applyInput(r: Robot, inp: PlayerInput, a: Omit<AutoOutput, 'forward' | 'turn'>): void {
     this.inputs.set(r.index, inp);
     // En AUTO el robot sigue su rutina; fuera del match habilitado (PRE en match, DONE) no se mueve
-    if (!this.playerEnabled() || this.damage.disabled(r.index)) return;
+    if (!this.playerEnabled()) return;
     const m = r.mech;
     // Un solo botón por acción para las dos piezas (Xhavi, 30-oct): la garra trabaja solo mientras se
     // mantiene presionado; al soltarlo se apaga. Con el botón presionado toma la Muestra Crítica en
@@ -387,11 +387,9 @@ export class GameSession {
       let turn = 0;
       let slow = false;
       const b = this.bots[r.index];
-      // Sin comunicación (falla) el robot no recibe mandos: se queda quieto
-      const off = this.damage.disabled(r.index);
       // Sin match solo corre la IA del rival de la práctica 1 contra 1 (juega como en el TELEOP)
-      const bot = !b || off ? null : !m ? (b.opts.teleop ? b : null) : phase === 'AUTO' ? (b.opts.auto !== 'none' ? b : null) : isTeleop(phase) && b.opts.teleop ? b : null;
-      const runner = off ? null : m && phase === 'AUTO' ? this.autos[r.index] : !m && r === this.player ? this.pilot : null;
+      const bot = !b ? null : !m ? (b.opts.teleop ? b : null) : phase === 'AUTO' ? (b.opts.auto !== 'none' ? b : null) : isTeleop(phase) && b.opts.teleop ? b : null;
+      const runner = m && phase === 'AUTO' ? this.autos[r.index] : !m && r === this.player ? this.pilot : null;
       if (bot) {
         const o = bot.step(dt, m ? phase : 'TELEOP', m ? m.remaining : Infinity);
         forward = o.forward;
@@ -410,7 +408,7 @@ export class GameSession {
         if (o.release) r.mech.release('sample', this.stepMechEvents);
         if (o.grabCritical) r.mech.grabCritical(this.stepMechEvents);
         if (o.releaseCritical) r.mech.release('critical', this.stepMechEvents);
-      } else if (enabled && !off && this.inputs.has(r.index) && this.playerEnabled()) {
+      } else if (enabled && this.inputs.has(r.index) && this.playerEnabled()) {
         const inp = this.inputs.get(r.index)!;
         forward = inp.forward;
         turn = inp.turn;
@@ -421,7 +419,7 @@ export class GameSession {
           this.tapActs = {};
         }
       }
-      if (!enabled || off) r.mech.intakeOn = false;
+      if (!enabled) r.mech.intakeOn = false;
       const k = slow ? 0.5 : 1;
       r.phys.drive({ forward: forward * r.spec.maxSpeed * k, turn: turn * r.spec.maxOmega * 0.8 * k }, dt);
       r.mech.step(dt, this.stepMechEvents);

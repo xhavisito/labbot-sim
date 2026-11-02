@@ -49,7 +49,7 @@ abrirla con conexión; cuando la versión nueva ya quedó guardada aparece el bo
   punta de un dedo; solo rebota si llegas muy rápido. "Preciso" exige entrar derecho (≲18°) y despacio
   hasta la placa; "Fácil" deja el agarre de antes.
 - **Fallas:** un golpe fuerte contra la pared u otro robot puede atascar la garra, alentar el brazo,
-  debilitar un motor (más lento y jala de lado) o cortar la comunicación unos segundos; también puede
+  debilitar un motor (más lento y jala de lado); también puede
   tirar la pieza. Se ven en la tarjeta de tu robot y en sus LEDs (ámbar parpadeando). Se eligen el
   nivel (No/Pocas/Normal/Muchas), si les pasa a todos o solo a tu robot, y fallas al azar.
   Reacomodar la cancha (Backspace) lo repara.

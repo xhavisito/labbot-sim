@@ -2,8 +2,7 @@
  * Fallas de los robots en la física (reglas y números en `core/damage.ts`, todos SUPUESTOS). Cada
  * paso mide el golpe de cada robot (cambio de velocidad que no vino de sus motores), tira los dados
  * y aplica las fallas activas a la física (`RobotPhysics.driveScale/turnBias`) y a la garra
- * (`Mechanisms.jammed/armScale`). La pérdida de comunicación la aplica la sesión (el robot no
- * recibe mandos).
+ * (`Mechanisms.jammed/armScale`).
  */
 import {
   DAMAGE,
@@ -108,9 +107,8 @@ export class Damage {
           if (kind) this.add(r, st, kind, 'impact', out);
         }
       } else if (this.settings.random && this.rand() < randomFaultChance(dt, level)) {
-        // Al azar solo lo que pasa sin golpe: un brownout o la garra que se atora
-        const kind: FaultKind = this.rand() < 0.6 ? 'commLoss' : 'clawJam';
-        if (!st.faults.has(kind)) this.add(r, st, kind, 'random', out);
+        // Al azar solo lo que pasa sin golpe: la garra que se atora sola
+        if (!st.faults.has('clawJam')) this.add(r, st, 'clawJam', 'random', out);
       }
       for (const [k, left] of st.faults) {
         if (left === Infinity) continue;
@@ -147,11 +145,6 @@ export class Damage {
     if (!r || !st) return;
     st.faults.set(kind, seconds);
     this.apply(r, st);
-  }
-
-  /** Robot sin comunicación: no recibe mandos (la sesión lo deja quieto). */
-  disabled(robot: number): boolean {
-    return this.has(robot, 'commLoss');
   }
 
   /** Todo reparado (reacomodar la cancha, match nuevo). */

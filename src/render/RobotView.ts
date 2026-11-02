@@ -31,7 +31,7 @@ export class RobotView {
   private criticalMesh: THREE.Mesh;
   /** Muestra en la garra. */
   private clawSample: THREE.Mesh;
-  /** LEDs bajo el chasis: parpadean en ámbar con una falla y se apagan a ratos sin comunicación. */
+  /** LEDs bajo el chasis: parpadean en ámbar con una falla. */
   private led: THREE.MeshStandardMaterial;
   private ledColor: THREE.Color;
   private faultColor = new THREE.Color();
@@ -185,16 +185,15 @@ export class RobotView {
     }
     this.palm.position.x = -clawDir(m.angle, sa) * (this.claw.fingerLength / 2 + this.claw.palmThickness / 2);
     this.clawSample.visible = m.inClaw;
-    // Con falla: LEDs en ámbar parpadeando (sin comunicación, parpadeo rápido como la luz del robot)
+    // Con falla: LEDs en ámbar parpadeando
     const f = this.faults();
     const now = performance.now() / 1000;
     if (f.size === 0) {
       this.led.emissive.copy(this.ledColor);
       this.led.emissiveIntensity = 2.6;
     } else {
-      const fast = f.has('commLoss');
-      const on = Math.sin(now * (fast ? 22 : 7)) > 0;
-      this.led.emissive.copy(fast ? this.ledColor : this.faultColor.set(ROBOT_STYLE.fault));
+      const on = Math.sin(now * 7) > 0;
+      this.led.emissive.copy(this.faultColor.set(ROBOT_STYLE.fault));
       this.led.emissiveIntensity = on ? 2.8 : 0.2;
     }
   }
