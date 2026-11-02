@@ -57,6 +57,11 @@ export class Practice1v1 {
   private tap: SessionTap | null = null;
   private summary: CycleSummary | null = null;
   private newBests: CycleCat[] = [];
+  private newBests2: CycleCat[] = [];
+  private lastShots2: { mine: Shot[]; rival: Shot[] } | null = null;
+  private get id2(): string {
+    return `${this.h.robot.id}#j2`;
+  }
   /** Tiros de la última práctica (tuyos y del rival), en coordenadas de la cancha. */
   private lastShots: { mine: Shot[]; rival: Shot[] } | null = null;
   private mapView: 'session' | 'all' = 'session';
@@ -170,13 +175,22 @@ export class Practice1v1 {
     const tr = this.tracker;
     if (!tr) return;
     this.summary = tr.stats.summary();
-    // La segunda persona tiene su resultado en la misma pantalla; sus ciclos no se guardan (SUPUESTO)
-    this.summary2 = this.tracker2?.stats.summary() ?? null;
+    // La segunda persona guarda sus ciclos y su mapa como los tuyos, bajo la clave `<robot>#j2` (SUPUESTO:
+    // ambos usan el mismo robot, así que se separan para no mezclar sus récords ni sus mapas).
+    const tr2 = this.tracker2;
+    this.summary2 = tr2?.stats.summary() ?? null;
+    this.newBests2 = this.summary2 ? updateBests(this.h.bests, this.id2, this.summary2) : [];
     this.newBests = updateBests(this.h.bests, this.h.robot.id, this.summary);
     saveCycleBests(this.h.bests);
     const a = this.s.player.alliance;
     this.lastShots = { mine: [...tr.stats.shots], rival: [...tr.rivalShots] };
     addShots(this.h.shots, this.h.robot.id, tr.stats.shots.map((x) => asRed(x, a)));
+    this.lastShots2 = null;
+    if (tr2) {
+      const a2 = this.s.player2?.alliance ?? (a === 'red' ? 'blue' : 'red');
+      this.lastShots2 = { mine: [...tr2.stats.shots], rival: [...tr2.rivalShots] };
+      addShots(this.h.shots, this.id2, tr2.stats.shots.map((x) => asRed(x, a2)));
+    }
     saveShotLog(this.h.shots);
     this.mapView = 'session';
     this.stop();
@@ -221,11 +235,12 @@ export class Practice1v1 {
 
   /** Tabla de ciclos por Muestra. `mine` = la del robot guardado (récords y estrellas); si no, la del jugador 2. */
   private tableHtml(s: CycleSummary, mine = true): string {
-    const bests = mine ? (this.h.bests.bests[this.h.robot.id] ?? {}) : {};
+    const bests = this.h.bests.bests[mine ? this.h.robot.id : this.id2] ?? {};
+    const fresh = mine ? this.newBests : this.newBests2;
     const rows = CYCLE_CATS.map((c) => {
       const x = s.byCat[c];
       const rec = bests[c];
-      const star = mine && this.newBests.includes(c) ? ` <b class="tn-new" title="${t('p1_newBest')}">★</b>` : '';
+      const star = fresh.includes(c) ? ` <b class="tn-new" title="${t('p1_newBest')}">★</b>` : '';
       return `<tr class="${x.attempts ? '' : 'dim'}"><th>${catName(c)}</th><td>${x.scored}/${x.attempts}</td><td>${pct(x.accuracy)}</td><td>${secs(x.avg)}</td>
         <td>${secs(x.best)}${star}</td><td>${rec === undefined ? '—' : secs(rec)}</td><td>${x.points}</td></tr>`;
     }).join('');
@@ -235,40 +250,42 @@ export class Practice1v1 {
   }
 
   /** Tiros del mapa elegido y la Cámara contra la que se miden las zonas. */
-  private mapShots(): { mine: Shot[]; rival: Shot[]; camara: F.Rect } {
-    const all = this.h.shots.robots[this.h.robot.id] ?? [];
-    if (this.mapView === 'all' || !this.lastShots) return { mine: all, rival: [], camara: F.camaraRect('red') };
-    return { ...this.lastShots, camara: F.camaraRect(this.s.player.alliance) };
+  private mapShots(p2 = false): { mine: Shot[]; rival: Shot[]; camara: F.Rect } {
+    const all = this.h.shots.robots[p2 ? this.id2 : this.h.robot.id] ?? [];
+    const last = p2 ? this.lastShots2 : this.lastShots;
+    if (this.mapView === 'all' || !last) return { mine: all, rival: [], camara: F.camaraRect('red') };
+    return { ...last, camara: F.camaraRect((p2 ? this.s.player2?.alliance : null) ?? this.s.player.alliance) };
   }
 
   /** Mapa de tiro con su selector (esta práctica / acumulado) y la tabla de zonas. */
-  private mapHtml(): string {
-    const all = this.h.shots.robots[this.h.robot.id] ?? [];
-    if (!this.lastShots && !all.length) return '';
+  private mapHtml(p2 = false): string {
+    const all = this.h.shots.robots[p2 ? this.id2 : this.h.robot.id] ?? [];
+    const last = p2 ? this.lastShots2 : this.lastShots;
+    if (!last && !all.length) return '';
     if (!this.lastShots) this.mapView = 'all';
-    const { mine, camara } = this.mapShots();
+    const { mine, camara } = this.mapShots(p2);
     const z = zoneStats(mine, camara);
     const rows = ZONES.map((k) => {
       const x = z.byZone[k];
       const star = z.best === k ? ` <b class="tn-new" title="${t('p1_bestZone')}">★</b>` : '';
       return `<tr class="${x.tried ? '' : 'dim'}"><th>${t(`p1_zone_${k}` as Key)}${star}</th><td>${x.made}/${x.tried}</td><td>${pct(x.accuracy)}</td></tr>`;
     }).join('');
-    const seg = this.lastShots
+    const seg = last
       ? `<div class="seg" data-map><button class="${this.mapView === 'session' ? 'on' : ''}" data-v="session">${t('p1_mapSession')}</button><button class="${this.mapView === 'all' ? 'on' : ''}" data-v="all">${t('p1_mapAll', { n: all.length })}</button></div>`
       : `<small class="tn-meta">${t('p1_mapAll', { n: all.length })}</small>`;
-    const note = this.mapView === 'all' ? t('p1_mapAllNote') : this.lastShots?.rival.length ? t('p1_mapRivalNote') : '';
+    const note = this.mapView === 'all' ? t('p1_mapAllNote') : last?.rival.length ? t('p1_mapRivalNote') : '';
     return `<div class="p1-map"><div class="p1-map-head"><b>${t('p1_mapTitle')}</b>${seg}</div>
-      <canvas class="heat p1-shots" width="${Math.round(F.FIELD_LENGTH * 80)}" height="${Math.round(F.FIELD_WIDTH * 80)}"></canvas>
+      <canvas class="heat p1-shots${p2 ? ' p2' : ''}" width="${Math.round(F.FIELD_LENGTH * 80)}" height="${Math.round(F.FIELD_WIDTH * 80)}"></canvas>
       <p class="p1-legend">${t('p1_mapLegend')}${note ? ` ${note}` : ''}</p>
       <table class="p1-table p1-zones"><thead><tr><th>${t('p1_th_zone')}</th><th>${t('p1_th_scored')}</th><th>${t('p1_th_acc')}</th></tr></thead><tbody>${rows}</tbody></table>
       <p class="ap-note">${t('p1_mapAssume')}</p></div>`;
   }
 
-  private drawMap(): void {
-    const cv = this.root.querySelector<HTMLCanvasElement>('canvas.p1-shots');
+  private drawMap(p2 = false): void {
+    const cv = this.root.querySelector<HTMLCanvasElement>(p2 ? 'canvas.p1-shots.p2' : 'canvas.p1-shots:not(.p2)');
     if (!cv) return;
-    const { mine, rival } = this.mapShots();
-    const a = this.mapView === 'all' ? 'red' : this.s.player.alliance;
+    const { mine, rival } = this.mapShots(p2);
+    const a = this.mapView === 'all' ? 'red' : ((p2 ? this.s.player2?.alliance : null) ?? this.s.player.alliance);
     const other = a === 'red' ? 'blue' : 'red';
     drawShotMap(cv, {
       cells: mine,
@@ -297,7 +314,7 @@ export class Practice1v1 {
       ph === 'result' && s
         ? `<p class="tn-note">${t('p1_resultNote', { t: secs(s.time), c: s.cycles, m: s.perMinute.toFixed(1) })}</p>
           <p class="tn-note">${t('p1_splitNote', { b: secs(s.avgSearch), l: secs(s.avg), f: secs(s.avgFull) })}</p>${this.tableHtml(s)}
-          ${s2 ? `<h3 class="p1-p2">${t('p1_p2Title')}</h3><p class="tn-note">${t('p1_resultNote', { t: secs(s2.time), c: s2.cycles, m: s2.perMinute.toFixed(1) })}</p>${this.tableHtml(s2, false)}` : ''}
+          ${s2 ? `<h3 class="p1-p2">${t('p1_p2Title')}</h3><p class="tn-note">${t('p1_resultNote', { t: secs(s2.time), c: s2.cycles, m: s2.perMinute.toFixed(1) })}</p>${this.tableHtml(s2, false)}${this.mapHtml(true)}` : ''}
           <p class="ap-note">${assume}</p>${this.mapHtml()}`
         : `<p class="tn-goal">${t('p1_goal')}</p><p class="ap-note">${assume}</p>${this.mapHtml()}`;
     this.root.innerHTML = `<div class="ap-panel tn-panel p1-panel">
@@ -312,6 +329,7 @@ export class Practice1v1 {
     on('exit', () => this.h.exit());
     on('start', () => this.start());
     this.drawMap();
+    if (this.summary2) this.drawMap(true);
     this.root.querySelectorAll<HTMLElement>('[data-map] button').forEach((b) =>
       b.addEventListener('click', () => {
         this.mapView = b.dataset.v === 'all' ? 'all' : 'session';
