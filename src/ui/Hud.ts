@@ -7,7 +7,7 @@
 import { GAME } from '../config/game';
 import { bounds, formatTimer, timerSeconds } from '../core/clock';
 import type { FaultKind } from '../core/damage';
-import { RULES } from '../core/fouls';
+import type { RefText } from './refText';
 import type { MatchEvent } from '../core/match';
 import { ALLIANCES } from '../core/types';
 import type { GameSession } from '../game/GameSession';
@@ -183,11 +183,20 @@ export class Hud {
         else if (e.phase === 'ENDGAME') this.toast(t('endgameStart'), 'big warn');
       } else if (e.type === 'sample') this.toast(t('sampleScored', { level: e.level, alliance: t(e.alliance), points: e.points }), e.alliance);
       else if (e.type === 'autoLine') this.toast(t('autoLineMsg', { alliance: t(e.alliance), robot: (e.robot % 2) + 1 }), e.alliance);
-      else if (e.type === 'foul') {
-        const r = RULES[e.foul.rule];
-        this.toast(t('foulMsg', { kind: e.foul.kind === 'TECH' ? 'Tech Foul' : 'Foul', alliance: t(e.foul.offender), robot: (e.foul.robot % 2) + 1, rule: `${r.es} (${r.section})` }), 'foul');
-      } else if (e.type === 'card')
-        this.toast(`${e.card.type} CARD · ${t(e.card.alliance)} ${(e.card.robot % 2) + 1}: ${e.card.reason}`, e.card.type === 'RED' ? 'card-red' : 'card-yellow');
+      // Las faltas y tarjetas las anuncia el árbitro (`referee`, con su sección del manual)
+    }
+  }
+
+  /** Carteles del árbitro: faltas, tarjetas, Plataforma y Muestra Crítica, con la sección del manual. */
+  referee(calls: readonly RefText[]): void {
+    for (const c of calls) {
+      const d = el('div', `toast refcall ${c.cls}`, this.toasts);
+      el('b', 'rc-title', d).textContent = c.title;
+      el('span', 'rc-detail', d).textContent = c.detail;
+      el('span', 'rc-sec', d).textContent = c.section;
+      setTimeout(() => d.classList.add('out'), 3400);
+      setTimeout(() => d.remove(), 4000);
+      while (this.toasts.children.length > 4) this.toasts.firstElementChild?.remove();
     }
   }
 

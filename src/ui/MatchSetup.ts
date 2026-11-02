@@ -15,6 +15,7 @@ import { AI_PERSONAS, type AiPersona } from '../ai/persona';
 import { STRATEGIES, type StrategyId } from '../ai/strategy';
 import { AUTO_ROUTINES } from '../auto/AutoRoutine';
 import { routeRoutine, savedRoutes } from '../auto/recorded';
+import { loadPaths, pathRoutine } from '../game/autoPathStore';
 import { loadPlans } from '../game/planStore';
 import * as F from '../config/field';
 import { MECHANISM_KINDS, type MechanismKind, type RobotSpec } from '../config/robot';
@@ -72,9 +73,12 @@ export class MatchSetup {
     const spec = inp.playerSpec;
     m.start = clampSpot(spec.length, spec.width, m.start);
     const opt = (v: string, label: string, sel: string) => `<option value="${v}" ${v === sel ? 'selected' : ''}>${label}</option>`;
+    const paths = loadPaths();
     const autoOpts = (sel: string, mine: boolean) =>
       AUTO_ROUTINES.map((r) => opt(r.id, t(`auto_${r.id}` as Key), sel)).join('') +
-      (mine && savedRoutes.length ? `<optgroup label="${t('grp_routes')}">${savedRoutes.map((r) => opt(routeRoutine(r).id, esc(r.name), sel)).join('')}</optgroup>` : '');
+      (mine && savedRoutes.length ? `<optgroup label="${t('grp_routes')}">${savedRoutes.map((r) => opt(routeRoutine(r).id, esc(r.name), sel)).join('')}</optgroup>` : '') +
+      // Las dibujadas sirven para cualquier robot (corrigen con la pose real), también para tu compañero
+      (paths.length ? `<optgroup label="${t('grp_paths')}">${paths.map((r) => opt(pathRoutine(r).id, esc(r.name), sel)).join('')}</optgroup>` : '');
     const kindCell = (i: number, r: MatchRobot) => {
       if (inp.kinds) return `<span class="ms-fixed">${t(`type_${inp.kinds[i]}` as Key)}</span>`;
       return `<select data-kind="${i}">${opt('random', t('ms_random'), r.kind)}${MECHANISM_KINDS.map((k) => opt(k, t(`type_${k}` as Key), r.kind)).join('')}</select>`;

@@ -53,6 +53,8 @@ export class Renderer {
   preset: QualityPreset = QUALITY.high;
   /** Se llama al cambiar la calidad (público, partículas…). */
   readonly onQuality: Array<(p: QualityPreset) => void> = [];
+  /** Escala de resolución dinámica encima del preset (la ajusta App con `QualityGovernor`). */
+  dynScale = 1;
   private composer: EffectComposer | null = null;
   private renderPass: RenderPass | null = null;
   private envMap: THREE.Texture;
@@ -136,7 +138,14 @@ export class Renderer {
   }
 
   get pixelRatio(): number {
-    return Math.min(window.devicePixelRatio || 1, this.preset.maxPixelRatio) * this.preset.renderScale;
+    return Math.min(window.devicePixelRatio || 1, this.preset.maxPixelRatio) * this.preset.renderScale * this.dynScale;
+  }
+
+  /** Cambia la escala de resolución dinámica (sin reconstruir nada más que el tamaño). */
+  setDynScale(s: number, cam: THREE.PerspectiveCamera): void {
+    if (Math.abs(s - this.dynScale) < 1e-6) return;
+    this.dynScale = s;
+    this.resize(cam);
   }
 
   resize(cam: THREE.PerspectiveCamera): void {

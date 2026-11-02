@@ -92,3 +92,11 @@ describe('ajustes de la práctica 1 contra 1', () => {
     expect(sanitizePractice(null)).toEqual({ rival: 'passive', persona: 'balanced', limit: 0 });
   });
 });
+
+describe('showFps', () => {
+  it('es booleano y por defecto apagado', () => {
+    expect(sanitizeSettings({}, []).showFps).toBe(false);
+    expect(sanitizeSettings({ showFps: true }, []).showFps).toBe(true);
+    expect(sanitizeSettings({ showFps: 'sí' }, []).showFps).toBe(false);
+  });
+});
