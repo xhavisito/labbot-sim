@@ -4,7 +4,7 @@ Simulador 3D web del reto interno **LabBot Rescue 2026** (Robotics WinterFest, L
 Cancha, piezas, robots tanque, reloj, puntuación, faltas y Ranking Points según el manual del reto.
 
 - **Reglas:** [`docs/reglas-reto.md`](docs/reglas-reto.md) resume el manual con la sección de cada
-  regla (§x.y), las medidas tomadas de las figuras y la lista de dudas y supuestos (D1–D43).
+  regla (§x.y), las medidas tomadas de las figuras y la lista de dudas y supuestos (D1–D46).
 - **Plan y arquitectura:** [`docs/PLAN.md`](docs/PLAN.md).
 
 ## Instalar y correr
@@ -33,7 +33,7 @@ genera `vite.config.ts` con la lista del build) y el simulador abre y juega sin 
 muestra "Sin conexión" cuando ya está listo. Para instalarlo en el celular: en Android, el botón
 **Instalar** del menú (o "Agregar a la pantalla principal" de Chrome); en iPhone, Safari → Compartir →
 **Agregar a inicio**. Cada build nuevo cambia la versión de la caché: la app se actualiza sola al
-abrirla con conexión (los cambios se ven la siguiente vez que se abre). Íconos: `public/icons/`
+abrirla con conexión; cuando la versión nueva ya quedó guardada aparece el botón **Actualizar** en el menú, y sin internet aparece "Sin internet". Se pide almacenamiento persistente para que el navegador no borre la caché. Prueba real sin conexión: `npm run build && npm run e2e:offline` (en la nube, con `CHROMIUM_PATH=/opt/pw-browsers/chromium`). Íconos: `public/icons/`
 (`node scripts/icons.mjs` los regenera desde `icon.svg`).
 
 ## Cómo se juega
@@ -100,7 +100,7 @@ Plataforma (§4.6) o atraviesa la Cámara o la Campana. **Probar solo** da los p
 recolectar") y da puntos de tu alianza vs. rival, línea y faltas. A diferencia de las rutas grabadas, el
 robot corrige con su posición real, así que sirve con cualquier robot y desde una pose movida. **Usar como
 mi AUTO** la elige en Ajustes y en Preparar match (también para tu compañero de la IA); se guardan en el
-navegador. SUPUESTOS: D43.
+navegador. SUPUESTOS: D46.
 
 **Entrenamiento por retos** (menú → Taller): ejercicios cortos con tu robot solo en la cancha, con
 medalla (bronce, plata, oro) y récord personal por robot guardados en el navegador. Cada reto tiene
@@ -189,6 +189,10 @@ tecla o el botón. Cada tecla o botón hace una sola cosa (si ya estaba en otra 
 hasta 2 por acción y se guarda en el navegador. Ahí también eliges manejar con un stick o con los dos
 (izquierdo avanza, derecho gira), invertir el avance y cuándo mostrar los controles touch.
 
+Ahí mismo se ajusta la **zona muerta** de los sticks. **Ajustes → Accesibilidad** tiene un modo de
+colores para daltonismo (rojo–verde o azul–amarillo: cambia alianzas, tu robot y Muestras Críticas;
+recarga la página al guardar) y el **tamaño del texto** (85–150 %) de toda la interfaz.
+
 Asignación por defecto:
 
 | Acción | Teclado | Control |
@@ -243,7 +247,7 @@ src/
   replay/     format.ts (repetición en binario compacto), Recorder.ts (graba cada match, cuelga de
               GameSession.tap), ReplayPlayer.ts (sesión "títere" que pone las poses grabadas),
               stats.ts (mapa de calor, Muestras por robot y tiempos de ciclo) y store.ts (IndexedDB, .lbreplay)
-  pwa/        register.ts (service worker, botón Instalar) y sw-template.js (precache del build)
+  pwa/        register.ts (service worker, Instalar/Actualizar), precache.ts (lista de precache, con pruebas) y sw-template.js
 tests/        field, physics, robot, match (reglas y casos borde), session (match completo),
               bot (IA en un match completo, sin faltas de cancha), settings (ajustes y registro),
               lineup (tipos de la IA y niveles de dificultad)

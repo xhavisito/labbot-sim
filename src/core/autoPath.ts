@@ -14,7 +14,7 @@
  *   (`AUTO_MIN_X`, igual que las estrategias) y avisa si la estimación pasa de 15 s.
  * - §4.4 / D1: Línea de Autónomo = salir por completo de la Zona de Inicio → avisa si ningún punto sale.
  * - §4.6: subir a la Plataforma antes del ENDGAME es Tech Foul → avisa si la ruta la pisa.
- * - SUPUESTO (D43): la ruta no debe atravesar la Cámara ni la Campana (son paredes); solo se avisa.
+ * - SUPUESTO (D46): la ruta no debe atravesar la Cámara ni la Campana (son paredes); solo se avisa.
  */
 import * as F from '../config/field';
 import { GAME } from '../config/game';
@@ -238,7 +238,7 @@ export function pathIssues(p: AutoPath, spec: PathRobotSpec, halfLength = 0.3): 
   let prev: { x: number; z: number } = pathStart(p);
   p.points.forEach((q, i) => {
     if (segmentHits(prev, q, PLATFORM, 0.1)) out.push({ code: 'platform', section: '§4.6', point: i });
-    if (segmentHits(prev, q, CAMARA, 0.05) || segmentHits(prev, q, CAMPANA, 0.05)) out.push({ code: 'wall', section: 'D43', point: i });
+    if (segmentHits(prev, q, CAMARA, 0.05) || segmentHits(prev, q, CAMPANA, 0.05)) out.push({ code: 'wall', section: 'D46', point: i });
     prev = q;
   });
   return out;
