@@ -78,6 +78,8 @@ export interface Settings {
   quality: 'auto' | 'low' | 'medium' | 'high';
   /** Mostrar FPS y tiempos en pantalla durante el match (también con F3 o `?fps=1`). */
   showFps: boolean;
+  /** Práctica 1 contra 1: dibuja el ghost (tu mejor ciclo guardado). Apagado, sigue grabando pero no lo muestra. */
+  showGhost: boolean;
   /** Vibración del control al anotar y con faltas en tu contra (`input/rumble.ts`). */
   rumble: boolean;
   /**
@@ -148,6 +150,7 @@ export const DEFAULT_SETTINGS: Settings = {
   touch: 'auto',
   quality: 'auto',
   showFps: false,
+  showGhost: true,
   rumble: true,
   grip: 'compliant',
   damage: { ...DEFAULT_DAMAGE },
@@ -249,6 +252,7 @@ export function sanitizeSettings(raw: unknown, autoIds: readonly string[]): Sett
     touch: o.touch === 'on' || o.touch === 'off' ? o.touch : d.touch,
     quality: o.quality === 'low' || o.quality === 'medium' || o.quality === 'high' ? o.quality : d.quality,
     showFps: typeof o.showFps === 'boolean' ? o.showFps : d.showFps,
+    showGhost: typeof o.showGhost === 'boolean' ? o.showGhost : d.showGhost,
     rumble: typeof o.rumble === 'boolean' ? o.rumble : d.rumble,
     // 'real' (el agarre estricto del 29-oct, entonces por defecto) pasa a compliants
     grip: GRIP_MODES.find((g) => g === o.grip) ?? d.grip,

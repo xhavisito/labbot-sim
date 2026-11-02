@@ -23,14 +23,14 @@ describe('asignación de controles', () => {
   });
 
   it('asignar mueve la tecla de otra acción y respeta el máximo por acción', () => {
-    let b = assign(DEFAULT_BINDINGS, 'keys', 'intake', 'KeyE'); // E era "soltar Muestra"
-    expect(b.keys.intake).toEqual(['Space', 'KeyE']);
-    expect(b.keys.releaseSample).toEqual([]);
+    let b = assign(DEFAULT_BINDINGS, 'keys', 'intake', 'KeyE'); // E no es predeterminada; K es la de soltar Muestra
+    expect(b.keys.intake).toEqual(['ShiftLeft', 'KeyE']);
+    expect(b.keys.releaseSample).toEqual(['KeyK']);
     b = assign(b, 'keys', 'intake', 'KeyQ');
     expect(b.keys.intake).toEqual(['KeyE', 'KeyQ']); // se va la más vieja
     expect(b.keys.intake.length).toBeLessThanOrEqual(MAX_PER_ACTION);
     // No cambia el original
-    expect(DEFAULT_BINDINGS.keys.intake).toEqual(['Space']);
+    expect(DEFAULT_BINDINGS.keys.intake).toEqual(['ShiftLeft']);
   });
 
   it('botones del control y quitar una acción', () => {
@@ -71,7 +71,7 @@ describe('InputManager con asignación', () => {
     expect(im.poll().intake).toBe(true); // se mantiene mientras siga presionada
     key('keyup', 'KeyQ');
     expect(im.poll().intake).toBe(false);
-    key('keydown', 'KeyE'); // las demás teclas no cambian
+    key('keydown', 'KeyK'); // las demás teclas no cambian
     expect(im.poll().releaseSample).toBe(true);
     key('keydown', 'KeyW');
     expect(im.poll().forward).toBe(1);

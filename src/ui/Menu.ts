@@ -3,6 +3,7 @@
  * controles (reasignar), reglas, pausa y resultados.
  */
 import { cloudEnabled } from '../net/cloud';
+import { clearMatchHistory, filterMatchHistory, historyFacets, loadMatchHistory } from '../core/matchHistory';
 import { AUTO_ROUTINES } from '../auto/AutoRoutine';
 import { routeRoutine, savedRoutes } from '../auto/recorded';
 import { loadPaths, pathRoutine } from '../game/autoPathStore';
@@ -14,6 +15,7 @@ import { DEFAULT_SETTINGS, PLAN_BOARDS, PRACTICE_LIMITS, REF_AUDIO_MODES, RIVALS
 import { DAMAGE_LEVELS, type DamageLevel, type DamageTargets } from '../core/damage';
 import { buildRefereeReport } from '../core/refereeReport';
 import { refereeHtml } from './refereeView';
+import { shareSummary } from './summaryImage';
 import type { Match } from '../core/match';
 import type { DrillId } from '../core/training';
 import { ALLIANCES, type Alliance } from '../core/types';
@@ -123,6 +125,7 @@ export class Menu {
   onAutoPaths: () => void = () => undefined;
   /** Abre la pantalla de logros (la conecta App). */
   onAchievements: () => void = () => undefined;
+  onCompare: () => void = () => undefined;
 
   constructor(
     host: HTMLElement,
@@ -184,7 +187,9 @@ export class Menu {
             ${tool('weekly', ic.trophy, 'weekly', 'weeklyDesc')}
             ${tool('achievements', ic.trophy, 'ach_title', 'achDesc')}
             ${cloudEnabled ? tool('account', ic.go, 'acct_title', 'acct_desc') : ''}
+            ${tool('compare', ic.cube, 'compare', 'compareDesc')}
             ${tool('replays', ic.film, 'replays', 'replaysDesc')}
+            ${tool('matchHistory', ic.clipboard, 'mhTitle', 'mhDesc')}
             ${tool('editor', ic.cube, 'editor', 'editorDesc')}
             ${tool('autoPractice', ic.route, 'autoPractice', 'autoPracticeDesc')}
             ${tool('autoPaths', ic.route, 'autoPaths', 'autoPathsDesc')}
@@ -226,7 +231,9 @@ export class Menu {
     this.on('[data-go="autoPaths"]', () => this.onAutoPaths());
     this.on('[data-go="achievements"]', () => this.onAchievements());
     this.on('[data-go="account"]', () => this.onAccount());
+    this.on('[data-go="compare"]', () => this.onCompare());
     this.on('[data-go="replays"]', () => this.onReplays());
+    this.on('[data-go="matchHistory"]', () => this.matchHistoryPanel());
     this.on('[data-go="editor"]', () => this.onEditor());
     this.on('[data-go="autoPractice"]', () => this.onStart({ mode: 'auto', player: this.player }));
     this.on('[data-go="settings"]', () => this.settingsPanel());
@@ -315,7 +322,7 @@ export class Menu {
       const drawn = loadPaths().map((r) => opt(pathRoutine(r).id, esc(r.name))).join('');
       return fixed + (mine ? `<optgroup label="${t('grp_routes')}">${mine}</optgroup>` : '') + (drawn ? `<optgroup label="${t('grp_paths')}">${drawn}</optgroup>` : '');
     };
-    const toggle = (k: 'ai' | 'hpEnabled' | 'hpSmart' | 'showFps' | 'rumble') => `<button class="toggle ${s[k] ? 'on' : ''}" data-tog="${k}"><i></i>${s[k] ? t('on_') : t('no_')}</button>`;
+    const toggle = (k: 'ai' | 'hpEnabled' | 'hpSmart' | 'showFps' | 'showGhost' | 'rumble') => `<button class="toggle ${s[k] ? 'on' : ''}" data-tog="${k}"><i></i>${s[k] ? t('on_') : t('no_')}</button>`;
     const range = (k: keyof typeof SETTINGS_RANGE, unit: string) => {
       const r = SETTINGS_RANGE[k];
       return `<div class="range"><input type="range" data-k="${k}" min="${r.min}" max="${r.max}" step="${r.step}" value="${s[k]}"><output data-unit="${unit}">${s[k]} ${unit}</output></div>`;
@@ -361,6 +368,7 @@ export class Menu {
           <label>${t('setQuality')}</label><div class="seg" data-qseg>${(['auto', 'low', 'medium', 'high'] as const).map((q) => `<button class="${q === s.quality ? 'on' : ''}" data-v="${q}">${t(`quality_${q}`)}</button>`).join('')}</div>
           <p class="full sub">${t('qualityNote')}</p>
           <label>${t('setShowFps')}</label>${toggle('showFps')}
+          <label>${t('setShowGhost')}</label>${toggle('showGhost')}
           <label>${t('perfTitle')}</label><div class="perf-live" data-perf></div>
           <h3>${t('sec_access')}</h3>
           <label>${t('setColorMode')}</label>${seg('colorMode', COLOR_MODES, s.colorMode, (v) => t(`colorMode_${v}` as Key))}
@@ -389,7 +397,7 @@ export class Menu {
       });
     });
     this.on('[data-tog]', (el) => {
-      const k = el.dataset.tog as 'ai' | 'hpEnabled' | 'hpSmart' | 'showFps' | 'rumble';
+      const k = el.dataset.tog as 'ai' | 'hpEnabled' | 'hpSmart' | 'showFps' | 'showGhost' | 'rumble';
       s[k] = !s[k];
       el.classList.toggle('on', s[k]);
       el.lastChild!.textContent = s[k] ? t('on_') : t('no_');
@@ -559,6 +567,47 @@ export class Menu {
 
   // ------------------------------------------------------------------ reglas
   /** Resumen de `config/game.ts` con la sección del manual de cada número. */
+  /** Historial de partidas, del más reciente al más antiguo. */
+  matchHistoryPanel(filter: { mode?: string; robot?: string } = {}): void {
+    const all = loadMatchHistory();
+    const list = filterMatchHistory(all, filter);
+    const facets = historyFacets(all);
+    const fmt = new Intl.DateTimeFormat(getLang() === 'es' ? 'es-MX' : 'en-US', { dateStyle: 'medium', timeStyle: 'short' });
+    const name = (id: string) => {
+      try {
+        return robotName(id as RobotId);
+      } catch {
+        return id;
+      }
+    };
+    const rows = list
+      .map((h) => {
+        const res = h.score.red === h.score.blue ? t('tie') : h.score.red > h.score.blue ? t('red') : t('blue');
+        const you = h.player < 0 ? '' : `<br><span class="help">${t('mhYou', { slot: stationLabel(h.player), robot: name(h.playerRobot) })}</span>`;
+        return `<li><b>${fmt.format(new Date(h.date))}</b> · ${h.mode} · ${res}<br>
+          <span class="red">${t('red')} ${h.score.red}</span> – <span class="blue">${h.score.blue} ${t('blue')}</span> · ${t('mhRp')} ${h.rp.red}–${h.rp.blue}${you}</li>`;
+      })
+      .join('');
+    this.open(
+      `${brandbar(t('mhTitle'))}
+      <h1>${t('mhTitle')}</h1>
+      ${all.length ? `<div class="actionbar"><label>${t('mhFilterMode')} <select data-f="mode"><option value="">${t('mhAll')}</option>${facets.modes.map((m) => `<option value="${m}"${m === filter.mode ? ' selected' : ''}>${m}</option>`).join('')}</select></label>
+        <label>${t('mhFilterRobot')} <select data-f="robot"><option value="">${t('mhAll')}</option>${facets.robots.map((r) => `<option value="${r}"${r === filter.robot ? ' selected' : ''}>${name(r)}</option>`).join('')}</select></label></div>` : ''}
+      ${list.length ? `<ul class="fouls">${rows}</ul>` : `<p class="sub">${t(all.length ? 'mhNoMatch' : 'mhEmpty')}</p>`}
+      <div class="actionbar">${backBtn('data-act="back"')}<div class="grow"></div>${all.length ? `<button class="btn" data-act="clear">${t('mhClear')}</button>` : ''}</div>`,
+      'screen solid',
+    );
+    this.on('[data-act="back"]', () => this.main());
+    const sel = (k: 'mode' | 'robot') => (document.querySelector(`select[data-f="${k}"]`) as HTMLSelectElement | null)?.value ?? '';
+    document.querySelectorAll('select[data-f]').forEach((el) => el.addEventListener('change', () => this.matchHistoryPanel({ mode: sel('mode'), robot: sel('robot') })));
+    this.on('[data-act="clear"]', () => {
+      if (confirm(t('mhClearConfirm'))) {
+        clearMatchHistory();
+        this.matchHistoryPanel();
+      }
+    });
+  }
+
   rulesPanel(): void {
     const g = GAME;
     const p = g.points;
@@ -701,8 +750,9 @@ export class Menu {
         ${note ? `<div class="msg ok">${ic.check}${note}</div>` : ''}
         ${earned.map((n) => `<div class="msg ok ach-toast">${ic.medal}<b>${t('ach_new')}:</b>&nbsp;${n}</div>`).join('')}
         <div class="actions">
-          ${cont ? `<button class="btn primary" data-act="menu">${ic.go}<span>${cont}</span></button>` : `<button class="btn primary" data-act="restart">${ic.reset}<span>${t('playAgain')}</span></button>
+          ${cont ? `<button class="btn primary" data-act="menu">${ic.go}<span>${cont}</span></button>` : `<button class="btn primary" data-act="restart">${ic.reset}<span>${t('playAgain')} (R)</span></button>
           <button class="btn" data-act="menu">${ic.home}<span>${t('backToMenu')}</span></button>`}
+          <button class="btn" data-act="share">${ic.download}<span>${t('shareSummary')}</span></button>
           <button class="btn" data-act="log">${ic.download}<span>${t('downloadLog')}</span></button>
         </div>
       </div>`,
@@ -711,5 +761,9 @@ export class Menu {
     this.on('[data-act="restart"]', onRestart);
     this.on('[data-act="menu"]', onMenu);
     this.on('[data-act="log"]', onDownload);
+    const share = this.root.querySelector<HTMLButtonElement>('[data-act="share"]');
+    share?.addEventListener('click', () => {
+      shareSummary(m).then((r) => { if (r === 'downloaded') share.textContent = t('summaryDownloaded'); }).catch(() => undefined);
+    });
   }
 }

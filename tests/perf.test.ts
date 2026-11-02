@@ -58,3 +58,17 @@ describe('QualityGovernor', () => {
     expect(g.state.scale).toBe(1);
   });
 });
+
+describe('QualityGovernor en celulares lentos', () => {
+  it('con 8 FPS sostenidos llega al mínimo de resolución y calidad', () => {
+    const g = new QualityGovernor('high');
+    for (let i = 0; i < 12; i++) g.step(8);
+    expect(g.state.quality).toBe('low');
+    expect(g.state.scale).toBe(DYN_MIN);
+  });
+  it('FPS justo en el umbral (45) no baja nada', () => {
+    const g = new QualityGovernor('high');
+    expect(g.step(45)).toBe(false);
+    expect(g.state.scale).toBe(1);
+  });
+});

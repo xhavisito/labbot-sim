@@ -18,6 +18,8 @@ import { addShots, asRed, zoneStats, ZONES, type Shot, type ShotLog } from '../c
 import * as F from '../config/field';
 import { CycleTracker } from '../game/cycleTracker';
 import { saveShotLog } from '../game/shotStore';
+import { addPerf, type PerfData } from '../core/robotCompare';
+import { savePerf } from '../game/perfStore';
 import type { GameSession, SessionTap } from '../game/GameSession';
 import { saveCycleBests } from '../game/cycleStore';
 import { saveGhosts } from '../game/ghostStore';
@@ -25,6 +27,8 @@ import { emptyInput, type PlayerInput } from '../input/InputManager';
 import { ic } from './chrome';
 import { activePalette } from '../config/palette';
 import { drawShotMap } from './shotMap';
+import { RULES } from '../core/fouls';
+import { opponent } from '../core/types';
 import { t, type Key } from './i18n';
 
 type Phase = 'brief' | 'countdown' | 'running' | 'result';
@@ -44,9 +48,13 @@ export interface Practice1v1Host {
   bests: CycleBests;
   /** Trayectoria del mejor ciclo por robot (el ghost). */
   ghosts: GhostStore;
+  /** Ajuste "Ghost en la práctica 1 contra 1": apagado, no se dibuja ni se menciona. */
+  showGhost: () => boolean;
   /** Mapa de tiro acumulado por robot (se guarda al terminar cada práctica). */
   shots: ShotLog;
   robot: { id: string; name: string };
+  /** Rendimiento acumulado por robot (puntos por minuto y ciclos, para comparar robots). */
+  perf: PerfData;
   exit: () => void;
 }
 
@@ -132,6 +140,7 @@ export class Practice1v1 {
 
   /** Duración (s) del ghost guardado de este robot; null si no hay. */
   private ghostDur(): number | null {
+    if (!this.h.showGhost()) return null;
     return this.h.ghosts.robots[this.h.robot.id]?.dur ?? null;
   }
 
@@ -139,7 +148,7 @@ export class Practice1v1 {
   private moveGhost(): void {
     const g = this.h.ghosts.robots[this.h.robot.id];
     const tr = this.tracker;
-    if (!g || !tr) return this.s.setGhost(null);
+    if (!g || !tr || !this.h.showGhost()) return this.s.setGhost(null);
     this.s.setGhost(mirrorPose(ghostAt(g, tr.time - tr.cycleStart), this.s.player.alliance));
   }
 
@@ -162,6 +171,7 @@ export class Practice1v1 {
     this.tap = null;
     this.tracker = null;
     this.tracker2 = null;
+    this.s.practiceFouls.running = false;
   }
 
   private brief(): void {
@@ -189,6 +199,7 @@ export class Practice1v1 {
     const trackers = [this.tracker, this.tracker2].filter((x): x is CycleTracker => x !== null);
     this.tap = { step: (s, mech, scored) => trackers.forEach((tr) => tr.step(s, mech, scored)) };
     this.s.tap = this.tap;
+    this.s.practiceFouls.running = true;
     this.phase = 'running';
     this.render();
   }
@@ -218,6 +229,9 @@ export class Practice1v1 {
       addShots(this.h.shots, this.id2, tr2.stats.shots.map((x) => asRed(x, a2)));
     }
     saveShotLog(this.h.shots);
+    for (const [id, sm] of [[this.h.robot.id, this.summary], [this.id2, this.summary2]] as const)
+      if (sm) addPerf(this.h.perf, id, { seconds: sm.time, points: sm.points, cycles: sm.scored, cycleSeconds: (sm.avg ?? 0) * sm.scored });
+    savePerf(this.h.perf);
     this.mapView = 'session';
     this.stop();
     this.phase = 'result';
@@ -259,6 +273,31 @@ export class Practice1v1 {
       ${p.rival === 'ai' ? `<label>${t('ms_persona')}</label>${seg('persona', AI_PERSONAS, p.persona, (v: string) => t(`persona_${v}` as Key))}` : ''}
       <label>${t('p1_limit')}</label>${seg('limit', PRACTICE_LIMITS, p.limit, (v: number) => (v === 0 ? t('p1_free') : secs(v)))}
     </div>`;
+  }
+
+  /** Árbitro de la práctica: cada falta con su § del manual, puntos al contrario, tarjetas y el efecto en tus puntos (D50). */
+  private refereeHtml(own: number): string {
+    const pf = this.s.practiceFouls;
+    const me = this.s.player.alliance;
+    const rv = opponent(me);
+    const tl = pf.tally();
+    if (!pf.fouls.length && !pf.cards.length) return `<h3>${t('p1_refTitle')}</h3><p class="tn-note">${t('p1_refClean')}</p>`;
+    const who = (a: string) => (a === me ? t('p1_refYou') : t('p1_refRival'));
+    const rows = pf.fouls
+      .map((f) => {
+        const r = RULES[f.rule];
+        const pts = f.kind === 'TECH' ? this.s.game.fouls.tech : this.s.game.fouls.foul;
+        return `<li><span class="tag ${f.offender}">${who(f.offender)}</span><b>${f.kind === 'TECH' ? 'Tech Foul' : 'Foul'}</b> · ${esc(r.es)} <em>${r.section} · ${secs(f.time)}</em><div class="ref-impact">+${pts} → ${who(opponent(f.offender))}${r.supuesto ? ` · <i>${t('ref_assumed')} ${esc(r.supuesto.split(':')[0])}</i>` : ''}</div></li>`;
+      })
+      .join('');
+    const cards = pf.cards.map((c) => `<li><span class="tag ${c.alliance}">${who(c.alliance)}</span><b>${c.type} CARD</b> · ${esc(c.reason)}<em>${c.type === 'RED' ? '§4.3.3' : '§4.3.2'} · ${secs(c.time)}</em></li>`).join('');
+    const given = tl.received[rv];
+    const got = tl.received[me];
+    const score = tl.redCard[me] ? `<p class="ref-red">✕ ${t('p1_refRed')}</p>` : `<p class="tn-note">${t('p1_refScore', { own, got, total: pf.score(me, own) })}</p>`;
+    return `<h3>${t('p1_refTitle')}</h3>
+      <p class="tn-note">${t('p1_refSummary', { n: tl.fouls[me] + tl.techs[me], given, m: tl.fouls[rv] + tl.techs[rv], got })}</p>
+      <ul class="fouls ref-list">${rows}${cards}</ul>${score}${tl.redCard[rv] ? `<p class="tn-note">${t('p1_refRivalRed')}</p>` : ''}
+      <p class="ms-note">${t('p1_refNote')}</p>`;
   }
 
   /** Tabla de ciclos por Muestra. `mine` = la del robot guardado (récords y estrellas); si no, la del jugador 2. */
@@ -340,8 +379,9 @@ export class Practice1v1 {
     const assume = this.human ? t('p1_assumeHuman') : t('p1_assume');
     const body =
       ph === 'result' && s
-        ? `${this.newGhost ? `<p class="tn-note"><b class="tn-new">★</b> ${t('p1_ghostNew', { s: secs(this.ghostDur()) })}</p>` : ''}<p class="tn-note">${t('p1_resultNote', { t: secs(s.time), c: s.cycles, m: s.perMinute.toFixed(1) })}</p>
+        ? `${this.newGhost && this.h.showGhost() ? `<p class="tn-note"><b class="tn-new">★</b> ${t('p1_ghostNew', { s: secs(this.ghostDur()) })}</p>` : ''}<p class="tn-note">${t('p1_resultNote', { t: secs(s.time), c: s.cycles, m: s.perMinute.toFixed(1) })}</p>
           <p class="tn-note">${t('p1_splitNote', { b: secs(s.avgSearch), l: secs(s.avg), f: secs(s.avgFull) })}</p>${this.tableHtml(s)}
+          ${this.s.rivalIndex >= 0 ? this.refereeHtml(s.points) : ''}
           ${s2 ? `<h3 class="p1-p2">${t('p1_p2Title')}</h3><p class="tn-note">${t('p1_resultNote', { t: secs(s2.time), c: s2.cycles, m: s2.perMinute.toFixed(1) })}</p>${this.tableHtml(s2, false)}${this.mapHtml(true)}` : ''}
           <p class="ap-note">${assume}</p>${this.mapHtml()}`
         : `<p class="tn-goal">${t('p1_goal')}</p>${this.ghostDur() === null ? '' : `<p class="tn-note">${t('p1_ghostBrief', { s: secs(this.ghostDur()) })}</p>`}<p class="ap-note">${assume}</p>${this.mapHtml()}`;

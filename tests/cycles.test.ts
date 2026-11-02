@@ -152,6 +152,25 @@ describe('práctica 1 contra 1 en la física', () => {
     expect(new GameSession({ player: 3, preload: true, solo: true, rival: 'passive' }).rival?.index).toBe(1);
   });
 
+  it('el árbitro cobra faltas en la práctica 1 contra 1 (D50): Tech Foul de 8 con su sección; sin rival no', () => {
+    const g = session('passive');
+    g.practiceFouls.running = true;
+    g.player.phys.teleport(0, F.HALF_W + 2, 0);
+    g.setInput(emptyInput());
+    for (let i = 0; i < 5; i++) g.step();
+    expect(g.practiceFouls.fouls.map((f) => f.rule)).toEqual(['OUT_OF_BOUNDS']);
+    expect(g.practiceFouls.tally().received.blue).toBe(8);
+    expect(g.matchEvents.some((e) => e.type === 'foul')).toBe(true);
+    const solo = session('none');
+    solo.practiceFouls.running = true;
+    solo.player.phys.teleport(0, F.HALF_W + 2, 0);
+    for (let i = 0; i < 5; i++) {
+      solo.setInput(emptyInput());
+      solo.step();
+    }
+    expect(solo.practiceFouls.fouls).toHaveLength(0);
+  });
+
   it('el rival pasivo no se mueve', () => {
     const g = session('passive');
     const p0 = g.rival!.phys.position();
