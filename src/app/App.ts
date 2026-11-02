@@ -291,6 +291,10 @@ export class App {
     window.addEventListener('resize', onResize);
     window.addEventListener('keydown', (e) => {
       if (e.code === 'Backspace' && !this.input.capturing) this.resetPractice();
+      // Resultados: R juega otro match con la misma configuración (si hay botón "Jugar otra vez")
+      if (e.code === 'KeyR' && this.state === 'results' && !e.repeat && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        this.menu.root.querySelector<HTMLButtonElement>('[data-act="restart"]')?.click();
+      }
       if (e.code === 'F3') {
         e.preventDefault();
         this.fpsShown = !this.fpsShown;

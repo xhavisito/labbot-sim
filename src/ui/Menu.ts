@@ -739,7 +739,7 @@ export class Menu {
         ${note ? `<div class="msg ok">${ic.check}${note}</div>` : ''}
         ${earned.map((n) => `<div class="msg ok ach-toast">${ic.medal}<b>${t('ach_new')}:</b>&nbsp;${n}</div>`).join('')}
         <div class="actions">
-          ${cont ? `<button class="btn primary" data-act="menu">${ic.go}<span>${cont}</span></button>` : `<button class="btn primary" data-act="restart">${ic.reset}<span>${t('playAgain')}</span></button>
+          ${cont ? `<button class="btn primary" data-act="menu">${ic.go}<span>${cont}</span></button>` : `<button class="btn primary" data-act="restart">${ic.reset}<span>${t('playAgain')} (R)</span></button>
           <button class="btn" data-act="menu">${ic.home}<span>${t('backToMenu')}</span></button>`}
           <button class="btn" data-act="share">${ic.download}<span>${t('shareSummary')}</span></button>
           <button class="btn" data-act="log">${ic.download}<span>${t('downloadLog')}</span></button>
