@@ -1,20 +1,20 @@
 /**
  * Controles touch en pantalla: joystick virtual a la izquierda (avanzar/girar, como el stick del
- * control) y botones a la derecha. Escriben en `InputManager.touch`; el resto del juego no sabe de
- * dónde vino la entrada.
+ * control) y botones redondos a la derecha (estilo rebuilt-sim). Escriben en `InputManager.touch`;
+ * el resto del juego no sabe de dónde vino la entrada. Cámara y pausa son los botones del HUD.
  */
 import type { Action } from '../input/bindings';
 import type { InputManager } from '../input/InputManager';
 import { t, type Key } from './i18n';
 
 const BUTTONS: Array<{ action: Action; label: Key | string; cls: string }> = [
-  { action: 'toggleIntake', label: 'touchIntake', cls: 'b-intake' },
+  { action: 'intake', label: 'touchIntake', cls: 'b-intake' },
   { action: 'releaseSample', label: 'touchDrop', cls: 'b-drop' },
   { action: 'elevatorUp', label: '▲', cls: 'b-up' },
   { action: 'elevatorDown', label: '▼', cls: 'b-down' },
-  { action: 'grabCritical', label: 'touchGrab', cls: 'b-grab' },
-  { action: 'releaseCritical', label: 'touchDropCrit', cls: 'b-dropc' },
 ];
+/** Botones que se mantienen presionados (no de un toque). */
+const HOLD = new Set<Action>(['intake']);
 
 /** ¿El equipo es táctil? (pantalla de dedo, sin mouse fino) */
 export const isTouchDevice = (): boolean =>
@@ -28,46 +28,60 @@ export class TouchControls {
   private center = { x: 0, y: 0 };
   private radius = 60;
 
+  private intake: HTMLElement;
+
   constructor(
     host: HTMLElement,
     private input: InputManager,
-    onCamera: () => void,
-    onPause: () => void,
   ) {
     this.root = document.createElement('div');
     this.root.className = 'touch';
     this.root.innerHTML = `
-      <div class="stick"><div class="knob"></div></div>
-      <div class="pad">${BUTTONS.map((b) => `<button class="tbtn ${b.cls}" data-a="${b.action}">${b.label.length <= 2 ? b.label : t(b.label as Key)}</button>`).join('')}</div>
-      <div class="sys"><button class="tbtn small" data-sys="cam">🎥</button><button class="tbtn small" data-sys="pause">❚❚</button></div>`;
+      <div class="stick"><div class="knob"></div><span>${t('touchStick')}</span></div>
+      <div class="pad">${BUTTONS.map((b) => `<button class="tbtn ${b.cls}" data-a="${b.action}">${b.label.length <= 2 ? b.label : t(b.label as Key)}</button>`).join('')}</div>`;
     host.appendChild(this.root);
     this.stick = this.root.querySelector('.stick')!;
     this.knob = this.root.querySelector('.knob')!;
     this.stick.addEventListener('pointerdown', (e) => this.stickDown(e));
     this.stick.addEventListener('pointermove', (e) => this.stickMove(e));
     for (const ev of ['pointerup', 'pointercancel', 'lostpointercapture'] as const) this.stick.addEventListener(ev, (e) => this.stickUp(e));
-    this.root.querySelectorAll<HTMLButtonElement>('[data-a]').forEach((b) =>
+    this.root.querySelectorAll<HTMLButtonElement>('[data-a]').forEach((b) => {
+      const a = b.dataset.a as Action;
       b.addEventListener('pointerdown', (e) => {
         e.preventDefault();
-        this.input.touch.pressed.add(b.dataset.a as Action);
         b.classList.add('on');
+        // La garra trabaja mientras el dedo sigue encima (como la tecla o el botón del control)
+        if (HOLD.has(a)) {
+          b.setPointerCapture(e.pointerId);
+          this.input.touch.held.add(a);
+          return;
+        }
+        this.input.touch.pressed.add(a);
         setTimeout(() => b.classList.remove('on'), 150);
-      }),
-    );
-    this.root.querySelector('[data-sys="cam"]')!.addEventListener('pointerdown', (e) => {
-      e.preventDefault();
-      onCamera();
+      });
+      if (HOLD.has(a))
+        for (const ev of ['pointerup', 'pointercancel', 'lostpointercapture'] as const)
+          b.addEventListener(ev, () => {
+            this.input.touch.held.delete(a);
+            b.classList.remove('on');
+          });
     });
-    this.root.querySelector('[data-sys="pause"]')!.addEventListener('pointerdown', (e) => {
-      e.preventDefault();
-      onPause();
-    });
+    this.intake = this.root.querySelector('.b-intake')!;
     this.show(false);
+  }
+
+  /** Marca el botón del intake mientras está encendido. */
+  setIntake(on: boolean): void {
+    this.intake.classList.toggle('active', on);
   }
 
   show(v: boolean): void {
     this.root.style.display = v ? '' : 'none';
-    if (!v) this.release();
+    if (!v) {
+      this.release();
+      this.input.touch.held.clear();
+      this.root.querySelectorAll('.tbtn.on').forEach((b) => b.classList.remove('on'));
+    }
   }
 
   private stickDown(e: PointerEvent): void {

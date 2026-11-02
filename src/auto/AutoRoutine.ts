@@ -4,6 +4,14 @@
  * viendo hacia el centro, así que sirven igual para rojo y azul.
  */
 import type { ElevatorPos } from '../config/robot';
+import type { AutoPath } from '../core/autoPath';
+import { PathFollower, type PathRobot } from './pathFollower';
+
+/**
+ * Velocidad de referencia de las rutinas (m/s): `forward` de un paso 'drive' es fracción de esto, no
+ * de la velocidad máxima del robot, para que la rutina recorra lo mismo con cualquier robot.
+ */
+export const AUTO_REF_SPEED = 3.0;
 
 export type AutoStep =
   | { do: 'drive'; forward: number; turn?: number; seconds: number }
@@ -18,6 +26,31 @@ export interface AutoRoutine {
   steps: AutoStep[];
   /** La maneja la IA (`ai/Bot`) en lugar de pasos fijos. */
   bot?: { scoreOnly: boolean };
+  /** Ruta grabada en la práctica de AUTO (`auto/recorded.ts`): los controles de cada paso, en lugar de `steps`. */
+  track?: AutoTrack;
+  /** Rutina dibujada en el editor de rutinas (`core/autoPath.ts`): la sigue `PathFollower` con la pose real. */
+  path?: AutoPath;
+}
+
+/** Acción de un solo disparo en el paso `i` de una ruta grabada. */
+export interface AutoAction {
+  i: number;
+  intake?: boolean;
+  elevator?: ElevatorPos;
+  release?: boolean;
+  grabCritical?: boolean;
+  releaseCritical?: boolean;
+}
+
+/**
+ * Ruta grabada: adelante y giro de cada paso de física (×1000, fracción de la velocidad máxima del
+ * robot con el que se grabó, ya con el modo fino) y las acciones de un disparo.
+ */
+export interface AutoTrack {
+  hz: number;
+  forward: number[];
+  turn: number[];
+  actions: AutoAction[];
 }
 
 /** Por defecto: avanzar ~0.9 m y detenerse: sale de la Zona de Inicio (= cruza la línea, D1) sin llegar a la rampa (§4.6). */
@@ -40,9 +73,13 @@ export const AUTO_ROUTINES: readonly AutoRoutine[] = [LEAVE_ZONE, SCORE_PRELOAD,
 export interface AutoOutput {
   forward: number;
   turn: number;
+  /** `forward` ya es fracción de la velocidad máxima del robot (ruta grabada), no de `AUTO_REF_SPEED`. */
+  raw?: boolean;
   elevator?: ElevatorPos;
   intake?: boolean;
   release?: boolean;
+  grabCritical?: boolean;
+  releaseCritical?: boolean;
 }
 
 /** Ejecuta una rutina paso a paso (fracciones de velocidad −1…1). */
@@ -51,13 +88,26 @@ export class AutoRunner {
   private t = 0;
   private started = -1;
 
-  constructor(readonly routine: AutoRoutine) {}
+  /** Seguidor de la rutina dibujada (si la rutina es de ese tipo). */
+  readonly follower: PathFollower | null;
 
-  get done(): boolean {
-    return this.i >= this.routine.steps.length;
+  constructor(readonly routine: AutoRoutine) {
+    this.follower = routine.path ? new PathFollower(routine.path) : null;
   }
 
-  step(dt: number): AutoOutput {
+  /** Siguiente acción de la ruta grabada. */
+  private a = 0;
+
+  get done(): boolean {
+    if (this.follower) return this.follower.done;
+    return this.i >= (this.routine.track?.forward.length ?? this.routine.steps.length);
+  }
+
+  /** `robot`: la pose real, para las rutinas dibujadas (sin él, se quedan quietas). */
+  step(dt: number, robot?: PathRobot): AutoOutput {
+    if (this.follower) return robot ? this.follower.step(dt, robot) : { forward: 0, turn: 0, raw: true };
+    const tr = this.routine.track;
+    if (tr) return this.trackStep(tr);
     const out: AutoOutput = { forward: 0, turn: 0 };
     while (!this.done) {
       const s = this.routine.steps[this.i];
@@ -82,6 +132,18 @@ export class AutoRunner {
       else out.release = true;
       this.i++;
     }
+    return out;
+  }
+
+  /** Un paso de la ruta grabada (un paso de física por llamada). */
+  private trackStep(tr: AutoTrack): AutoOutput {
+    const i = this.i;
+    const out: AutoOutput = { forward: (tr.forward[i] ?? 0) / 1000, turn: (tr.turn[i] ?? 0) / 1000, raw: true };
+    while (this.a < tr.actions.length && tr.actions[this.a].i <= i) {
+      const { i: _, ...act } = tr.actions[this.a++];
+      Object.assign(out, act);
+    }
+    this.i++;
     return out;
   }
 }

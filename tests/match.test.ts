@@ -48,6 +48,9 @@ describe('puntuación (§4.4)', () => {
     expect(m.scoreSample('red', 3)).toBe(15);
     const b = m.breakdown('red');
     expect(b.samplesAuto).toBe(33);
+    // Puntos de AUTO = Línea de Autónomo + Muestras del AUTO, y el desglose mostrado sigue cuadrando
+    expect(b.auto).toBe(b.autoLine + b.samplesAuto);
+    expect(b.auto + b.samplesTeleop + b.platform + b.critical + b.penalties).toBe(b.subtotal);
     expect(b.samplesTeleop).toBe(2 + 6 + 15 + 15);
     expect(m.score('blue')).toBe(0);
   });

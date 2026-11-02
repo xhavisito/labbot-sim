@@ -4,7 +4,7 @@
  * con su tiempo y la curva de puntos. Puro: sin DOM.
  */
 import { RULES } from './fouls';
-import type { Match, MatchEvent } from './match';
+import type { Breakdown, Match, MatchEvent } from './match';
 import { ALLIANCES, type Alliance } from './types';
 
 export type TimedEvent = MatchEvent & { t: number };
@@ -17,10 +17,10 @@ export interface MatchLog {
   alliances: Record<
     Alliance,
     {
-      breakdown: ReturnType<Match['breakdown']>;
+      /** Desglose como se muestra: la Línea de Autónomo va dentro de `auto` (Puntos de AUTO). */
+      breakdown: Omit<Breakdown, 'autoLine' | 'samplesAuto'>;
       rankingPoints: ReturnType<Match['rankingPoints']>;
       samples: Match['state']['red']['samples'];
-      autoLineRobots: number[];
       platformRobots: number;
       critical: boolean;
     }
@@ -31,16 +31,21 @@ export interface MatchLog {
   scoreHistory: Match['history'];
 }
 
+/** Quita la Línea de Autónomo y las Muestras del AUTO por separado: ya suman en `auto`. */
+function shownBreakdown(b: Breakdown): Omit<Breakdown, 'autoLine' | 'samplesAuto'> {
+  const { autoLine: _line, samplesAuto: _auto, ...rest } = b;
+  return rest;
+}
+
 /** Arma el registro. `t` de cada evento = segundos desde el inicio del match. */
 export function buildMatchLog(m: Match, events: readonly TimedEvent[], meta: Record<string, unknown> = {}, now = new Date()): MatchLog {
   const alliances = {} as MatchLog['alliances'];
   for (const a of ALLIANCES) {
     const s = m.state[a];
     alliances[a] = {
-      breakdown: m.breakdown(a),
+      breakdown: shownBreakdown(m.breakdown(a)),
       rankingPoints: m.rankingPoints(a),
       samples: s.samples.map((x) => ({ ...x })),
-      autoLineRobots: [...s.autoLine].sort((x, y) => x - y),
       platformRobots: s.platformRobots,
       critical: s.critical,
     };

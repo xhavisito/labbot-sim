@@ -14,18 +14,37 @@ describe('ajustes', () => {
     expect(sanitizeSettings({ ai: 'si', playerAuto: 'volar', maxSpeed: 'rápido', capacity: NaN }, ids)).toEqual(DEFAULT_SETTINGS);
   });
 
-  it('recorta a los rangos y redondea la capacidad', () => {
+  it('recorta a los rangos (la capacidad ya no se ajusta: el pivote lleva una pieza)', () => {
     const s = sanitizeSettings({ maxSpeed: 99, capacity: 3.6, hpInterval: 0, ai: false, playerAuto: 'collect' }, ids);
     expect(s.maxSpeed).toBe(SETTINGS_RANGE.maxSpeed.max);
-    expect(s.capacity).toBe(4);
     expect(s.hpInterval).toBe(SETTINGS_RANGE.hpInterval.min);
     expect(s.ai).toBe(false);
+    expect('capacity' in s).toBe(false);
     expect(s.playerAuto).toBe('collect');
+  });
+
+  it('pizarra de estrategia: en la cancha por defecto; se puede dejar solo la tarjeta o apagar', () => {
+    expect(DEFAULT_SETTINGS.planBoard).toBe('all');
+    expect(sanitizeSettings({ planBoard: 'card' }, ids).planBoard).toBe('card');
+    expect(sanitizeSettings({ planBoard: 'off' }, ids).planBoard).toBe('off');
+    expect(sanitizeSettings({ planBoard: true }, ids).planBoard).toBe('all');
+  });
+
+  it('calidad gráfica: solo valores conocidos', () => {
+    expect(sanitizeSettings({ quality: 'low' }, ids).quality).toBe('low');
+    expect(sanitizeSettings({ quality: 'ultra' }, ids).quality).toBe('auto');
+  });
+
+  it('agarre: compliants por defecto; el estricto de antes ("real") pasa a compliants', () => {
+    expect(DEFAULT_SETTINGS.grip).toBe('compliant');
+    expect(sanitizeSettings({ grip: 'real' }, ids).grip).toBe('compliant');
+    expect(sanitizeSettings({ grip: 'precise' }, ids).grip).toBe('precise');
+    expect(sanitizeSettings({ grip: 'easy' }, ids).grip).toBe('easy');
   });
 
   it('las rutinas por defecto existen', () => {
     expect(ids).toContain(DEFAULT_SETTINGS.playerAuto);
-    expect(ids).toContain(DEFAULT_SETTINGS.botAuto);
+    for (const r of DEFAULT_SETTINGS.match.robots) expect(ids).toContain(r.auto);
   });
 });
 
@@ -50,7 +69,10 @@ describe('registro del match', () => {
     expect(log.format).toBe('labbot-rescue-match');
     expect(log.createdAt).toBe('2026-01-01T00:00:00.000Z');
     expect(log.alliances.red.breakdown.total).toBe(m.score('red'));
-    expect(log.alliances.red.autoLineRobots).toEqual([0]);
+    // La Línea de Autónomo (robot 0, 5) va dentro de los Puntos de AUTO junto con la Muestra N3 (18)
+    expect(log.alliances.red.breakdown.auto).toBe(5 + 18);
+    expect(log.alliances.red.breakdown).not.toHaveProperty('autoLine');
+    expect(log.alliances.red.breakdown).not.toHaveProperty('samplesAuto');
     expect(log.alliances.red.samples).toEqual([expect.objectContaining({ level: 3, period: 'AUTO' })]);
     expect(log.alliances.blue.critical).toBe(true);
     expect(log.fouls[0]).toMatchObject({ rule: 'OUT_OF_BOUNDS', section: '§4.6', offender: 'blue' });
@@ -58,5 +80,23 @@ describe('registro del match', () => {
     expect(log.events.at(-1)?.type).toBe('end');
     // Es JSON puro (sin Set ni clases)
     expect(JSON.parse(JSON.stringify(log))).toEqual(log);
+  });
+});
+
+describe('ajustes de la práctica 1 contra 1', () => {
+  it('por defecto: rival quieto y práctica libre; lo inválido vuelve al valor por defecto', async () => {
+    const { sanitizePractice, DEFAULT_SETTINGS } = await import('../src/config/settings');
+    expect(DEFAULT_SETTINGS.practice).toEqual({ rival: 'passive', persona: 'balanced', limit: 0 });
+    expect(sanitizePractice({ rival: 'ai', persona: 'balanced', limit: 120 })).toEqual({ rival: 'ai', persona: 'balanced', limit: 120 });
+    expect(sanitizePractice({ rival: 'boss', limit: 77 })).toEqual({ rival: 'passive', persona: 'balanced', limit: 0 });
+    expect(sanitizePractice(null)).toEqual({ rival: 'passive', persona: 'balanced', limit: 0 });
+  });
+});
+
+describe('showFps', () => {
+  it('es booleano y por defecto apagado', () => {
+    expect(sanitizeSettings({}, []).showFps).toBe(false);
+    expect(sanitizeSettings({ showFps: true }, []).showFps).toBe(true);
+    expect(sanitizeSettings({ showFps: 'sí' }, []).showFps).toBe(false);
   });
 });

@@ -10,10 +10,8 @@ export const ACTIONS = [
   'left',
   'right',
   'slow',
-  'toggleIntake',
+  'intake',
   'releaseSample',
-  'grabCritical',
-  'releaseCritical',
   'elevatorUp',
   'elevatorDown',
   'elevator0',
@@ -37,6 +35,8 @@ export interface Bindings {
   padDrive: PadDrive;
   /** Invertir el eje de avance del stick. */
   invertForward: boolean;
+  /** Zona muerta de los sticks (0.05–0.5): sube si el stick se mueve solo, baja si cuesta moverlo. */
+  padDeadzone: number;
 }
 
 /** Botones del mapeo "standard" del navegador. */
@@ -47,20 +47,18 @@ export const DEFAULT_BINDINGS: Bindings = {
   keys: {
     forward: ['KeyW', 'ArrowUp'],
     back: ['KeyS', 'ArrowDown'],
-    left: ['KeyA', 'ArrowLeft'],
-    right: ['KeyD', 'ArrowRight'],
-    slow: ['ShiftLeft', 'ShiftRight'],
-    toggleIntake: ['Space'],
-    releaseSample: ['KeyE'],
-    grabCritical: ['KeyF'],
-    releaseCritical: ['KeyR'],
+    left: ['KeyJ', 'ArrowLeft'],
+    right: ['KeyL', 'ArrowRight'],
+    slow: ['ShiftRight'],
+    intake: ['ShiftLeft'],
+    releaseSample: ['KeyK'],
     elevatorUp: [],
     elevatorDown: [],
-    elevator0: ['Digit0'],
-    elevator1: ['Digit1'],
-    elevator2: ['Digit2'],
-    elevator3: ['Digit3'],
-    elevator4: ['Digit4'],
+    elevator0: ['KeyU', 'Digit0'],
+    elevator1: ['KeyI', 'Digit1'],
+    elevator2: ['KeyO', 'Digit2'],
+    elevator3: ['KeyP', 'Digit3'],
+    elevator4: ['Semicolon', 'Digit4'],
     camera: ['KeyC'],
     pause: ['Escape'],
   },
@@ -70,10 +68,8 @@ export const DEFAULT_BINDINGS: Bindings = {
     left: [],
     right: [],
     slow: [PAD.LT],
-    toggleIntake: [PAD.A],
+    intake: [PAD.A],
     releaseSample: [PAD.B],
-    grabCritical: [PAD.X],
-    releaseCritical: [PAD.Y],
     elevatorUp: [PAD.RB, PAD.UP],
     elevatorDown: [PAD.LB, PAD.DOWN],
     elevator0: [],
@@ -86,7 +82,10 @@ export const DEFAULT_BINDINGS: Bindings = {
   },
   padDrive: 'left',
   invertForward: false,
+  padDeadzone: 0.15,
 };
+
+export const DEADZONE_RANGE = { min: 0.05, max: 0.5, step: 0.05 } as const;
 
 /** Máximo de teclas o botones por acción. */
 export const MAX_PER_ACTION = 2;
@@ -96,6 +95,7 @@ export const cloneBindings = (b: Bindings): Bindings => ({
   pad: Object.fromEntries(ACTIONS.map((a) => [a, [...b.pad[a]]])) as Bindings['pad'],
   padDrive: b.padDrive,
   invertForward: b.invertForward,
+  padDeadzone: b.padDeadzone,
 });
 
 /**
@@ -127,9 +127,10 @@ export function sanitizeBindings(raw: unknown): Bindings {
   const pad = (o.pad && typeof o.pad === 'object' ? o.pad : {}) as Record<string, unknown>;
   let out = cloneBindings(d);
   for (const a of ACTIONS) {
-    const k = keys[a];
+    // `intake` antes se llamaba `toggleIntake` (se prendía y apagaba; ahora se mantiene presionado)
+    const k = keys[a] ?? (a === 'intake' ? keys.toggleIntake : undefined);
     if (Array.isArray(k) && k.every((x) => typeof x === 'string' && x.length > 0 && x.length < 40)) out.keys[a] = k.slice(0, MAX_PER_ACTION);
-    const p = pad[a];
+    const p = pad[a] ?? (a === 'intake' ? pad.toggleIntake : undefined);
     if (Array.isArray(p) && p.every((x) => Number.isInteger(x) && x >= 0 && x < 32)) out.pad[a] = p.slice(0, MAX_PER_ACTION);
   }
   // Sin repetidos entre acciones: se queda con la primera acción que lo tenga
@@ -138,8 +139,14 @@ export function sanitizeBindings(raw: unknown): Bindings {
     const table = out[dev] as Record<Action, Array<string | number>>;
     for (const a of ACTIONS) table[a] = table[a].filter((x) => (seen.has(x) ? false : (seen.add(x), true)));
   }
-  out = { ...out, padDrive: o.padDrive === 'split' ? 'split' : 'left', invertForward: o.invertForward === true };
+  out = { ...out, padDrive: o.padDrive === 'split' ? 'split' : 'left', invertForward: o.invertForward === true, padDeadzone: clampDeadzone(o.padDeadzone) };
   return out;
+}
+
+/** Zona muerta válida (lo guardado puede venir raro). */
+export function clampDeadzone(v: unknown): number {
+  if (typeof v !== 'number' || !Number.isFinite(v)) return DEFAULT_BINDINGS.padDeadzone;
+  return Math.round(Math.max(DEADZONE_RANGE.min, Math.min(DEADZONE_RANGE.max, v)) * 100) / 100;
 }
 
 const STORE = 'labbot.bindings';
