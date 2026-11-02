@@ -387,6 +387,7 @@ export class App {
         },
         bests: this.cycleBests,
         ghosts: this.ghosts,
+        showGhost: () => this.settings.showGhost,
         shots: this.shotLog,
         perf: this.robotPerf,
         robot: { id: this.settings.robotType, name: robotLabel(this.session.player.spec) },
