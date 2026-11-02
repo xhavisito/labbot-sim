@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { addMatchHistory, MATCH_HISTORY_MAX, loadMatchHistory, sanitizeMatchHistory, type MatchHistoryEntry, type MatchHistoryStore } from '../src/core/matchHistory';
+import { addMatchHistory, filterMatchHistory, historyFacets, MATCH_HISTORY_MAX, loadMatchHistory, sanitizeMatchHistory, type MatchHistoryEntry, type MatchHistoryStore } from '../src/core/matchHistory';
 
 const mem = (): MatchHistoryStore => {
   const d: Record<string, string> = {};
@@ -29,5 +29,18 @@ describe('historial', () => {
     const s = mem();
     for (let i = 0; i < MATCH_HISTORY_MAX + 5; i++) addMatchHistory(e(new Date(2026, 0, 1, 0, i).toISOString()), s);
     expect(loadMatchHistory(s)).toHaveLength(MATCH_HISTORY_MAX);
+  });
+});
+
+describe('filtro del historial', () => {
+  const l = [{ ...e('2026-01-01T00:00:00Z'), mode: 'practice' }, { ...e('2026-01-02T00:00:00Z'), playerRobot: 'pivot' }];
+  it('filtra por modo y por robot', () => {
+    expect(filterMatchHistory(l, {})).toHaveLength(2);
+    expect(filterMatchHistory(l, { mode: 'practice' })).toHaveLength(1);
+    expect(filterMatchHistory(l, { robot: 'pivot' })).toHaveLength(1);
+    expect(filterMatchHistory(l, { mode: 'practice', robot: 'pivot' })).toHaveLength(0);
+  });
+  it('lista modos y robots presentes', () => {
+    expect(historyFacets(l)).toEqual({ modes: ['match', 'practice'], robots: ['generic', 'pivot'] });
   });
 });
