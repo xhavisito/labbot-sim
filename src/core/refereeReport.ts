@@ -5,7 +5,7 @@
  * - Foul = 4 puntos al contrario (§4.5); Tech Foul = 8 (§4.6). El sim siempre los otorga (D30).
  * - RP (§4.4): victoria 2, empate 1, más Línea, Muestra Crítica y Dominio. Las faltas solo mueven el
  *   RP de victoria/empate (los otros tres no dependen de los puntos). Red Card: 0 puntos y 0 RP (D10).
- * - "Sin esta falta" (SUPUESTO D43): el árbitro quita los puntos de esa falta y vuelve a comparar los
+ * - "Sin esta falta" (SUPUESTO D44): el árbitro quita los puntos de esa falta y vuelve a comparar los
  *   marcadores; todo lo demás del match queda igual. Es una cuenta, no una predicción de lo que habría
  *   pasado en la cancha.
  */
