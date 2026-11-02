@@ -57,6 +57,21 @@ const sy = (x: number) => (x - MAP.x0) * 100;
 const W = MAP.z * 200;
 const H = (MAP.x1 - MAP.x0) * 100;
 
+/** Una opción de `<select>` con la actual seleccionada. */
+export const optionTag = (v: string, label: string, sel: string): string => `<option value="${v}" ${v === sel ? 'selected' : ''}>${label}</option>`;
+
+/** Rutinas de AUTO para un `<select>`: las de la app, tus rutas guardadas (si `mine`) y las dibujadas. */
+export function autoOptionsHtml(sel: string, mine: boolean): string {
+  const opt = optionTag;
+  const paths = loadPaths();
+  return (
+    AUTO_ROUTINES.map((r) => opt(r.id, t(`auto_${r.id}` as Key), sel)).join('') +
+    (mine && savedRoutes.length ? `<optgroup label="${t('grp_routes')}">${savedRoutes.map((r) => opt(routeRoutine(r).id, esc(r.name), sel)).join('')}</optgroup>` : '') +
+    // Las dibujadas sirven para cualquier robot (corrigen con la pose real), también para tu compañero
+    (paths.length ? `<optgroup label="${t('grp_paths')}">${paths.map((r) => opt(pathRoutine(r).id, esc(r.name), sel)).join('')}</optgroup>` : '')
+  );
+}
+
 const stationName = (i: number): string => `${t(i < 2 ? 'red' : 'blue')} ${(i % 2) + 1}`;
 
 export class MatchSetup {
@@ -72,13 +87,8 @@ export class MatchSetup {
     let player = inp.player;
     const spec = inp.playerSpec;
     m.start = clampSpot(spec.length, spec.width, m.start);
-    const opt = (v: string, label: string, sel: string) => `<option value="${v}" ${v === sel ? 'selected' : ''}>${label}</option>`;
-    const paths = loadPaths();
-    const autoOpts = (sel: string, mine: boolean) =>
-      AUTO_ROUTINES.map((r) => opt(r.id, t(`auto_${r.id}` as Key), sel)).join('') +
-      (mine && savedRoutes.length ? `<optgroup label="${t('grp_routes')}">${savedRoutes.map((r) => opt(routeRoutine(r).id, esc(r.name), sel)).join('')}</optgroup>` : '') +
-      // Las dibujadas sirven para cualquier robot (corrigen con la pose real), también para tu compañero
-      (paths.length ? `<optgroup label="${t('grp_paths')}">${paths.map((r) => opt(pathRoutine(r).id, esc(r.name), sel)).join('')}</optgroup>` : '');
+    const opt = optionTag;
+    const autoOpts = autoOptionsHtml;
     const kindCell = (i: number, r: MatchRobot) => {
       if (inp.kinds) return `<span class="ms-fixed">${t(`type_${inp.kinds[i]}` as Key)}</span>`;
       return `<select data-kind="${i}">${opt('random', t('ms_random'), r.kind)}${MECHANISM_KINDS.map((k) => opt(k, t(`type_${k}` as Key), r.kind)).join('')}</select>`;
@@ -181,30 +191,7 @@ export class MatchSetup {
       m.start = clampSpot(spec.length, spec.width, spot);
       draw();
     };
-    // Arrastrar: el centro del robot sigue al dedo y se recorta a la zona
-    let drag = false;
-    const toSpot = (e: PointerEvent) => {
-      const svg = map.querySelector('svg');
-      if (!svg) return;
-      const rect = svg.getBoundingClientRect();
-      const px = ((e.clientX - rect.left) / rect.width) * W;
-      const py = ((e.clientY - rect.top) / rect.height) * H;
-      const c = zoneCenter(player % 2);
-      set({ dx: py / 100 + MAP.x0 - c.x, dz: MAP.z - px / 100 - c.z, turn: m.start.turn });
-    };
-    map.addEventListener('pointerdown', (e) => {
-      drag = true;
-      map.setPointerCapture(e.pointerId);
-      toSpot(e);
-    });
-    map.addEventListener('pointermove', (e) => drag && toSpot(e));
-    const end = () => {
-      if (!drag) return;
-      drag = false;
-      this.act.save();
-    };
-    map.addEventListener('pointerup', end);
-    map.addEventListener('pointercancel', end);
+    bindStartMap(map, player % 2, () => m.start, set, () => this.act.save());
     turn.addEventListener('input', () => set({ ...m.start, turn: (Number(turn.value) * Math.PI) / 180 }));
     turn.addEventListener('change', () => this.act.save());
     q('[data-center]').addEventListener('click', () => {
@@ -292,8 +279,38 @@ export class MatchSetup {
   }
 }
 
+/**
+ * Arrastrar el robot en el mapa de la Zona de Inicio: el centro sigue al dedo y se recorta a la zona.
+ * `station` = la estación (0–1) cuya zona es el marco; `current` lee el lugar actual (para el giro).
+ */
+export function bindStartMap(map: HTMLElement, station: number, current: () => StartSpot, set: (s: StartSpot) => void, onEnd: () => void): void {
+  let drag = false;
+  const toSpot = (e: PointerEvent) => {
+    const svg = map.querySelector('svg');
+    if (!svg) return;
+    const rect = svg.getBoundingClientRect();
+    const px = ((e.clientX - rect.left) / rect.width) * W;
+    const py = ((e.clientY - rect.top) / rect.height) * H;
+    const c = zoneCenter(station);
+    set({ dx: py / 100 + MAP.x0 - c.x, dz: MAP.z - px / 100 - c.z, turn: current().turn });
+  };
+  map.addEventListener('pointerdown', (e) => {
+    drag = true;
+    map.setPointerCapture(e.pointerId);
+    toSpot(e);
+  });
+  map.addEventListener('pointermove', (e) => drag && toSpot(e));
+  const end = () => {
+    if (!drag) return;
+    drag = false;
+    onEnd();
+  };
+  map.addEventListener('pointerup', end);
+  map.addEventListener('pointercancel', end);
+}
+
 /** Centro de la Zona de Inicio de una estación (marco rojo). */
-function zoneCenter(station: number): { x: number; z: number } {
+export function zoneCenter(station: number): { x: number; z: number } {
   const z = F.START_ZONES_RED[station];
   return { x: (z.x0 + z.x1) / 2, z: (z.z0 + z.z1) / 2 };
 }

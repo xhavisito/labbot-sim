@@ -5,6 +5,7 @@
  */
 import type { ElevatorPos } from '../config/robot';
 import { ACTIONS, loadBindings, type Action, type Bindings } from './bindings';
+import type { VersusDevice } from '../config/settings';
 
 export interface PlayerInput {
   /** −1…1 adelante/atrás. */
@@ -87,6 +88,8 @@ export class InputManager {
   private elevatorPos2 = 0;
   /** Multijugador local: el jugador 2 usa `P2_KEYS` y el segundo control; el jugador 1, el primero. */
   versus = false;
+  /** Con qué controla cada jugador en 2 jugadores (`ui/VersusSetup.ts`). */
+  layout: { p1: VersusDevice; p2: VersusDevice } = { p1: 'keys1', p2: 'keys2' };
   private padPrev2: boolean[] = [];
   private input2 = emptyInput();
   readonly touch: TouchState = { forward: 0, turn: 0, pressed: new Set(), held: new Set() };
@@ -135,10 +138,28 @@ export class InputManager {
     return this.p1Keys(a).some((c) => this.down.has(c));
   }
 
-  /** Teclas del jugador 1 (en versus, sin las del jugador 2). */
+  /** Teclas del jugador 1 (en versus, según su dispositivo; sin teclado si usa un control). */
   private p1Keys(a: Action): string[] {
-    const k = this.bindings.keys[a];
-    return this.versus ? k.filter((c) => !P2_CODES.has(c)) : k;
+    return this.keyMap(this.versus ? this.layout.p1 : null)[a] ?? [];
+  }
+
+  /**
+   * Teclas de una persona: fuera de versus, las de los ajustes. En versus, el teclado WASD (`keys1`,
+   * las de los ajustes sin las de flechas), el de flechas (`keys2`) o ninguno (un control).
+   */
+  private keyMap(dev: VersusDevice | null): Partial<Record<Action, string[]>> {
+    if (!dev) return this.bindings.keys;
+    if (dev === 'keys2') return P2_KEYS;
+    if (dev === 'keys1') return Object.fromEntries(ACTIONS.map((a) => [a, this.bindings.keys[a].filter((c) => !P2_CODES.has(c))]));
+    return {};
+  }
+
+  /** El control de una persona en versus (`pad1` = el primero, `pad2` = el segundo). */
+  private padDev(dev: VersusDevice | null): Gamepad | null {
+    if (!dev) return this.pad();
+    if (dev === 'pad1') return this.pads()[0] ?? null;
+    if (dev === 'pad2') return this.pads()[1] ?? null;
+    return null;
   }
 
   private hit(a: Action): boolean {
@@ -169,15 +190,16 @@ export class InputManager {
   /** Teclado (`P2_KEYS`) y segundo control del jugador 2. */
   private readP2(hitKeys: Set<string>): PlayerInput {
     const inp = emptyInput();
-    const held = (a: Action) => (P2_KEYS[a] ?? []).some((c) => this.down.has(c));
-    const hit = (a: Action) => (P2_KEYS[a] ?? []).some((c) => hitKeys.has(c));
+    const map = this.keyMap(this.layout.p2);
+    const held = (a: Action) => (map[a] ?? []).some((c) => this.down.has(c));
+    const hit = (a: Action) => (map[a] ?? []).some((c) => hitKeys.has(c));
     inp.forward = (held('forward') ? 1 : 0) - (held('back') ? 1 : 0);
     inp.turn = (held('left') ? 1 : 0) - (held('right') ? 1 : 0);
     inp.slow = held('slow');
     inp.intake = held('intake');
     const acts = new Set<Action>();
     for (const a of ACTIONS) if (hit(a)) acts.add(a);
-    const pad = this.pads()[1];
+    const pad = this.padDev(this.layout.p2);
     if (pad) {
       const b = this.bindings;
       const fwd = -dz(pad.axes[1] ?? 0) * (b.invertForward ? -1 : 1);
@@ -244,7 +266,7 @@ export class InputManager {
 
   /** Suma el primer gamepad conectado: ejes según `padDrive` y botones según la asignación. */
   private pollPad(inp: PlayerInput, hit: Set<Action>): void {
-    const pad = this.pad();
+    const pad = this.padDev(this.versus ? this.layout.p1 : null);
     if (!pad) return;
     const b = this.bindings;
     const ax = pad.axes;

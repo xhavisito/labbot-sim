@@ -31,11 +31,13 @@ describe('multijugador local: sesión', () => {
     }
   };
 
-  it('el jugador 2 solo vale en la alianza contraria', () => {
+  it('el jugador 2 puede ser del otro equipo o compañero; nunca él mismo', () => {
     expect(make(2, 0).player2Index).toBe(0);
-    expect(make(2, 3).player2Index).toBe(-1);
+    expect(make(2, 3).player2Index).toBe(3);
+    expect(make(2, 2).player2Index).toBe(-1);
     expect(make(2).player2Index).toBe(-1);
     expect(make(2, 0).humans).toEqual([2, 0]);
+    expect(make(0, 1).humans).toEqual([0, 1]);
   });
 
   it('cada jugador maneja su robot y la IA no toca a ninguno', () => {

@@ -1392,3 +1392,8 @@ canvas.board-drawing { cursor: crosshair; touch-action: none; }
 .hud.versus .hud-tr { top: auto; bottom: calc(var(--gut) + var(--safe-b)); left: 50%; right: auto; transform: translateX(-50%); }
 .hud.versus .toasts { top: calc(var(--gut) + var(--safe-t) + 5em); }
 .split-bar { position: absolute; top: 0; bottom: 0; left: 50%; width: 2px; margin-left: -1px; background: rgba(255, 255, 255, 0.55); pointer-events: none; z-index: 1; }
+
+/* 2 jugadores: preparación (ui/VersusSetup.ts) — dos paneles lado a lado; en celular, uno debajo del otro */
+.vs-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; align-items: start; }
+.vs-team { margin-bottom: 16px; }
+@media (max-width: 760px) { .vs-grid { grid-template-columns: 1fr; } }
