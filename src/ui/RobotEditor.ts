@@ -27,14 +27,14 @@ import {
   type CustomRobot,
   type MotorKind,
 } from '../config/customRobots';
-import { DEFAULT_ROBOT, MECHANISM_KINDS, type MechanismKind } from '../config/robot';
+import { DEFAULT_ROBOT, INTAKE_KINDS, MECHANISM_KINDS, type IntakeKind, type MechanismKind } from '../config/robot';
 import { botFor, compareAlliance, type CompareResult } from '../sim/compare';
 import { backBtn, brandbar, ic, robotSilhouette } from './chrome';
 import { t, type Key } from './i18n';
 
 const esc = (s: string): string => s.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
 
-type NumKey = 'lengthCm' | 'widthCm' | 'heightCm' | 'driveCount' | 'gearRatio' | 'wheelIn' | 'wheels' | 'liftSpeed' | 'armPivotXCm' | 'armPivotYCm' | 'armLengthCm' | 'plaG' | 'extraKg';
+type NumKey = 'lengthCm' | 'widthCm' | 'heightCm' | 'driveCount' | 'gearRatio' | 'wheelIn' | 'wheels' | 'liftSpeed' | 'armPivotXCm' | 'armPivotYCm' | 'armLengthCm' | 'plaG' | 'extraKg' | 'gapCm' | 'fingerCm' | 'rollerSpeed' | 'closeTime';
 
 interface NumField {
   k: NumKey;
@@ -59,6 +59,10 @@ const MECH: NumField[] = [
   { k: 'armPivotXCm', label: 'ed_pivotX', unit: 'cm', step: 1 },
   { k: 'armPivotYCm', label: 'ed_pivotY', unit: 'cm', step: 1 },
   { k: 'armLengthCm', label: 'ed_armLength', unit: 'cm', step: 1 },
+];
+const INTAKE: NumField[] = [
+  { k: 'gapCm', label: 'ed_gap', unit: 'cm', step: 0.5 },
+  { k: 'fingerCm', label: 'ed_finger', unit: 'cm', step: 1 },
 ];
 const MATERIAL: NumField[] = [
   { k: 'plaG', label: 'ed_pla', unit: 'g', step: 5 },
@@ -157,6 +161,9 @@ export class RobotEditor {
         <h3>${t('ed_chassis')}</h3>${CHASSIS.map(num).join('')}
         <h3>${t('ed_drive')}</h3><label>${t('ed_driveMotor')}</label>${motorSel}${DRIVE.map(num).join('')}
         <h3>${t('ed_mech')}</h3>${MECH.map(num).join('')}${levelSeg}
+        <h3>${t('ed_intake')}</h3><label>${t('ed_intakeKind')}</label>${seg('intakeKind', c.intakeKind, INTAKE_KINDS.map((k) => [k, t(`intake_${k}` as Key)]))}
+        <p class="full sub">${t(`ed_intakeKind_${c.intakeKind}` as Key)}</p>
+        ${INTAKE.map(num).join('')}${num(c.intakeKind === 'pinza' ? { k: 'closeTime', label: 'ed_close', unit: 's', step: 0.05 } : { k: 'rollerSpeed', label: 'ed_roller', unit: 'm/s', step: 0.1 })}
         <h3>${t('ed_mechMotors')}</h3>${mechMotors}
         <h3>${t('ed_materials')}</h3>
         <label>${t('ed_mdf')}</label><div class="numin"><input type="number" step="0.05" min="0" data-mdf value="${c.mdfM2 ?? ''}" placeholder="${estimateMdf(c).toFixed(2)}"><span>m²</span></div>
@@ -361,7 +368,12 @@ export class RobotEditor {
           // Otro tipo: toma las medidas del mecanismo de ese preset y conserva chasis, tracción y materiales
           const keep = { ...c };
           const fresh = customFromSpec(robotSpec(b.dataset.v as MechanismKind), c.name, c.id);
-          this.show({ ...fresh, lengthCm: keep.lengthCm, widthCm: keep.widthCm, driveMotor: keep.driveMotor, driveCount: keep.driveCount, gearRatio: keep.gearRatio, wheelIn: keep.wheelIn, wheels: keep.wheels, mdfM2: keep.mdfM2, plaG: keep.plaG, extraKg: keep.extraKg, massKg: keep.massKg });
+          this.show({ ...fresh, lengthCm: keep.lengthCm, widthCm: keep.widthCm, driveMotor: keep.driveMotor, driveCount: keep.driveCount, gearRatio: keep.gearRatio, wheelIn: keep.wheelIn, wheels: keep.wheels, mdfM2: keep.mdfM2, plaG: keep.plaG, extraKg: keep.extraKg, massKg: keep.massKg, intakeKind: keep.intakeKind, gapCm: keep.gapCm, fingerCm: keep.fingerCm, rollerSpeed: keep.rollerSpeed, closeTime: keep.closeTime });
+          return;
+        }
+        if (k === 'intakeKind') {
+          c.intakeKind = b.dataset.v as IntakeKind;
+          this.show(c);
           return;
         }
         if (k === 'maxLevel') c.maxLevel = Number(b.dataset.v) as 1 | 2 | 3;

@@ -40,8 +40,8 @@ export interface TouchState {
   held: Set<Action>;
 }
 
-const DEADZONE = 0.15;
-const dz = (v: number): number => (Math.abs(v) < DEADZONE ? 0 : (v - Math.sign(v) * DEADZONE) / (1 - DEADZONE));
+/** Zona muerta del stick: debajo no cuenta; lo demás se reescala a 0–1. */
+export const dz = (v: number, zone = 0.15): number => (Math.abs(v) < zone ? 0 : (v - Math.sign(v) * zone) / (1 - zone));
 const ELEVATOR_ACTIONS: Array<[Action, ElevatorPos]> = [
   ['elevator0', 0],
   ['elevator1', 1],
@@ -173,8 +173,9 @@ export class InputManager {
     if (!pad) return;
     const b = this.bindings;
     const ax = pad.axes;
-    const fwd = -dz(ax[1] ?? 0) * (b.invertForward ? -1 : 1);
-    const turn = -dz(b.padDrive === 'split' ? (ax[2] ?? 0) : (ax[0] ?? 0));
+    const zone = b.padDeadzone;
+    const fwd = -dz(ax[1] ?? 0, zone) * (b.invertForward ? -1 : 1);
+    const turn = -dz(b.padDrive === 'split' ? (ax[2] ?? 0) : (ax[0] ?? 0), zone);
     if (Math.abs(fwd) > Math.abs(inp.forward)) inp.forward = fwd;
     if (Math.abs(turn) > Math.abs(inp.turn)) inp.turn = turn;
     const now = pad.buttons.map((x) => x.pressed);
