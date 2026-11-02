@@ -1244,3 +1244,18 @@ body.touch-on .plan-card { left: auto; right: calc(var(--gut) + var(--safe-r)); 
 .p1-table tbody th { text-align: left; font-weight: 700; }
 .p1-table tr.dim { opacity: 0.45; }
 .p1-table tr.total { font-weight: 800; color: var(--accent); }
+
+/* Logros y progreso */
+.ach-stats { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0 14px; }
+.ach-stat { display: grid; gap: 2px; padding: 8px 12px; border: 1px solid var(--line-2); border-radius: 10px; min-width: 88px; }
+.ach-stat small { color: var(--muted, #8a93a0); }
+.ach-stat b { font-size: 1.25em; }
+.ach-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 8px; }
+.ach-card { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border: 1px solid var(--line-2); border-radius: 12px; opacity: 0.72; }
+.ach-card.got { opacity: 1; border-color: rgba(242, 182, 50, 0.5); }
+.ach-info { flex: 1; min-width: 0; }
+.ach-info p { margin: 2px 0; }
+.ach-bar { height: 4px; border-radius: 2px; background: var(--line-2); margin-top: 6px; overflow: hidden; }
+.ach-bar i { display: block; height: 100%; background: var(--accent); }
+.ach-val { white-space: nowrap; }
+.ach-toast { margin-top: 10px; }

@@ -47,6 +47,10 @@ import { TournamentScreen, WATCH_CAMERA } from '../ui/TournamentScreen';
 import { TrainingRun, TrainingScreen, type TrainingRobot } from '../ui/Training';
 import { Practice1v1 } from '../ui/Practice1v1';
 import { loadCycleBests } from '../game/cycleStore';
+import type { Match } from '../core/match';
+import { matchFacts, recordMatch, emptyAch, type AchProgress } from '../core/achievements';
+import { loadAch, saveAch } from '../game/achievementStore';
+import { AchievementsScreen } from '../ui/Achievements';
 import { StrategyScreen } from '../ui/StrategyScreen';
 import { PlanView } from '../render/PlanView';
 
@@ -112,6 +116,10 @@ export class App {
   /** Práctica 1 contra 1 en curso (`ui/Practice1v1.ts`). */
   practice1v1: Practice1v1 | null = null;
   readonly cycleBests = loadCycleBests();
+  /** Logros y progreso (localStorage) y su pantalla; `achNew` = logros del último match. */
+  private ach: AchProgress = loadAch();
+  private achNew: string[] = [];
+  readonly achievements: AchievementsScreen;
   /** Aviso de resultados del último match del torneo (se guarda una vez; los resultados se reabren). */
   private tourNote = '';
   /** `?touch=1` fuerza los controles touch (para probar en escritorio). */
@@ -159,6 +167,14 @@ export class App {
       play: (drill) => this.start({ mode: 'training', player: this.menu.player, drill }),
     });
     this.menu.onTraining = () => this.training.show();
+    this.achievements = new AchievementsScreen(this.menu.root, () => this.ach, {
+      back: () => this.toMenu(),
+      reset: () => {
+        this.ach = emptyAch();
+        saveAch(this.ach);
+      },
+    });
+    this.menu.onAchievements = () => this.achievements.show();
     this.strategies = new StrategyScreen(this.menu.root);
     this.menu.onStrategies = () => this.strategies.show(() => this.toMenu());
     this.renderer.scene.add(this.planView.group);
@@ -430,6 +446,16 @@ export class App {
     this.touch.show(want && this.state === 'playing');
   }
 
+  /** Suma el match terminado al progreso de logros (solo si manejas un robot en un match). */
+  private recordAchievements(m: Match): void {
+    this.achNew = [];
+    if (this.choice.mode !== 'match' || this.choice.player < 0) return;
+    const r = recordMatch(this.ach, matchFacts(m, this.choice.player, m.cfg));
+    this.ach = r.progress;
+    saveAch(this.ach);
+    this.achNew = r.earned.map((a) => t(`ach_${a.id}` as Key));
+  }
+
   /** Resultados del match terminado, con botones para la repetición y las estadísticas. */
   private showResults(): void {
     const m = this.session.match;
@@ -444,6 +470,7 @@ export class App {
       this.choice.player,
       sc?.tour ? this.tourNote : sc ? t('sc_saved', { match: sc.match }) : '',
       sc?.tour ? t('tr_continue') : undefined,
+      this.achNew,
     );
     this.revealRivals();
     const rep = this.lastReplay;
@@ -632,6 +659,7 @@ export class App {
         if (sc && !sc.tour) saveMatchEntries(this.scoutData, m, sc.teams, sc.match);
         // Torneo: el resultado va a su tabla
         this.tourNote = sc?.tour ? this.tourney.record(m, sc) : '';
+        this.recordAchievements(m);
         this.lastReplay = this.recorder?.build(this.session) ?? null;
         if (this.lastReplay) void storeReplay(this.lastReplay);
         this.showResults();
