@@ -279,3 +279,14 @@ Cada regla en el código cita su sección del manual.
   medidas, masa, tracción y mecanismo, pero no la geometría de cada tipo.
 - Al pasar por la vertical, el brazo del pivote con una Muestra llega a ~109 cm; el manual no aclara
   si los 100 cm aplican con mecanismos en movimiento (§7.2) y la simulación no lo cobra.
+
+## Rendimiento en celulares
+
+- **Calidad Auto** (Ajustes → Gráficos): cada 2 s jugando mide los FPS; con menos de 45 baja primero la
+  resolución (60–100 %) y, si no alcanza, un nivel de calidad. Recupera resolución tras 8 s sobre 57 FPS,
+  pero no vuelve a un nivel del que ya bajó. Lógica pura en `src/render/perf.ts` (con pruebas).
+- **Perfil de FPS**: Ajustes muestra en vivo FPS, 1 % peor, ms de simulación y de dibujo, calidad y
+  resolución. "Mostrar FPS en el match" (o F3, o `?fps=1`) los pone arriba en pantalla.
+- URL: `?quality=low|medium|high` fija la calidad, `?dynres=0` apaga la resolución dinámica.
+- `node scripts/perf.mjs --qualities low,medium,high --only mobile --throttle 4` mide FPS por calidad
+  (requiere `npm run build`; en la nube `CHROMIUM_PATH=/opt/pw-browsers/chromium`).
