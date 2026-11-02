@@ -10,18 +10,23 @@ import { GRIP_MODES, MECHANISM_KINDS } from '../config/robot';
 import { GAME } from '../config/game';
 import { DEFAULT_SETTINGS, PLAN_BOARDS, PRACTICE_LIMITS, RIVALS, SETTINGS_RANGE, type PlanBoard, type RivalKind, type Settings } from '../config/settings';
 import { DAMAGE_LEVELS, type DamageLevel, type DamageTargets } from '../core/damage';
-import { RULES } from '../core/fouls';
+import { buildRefereeReport } from '../core/refereeReport';
+import { refereeHtml } from './refereeView';
 import type { Match } from '../core/match';
 import type { DrillId } from '../core/training';
 import { ALLIANCES, type Alliance } from '../core/types';
-import { ACTIONS, assign, clearAction, cloneBindings, DEFAULT_BINDINGS, keyLabel, padLabel, saveBindings, type Action } from '../input/bindings';
+import { applyAccessibility } from './a11y';
+import { COLOR_MODES, nearestTextScale, TEXT_SCALES, type ColorMode } from '../config/palette';
+import { ACTIONS, assign, clampDeadzone, clearAction, DEADZONE_RANGE, cloneBindings, DEFAULT_BINDINGS, keyLabel, padLabel, saveBindings, type Action } from '../input/bindings';
 import type { InputManager } from '../input/InputManager';
 import { CAMERA_MODES, type CameraMode } from '../render/CameraRig';
 import { padHelp } from './controlsHelp';
 import { backBtn, brandbar, ic, kbds, langChips, robotSilhouette, UI_ALLIANCES, UI_SLOTS } from './chrome';
+import { formatPlaytime } from '../core/playtime';
+import { loadPlaytime } from '../game/playtimeStore';
 import { getLang, setLang, t, type Key } from './i18n';
 import type { ScoutPlay } from './Scouting';
-import { isIos, isStandalone, promptInstall, pwa } from '../pwa/register';
+import { applyUpdate, isIos, isStandalone, promptInstall, pwa } from '../pwa/register';
 
 const esc = (v: string): string => v.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
 
@@ -50,6 +55,8 @@ export interface PauseInfo {
   onResume: () => void;
   /** Sin reiniciar (match del torneo: el resultado cuenta). */
   onRestart?: () => void;
+  /** Abre la pizarra táctica (solo en el match). */
+  onBoard?: () => void;
   onMenu: () => void;
   /** Texto del botón de salir (p. ej. volver al torneo). */
   menuLabel?: string;
@@ -101,6 +108,8 @@ export class Menu {
   /** Abre la lista de retos del entrenamiento (la conecta App). */
   onTraining: () => void = () => undefined;
   onStrategies: () => void = () => undefined;
+  /** Abre la pantalla de logros (la conecta App). */
+  onAchievements: () => void = () => undefined;
 
   constructor(
     host: HTMLElement,
@@ -158,6 +167,7 @@ export class Menu {
           <div class="mm-tools late">
             ${tool('practice1v1', ic.go, 'p1_title', 'p1_desc')}
             ${tool('training', ic.medal, 'tn_title', 'trainingDesc')}
+            ${tool('achievements', ic.trophy, 'ach_title', 'achDesc')}
             ${tool('replays', ic.film, 'replays', 'replaysDesc')}
             ${tool('editor', ic.cube, 'editor', 'editorDesc')}
             ${tool('autoPractice', ic.route, 'autoPractice', 'autoPracticeDesc')}
@@ -176,6 +186,7 @@ export class Menu {
             <div class="bay-head"><span class="bay-label">${t('yourRobot')}</span></div>
             <div class="showcase">${robotSilhouette(robotSpec(s.robotType).mechanism)}<span class="dim">${chassisSize(s.robotType)} · ${t('robotType')}</span></div>
             <div class="robotinfo" data-robotinfo></div>
+            <div class="playtime" title="${t('playtimeTip')}"><span>${t('playtime')}</span><b>${formatPlaytime(loadPlaytime().total)}</b></div>
           </div>
         </div>
       </div>
@@ -193,6 +204,7 @@ export class Menu {
     this.on('[data-go="training"]', () => this.onTraining());
     this.on('[data-go="practice1v1"]', () => this.onStart({ mode: 'practice1v1', player: this.player }));
     this.on('[data-go="strategies"]', () => this.onStrategies());
+    this.on('[data-go="achievements"]', () => this.onAchievements());
     this.on('[data-go="replays"]', () => this.onReplays());
     this.on('[data-go="editor"]', () => this.onEditor());
     this.on('[data-go="autoPractice"]', () => this.onStart({ mode: 'auto', player: this.player }));
@@ -221,9 +233,12 @@ export class Menu {
     const box = this.root.querySelector<HTMLElement>('[data-pwa]');
     if (!box) return;
     const canInstall = !isStandalone() && (pwa.installEvent || isIos());
-    box.innerHTML = `${pwa.offlineReady ? `<span class="chipbtn static" title="${t('pwa_offlineTitle')}">${ic.offline}<span>${t('pwa_offline')}</span></span>` : ''}${
+    box.innerHTML = `${pwa.updateReady ? `<button class="chipbtn" data-update title="${t('pwa_updateTitle')}">${ic.phone}<span>${t('pwa_update')}</span></button>` : ''}${
+      pwa.online ? '' : `<span class="chipbtn static" title="${t('pwa_noNetTitle')}">${ic.offline}<span>${t('pwa_noNet')}</span></span>`
+    }${pwa.offlineReady ? `<span class="chipbtn static" title="${t('pwa_offlineTitle')}">${ic.offline}<span>${t('pwa_offline')}</span></span>` : ''}${
       canInstall ? `<button class="chipbtn" data-install title="${t('pwa_installTitle')}">${ic.phone}<span>${t('pwa_install')}</span></button>` : ''
     }`;
+    box.querySelector('[data-update]')?.addEventListener('click', applyUpdate);
     box.querySelector('[data-install]')?.addEventListener('click', () => {
       if (pwa.installEvent) void promptInstall();
       else if (!box.querySelector('.pwa-tip')) box.insertAdjacentHTML('beforeend', `<div class="pwa-tip msg">${t('pwa_ios')}</div>`);
@@ -323,6 +338,10 @@ export class Menu {
           <h3>${t('sec_graphics')}</h3>
           <label>${t('setQuality')}</label><div class="seg" data-qseg>${(['auto', 'low', 'medium', 'high'] as const).map((q) => `<button class="${q === s.quality ? 'on' : ''}" data-v="${q}">${t(`quality_${q}`)}</button>`).join('')}</div>
           <p class="full sub">${t('qualityNote')}</p>
+          <h3>${t('sec_access')}</h3>
+          <label>${t('setColorMode')}</label>${seg('colorMode', COLOR_MODES, s.colorMode, (v) => t(`colorMode_${v}` as Key))}
+          <label>${t('setTextScale')}</label>${seg('textScale', TEXT_SCALES.map(String), String(s.textScale), (v) => `${Math.round(Number(v) * 100)} %`)}
+          <p class="full sub">${t('accessNote')}</p>
           <h3>${t('sec_sound')}</h3>
           <label>${t('setVolume')}</label>${range('volume', '%')}
           <p class="full sub">${t('soundNote')}</p>
@@ -379,6 +398,11 @@ export class Menu {
         else if (k === 'damage.level') s.damage = { ...s.damage, level: v as DamageLevel };
         else if (k === 'damage.targets') s.damage = { ...s.damage, targets: v as DamageTargets };
         else if (k === 'planBoard') s.planBoard = v as PlanBoard;
+        else if (k === 'colorMode') s.colorMode = v as ColorMode;
+        else if (k === 'textScale') {
+          s.textScale = nearestTextScale(Number(v));
+          applyAccessibility(s.colorMode === this.settings.colorMode ? s.colorMode : this.settings.colorMode, s.textScale);
+        }
         b.parentElement!.querySelectorAll('button').forEach((x) => x.classList.toggle('on', x === b));
       }),
     );
@@ -392,9 +416,12 @@ export class Menu {
       this.onSettings(this.settings);
       this.main();
     });
-    this.on('[data-act="cancel"]', () => this.main());
+    this.on('[data-act="cancel"]', () => {
+      applyAccessibility(this.settings.colorMode, this.settings.textScale);
+      this.main();
+    });
     this.on('[data-act="defaults"]', () => {
-      Object.assign(this.settings, { ...structuredClone(DEFAULT_SETTINGS), touch: this.settings.touch, quality: this.settings.quality, volume: this.settings.volume });
+      Object.assign(this.settings, { ...structuredClone(DEFAULT_SETTINGS), touch: this.settings.touch, quality: this.settings.quality, volume: this.settings.volume, colorMode: this.settings.colorMode, textScale: this.settings.textScale });
       this.onSettings(this.settings);
       this.settingsPanel();
     });
@@ -434,6 +461,8 @@ export class Menu {
           <p class="full sub">${t('padMenus')}</p>
           <label>${t('padDriveLabel')}</label>${seg('padDrive', b.padDrive, [['left', t('padDriveLeft')], ['split', t('padDriveSplit')]])}
           <label>${t('invertForward')}</label><button class="toggle ${b.invertForward ? 'on' : ''}" data-tog="invert"><i></i>${b.invertForward ? t('on_') : t('no_')}</button>
+          <label>${t('padDeadzone')}</label><div class="range"><input type="range" data-dz min="${DEADZONE_RANGE.min}" max="${DEADZONE_RANGE.max}" step="${DEADZONE_RANGE.step}" value="${b.padDeadzone}"><output>${Math.round(b.padDeadzone * 100)} %</output></div>
+          <p class="full sub">${t('padDeadzoneNote')}</p>
           <label>${t('touchControls')}</label>${seg('touch', this.settings.touch, [['auto', t('touchAuto')], ['on', t('touchOn')], ['off', t('touchOff')]])}
         </div></div>
       </div>
@@ -473,6 +502,12 @@ export class Menu {
         }
       }),
     );
+    this.root.querySelector<HTMLInputElement>('[data-dz]')?.addEventListener('input', (e) => {
+      const el = e.target as HTMLInputElement;
+      inp.bindings = { ...cloneBindings(inp.bindings), padDeadzone: clampDeadzone(Number(el.value)) };
+      saveBindings(inp.bindings);
+      (el.nextElementSibling as HTMLOutputElement).textContent = `${Math.round(inp.bindings.padDeadzone * 100)} %`;
+    });
     this.on('[data-tog="invert"]', () => apply({ ...cloneBindings(inp.bindings), invertForward: !inp.bindings.invertForward }));
     this.on('[data-act="back"]', () => {
       inp.cancelCapture();
@@ -547,6 +582,7 @@ export class Menu {
           <div class="ps-menu">
             <button class="primary" data-act="resume">${ic.play}<span>${t('resume')}</span>${key('pause')}</button>
             ${p.onRestart ? `<button data-act="restart">${ic.reset}<span>${t('restart')}</span></button>` : ''}
+            ${p.onBoard ? `<button data-act="board">${ic.route}<span>${t('board_open')}</span></button>` : ''}
             <button data-act="controls">${ic.gamepad}<span>${t('controlsTitle')}</span></button>
             <button class="quit" data-act="menu">${ic.home}<span>${p.menuLabel ?? t('backToMenu')}</span></button>
           </div>
@@ -568,6 +604,7 @@ export class Menu {
       this.root.querySelectorAll('[data-cam]').forEach((x) => x.classList.toggle('on', x === el));
     });
     this.on('[data-act="controls"]', () => this.controlsPanel(() => this.pause(p)));
+    if (p.onBoard) this.on('[data-act="board"]', p.onBoard);
     this.on('[data-act="resume"]', p.onResume);
     if (p.onRestart) this.on('[data-act="restart"]', p.onRestart);
     this.on('[data-act="menu"]', p.onMenu);
@@ -579,7 +616,7 @@ export class Menu {
    * `note`: aviso arriba de las acciones (p. ej. que el match se guardó en el scouting). `cont`: match
    * del torneo, sin "Jugar de nuevo" (el resultado ya cuenta) y el botón principal es este.
    */
-  results(m: Match, onRestart: () => void, onMenu: () => void, onDownload: () => void, player: number, note = '', cont?: string): void {
+  results(m: Match, onRestart: () => void, onMenu: () => void, onDownload: () => void, player: number, note = '', cont?: string, earned: string[] = []): void {
     const b = { red: m.breakdown('red'), blue: m.breakdown('blue') };
     const rp = { red: m.rankingPoints('red'), blue: m.rankingPoints('blue') };
     const winner: Alliance | null = b.red.total === b.blue.total ? null : b.red.total > b.blue.total ? 'red' : 'blue';
@@ -599,14 +636,7 @@ export class Menu {
       `<div class="rpcard ${a}"><div class="rptotal"><b>${rp[a].total}</b> / ${rpMax} RP</div>` +
       `<div class="rpmeter">${Array.from({ length: rpMax }, (_, i) => `<i class="${i < rp[a].total ? 'on' : ''}"></i>`).join('')}</div>` +
       `<div class="rprow">${chip(rp[a].win > 0, `${t('rpWin')} +${rp[a].win}`)}${chip(rp[a].autoLine, t('rpAuto'))}${chip(rp[a].critical, t('rpCritical'))}${chip(rp[a].dominance, `${t('dominance')} ${m.samplesIn(a)}/${GAME.rp.dominanceSamples}`)}</div></div>`;
-    const fouls = m.fouls.length
-      ? m.fouls
-          .map(
-            (f) =>
-              `<li><span class="tag ${f.offender}">${t(f.offender).toUpperCase()} ${f.robot % 2 + 1}</span>${f.kind === 'TECH' ? 'Tech Foul' : 'Foul'} · ${RULES[f.rule].es}<em>${RULES[f.rule].section} · ${Math.max(0, Math.floor(f.time))} s</em></li>`,
-          )
-          .join('')
-      : `<li class="none">${t('noFouls')}</li>`;
+    const fouls = refereeHtml(buildRefereeReport(m));
     this.open(
       `<div class="dialog results">
         <div class="kicker"><span></span>${t('resultsKick')}${player >= 0 ? ` · ${t('yourRobot')}: ${stationLabel(player)}` : ''}</div>
@@ -629,8 +659,9 @@ export class Menu {
         </div>
         <h3>${t('rp')}</h3>
         <div class="rpgrid">${UI_ALLIANCES.map(rpCell).join('')}</div>
-        <h3>${t('fouls')}</h3><ul class="fouls">${fouls}</ul>
+        <h3>${t('ref_title')}</h3>${fouls}
         ${note ? `<div class="msg ok">${ic.check}${note}</div>` : ''}
+        ${earned.map((n) => `<div class="msg ok ach-toast">${ic.medal}<b>${t('ach_new')}:</b>&nbsp;${n}</div>`).join('')}
         <div class="actions">
           ${cont ? `<button class="btn primary" data-act="menu">${ic.go}<span>${cont}</span></button>` : `<button class="btn primary" data-act="restart">${ic.reset}<span>${t('playAgain')}</span></button>
           <button class="btn" data-act="menu">${ic.home}<span>${t('backToMenu')}</span></button>`}

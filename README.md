@@ -33,7 +33,7 @@ genera `vite.config.ts` con la lista del build) y el simulador abre y juega sin 
 muestra "Sin conexión" cuando ya está listo. Para instalarlo en el celular: en Android, el botón
 **Instalar** del menú (o "Agregar a la pantalla principal" de Chrome); en iPhone, Safari → Compartir →
 **Agregar a inicio**. Cada build nuevo cambia la versión de la caché: la app se actualiza sola al
-abrirla con conexión (los cambios se ven la siguiente vez que se abre). Íconos: `public/icons/`
+abrirla con conexión; cuando la versión nueva ya quedó guardada aparece el botón **Actualizar** en el menú, y sin internet aparece "Sin internet". Se pide almacenamiento persistente para que el navegador no borre la caché. Prueba real sin conexión: `npm run build && npm run e2e:offline` (en la nube, con `CHROMIUM_PATH=/opt/pw-browsers/chromium`). Íconos: `public/icons/`
 (`node scripts/icons.mjs` los regenera desde `icon.svg`).
 
 ## Cómo se juega
@@ -78,7 +78,12 @@ Muestras a menos de 2.5 s son un ciclo; solo TELEOP), distancia y velocidad. Se 
 panel o en Ajustes; por defecto, quieto) y Muestras ilimitadas del Human Player. Un cronómetro de ciclos
 (de recoger la pieza a que cuente en tu Cámara o, la Crítica, en tu Repisa) da, al terminar, intentos vs.
 anotadas, acierto, tiempo promedio, mejor ciclo y puntos de TELEOP (§4.4) por N1/N2/N3 y Crítica, y guarda
-tu mejor ciclo por robot. SUPUESTOS: intento = soltar la pieza en un nivel, acierta si cuenta en 2.5 s;
+tu mejor ciclo por robot, parte cada ciclo en **buscar** (de que contó la anterior a recoger) y **llevar**
+(de recoger a anotar) y dibuja el **mapa de tiro**: desde dónde soltaste cada pieza (lleno = contó, × = falló),
+celdas de rojo a verde por acierto, lo que anotó el rival y una tabla por zona (cerca / media / lejos de tu
+Cámara) con tu mejor zona. Se acumula por robot (últimos 400 tiros, llevados al lado rojo). En las
+Estadísticas de una repetición, el mapa tiene la vista **Dónde anotó**. SUPUESTOS: zonas a 0.6 y 1.5 m de la
+orilla de la Cámara (`core/scoreMap.ts`); intento = soltar la pieza en un nivel, acierta si cuenta en 2.5 s;
 el rival usa tu mismo tipo de robot; la IA rival solo anota (sin defensa ni ENDGAME).
 
 **Práctica de AUTO** (menú → Taller): solo tu robot en su Zona de Inicio con la precarga y sin Human
@@ -177,6 +182,10 @@ tecla o el botón. Cada tecla o botón hace una sola cosa (si ya estaba en otra 
 hasta 2 por acción y se guarda en el navegador. Ahí también eliges manejar con un stick o con los dos
 (izquierdo avanza, derecho gira), invertir el avance y cuándo mostrar los controles touch.
 
+Ahí mismo se ajusta la **zona muerta** de los sticks. **Ajustes → Accesibilidad** tiene un modo de
+colores para daltonismo (rojo–verde o azul–amarillo: cambia alianzas, tu robot y Muestras Críticas;
+recarga la página al guardar) y el **tamaño del texto** (85–150 %) de toda la interfaz.
+
 Asignación por defecto:
 
 | Acción | Teclado | Control |
@@ -231,7 +240,7 @@ src/
   replay/     format.ts (repetición en binario compacto), Recorder.ts (graba cada match, cuelga de
               GameSession.tap), ReplayPlayer.ts (sesión "títere" que pone las poses grabadas),
               stats.ts (mapa de calor, Muestras por robot y tiempos de ciclo) y store.ts (IndexedDB, .lbreplay)
-  pwa/        register.ts (service worker, botón Instalar) y sw-template.js (precache del build)
+  pwa/        register.ts (service worker, Instalar/Actualizar), precache.ts (lista de precache, con pruebas) y sw-template.js
 tests/        field, physics, robot, match (reglas y casos borde), session (match completo),
               bot (IA en un match completo, sin faltas de cancha), settings (ajustes y registro),
               lineup (tipos de la IA y niveles de dificultad)

@@ -22,7 +22,7 @@
  */
 import * as F from '../config/field';
 import { GAME } from '../config/game';
-import { posDir, posTip, type ElevatorPos } from '../config/robot';
+import { canHoldCritical, posDir, posTip, type ElevatorPos } from '../config/robot';
 import type { Phase } from '../core/clock';
 import { DAMAGE } from '../core/damage';
 import { opponent, type Alliance, type Level } from '../core/types';
@@ -214,6 +214,8 @@ export class Bot {
 
   /** ¿Le toca la Muestra Crítica? */
   private get critDuty(): boolean {
+    // Una garra que no abre 20 cm no toma la Crítica (§4.1.1); el constructor de robots lo permite
+    if (!canHoldCritical(this.robot.spec)) return false;
     if (this.opts.endgame === 'critical') return true;
     if (this.opts.endgame !== undefined) return false;
     return this.team.critBy === this.robot.index;

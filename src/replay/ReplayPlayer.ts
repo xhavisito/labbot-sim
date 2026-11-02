@@ -8,6 +8,7 @@ import { knownSpec } from '../config/robot';
 import { formatTimer, timerSeconds } from '../core/clock';
 import { GameSession } from '../game/GameSession';
 import { frameScore, frameTime, pieceFrame, REPLAY_HZ, replayDuration, robotFrame, type Replay } from './format';
+import { buildMoments, LEAD_IN, LEAD_OUT, highlightTime, highlightWindows, jumpTime, matchesFilter, nextMoment, prevMoment, type Moment, type MomentFilter } from './moments';
 
 export const REPLAY_SPEEDS = [0.25, 0.5, 1, 2, 4] as const;
 
@@ -29,12 +30,21 @@ export class ReplayPlayer {
   speed = 1;
   /** Robot que sigue la cámara (posición en `header.robots`). */
   focus: number;
+  /** Jugadas clave de todo el match (`moments.ts`). */
+  readonly moments: Moment[];
+  /** Qué jugadas recorren los saltos y el Resumen. */
+  filter: MomentFilter = 'all';
+  /** Resumen: al reproducir solo se ven los segundos alrededor de cada jugada (salta lo demás). */
+  private _highlights = false;
+  /** Última jugada a la que se saltó (para que "siguiente" no se quede en jugadas muy juntas). */
+  private lastJump: Moment | null = null;
 
   constructor(readonly replay: Replay) {
     const h = replay.header;
     this.session = new GameSession({ player: h.player, preload: false, ai: false, specs: h.robots.map((r) => knownSpec(r.spec)), hp: { enabled: false, interval: 3 } });
     this.duration = replayDuration(replay);
     this.focus = Math.max(0, h.robots.findIndex((r) => r.index === h.player));
+    this.moments = buildMoments(replay);
     this.apply();
   }
 
@@ -50,9 +60,79 @@ export class ReplayPlayer {
   update(dt: number): void {
     if (this.playing) {
       this.t = Math.min(this.duration, this.t + dt * this.speed);
+      if (this._highlights) {
+        const next = highlightTime(this.windows(), this.t);
+        if (next === null) {
+          this.t = this.duration;
+          this.playing = false;
+        } else this.t = next;
+      }
       if (this.t >= this.duration) this.playing = false;
     }
     this.apply();
+  }
+
+  /** Jugadas que pasan el filtro actual. */
+  get visibleMoments(): Moment[] {
+    return this.moments.filter((m) => matchesFilter(m, this.filter));
+  }
+
+  private windows(): Array<[number, number]> {
+    return highlightWindows(this.visibleMoments, this.duration);
+  }
+
+  get highlights(): boolean {
+    return this._highlights;
+  }
+
+  /** Prende o apaga el Resumen; al prenderlo arranca desde la jugada que sigue (o la primera). */
+  set highlights(on: boolean) {
+    this._highlights = on;
+    if (!on) return;
+    const w = this.windows();
+    if (w.length === 0) {
+      this._highlights = false;
+      return;
+    }
+    const at = highlightTime(w, this.t);
+    this.seek(at ?? w[0][0]);
+    this.playing = true;
+  }
+
+  /** Salta a la jugada que sigue (con unos segundos de entrada). Devuelve la jugada o null. */
+  nextMoment(): Moment | null {
+    const m = nextMoment(this.visibleMoments, this.t, LEAD_IN, this.lastJump);
+    if (m) this.goTo(m);
+    return m;
+  }
+
+  /** Salta a la jugada anterior. */
+  prevMoment(): Moment | null {
+    const m = prevMoment(this.visibleMoments, this.t, LEAD_IN, this.lastJump);
+    if (m) this.goTo(m);
+    return m;
+  }
+
+  /** Salta directo a una jugada de la lista. */
+  goTo(m: Moment): void {
+    this.seek(jumpTime(m));
+    this.lastJump = m;
+  }
+
+  /** Jugada que se está viendo: la última que ya pasó dentro de su ventana del Resumen (o null). */
+  get currentMoment(): Moment | null {
+    let cur: Moment | null = null;
+    for (const m of this.visibleMoments) {
+      if (m.t - LEAD_IN <= this.t && this.t <= m.t + LEAD_OUT) cur = m;
+      else if (m.t > this.t + LEAD_IN) break;
+    }
+    return cur;
+  }
+
+  /** Avanza o retrocede un cuadro de la grabación (pausado, para ver el detalle). */
+  stepFrame(dir: 1 | -1): void {
+    this.playing = false;
+    this.seek(this.t + dir / REPLAY_HZ);
   }
 
   seek(t: number): void {

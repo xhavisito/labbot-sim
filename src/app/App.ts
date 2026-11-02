@@ -6,6 +6,8 @@ import { LEAVE_ZONE, type AutoRoutine } from '../auto/AutoRoutine';
 import { aiLineup } from '../ai/lineup';
 import { planAutoRoutine, planBotOptions } from '../ai/plan';
 import { SECRET_AUTOS, SECRET_STRATEGIES, STRATEGY_OPTIONS, weighted, type StrategyId } from '../ai/strategy';
+import { activeColorMode } from '../config/palette';
+import { applyAccessibility } from '../ui/a11y';
 import { allAutoRoutines, autoRoutineIds } from '../auto/recorded';
 import { FieldAudio } from '../audio/FieldAudio';
 import { ROBOT_PRESETS, type MechanismKind, type RobotSpec } from '../config/robot';
@@ -16,6 +18,8 @@ import { buildMatchLog } from '../core/matchLog';
 import { drillById } from '../core/training';
 import { drillSessionOptions } from '../game/drills';
 import { loadTraining } from '../game/trainingStore';
+import { addPlaytime } from '../core/playtime';
+import { loadPlaytime, savePlaytime } from '../game/playtimeStore';
 import { GameSession, type SessionOptions } from '../game/GameSession';
 import { loadScout } from '../game/scoutStore';
 import { planById } from '../game/planStore';
@@ -47,8 +51,17 @@ import { TournamentScreen, WATCH_CAMERA } from '../ui/TournamentScreen';
 import { TrainingRun, TrainingScreen, type TrainingRobot } from '../ui/Training';
 import { Practice1v1 } from '../ui/Practice1v1';
 import { loadCycleBests } from '../game/cycleStore';
+import { loadShotLog } from '../game/shotStore';
+import type { Match } from '../core/match';
+import { matchFacts, recordMatch, emptyAch, type AchProgress } from '../core/achievements';
+import { loadAch, saveAch } from '../game/achievementStore';
+import { AchievementsScreen } from '../ui/Achievements';
 import { StrategyScreen } from '../ui/StrategyScreen';
 import { PlanView } from '../render/PlanView';
+import * as THREE from 'three';
+import { Board } from '../core/board';
+import { BoardView } from '../render/BoardView';
+import { BoardBar } from '../ui/BoardBar';
 
 type State = 'menu' | 'playing' | 'paused' | 'results' | 'replay';
 
@@ -84,6 +97,12 @@ export class App {
     this.planView.visible = b === 'all';
     this.hud.planCardOn = b !== 'off';
   }
+  /** Pizarra táctica: trazos dibujados con el match en pausa (`core/board.ts`). */
+  readonly board = new Board();
+  private boardView = new BoardView();
+  private boardRev = 0;
+  private boardCam: CameraMode = 'free';
+  readonly boardBar: BoardBar;
   readonly strategies: StrategyScreen;
   readonly settings: Settings = loadSettings(autoRoutineIds());
   /** Sonidos del campo (inicio, TELEOP, ENDGAME, fin). */
@@ -107,11 +126,20 @@ export class App {
   readonly tourney: TournamentScreen;
   /** Entrenamiento por retos: récords (localStorage), lista de retos y el reto en curso. */
   readonly trainingProgress = loadTraining();
+  /** Tiempo realmente jugado (solo en estado `playing`); se guarda cada ~5 s y al ocultar la página. */
+  private playtime = loadPlaytime();
+  private playtimeDirty = 0;
   readonly training: TrainingScreen;
   trainingRun: TrainingRun | null = null;
   /** Práctica 1 contra 1 en curso (`ui/Practice1v1.ts`). */
   practice1v1: Practice1v1 | null = null;
   readonly cycleBests = loadCycleBests();
+  /** Mapa de tiro acumulado por robot de la práctica por ciclos. */
+  readonly shotLog = loadShotLog();
+  /** Logros y progreso (localStorage) y su pantalla; `achNew` = logros del último match. */
+  private ach: AchProgress = loadAch();
+  private achNew: string[] = [];
+  readonly achievements: AchievementsScreen;
   /** Aviso de resultados del último match del torneo (se guarda una vez; los resultados se reabren). */
   private tourNote = '';
   /** `?touch=1` fuerza los controles touch (para probar en escritorio). */
@@ -130,6 +158,9 @@ export class App {
     this.touch = new TouchControls(ui, this.input);
     this.menu = new Menu(ui, (c) => this.start(c), this.settings, (s) => {
       saveSettings(s);
+      // El color de la cancha y los robots se arma al iniciar: con otro modo de colores se recarga
+      if (s.colorMode !== activeColorMode()) location.reload();
+      applyAccessibility(s.colorMode, s.textScale);
       this.applyQuality();
       this.audio.setVolume(s.volume / 100);
     }, this.input);
@@ -159,9 +190,22 @@ export class App {
       play: (drill) => this.start({ mode: 'training', player: this.menu.player, drill }),
     });
     this.menu.onTraining = () => this.training.show();
+    this.achievements = new AchievementsScreen(this.menu.root, () => this.ach, {
+      back: () => this.toMenu(),
+      reset: () => {
+        this.ach = emptyAch();
+        saveAch(this.ach);
+      },
+    });
+    this.menu.onAchievements = () => this.achievements.show();
     this.strategies = new StrategyScreen(this.menu.root);
     this.menu.onStrategies = () => this.strategies.show(() => this.toMenu());
-    this.renderer.scene.add(this.planView.group);
+    this.renderer.scene.add(this.planView.group, this.boardView.group);
+    this.boardBar = new BoardBar(ui, this.renderer.renderer.domElement, this.board, {
+      pick: (x, y) => this.pickField(x, y),
+      changed: () => this.boardRev++,
+      done: () => this.closeBoard(),
+    });
     pwa.onChange = () => {
       if (this.state === 'menu') this.menu.pwaChips();
     };
@@ -172,6 +216,8 @@ export class App {
       if (e.code === 'Backspace' && !this.input.capturing) this.resetPractice();
     });
     onResize();
+    document.addEventListener('visibilitychange', () => document.hidden && this.flushPlaytime());
+    addEventListener('pagehide', () => this.flushPlaytime());
     requestAnimationFrame(this.loop);
   }
 
@@ -185,6 +231,7 @@ export class App {
     this.closeAutoPractice();
     this.closeTraining();
     this.closePractice1v1();
+    this.clearBoard();
     this.renderer.scene.remove(this.session.root);
     this.session.dispose();
     // Práctica libre y de AUTO: solo el robot del jugador en la cancha (en la de AUTO, sin Human Player)
@@ -238,6 +285,7 @@ export class App {
           this.start(c);
         },
         bests: this.cycleBests,
+        shots: this.shotLog,
         robot: { id: this.settings.robotType, name: robotLabel(this.session.player.spec) },
         exit: () => this.toMenu(),
       });
@@ -430,11 +478,22 @@ export class App {
     this.touch.show(want && this.state === 'playing');
   }
 
+  /** Suma el match terminado al progreso de logros (solo si manejas un robot en un match). */
+  private recordAchievements(m: Match): void {
+    this.achNew = [];
+    if (this.choice.mode !== 'match' || this.choice.player < 0) return;
+    const r = recordMatch(this.ach, matchFacts(m, this.choice.player, m.cfg));
+    this.ach = r.progress;
+    saveAch(this.ach);
+    this.achNew = r.earned.map((a) => t(`ach_${a.id}` as Key));
+  }
+
   /** Resultados del match terminado, con botones para la repetición y las estadísticas. */
   private showResults(): void {
     const m = this.session.match;
     if (!m) return this.toMenu();
     this.state = 'results';
+    this.clearBoard();
     const sc = this.choice.scout;
     this.menu.results(
       m,
@@ -444,6 +503,7 @@ export class App {
       this.choice.player,
       sc?.tour ? this.tourNote : sc ? t('sc_saved', { match: sc.match }) : '',
       sc?.tour ? t('tr_continue') : undefined,
+      this.achNew,
     );
     this.revealRivals();
     const rep = this.lastReplay;
@@ -527,10 +587,12 @@ export class App {
   }
 
   toMenu(): void {
+    this.flushPlaytime();
     this.closeAutoPractice();
     this.closeTraining();
     this.closePractice1v1();
     this.state = 'menu';
+    this.clearBoard();
     this.touch.show(false);
     this.hud.show(false);
     this.planView.set(null, 'red');
@@ -547,20 +609,10 @@ export class App {
   }
 
   togglePause(): void {
+    if (this.boardBar.isOpen) return this.closeBoard();
     if (this.state === 'playing') {
       this.state = 'paused';
-      const m = this.session.match;
-      this.menu.pause({
-        match: m,
-        timer: m ? formatTimer(timerSeconds(m.t, this.session.game)) : '',
-        phase: m ? t(`phase_${m.phase}` as Key) : '',
-        camera: this.cam.mode,
-        setCamera: (c) => this.setCamera(c),
-        onResume: () => this.togglePause(),
-        onRestart: this.choice.scout?.tour ? undefined : () => this.start(this.choice),
-        onMenu: () => (this.choice.scout ? this.toScouting() : this.toMenu()),
-        menuLabel: this.choice.scout?.tour ? t('tr_backTo') : undefined,
-      });
+      this.pauseMenu();
     } else if (this.state === 'paused') {
       this.state = 'playing';
       this.menu.hide();
@@ -568,6 +620,57 @@ export class App {
       this.hud.setHelp(this.input.bindings);
     }
     this.updateTouch();
+  }
+
+  private pauseMenu(): void {
+    const m = this.session.match;
+    this.menu.pause({
+      match: m,
+      timer: m ? formatTimer(timerSeconds(m.t, this.session.game)) : '',
+      phase: m ? t(`phase_${m.phase}` as Key) : '',
+      camera: this.cam.mode,
+      setCamera: (c) => this.setCamera(c),
+      onResume: () => this.togglePause(),
+      onRestart: this.choice.scout?.tour ? undefined : () => this.start(this.choice),
+      onBoard: m ? () => this.openBoard() : undefined,
+      onMenu: () => (this.choice.scout ? this.toScouting() : this.toMenu()),
+      menuLabel: this.choice.scout?.tour ? t('tr_backTo') : undefined,
+    });
+  }
+
+  /** Pizarra táctica: cámara superior y trazos con el puntero; el match sigue en pausa. */
+  private openBoard(): void {
+    if (this.state !== 'paused') return;
+    this.boardCam = this.cam.mode;
+    this.setCamera('top');
+    this.menu.hide();
+    this.renderer.renderer.domElement.classList.add('board-drawing');
+    this.boardBar.show(true);
+  }
+
+  private closeBoard(): void {
+    if (!this.boardBar.isOpen) return;
+    this.boardBar.show(false);
+    this.renderer.renderer.domElement.classList.remove('board-drawing');
+    this.setCamera(this.boardCam);
+    if (this.state === 'paused') this.pauseMenu();
+  }
+
+  private clearBoard(): void {
+    this.boardBar.show(false);
+    this.renderer.renderer.domElement.classList.remove('board-drawing');
+    this.board.clear();
+    this.boardRev++;
+  }
+
+  /** Punto de la cancha (plano y=0) bajo un punto de la pantalla; null si cae fuera de ella. */
+  private pickField(cx: number, cy: number): { x: number; z: number } | null {
+    const r = this.renderer.renderer.domElement.getBoundingClientRect();
+    const ndc = new THREE.Vector2(((cx - r.left) / r.width) * 2 - 1, -((cy - r.top) / r.height) * 2 + 1);
+    const ray = new THREE.Raycaster();
+    ray.setFromCamera(ndc, this.cam.camera);
+    const hit = ray.ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0, 1, 0), 0), new THREE.Vector3());
+    return hit ? { x: hit.x, z: hit.z } : null;
   }
 
   /** La UI que el control navega ahora; jugando (manejando el robot) ninguna. */
@@ -592,6 +695,19 @@ export class App {
     this.cam.setMode(m);
   }
 
+  /** Suma el cuadro al tiempo jugado del modo en curso (nunca en pausa, menús ni resultados). */
+  private trackPlaytime(dt: number): void {
+    addPlaytime(this.playtime, this.choice.mode, dt);
+    this.playtimeDirty += dt;
+    if (this.playtimeDirty >= 5) this.flushPlaytime();
+  }
+
+  private flushPlaytime(): void {
+    if (this.playtimeDirty <= 0) return;
+    this.playtimeDirty = 0;
+    savePlaytime(this.playtime);
+  }
+
   private loop = (now: number): void => {
     const dt = Math.min(0.1, (now - this.last) / 1000);
     this.last = now;
@@ -607,6 +723,7 @@ export class App {
       else this.togglePause();
     }
     if (this.state === 'playing') {
+      this.trackPlaytime(dt);
       if (this.input.camera) this.cycleCamera();
       this.session.setInput(this.autoPractice ? this.autoPractice.filter(inp) : this.trainingRun ? this.trainingRun.filter(inp) : this.practice1v1 ? this.practice1v1.filter(inp) : inp);
       this.session.update(dt);
@@ -632,6 +749,7 @@ export class App {
         if (sc && !sc.tour) saveMatchEntries(this.scoutData, m, sc.teams, sc.match);
         // Torneo: el resultado va a su tabla
         this.tourNote = sc?.tour ? this.tourney.record(m, sc) : '';
+        this.recordAchievements(m);
         this.lastReplay = this.recorder?.build(this.session) ?? null;
         if (this.lastReplay) void storeReplay(this.lastReplay);
         this.showResults();
@@ -654,6 +772,8 @@ export class App {
     if (this.state !== 'paused' && this.state !== 'replay') this.session.update(this.state === 'playing' ? 0 : dt);
     this.watchFps(dt);
     this.effects.update(this.state === 'paused' ? 0 : dt);
+    this.boardView.update(this.board, this.boardRev);
+    this.boardView.group.visible = this.state !== 'replay';
     this.arena.update(now / 1000, this.cam.camera.position.y);
     const sm = this.session.match;
     const sb = this.replay?.scoreboard;
@@ -662,7 +782,8 @@ export class App {
     else this.arena.setScreen(this.state === 'menu' ? 'LABBOT RESCUE' : t('practiceMode').toUpperCase(), '', '');
     const p = this.session.player.phys;
     const pt = p.position();
-    this.cam.update(dt, this.replay?.focusPose ?? { x: pt.x, y: pt.y, z: pt.z, heading: p.heading() });
+    const vr = this.replay ? this.replay.session.robots[this.replay.focus] : this.session.player;
+    this.cam.update(dt, this.replay?.focusPose ?? { x: pt.x, y: pt.y, z: pt.z, heading: p.heading() }, { alliance: vr.alliance, station: vr.station, spec: vr.spec });
     // Detrás de una pantalla opaca (Scouting, Torneo, Editor, Estadísticas…) la cancha casi no se ve:
     // 8 cuadros por segundo bastan y la pantalla responde mejor en celulares
     const behind = this.menu.root.style.display !== 'none' && this.menu.root.classList.contains('solid');
