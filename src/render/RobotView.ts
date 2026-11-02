@@ -7,7 +7,7 @@
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
 import { CRITICAL_SIZE, SAMPLE_SIZE } from '../config/field';
-import { CLAW } from '../config/robot';
+import { CLAW, armTip } from '../config/robot';
 import { clawDir } from '../physics/RobotPhysics';
 import type { Robot } from '../game/Robot';
 import { ALLIANCE_COLOR } from './FieldView';
@@ -98,16 +98,21 @@ export class RobotView {
     const critMat = criticalMaterial(robot.alliance);
     // Torre del pivote, brazo y garra; la pieza agarrada va en la punta
     const a = s.arm;
-    if (a.pivotY > 0.29) add(new THREE.BoxGeometry(0.12, a.pivotY - 0.23, 0.3), dark, a.pivotX, (a.pivotY + 0.23) / 2, 0);
+    if (a.linear) add(new THREE.BoxGeometry(0.08, a.pivotY + a.length - 0.23, 0.3), dark, a.pivotX - a.length, (a.pivotY + a.length + 0.23) / 2, 0);
+    else if (a.pivotY > 0.29) add(new THREE.BoxGeometry(0.12, a.pivotY - 0.23, 0.3), dark, a.pivotX, (a.pivotY + 0.23) / 2, 0);
     // Eje bajo (el brazo que voltea): soportes a los lados del canal por donde pasa el brazo
     else for (const z of [-1, 1]) add(new THREE.BoxGeometry(0.14, 0.16, 0.03), dark, a.pivotX, 0.25, z * 0.13);
     this.group.add(this.arm);
     this.arm.position.set(a.pivotX, a.pivotY, 0);
-    for (const z of [-0.09, 0.09]) add(new THREE.BoxGeometry(a.length, 0.04, 0.03), alu, a.length / 2, 0, z, this.arm);
+    // Elevador: dos rieles verticales detrás del carro; los demás, dos barras del brazo
+    if (a.linear) for (const z of [-0.09, 0.09]) add(new THREE.BoxGeometry(0.04, 2 * a.length + 0.1, 0.03), alu, -a.length, 0, z, this.arm);
+    else for (const z of [-0.09, 0.09]) add(new THREE.BoxGeometry(a.length, 0.04, 0.03), alu, a.length / 2, 0, z, this.arm);
     // Garra: dedos a los lados de la pieza (el sistema local del brazo gira con él)
     const claw = new THREE.Group();
-    claw.position.set(a.length, 0, 0);
+    claw.position.set(a.linear ? 0 : a.length, 0, 0);
     this.arm.add(claw);
+    // Elevador: viga horizontal del carro, de los rieles a la garra
+    if (a.linear) for (const z of [-0.09, 0.09]) add(new THREE.BoxGeometry(a.length - 0.1, 0.04, 0.03), alu, -(a.length - 0.1) / 2 - CLAW.fingerLength / 2, 0, z, claw);
     // Mismas medidas que la hitbox (`CLAW`, `RobotPhysics.setArmPose`): dos dedos y la placa
     for (const z of [-1, 1]) add(new THREE.BoxGeometry(CLAW.fingerLength, CLAW.fingerHeight, CLAW.fingerThickness), alu, 0, CLAW.fingerHeight / 2, z * CLAW.fingerZ, claw);
     this.palm = add(new THREE.BoxGeometry(CLAW.palmThickness, CLAW.fingerHeight * 0.75, 2 * CLAW.fingerZ + CLAW.fingerThickness), dark, -(CLAW.fingerLength / 2 + CLAW.palmThickness / 2), CLAW.fingerHeight / 2, 0, claw);
@@ -147,10 +152,34 @@ export class RobotView {
     for (const w of this.wheels) w.mesh.rotation.z = -this.spin[w.side];
     const m = this.robot.mech;
     this.criticalMesh.visible = m.critical !== null;
-    this.arm.rotation.z = m.angle;
     const claw = this.arm.getObjectByName('claw');
-    if (claw) claw.rotation.z = -m.angle;
-    this.palm.position.x = -clawDir(m.angle) * (CLAW.fingerLength / 2 + CLAW.palmThickness / 2);
+    const sa = this.robot.spec.arm;
+    if (sa.linear && claw) {
+      // El carro sube recto por los rieles (el grupo del brazo no gira)
+      const tip = armTip(sa, m.angle);
+      this.arm.rotation.z = 0;
+      claw.rotation.z = 0;
+      claw.position.set(tip.x - sa.pivotX, tip.y - sa.pivotY, 0);
+    } else if (sa.stowTip && m.angle > Math.PI / 2 && claw) {
+      // Brazo plegado: del eje a la punta, acortado
+      const tip = armTip(sa, m.angle);
+      const dx = tip.x - sa.pivotX;
+      const dy = tip.y - sa.pivotY;
+      const b = Math.atan2(dy, dx);
+      const k = Math.max(0.05, Math.hypot(dx, dy) / sa.length);
+      this.arm.rotation.z = b;
+      this.arm.scale.x = k;
+      claw.scale.x = 1 / k;
+      claw.rotation.z = -b;
+    } else {
+      this.arm.rotation.z = m.angle;
+      this.arm.scale.x = 1;
+      if (claw) {
+        claw.scale.x = 1;
+        claw.rotation.z = -m.angle;
+      }
+    }
+    this.palm.position.x = -clawDir(m.angle, sa) * (CLAW.fingerLength / 2 + CLAW.palmThickness / 2);
     this.clawSample.visible = m.inClaw;
     // Con falla: LEDs en ámbar parpadeando (sin comunicación, parpadeo rápido como la luz del robot)
     const f = this.faults();

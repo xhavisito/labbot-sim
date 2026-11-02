@@ -2,7 +2,7 @@ import { beforeAll, describe, expect, it } from 'vitest';
 import { STRATEGY_OPTIONS } from '../src/ai/strategy';
 import { COLLECT_HOME, LEAVE_ZONE } from '../src/auto/AutoRoutine';
 import * as F from '../src/config/field';
-import { armTip, knownSpec, posTip, MECHANISM_KINDS, PIVOT_180_ROBOT, PIVOT_ROBOT, ROBOT_PRESETS, validateRobot, type RobotSpec } from '../src/config/robot';
+import { armTip, knownSpec, posTip, DUAL_INTAKE_ROBOT, ELEVATOR_ROBOT, LONG_ARM_ROBOT, MECHANISM_KINDS, PIVOT_180_ROBOT, PIVOT_ROBOT, ROBOT_PRESETS, validateRobot, type RobotSpec } from '../src/config/robot';
 import { GameSession } from '../src/game/GameSession';
 import { emptyInput, type PlayerInput } from '../src/input/InputManager';
 import { initRapier } from '../src/physics/PhysicsWorld';
@@ -23,12 +23,47 @@ function run(g: GameSession, s: number, inp: Partial<PlayerInput> = {}): void {
   }
 }
 
-describe('tipos de robot: solo el pivote y su variante de 180° (27-oct)', () => {
-  it('quedan el pivote y su variante de 180°, y los dos cumplen §7.2 y §4.1', () => {
-    expect([...MECHANISM_KINDS]).toEqual(['pivot', 'pivot180']);
+describe('tipos de robot: pivotes, brazo largo, elevador y doble intake', () => {
+  it('hay cinco tipos y todos cumplen §7.2 y §4.1', () => {
+    expect([...MECHANISM_KINDS]).toEqual(['pivot', 'pivot180', 'longarm', 'elevator', 'dual']);
     for (const s of Object.values(ROBOT_PRESETS)) expect(validateRobot(s)).toEqual([]);
-    // Una pieza a la vez, sin hopper
-    for (const s of Object.values(ROBOT_PRESETS)) expect(s.capacity).toBe(1);
+    // Una pieza a la vez, salvo el doble intake (garra + hopper de una)
+    for (const [k, s] of Object.entries(ROBOT_PRESETS)) expect(s.capacity).toBe(k === 'dual' ? 2 : 1);
+  });
+
+  it('elevador: sube recto (la punta no se mueve en x) del piso a 100 cm y se recoge dentro del perímetro', () => {
+    const s = ELEVATOR_ROBOT;
+    for (const pos of [0, 1, 2, 3, 4] as const) {
+      expect(posTip(s, pos).x).toBeCloseTo(0.58, 6);
+      expect(posTip(s, pos).y).toBeCloseTo(s.elevatorHeights[pos], 6);
+    }
+    // Al frente del chasis para anotar y a no más de 40 cm fuera de él (§7.2)
+    expect(posTip(s, 3).x - 0.075).toBeGreaterThan(s.length / 2);
+    expect(posTip(s, 3).x + 0.1 - s.length / 2).toBeLessThanOrEqual(0.4);
+    // Recogido al inicio con la precarga: dentro del perímetro y bajo 100 cm (§4.1)
+    const st = armTip(s.arm, s.arm.stowAngle!);
+    expect(Math.abs(st.x) + 0.075).toBeLessThanOrEqual(s.length / 2);
+    expect(st.y + 0.15).toBeLessThanOrEqual(1.0 + 1e-9);
+    // Del recogido a la posición de trabajo la punta pasa de forma continua
+    const mid = armTip(s.arm, (3 * Math.PI) / 4);
+    expect(mid.x).toBeGreaterThan(st.x);
+    expect(mid.x).toBeLessThan(0.58);
+  });
+
+  it('brazo largo: alcanza más lejos que el pivote en N3 sin pasar de 40 cm (§7.2) y es más pesado', () => {
+    const s = LONG_ARM_ROBOT;
+    expect(posTip(s, 3).x).toBeGreaterThan(posTip(PIVOT_ROBOT, 3).x);
+    for (const pos of [0, 1, 2, 3, 4] as const) expect(posTip(s, pos).x + 0.1 - s.length / 2).toBeLessThanOrEqual(0.4 + 1e-9);
+    // En el piso la garra queda tan afuera del chasis como la del pivote
+    expect(posTip(s, 0).x).toBeGreaterThanOrEqual(posTip(PIVOT_ROBOT, 0).x);
+    expect(s.arm.length).toBeGreaterThan(PIVOT_ROBOT.arm.length);
+    expect(s.massKg).toBeGreaterThan(PIVOT_ROBOT.massKg);
+  });
+
+  it('doble intake: capacidad 2 (garra + hopper) y el brazo con la Muestra no pasa de 100 cm', () => {
+    const s = DUAL_INTAKE_ROBOT;
+    expect(s.capacity).toBe(2);
+    expect(s.arm.pivotY + s.arm.length + 0.15).toBeLessThanOrEqual(1.0 + 1e-9);
   });
 
   it('180° (volteado el 29-oct): recoge atrás y voltea el brazo para anotar al frente; todo dentro de §7.2', () => {
@@ -90,7 +125,7 @@ describe('tipos de robot: solo el pivote y su variante de 180° (27-oct)', () =>
     expect(g.practiceCount.red).toBe(1);
   });
 
-  for (const spec of [PIVOT_ROBOT]) {
+  for (const spec of [PIVOT_ROBOT, LONG_ARM_ROBOT, ELEVATOR_ROBOT, DUAL_INTAKE_ROBOT]) {
     it(`${spec.name}: agarra una Muestra del piso y la anota en el Nivel 3 de frente`, () => {
       const g = session(spec, false);
       const m = g.player.mech;
@@ -98,7 +133,8 @@ describe('tipos de robot: solo el pivote y su variante de 180° (27-oct)', () =>
       g.player.phys.teleport(spot.x + 1.0, spot.z, Math.PI);
       run(g, 3.0, { intake: true, forward: 0.2 });
       expect(m.stored).toHaveLength(1);
-      expect(m.inClaw).toBe(true);
+      // Con hopper la garra pasa la Muestra a la boca del hopper en cuanto la toma
+      if (spec.capacity === 1) expect(m.inClaw).toBe(true);
       // Con el brazo arriba antes de arrimarse: la garra choca con la madera de la Cámara (D34)
       run(g, 2.0, { elevator: 3 });
       const w = F.camaraWells()[3];

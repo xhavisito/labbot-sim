@@ -359,6 +359,10 @@ export function resultFromMatch(m: Match, t: Tournament, tm: TMatch): MatchResul
 const PROFILES: Record<MechanismKind, { auto: LevelCounts; tele: LevelCounts; line: number; platform: number; crit: number; critPref: number; fouls: number; tech: number }> = {
   pivot: { auto: [0, 0.06, 1.13], tele: [0.13, 0.25, 4.75], line: 1, platform: 1, crit: 0.95, critPref: 3, fouls: 0.05, tech: 0.06 },
   pivot180: { auto: [0, 0.06, 1.13], tele: [0.13, 0.25, 4.75], line: 1, platform: 1, crit: 0.95, critPref: 2, fouls: 0.05, tech: 0.06 },
+  // 2-nov: ajustados a `npm run batch -- --set compare` (mismo plan: uno con la Crítica y otro a N3)
+  longarm: { auto: [0, 0.06, 1.2], tele: [0.13, 0.25, 4.45], line: 1, platform: 1, crit: 1, critPref: 3, fouls: 0.03, tech: 0.03 },
+  elevator: { auto: [0, 0.06, 1.15], tele: [0.13, 0.25, 4.5], line: 1, platform: 1, crit: 0.92, critPref: 3, fouls: 0.03, tech: 0.03 },
+  dual: { auto: [0, 0.06, 0.9], tele: [0.13, 0.25, 4.35], line: 1, platform: 1, crit: 0.65, critPref: 1, fouls: 0.05, tech: 0.05 },
 };
 
 const gauss = (rand: () => number): number => Math.sqrt(-2 * Math.log(1 - rand())) * Math.cos(2 * Math.PI * rand());

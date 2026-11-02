@@ -78,6 +78,12 @@ export function robotSilhouette(kind: MechanismKind): string {
     // Pivote 180° (Jack in the Bot): eje bajo delante del centro; recoge atrás (gris) y voltea
     // por arriba para soltar al frente en N1–N3
     pivot180: `<circle cx="132" cy="92" r="6"/><path class="soft" d="M132 92 34 126M34 126l-8-6"/><path class="soft" d="M34 120A100 100 0 0 1 184 18"/><path class="hot" d="M132 92 180 20"/><path class="hot" d="M180 20l9 1M180 20l1 10"/>`,
+    // Brazo largo: eje atrás y bajo, brazo largo con garra al frente
+    longarm: `<circle cx="90" cy="70" r="6"/><path d="M90 96V70"/><path class="hot" d="M90 70 190 46"/><path class="hot" d="M190 46l10 3M190 46l5 9"/>`,
+    // Elevador: torre vertical y carro con la garra al frente
+    elevator: `<path d="M150 96V28M162 96V28"/><path class="hot" d="M150 52h40"/><path class="hot" d="M190 52l-4-7M190 52l-4 7"/>`,
+    // Doble intake: brazo corto y un hopper atrás
+    dual: `${post}<path class="hot" d="M110 66 170 40"/><path class="hot" d="M170 40l10 1M170 40l4 9"/><rect class="soft" x="46" y="70" width="30" height="26" rx="2"/>`,
   };
   return `<svg class="silhouette" viewBox="0 0 220 150" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
     <path class="floor" d="M10 137h200"/>${base}${mech[kind]}</svg>`;
