@@ -84,7 +84,8 @@ export interface SessionOptions {
    * IA lo maneja y anota en su Cámara, sin defender ni subir a la Plataforma; su Human Player le
    * mete Muestras y su Cámara también tiene el vacío. SUPUESTO de diseño (el manual no tiene práctica).
    */
-  rival?: 'none' | 'passive' | 'ai';
+  rival?: 'none' | 'passive' | 'ai' | 'human';
+  /** 'human' = otra persona maneja ese robot en la misma pantalla (`player2Index`); no hay IA. */
   /** Estrategia de la IA de cada robot (nivel, de dónde junta, papel, ENDGAME; `ai` = su dificultad). */
   bots?: Array<Partial<BotOptions> | undefined>;
   /** Dificultad de la IA de los robots que no la traen en `bots` (`ai/difficulty.ts`; por defecto difícil). */
@@ -202,6 +203,11 @@ export class GameSession {
     return o.player < 2 ? o.player + 2 : o.player - 2;
   }
 
+  /** Rival con su propia Cámara y Human Player (IA u otra persona): cada alianza se queda con lo suyo. */
+  get duel(): boolean {
+    return this.opts.rival === 'ai' || this.opts.rival === 'human';
+  }
+
   /** Robot rival de la práctica 1 contra 1 (si hay). */
   get rival(): Robot | null {
     return this.robots.find((r) => r.index === this.rivalIndex) ?? null;
@@ -213,8 +219,11 @@ export class GameSession {
 
   /** Índice del robot del jugador 2 (multijugador local); −1 si no hay. Siempre de la otra alianza. */
   get player2Index(): number {
-    const { player, player2, solo } = this.opts;
-    if (solo || player < 0 || player2 === undefined || player2 < 0 || player2 > 3) return -1;
+    const { player, player2, solo, rival } = this.opts;
+    if (player < 0) return -1;
+    // Práctica 1 contra 1 con otra persona: el robot de enfrente lo maneja ella
+    if (solo) return rival === 'human' ? this.rivalIndex : -1;
+    if (player2 === undefined || player2 < 0 || player2 > 3) return -1;
     return player2 < 2 !== player < 2 ? player2 : -1;
   }
 
@@ -260,7 +269,7 @@ export class GameSession {
     // Práctica libre: toda la reserva (la del otro HP y las precargas sin robot) es del HP del jugador;
     // con un rival de la IA, cada HP se queda con la suya
     this.sink.clear();
-    if (this.opts.solo && this.opts.rival !== 'ai') for (const p of this.pieces.list) if (p.kind === 'sample' && p.state.at === 'hp') p.state = { at: 'hp', alliance: this.player.alliance };
+    if (this.opts.solo && !this.duel) for (const p of this.pieces.list) if (p.kind === 'sample' && p.state.at === 'hp') p.state = { at: 'hp', alliance: this.player.alliance };
     // Rival de la práctica 1 contra 1 manejado por la IA (nuevo en cada acomodo): anota a su ritmo,
     // sin defensa ni ENDGAME
     const rv = this.rival;
@@ -494,7 +503,7 @@ export class GameSession {
       const p = this.pieces.list[i];
       if (p.state.at !== 'field') continue;
       // Con un rival de la IA cada Cámara le regresa la Muestra a su HP; si no, todo es del jugador
-      this.pieces.stash(p, { at: 'hp', alliance: this.opts.rival === 'ai' ? e.alliance : this.player.alliance });
+      this.pieces.stash(p, { at: 'hp', alliance: this.duel ? e.alliance : this.player.alliance });
       this.sensors.scored.delete(i);
     }
   }

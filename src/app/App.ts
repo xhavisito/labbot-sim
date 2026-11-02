@@ -329,14 +329,16 @@ export class App {
     // Cada match se graba para la repetición y las estadísticas
     this.recorder = c.mode === 'match' || versus ? new Recorder(this.session, this.session.robots.map((r) => robotLabel(r.spec))) : null;
     this.session.tap = this.recorder;
-    this.setVersus(c.mode === 'versus');
+    // Práctica 1 contra 1 con otra persona: pantalla dividida y entrada de dos jugadores, como 2 jugadores
+    const duo = p1 && this.session.player2 !== null;
+    this.setVersus(c.mode === 'versus' || duo);
     this.menu.hide();
     this.hud.show(true);
     this.hud.setHelp(this.input.bindings);
     this.state = 'playing';
     this.updateTouch();
     this.cam.setMode(c.player < 2 ? 'driverRed' : 'driverBlue');
-    if (c.mode === 'versus') {
+    if (c.mode === 'versus' || duo) {
       // Cada quien ve su robot desde atrás (pantalla dividida)
       this.cam.setMode('follow');
       this.cam2.setMode('follow');
@@ -934,7 +936,7 @@ export class App {
       this.trackPlaytime(dt);
       if (this.input.camera && !this.session.player2) this.cycleCamera();
       this.session.setInput(this.autoPractice ? this.autoPractice.filter(inp) : this.trainingRun ? this.trainingRun.filter(inp) : this.practice1v1 ? this.practice1v1.filter(inp) : inp);
-      if (this.session.player2) this.session.setInput2(this.input.poll2());
+      if (this.session.player2) this.session.setInput2(this.practice1v1 ? this.practice1v1.filter2(this.input.poll2()) : this.input.poll2());
       this.session.update(dt);
       this.autoPractice?.update(dt);
       this.trainingRun?.update(dt);

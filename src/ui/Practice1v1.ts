@@ -17,7 +17,7 @@ import { addShots, asRed, zoneStats, ZONES, type Shot, type ShotLog } from '../c
 import * as F from '../config/field';
 import { CycleTracker } from '../game/cycleTracker';
 import { saveShotLog } from '../game/shotStore';
-import type { GameSession } from '../game/GameSession';
+import type { GameSession, SessionTap } from '../game/GameSession';
 import { saveCycleBests } from '../game/cycleStore';
 import { emptyInput, type PlayerInput } from '../input/InputManager';
 import { ic } from './chrome';
@@ -51,6 +51,10 @@ export class Practice1v1 {
   private phase: Phase = 'brief';
   private clock = 0;
   private tracker: CycleTracker | null = null;
+  /** Con otra persona de rival (`rival: 'human'`): sus propios ciclos, en la misma pantalla. */
+  private tracker2: CycleTracker | null = null;
+  private summary2: CycleSummary | null = null;
+  private tap: SessionTap | null = null;
   private summary: CycleSummary | null = null;
   private newBests: CycleCat[] = [];
   /** Tiros de la última práctica (tuyos y del rival), en coordenadas de la cancha. */
@@ -88,6 +92,15 @@ export class Practice1v1 {
     return this.phase === 'running' ? inp : emptyInput();
   }
 
+  /** Lo mismo para la segunda persona (rival `human`): su robot espera quieto hasta la cuenta. */
+  filter2(inp: PlayerInput): PlayerInput {
+    return this.phase === 'running' ? inp : emptyInput();
+  }
+
+  private get human(): boolean {
+    return this.h.settings().rival === 'human' && this.s.player2 !== null;
+  }
+
   get wantsUi(): boolean {
     return this.phase === 'brief' || this.phase === 'result';
   }
@@ -117,8 +130,10 @@ export class Practice1v1 {
   }
 
   private stop(): void {
-    if (this.s.tap === this.tracker) this.s.tap = null;
+    if (this.tap && this.s.tap === this.tap) this.s.tap = null;
+    this.tap = null;
     this.tracker = null;
+    this.tracker2 = null;
   }
 
   private brief(): void {
@@ -133,6 +148,7 @@ export class Practice1v1 {
     this.s.resetField();
     this.s.snapViews();
     this.phase = 'countdown';
+    this.summary2 = null;
     this.clock = COUNTDOWN;
     this.render();
   }
@@ -141,7 +157,10 @@ export class Practice1v1 {
     this.s.resetField();
     this.s.snapViews();
     this.tracker = new CycleTracker(this.s, this.limit);
-    this.s.tap = this.tracker;
+    this.tracker2 = this.human ? new CycleTracker(this.s, this.limit, this.s.player2Index) : null;
+    const trackers = [this.tracker, this.tracker2].filter((x): x is CycleTracker => x !== null);
+    this.tap = { step: (s, mech, scored) => trackers.forEach((tr) => tr.step(s, mech, scored)) };
+    this.s.tap = this.tap;
     this.phase = 'running';
     this.render();
   }
@@ -151,6 +170,8 @@ export class Practice1v1 {
     const tr = this.tracker;
     if (!tr) return;
     this.summary = tr.stats.summary();
+    // La segunda persona tiene su resultado en la misma pantalla; sus ciclos no se guardan (SUPUESTO)
+    this.summary2 = this.tracker2?.stats.summary() ?? null;
     this.newBests = updateBests(this.h.bests, this.h.robot.id, this.summary);
     saveCycleBests(this.h.bests);
     const a = this.s.player.alliance;
@@ -180,7 +201,9 @@ export class Practice1v1 {
       const s = tr.stats.summary();
       const r = tr.stats.records[tr.stats.records.length - 1];
       const last = r ? ` · ${t('p1_last')} ${secs(r.search + r.time)} (${t('p1_split', { b: secs(r.search), l: secs(r.time) })})` : '';
-      pr.textContent = `${t('p1_chip', { n: s.cycles, p: s.points })}${last}`;
+      const s2 = this.tracker2?.stats.summary();
+      const other = s2 ? ` · ${t('p1_p2chip', { n: s2.cycles, p: s2.points })}` : '';
+      pr.textContent = `${t('p1_chip', { n: s.cycles, p: s.points })}${other}${last}`;
     }
   }
 
@@ -196,12 +219,13 @@ export class Practice1v1 {
     </div>`;
   }
 
-  private tableHtml(s: CycleSummary): string {
-    const bests = this.h.bests.bests[this.h.robot.id] ?? {};
+  /** Tabla de ciclos por Muestra. `mine` = la del robot guardado (récords y estrellas); si no, la del jugador 2. */
+  private tableHtml(s: CycleSummary, mine = true): string {
+    const bests = mine ? (this.h.bests.bests[this.h.robot.id] ?? {}) : {};
     const rows = CYCLE_CATS.map((c) => {
       const x = s.byCat[c];
       const rec = bests[c];
-      const star = this.newBests.includes(c) ? ` <b class="tn-new" title="${t('p1_newBest')}">★</b>` : '';
+      const star = mine && this.newBests.includes(c) ? ` <b class="tn-new" title="${t('p1_newBest')}">★</b>` : '';
       return `<tr class="${x.attempts ? '' : 'dim'}"><th>${catName(c)}</th><td>${x.scored}/${x.attempts}</td><td>${pct(x.accuracy)}</td><td>${secs(x.avg)}</td>
         <td>${secs(x.best)}${star}</td><td>${rec === undefined ? '—' : secs(rec)}</td><td>${x.points}</td></tr>`;
     }).join('');
@@ -267,12 +291,15 @@ export class Practice1v1 {
       return;
     }
     const s = this.summary;
+    const s2 = this.summary2;
+    const assume = this.human ? t('p1_assumeHuman') : t('p1_assume');
     const body =
       ph === 'result' && s
         ? `<p class="tn-note">${t('p1_resultNote', { t: secs(s.time), c: s.cycles, m: s.perMinute.toFixed(1) })}</p>
           <p class="tn-note">${t('p1_splitNote', { b: secs(s.avgSearch), l: secs(s.avg), f: secs(s.avgFull) })}</p>${this.tableHtml(s)}
-          <p class="ap-note">${t('p1_assume')}</p>${this.mapHtml()}`
-        : `<p class="tn-goal">${t('p1_goal')}</p><p class="ap-note">${t('p1_assume')}</p>${this.mapHtml()}`;
+          ${s2 ? `<h3 class="p1-p2">${t('p1_p2Title')}</h3><p class="tn-note">${t('p1_resultNote', { t: secs(s2.time), c: s2.cycles, m: s2.perMinute.toFixed(1) })}</p>${this.tableHtml(s2, false)}` : ''}
+          <p class="ap-note">${assume}</p>${this.mapHtml()}`
+        : `<p class="tn-goal">${t('p1_goal')}</p><p class="ap-note">${assume}</p>${this.mapHtml()}`;
     this.root.innerHTML = `<div class="ap-panel tn-panel p1-panel">
       <div class="ap-head">${ic.medal}<b>${t('p1_title')}</b>
         <button class="hud-btn" data-a="exit" title="${t('tn_exit')}">${ic.x}</button></div>
