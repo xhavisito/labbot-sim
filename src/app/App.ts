@@ -662,7 +662,8 @@ export class App {
     else this.arena.setScreen(this.state === 'menu' ? 'LABBOT RESCUE' : t('practiceMode').toUpperCase(), '', '');
     const p = this.session.player.phys;
     const pt = p.position();
-    this.cam.update(dt, this.replay?.focusPose ?? { x: pt.x, y: pt.y, z: pt.z, heading: p.heading() });
+    const vr = this.replay ? this.replay.session.robots[this.replay.focus] : this.session.player;
+    this.cam.update(dt, this.replay?.focusPose ?? { x: pt.x, y: pt.y, z: pt.z, heading: p.heading() }, { alliance: vr.alliance, station: vr.station, spec: vr.spec });
     // Detrás de una pantalla opaca (Scouting, Torneo, Editor, Estadísticas…) la cancha casi no se ve:
     // 8 cuadros por segundo bastan y la pantalla responde mejor en celulares
     const behind = this.menu.root.style.display !== 'none' && this.menu.root.classList.contains('solid');
