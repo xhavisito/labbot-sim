@@ -8,6 +8,7 @@ import { isStrategy, type StrategyId } from '../ai/strategy';
 import { DEFAULT_DAMAGE, sanitizeDamage, type DamageSettings } from '../core/damage';
 import { DEFAULT_ROBOT, GRIP_MODES, MECHANISM_KINDS, type GripMode, type MechanismKind } from './robot';
 import { allRobotIds, type RobotId } from './robotIds';
+import { COLOR_MODES, nearestTextScale, type ColorMode, type TextScale } from './palette';
 import { CENTER_SPOT, sanitizeSpot, type StartSpot } from './startSpot';
 
 /** Un robot en la configuración del match (los de la IA; del tuyo solo cuenta tu rutina de AUTO). */
@@ -83,6 +84,9 @@ export interface Settings {
    * líneas en la cancha y tarjeta, solo la tarjeta, o nada.
    */
   planBoard: PlanBoard;
+  /** Accesibilidad: paleta para daltonismo (`config/palette.ts`) y tamaño del texto de la interfaz. */
+  colorMode: ColorMode;
+  textScale: TextScale;
 }
 
 export type PlanBoard = 'all' | 'card' | 'off';
@@ -107,6 +111,8 @@ export const DEFAULT_SETTINGS: Settings = {
   practice: { rival: 'passive', limit: 0 },
   volume: 80,
   planBoard: 'all',
+  colorMode: 'normal',
+  textScale: 1,
 };
 
 export const SETTINGS_RANGE = {
@@ -170,6 +176,8 @@ export function sanitizeSettings(raw: unknown, autoIds: readonly string[]): Sett
     practice: sanitizePractice(o.practice),
     volume: num(o.volume, d.volume, SETTINGS_RANGE.volume),
     planBoard: PLAN_BOARDS.find((b) => b === o.planBoard) ?? d.planBoard,
+    colorMode: COLOR_MODES.find((m) => m === o.colorMode) ?? d.colorMode,
+    textScale: nearestTextScale(o.textScale ?? d.textScale),
   };
 }
 

@@ -4,6 +4,7 @@
  * velocidad, Plataforma, Muestra Crítica). Se abre desde los resultados o desde Repeticiones.
  */
 import * as F from '../config/field';
+import { activePalette } from '../config/palette';
 import { GAME } from '../config/game';
 import { bounds } from '../core/clock';
 import { ALLIANCES } from '../core/types';
@@ -13,7 +14,6 @@ import { backBtn, brandbar, ic } from './chrome';
 import { dateTime, t } from './i18n';
 
 const esc = (s: string): string => s.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
-const COLORS = { red: [229, 65, 58], blue: [47, 125, 246] } as const;
 
 /** Etiqueta corta de la estación: R1, R2, A1, A2. */
 export const stationTag = (alliance: 'red' | 'blue', station: number): string => `${t(alliance === 'red' ? 'red' : 'blue').charAt(0)}${station + 1}`;
@@ -34,7 +34,7 @@ export function drawHeatmap(cv: HTMLCanvasElement, replay: Replay, stats: RobotS
   for (const s of stats) {
     if (only !== null && s.index !== only) continue;
     const rb = replay.header.robots[s.index];
-    const [r, gg, b] = COLORS[rb.alliance];
+    const [r, gg, b] = activePalette().heat[rb.alliance];
     for (let row = 0; row < HEAT_ROWS; row++)
       for (let c = 0; c < HEAT_COLS; c++) {
         const v = s.heat[row * HEAT_COLS + c];

@@ -3,7 +3,7 @@ import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
 import type { Pieces } from '../physics/Pieces';
 import type { Alliance } from '../core/types';
-import { ALLIANCE_COLOR } from './FieldView';
+import { PALETTES } from '../config/palette';
 import { foamTexture } from './textures';
 
 let sample: THREE.MeshStandardMaterial | null = null;
@@ -20,7 +20,7 @@ export function sampleMaterial(): THREE.MeshStandardMaterial {
  * Color de la Muestra Crítica. El manual la pide roja/azul por alianza (pág. 15); por pedido del equipo
  * la azul va en el morado del branding (como el robot propio). Solo cambia el dibujo, no las reglas.
  */
-export const CRITICAL_COLOR: Record<Alliance, number> = { red: ALLIANCE_COLOR.red, blue: 0x8a2ba3 };
+export const CRITICAL_COLOR: Record<Alliance, number> = { ...PALETTES.normal.critical };
 
 /** Muestra Crítica: plástico brillante del color de su alianza con un leve resplandor. */
 export function criticalMaterial(a: Alliance): THREE.MeshPhysicalMaterial {
