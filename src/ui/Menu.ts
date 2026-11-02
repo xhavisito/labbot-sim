@@ -14,14 +14,18 @@ import { RULES } from '../core/fouls';
 import type { Match } from '../core/match';
 import type { DrillId } from '../core/training';
 import { ALLIANCES, type Alliance } from '../core/types';
-import { ACTIONS, assign, clearAction, cloneBindings, DEFAULT_BINDINGS, keyLabel, padLabel, saveBindings, type Action } from '../input/bindings';
+import { applyAccessibility } from './a11y';
+import { COLOR_MODES, nearestTextScale, TEXT_SCALES, type ColorMode } from '../config/palette';
+import { ACTIONS, assign, clampDeadzone, clearAction, DEADZONE_RANGE, cloneBindings, DEFAULT_BINDINGS, keyLabel, padLabel, saveBindings, type Action } from '../input/bindings';
 import type { InputManager } from '../input/InputManager';
 import { CAMERA_MODES, type CameraMode } from '../render/CameraRig';
 import { padHelp } from './controlsHelp';
 import { backBtn, brandbar, ic, kbds, langChips, robotSilhouette, UI_ALLIANCES, UI_SLOTS } from './chrome';
+import { formatPlaytime } from '../core/playtime';
+import { loadPlaytime } from '../game/playtimeStore';
 import { getLang, setLang, t, type Key } from './i18n';
 import type { ScoutPlay } from './Scouting';
-import { isIos, isStandalone, promptInstall, pwa } from '../pwa/register';
+import { applyUpdate, isIos, isStandalone, promptInstall, pwa } from '../pwa/register';
 
 const esc = (v: string): string => v.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
 
@@ -178,6 +182,7 @@ export class Menu {
             <div class="bay-head"><span class="bay-label">${t('yourRobot')}</span></div>
             <div class="showcase">${robotSilhouette(robotSpec(s.robotType).mechanism)}<span class="dim">${chassisSize(s.robotType)} · ${t('robotType')}</span></div>
             <div class="robotinfo" data-robotinfo></div>
+            <div class="playtime" title="${t('playtimeTip')}"><span>${t('playtime')}</span><b>${formatPlaytime(loadPlaytime().total)}</b></div>
           </div>
         </div>
       </div>
@@ -223,9 +228,12 @@ export class Menu {
     const box = this.root.querySelector<HTMLElement>('[data-pwa]');
     if (!box) return;
     const canInstall = !isStandalone() && (pwa.installEvent || isIos());
-    box.innerHTML = `${pwa.offlineReady ? `<span class="chipbtn static" title="${t('pwa_offlineTitle')}">${ic.offline}<span>${t('pwa_offline')}</span></span>` : ''}${
+    box.innerHTML = `${pwa.updateReady ? `<button class="chipbtn" data-update title="${t('pwa_updateTitle')}">${ic.phone}<span>${t('pwa_update')}</span></button>` : ''}${
+      pwa.online ? '' : `<span class="chipbtn static" title="${t('pwa_noNetTitle')}">${ic.offline}<span>${t('pwa_noNet')}</span></span>`
+    }${pwa.offlineReady ? `<span class="chipbtn static" title="${t('pwa_offlineTitle')}">${ic.offline}<span>${t('pwa_offline')}</span></span>` : ''}${
       canInstall ? `<button class="chipbtn" data-install title="${t('pwa_installTitle')}">${ic.phone}<span>${t('pwa_install')}</span></button>` : ''
     }`;
+    box.querySelector('[data-update]')?.addEventListener('click', applyUpdate);
     box.querySelector('[data-install]')?.addEventListener('click', () => {
       if (pwa.installEvent) void promptInstall();
       else if (!box.querySelector('.pwa-tip')) box.insertAdjacentHTML('beforeend', `<div class="pwa-tip msg">${t('pwa_ios')}</div>`);
@@ -325,6 +333,10 @@ export class Menu {
           <h3>${t('sec_graphics')}</h3>
           <label>${t('setQuality')}</label><div class="seg" data-qseg>${(['auto', 'low', 'medium', 'high'] as const).map((q) => `<button class="${q === s.quality ? 'on' : ''}" data-v="${q}">${t(`quality_${q}`)}</button>`).join('')}</div>
           <p class="full sub">${t('qualityNote')}</p>
+          <h3>${t('sec_access')}</h3>
+          <label>${t('setColorMode')}</label>${seg('colorMode', COLOR_MODES, s.colorMode, (v) => t(`colorMode_${v}` as Key))}
+          <label>${t('setTextScale')}</label>${seg('textScale', TEXT_SCALES.map(String), String(s.textScale), (v) => `${Math.round(Number(v) * 100)} %`)}
+          <p class="full sub">${t('accessNote')}</p>
           <h3>${t('sec_sound')}</h3>
           <label>${t('setVolume')}</label>${range('volume', '%')}
           <p class="full sub">${t('soundNote')}</p>
@@ -381,6 +393,11 @@ export class Menu {
         else if (k === 'damage.level') s.damage = { ...s.damage, level: v as DamageLevel };
         else if (k === 'damage.targets') s.damage = { ...s.damage, targets: v as DamageTargets };
         else if (k === 'planBoard') s.planBoard = v as PlanBoard;
+        else if (k === 'colorMode') s.colorMode = v as ColorMode;
+        else if (k === 'textScale') {
+          s.textScale = nearestTextScale(Number(v));
+          applyAccessibility(s.colorMode === this.settings.colorMode ? s.colorMode : this.settings.colorMode, s.textScale);
+        }
         b.parentElement!.querySelectorAll('button').forEach((x) => x.classList.toggle('on', x === b));
       }),
     );
@@ -394,9 +411,12 @@ export class Menu {
       this.onSettings(this.settings);
       this.main();
     });
-    this.on('[data-act="cancel"]', () => this.main());
+    this.on('[data-act="cancel"]', () => {
+      applyAccessibility(this.settings.colorMode, this.settings.textScale);
+      this.main();
+    });
     this.on('[data-act="defaults"]', () => {
-      Object.assign(this.settings, { ...structuredClone(DEFAULT_SETTINGS), touch: this.settings.touch, quality: this.settings.quality, volume: this.settings.volume });
+      Object.assign(this.settings, { ...structuredClone(DEFAULT_SETTINGS), touch: this.settings.touch, quality: this.settings.quality, volume: this.settings.volume, colorMode: this.settings.colorMode, textScale: this.settings.textScale });
       this.onSettings(this.settings);
       this.settingsPanel();
     });
@@ -436,6 +456,8 @@ export class Menu {
           <p class="full sub">${t('padMenus')}</p>
           <label>${t('padDriveLabel')}</label>${seg('padDrive', b.padDrive, [['left', t('padDriveLeft')], ['split', t('padDriveSplit')]])}
           <label>${t('invertForward')}</label><button class="toggle ${b.invertForward ? 'on' : ''}" data-tog="invert"><i></i>${b.invertForward ? t('on_') : t('no_')}</button>
+          <label>${t('padDeadzone')}</label><div class="range"><input type="range" data-dz min="${DEADZONE_RANGE.min}" max="${DEADZONE_RANGE.max}" step="${DEADZONE_RANGE.step}" value="${b.padDeadzone}"><output>${Math.round(b.padDeadzone * 100)} %</output></div>
+          <p class="full sub">${t('padDeadzoneNote')}</p>
           <label>${t('touchControls')}</label>${seg('touch', this.settings.touch, [['auto', t('touchAuto')], ['on', t('touchOn')], ['off', t('touchOff')]])}
         </div></div>
       </div>
@@ -475,6 +497,12 @@ export class Menu {
         }
       }),
     );
+    this.root.querySelector<HTMLInputElement>('[data-dz]')?.addEventListener('input', (e) => {
+      const el = e.target as HTMLInputElement;
+      inp.bindings = { ...cloneBindings(inp.bindings), padDeadzone: clampDeadzone(Number(el.value)) };
+      saveBindings(inp.bindings);
+      (el.nextElementSibling as HTMLOutputElement).textContent = `${Math.round(inp.bindings.padDeadzone * 100)} %`;
+    });
     this.on('[data-tog="invert"]', () => apply({ ...cloneBindings(inp.bindings), invertForward: !inp.bindings.invertForward }));
     this.on('[data-act="back"]', () => {
       inp.cancelCapture();

@@ -7,6 +7,7 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import * as F from '../config/field';
+import { activePalette } from '../config/palette';
 import { gymFloorTexture } from './textures';
 
 export class Arena {
@@ -132,9 +133,9 @@ export class Arena {
     g.fillRect(0, 0, W, H);
     const score = red !== '' || blue !== '';
     if (score) {
-      g.fillStyle = '#0d47a1';
+      g.fillStyle = activePalette().plate.blue;
       g.fillRect(0, 0, W * 0.32, H);
-      g.fillStyle = '#b71c1c';
+      g.fillStyle = activePalette().plate.red;
       g.fillRect(W * 0.68, 0, W * 0.32, H);
     }
     g.textAlign = 'center';

@@ -35,6 +35,8 @@ export interface Bindings {
   padDrive: PadDrive;
   /** Invertir el eje de avance del stick. */
   invertForward: boolean;
+  /** Zona muerta de los sticks (0.05–0.5): sube si el stick se mueve solo, baja si cuesta moverlo. */
+  padDeadzone: number;
 }
 
 /** Botones del mapeo "standard" del navegador. */
@@ -80,7 +82,10 @@ export const DEFAULT_BINDINGS: Bindings = {
   },
   padDrive: 'left',
   invertForward: false,
+  padDeadzone: 0.15,
 };
+
+export const DEADZONE_RANGE = { min: 0.05, max: 0.5, step: 0.05 } as const;
 
 /** Máximo de teclas o botones por acción. */
 export const MAX_PER_ACTION = 2;
@@ -90,6 +95,7 @@ export const cloneBindings = (b: Bindings): Bindings => ({
   pad: Object.fromEntries(ACTIONS.map((a) => [a, [...b.pad[a]]])) as Bindings['pad'],
   padDrive: b.padDrive,
   invertForward: b.invertForward,
+  padDeadzone: b.padDeadzone,
 });
 
 /**
@@ -133,8 +139,14 @@ export function sanitizeBindings(raw: unknown): Bindings {
     const table = out[dev] as Record<Action, Array<string | number>>;
     for (const a of ACTIONS) table[a] = table[a].filter((x) => (seen.has(x) ? false : (seen.add(x), true)));
   }
-  out = { ...out, padDrive: o.padDrive === 'split' ? 'split' : 'left', invertForward: o.invertForward === true };
+  out = { ...out, padDrive: o.padDrive === 'split' ? 'split' : 'left', invertForward: o.invertForward === true, padDeadzone: clampDeadzone(o.padDeadzone) };
   return out;
+}
+
+/** Zona muerta válida (lo guardado puede venir raro). */
+export function clampDeadzone(v: unknown): number {
+  if (typeof v !== 'number' || !Number.isFinite(v)) return DEFAULT_BINDINGS.padDeadzone;
+  return Math.round(Math.max(DEADZONE_RANGE.min, Math.min(DEADZONE_RANGE.max, v)) * 100) / 100;
 }
 
 const STORE = 'labbot.bindings';
