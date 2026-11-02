@@ -2,6 +2,8 @@
 import { AUTO_ROUTINES } from '../auto/AutoRoutine';
 import { MECHANISM_KINDS } from '../config/robot';
 import { DEFAULT_SETTINGS, SETTINGS_RANGE, type Settings } from '../config/settings';
+import { compareRobots, type CompareKey } from '../core/robotStats';
+import { loadRecords } from '../game/statsStore';
 import { RULES } from '../core/fouls';
 import { ACTIONS, assign, clearAction, cloneBindings, DEFAULT_BINDINGS, keyLabel, padLabel, saveBindings, type Action } from '../input/bindings';
 import type { InputManager } from '../input/InputManager';
@@ -59,7 +61,7 @@ export class Menu {
         <button class="primary" data-act="match">${t('match')}</button>
         <button data-act="practice">${t('practice')}</button>
       </div>
-      <div class="row"><button data-act="settings">${t('settings')}</button><button data-act="controls">${t('controlsTitle')}</button></div>
+      <div class="row"><button data-act="settings">${t('settings')}</button><button data-act="controls">${t('controlsTitle')}</button><button data-act="compare">${t('compareRobots')}</button></div>
       <button class="link" data-act="lang">${t('language')}</button>`);
     this.root.querySelectorAll<HTMLButtonElement>('[data-slot]').forEach((b) =>
       b.addEventListener('click', () => {
@@ -78,10 +80,54 @@ export class Menu {
     this.root.querySelector('[data-act="practice"]')!.addEventListener('click', () => this.onStart({ mode: 'practice', player: this.player }));
     this.root.querySelector('[data-act="settings"]')!.addEventListener('click', () => this.settingsPanel());
     this.root.querySelector('[data-act="controls"]')!.addEventListener('click', () => this.controlsPanel(() => this.main()));
+    this.root.querySelector('[data-act="compare"]')!.addEventListener('click', () => this.comparePanel());
     this.root.querySelector('[data-act="lang"]')!.addEventListener('click', () => {
       setLang(getLang() === 'es' ? 'en' : 'es');
       location.reload();
     });
+  }
+
+  /** Compara dos robots guardados lado a lado; lo que falta se muestra como "sin datos". */
+  comparePanel(ia = 0, ib = 1): void {
+    const recs = loadRecords();
+    if (recs.length < 2) {
+      this.open(`<h2>${t('compareTitle')}</h2><p class="help">${t('compareNeed')}</p><div class="row"><button class="primary" data-act="back">${t('back')}</button></div>`);
+      this.root.querySelector('[data-act="back"]')!.addEventListener('click', () => this.main());
+      return;
+    }
+    ia = Math.min(ia, recs.length - 1);
+    ib = Math.min(ib, recs.length - 1);
+    const a = recs[ia];
+    const b = recs[ib];
+    const opts = (sel: number) => recs.map((r, i) => `<option value="${i}" ${i === sel ? 'selected' : ''}>${r.label}</option>`).join('');
+    const fmt: Record<CompareKey, (v: number) => string> = {
+      cycleTime: (v) => `${v.toFixed(1)} s`,
+      accuracy: (v) => `${Math.round(v * 100)} %`,
+      pointsPerMinute: (v) => v.toFixed(1),
+    };
+    const label: Record<CompareKey, Key> = { cycleTime: 'cmpCycle', accuracy: 'cmpAccuracy', pointsPerMinute: 'cmpPpm' };
+    const cell = (v: number | null, k: CompareKey, best: boolean) => (v === null ? `<td class="nodata">${t('cmpNoData')}</td>` : `<td class="${best ? 'best' : ''}">${fmt[k](v)}</td>`);
+    const rows = compareRobots(a, b)
+      .map((r) => `<tr><th>${t(label[r.key])}</th>${cell(r.a, r.key, r.better === 'a')}${cell(r.b, r.key, r.better === 'b')}</tr>`)
+      .join('');
+    const played = (s: number) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
+    this.open(`
+      <h2>${t('compareTitle')}</h2>
+      <div class="row">
+        <label>${t('compareRobotA')} <select data-cmp="a">${opts(ia)}</select></label>
+        <label>${t('compareRobotB')} <select data-cmp="b">${opts(ib)}</select></label>
+      </div>
+      <table class="results">
+        <tr><th></th><th>${a.label}</th><th>${b.label}</th></tr>
+        ${rows}
+        <tr><th>${t('cmpPlayed')}</th><td>${played(a.seconds)}</td><td>${played(b.seconds)}</td></tr>
+        <tr><th>${t('cmpShots')}</th><td>${a.shots}</td><td>${b.shots}</td></tr>
+      </table>
+      <p class="help">${t('cmpNote')}</p>
+      <div class="row"><button class="primary" data-act="back">${t('back')}</button></div>`);
+    const again = () => this.comparePanel(Number(this.root.querySelector<HTMLSelectElement>('[data-cmp="a"]')!.value), Number(this.root.querySelector<HTMLSelectElement>('[data-cmp="b"]')!.value));
+    this.root.querySelectorAll('[data-cmp]').forEach((el) => el.addEventListener('change', again));
+    this.root.querySelector('[data-act="back"]')!.addEventListener('click', () => this.main());
   }
 
   /** Ajustes: IA, rutinas de AUTO, tu robot y Human Player. Se guardan al volver. */

@@ -14,6 +14,7 @@ import { DEFAULT_ROBOT, type RobotSpec } from '../config/robot';
 import { isTeleop, robotsEnabled, type Phase } from '../core/clock';
 import { Match, type MatchEvent } from '../core/match';
 import type { TimedEvent } from '../core/matchLog';
+import { SessionStats } from '../core/robotStats';
 import { ALLIANCES, type Alliance } from '../core/types';
 import type { PlayerInput } from '../input/InputManager';
 import { buildFieldColliders } from '../physics/FieldColliders';
@@ -62,6 +63,8 @@ export class GameSession {
   readonly log: TimedEvent[] = [];
   /** Muestras anotadas en práctica (sin match), por alianza. */
   readonly practiceCount: Record<Alliance, number> = { red: 0, blue: 0 };
+  /** Estadísticas del robot del jugador en esta sesión (ciclo, precisión, puntos/min). */
+  stats = new SessionStats();
   private pieceView: PieceView;
   private robotViews: RobotView[] = [];
   private autos: AutoRunner[] = [];
@@ -142,6 +145,7 @@ export class GameSession {
     });
     this.bots = this.robots.map((r) => (this.opts.ai && r !== this.player ? new Bot(r, this.pieces, this.robots) : null));
     this.match.start();
+    this.stats = new SessionStats();
   }
 
   /** Vuelve a práctica libre (sin reloj). */
@@ -149,6 +153,7 @@ export class GameSession {
     this.match = null;
     this.bots = [];
     this.resetField();
+    this.stats = new SessionStats();
   }
 
   /** Entrada del jugador para el siguiente cuadro. */
@@ -214,8 +219,20 @@ export class GameSession {
 
     // Sensores → puntuación
     for (const s of this.sensors.newSamples()) {
-      if (m) m.scoreSample(s.alliance, s.level);
-      else this.practiceCount[s.alliance]++;
+      let pts = 0;
+      if (m) pts = m.scoreSample(s.alliance, s.level);
+      else {
+        this.practiceCount[s.alliance]++;
+        pts = this.game.points.sampleTeleop[s.level];
+      }
+      this.stats.scored(s.piece.index, pts, this.time);
+    }
+    this.stats.tick(dt, this.playerEnabled() && (!m || !m.finished));
+    for (const e of this.stepMechEvents) {
+      if (e.robot !== this.opts.player) continue;
+      const kind = this.pieces.list[e.piece]?.kind;
+      if (e.type === 'intake') this.stats.intake(e.piece, this.time);
+      else if (e.type === 'release' && kind === 'sample') this.stats.shot(e.piece);
     }
     if (m && phase === 'AUTO') for (const r of this.robots) if (this.sensors.outOfStartZone(r)) m.crossAutoLine(r.alliance, r.index);
     this.referee.step(dt, phase, this.stepMechEvents);

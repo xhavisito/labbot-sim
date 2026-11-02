@@ -92,3 +92,6 @@ body.touch-on .hud .robot-status { left: auto; right: 12px; top: 108px; bottom: 
 .panel .bind.wait { border-color: var(--accent); color: var(--accent); }
 .panel .bind .chip { display: inline-block; background: rgba(255,255,255,.1); border-radius: 5px; padding: 1px 6px; margin-right: 4px; }
 .panel .x { border: none; background: none; color: var(--muted); cursor: pointer; font-size: 15px; }
+
+table.results td.best { color: #7be495; font-weight: 600; }
+table.results td.nodata { color: var(--muted); font-style: italic; }

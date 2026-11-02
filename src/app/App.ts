@@ -6,12 +6,15 @@ import { AUTO_ROUTINES, LEAVE_ZONE } from '../auto/AutoRoutine';
 import { ROBOT_PRESETS } from '../config/robot';
 import { loadSettings, saveSettings, type Settings } from '../config/settings';
 import { buildMatchLog } from '../core/matchLog';
+import { robotId } from '../core/robotStats';
+import { commitSession } from '../game/statsStore';
 import { GameSession } from '../game/GameSession';
 import { InputManager } from '../input/InputManager';
 import { CAMERA_MODES, CameraRig, type CameraMode } from '../render/CameraRig';
 import { Renderer } from '../render/Renderer';
 import { Hud } from '../ui/Hud';
 import { keyboardHelp, padHelp } from '../ui/controlsHelp';
+import { t, type Key } from '../ui/i18n';
 import { Menu, type MenuChoice } from '../ui/Menu';
 import { isTouchDevice, TouchControls } from '../ui/TouchControls';
 
@@ -52,6 +55,7 @@ export class App {
 
   /** Empieza un match o una práctica con el robot elegido. */
   start(c: MenuChoice): void {
+    this.commitStats();
     this.choice = c;
     this.renderer.scene.remove(this.session.root);
     this.session.dispose();
@@ -64,6 +68,13 @@ export class App {
     this.state = 'playing';
     this.updateTouch();
     this.cam.setMode(c.player < 2 ? 'driverRed' : 'driverBlue');
+  }
+
+  /** Guarda las estadísticas del robot del jugador de la sesión actual (una sola vez). */
+  private commitStats(): void {
+    const spec = this.session.player.spec;
+    const label = `${t(`type_${spec.mechanism}` as Key)} · ${spec.maxSpeed} m/s · ${spec.capacity}`;
+    commitSession(this.session.stats, robotId(spec), label);
   }
 
   /** Opciones de la sesión según los ajustes: IA, rutinas de AUTO, tu robot y Human Player. */
@@ -107,6 +118,7 @@ export class App {
   }
 
   toMenu(): void {
+    this.commitStats();
     this.state = 'menu';
     this.touch.show(false);
     this.hud.show(false);
@@ -153,6 +165,7 @@ export class App {
       this.hud.update(this.session, this.cam.mode);
       const m = this.session.match;
       if (m?.finished) {
+        this.commitStats();
         this.state = 'results';
         this.updateTouch();
         this.menu.results(
