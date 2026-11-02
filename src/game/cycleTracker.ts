@@ -29,9 +29,15 @@ export class CycleTracker implements SessionTap {
     s: GameSession,
     /** Segundos de la práctica; null = libre. */
     readonly limit: number | null,
+    /** Robot que se mide (por defecto el del jugador; con 2 personas, el del jugador 2 tiene el suyo). */
+    readonly who: number = s.player.index,
   ) {
     // La precarga (§4.1) empieza su ciclo al arrancar
-    for (const p of s.player.mech.stored) this.stats.carrying(p.index, 0);
+    for (const p of this.robot(s).mech.stored) this.stats.carrying(p.index, 0);
+  }
+
+  private robot(s: GameSession) {
+    return s.robots.find((r) => r.index === this.who) ?? s.player;
   }
 
   get time(): number {
@@ -42,7 +48,7 @@ export class CycleTracker implements SessionTap {
     if (this.ended) return;
     this.steps++;
     const t = this.time;
-    const me = s.player;
+    const me = this.robot(s);
     const st = this.stats;
     const spotOf = (i: number): Spot | null => {
       const r = s.robots.find((x) => x.index === i);

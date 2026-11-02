@@ -39,8 +39,11 @@ export interface MatchSetup {
   start: StartSpot;
 }
 
-/** Rival de la práctica 1 contra 1 (`GameSession` opción `rival`): nadie, uno quieto o uno de la IA. */
-export const RIVALS = ['none', 'passive', 'ai'] as const;
+/**
+ * Rival de la práctica 1 contra 1 (`GameSession` opción `rival`): nadie, uno quieto, uno de la IA o
+ * otra persona en la misma pantalla (pantalla dividida, como el modo 2 jugadores; SUPUESTO).
+ */
+export const RIVALS = ['none', 'passive', 'ai', 'human'] as const;
 export type RivalKind = (typeof RIVALS)[number];
 /** Duración de la práctica 1 contra 1 en segundos (0 = libre, hasta que tú termines). */
 export const PRACTICE_LIMITS = [0, 60, 120, 180, 300] as const;
