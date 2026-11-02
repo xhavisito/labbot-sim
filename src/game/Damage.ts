@@ -43,15 +43,15 @@ export class Damage {
     private robots: readonly Robot[],
     public settings: DamageSettings,
     private rand: () => number,
-    /** Robot del jugador (para `targets: 'player'`). */
-    private player: number,
+    /** Robots que manejan personas (para `targets: 'player'`). */
+    private players: readonly number[],
     dt: number,
   ) {
     for (const r of robots) this.state.set(r.index, { meter: new ImpactMeter(dt), faults: new Map(), vx: 0, vz: 0, weakSide: 1 });
   }
 
   private applies(r: Robot): boolean {
-    return this.settings.level !== 'off' && (this.settings.targets === 'all' || r.index === this.player);
+    return this.settings.level !== 'off' && (this.settings.targets === 'all' || this.players.includes(r.index));
   }
 
   /** Fallas activas de un robot (falla → segundos que le quedan; Infinity = hasta el final). */
