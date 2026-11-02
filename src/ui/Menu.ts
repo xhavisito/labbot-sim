@@ -50,6 +50,8 @@ export interface PauseInfo {
   onResume: () => void;
   /** Sin reiniciar (match del torneo: el resultado cuenta). */
   onRestart?: () => void;
+  /** Abre la pizarra táctica (solo en el match). */
+  onBoard?: () => void;
   onMenu: () => void;
   /** Texto del botón de salir (p. ej. volver al torneo). */
   menuLabel?: string;
@@ -547,6 +549,7 @@ export class Menu {
           <div class="ps-menu">
             <button class="primary" data-act="resume">${ic.play}<span>${t('resume')}</span>${key('pause')}</button>
             ${p.onRestart ? `<button data-act="restart">${ic.reset}<span>${t('restart')}</span></button>` : ''}
+            ${p.onBoard ? `<button data-act="board">${ic.route}<span>${t('board_open')}</span></button>` : ''}
             <button data-act="controls">${ic.gamepad}<span>${t('controlsTitle')}</span></button>
             <button class="quit" data-act="menu">${ic.home}<span>${p.menuLabel ?? t('backToMenu')}</span></button>
           </div>
@@ -568,6 +571,7 @@ export class Menu {
       this.root.querySelectorAll('[data-cam]').forEach((x) => x.classList.toggle('on', x === el));
     });
     this.on('[data-act="controls"]', () => this.controlsPanel(() => this.pause(p)));
+    if (p.onBoard) this.on('[data-act="board"]', p.onBoard);
     this.on('[data-act="resume"]', p.onResume);
     if (p.onRestart) this.on('[data-act="restart"]', p.onRestart);
     this.on('[data-act="menu"]', p.onMenu);
