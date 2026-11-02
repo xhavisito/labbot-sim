@@ -71,7 +71,7 @@ export const drillById = (id: string): Drill | undefined => DRILLS.find((d) => d
  * la IA difícil en la física (`core/tournament.ts`, PROFILES) y de sus tiempos al principio del
  * TELEOP (el pivote anota de una en una). SUPUESTO de diseño.
  */
-export const PACE: Record<MechanismKind, number> = { pivot: 1.5, pivot180: 1.5 };
+export const PACE: Record<MechanismKind, number> = { pivot: 1.5, pivot180: 1.5, longarm: 1.7, elevator: 1.4, dual: 1.5 };
 
 /** Límite y cortes del reto para un tipo de robot (con su ritmo, si el reto es de Muestras). */
 export function drillTargets(d: Drill, mech: MechanismKind): { limit: number; medals: [number, number, number] } {

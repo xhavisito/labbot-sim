@@ -15,7 +15,7 @@ import type { Bot } from './Bot';
  * Quién lleva la Muestra Crítica: el pivote la toma y suelta con la garra (vacía). Con dos iguales,
  * la lleva el primero; con la variante de 180°, el pivote (juegan igual; SUPUESTO para repartir).
  */
-export const CRIT_PREF: Record<MechanismKind, number> = { pivot: 2, pivot180: 1 };
+export const CRIT_PREF: Record<MechanismKind, number> = { pivot: 2, pivot180: 1, longarm: 2, elevator: 3, dual: 1 };
 
 export class Team {
   readonly members: Bot[] = [];

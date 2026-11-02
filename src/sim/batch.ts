@@ -11,7 +11,7 @@ import { pushTouch, touches } from '../ai/contact';
 import { AI_LEVELS, type AiLevel } from '../ai/difficulty';
 import { COLLECT_HOME, LEAVE_ZONE, SCORE_PRELOAD, type AutoRoutine } from '../auto/AutoRoutine';
 import { GAME } from '../config/game';
-import { MECHANISM_KINDS, PIVOT_180_ROBOT, PIVOT_ROBOT, ROBOT_PRESETS, type RobotSpec } from '../config/robot';
+import { DUAL_INTAKE_ROBOT, ELEVATOR_ROBOT, LONG_ARM_ROBOT, MECHANISM_KINDS, PIVOT_180_ROBOT, PIVOT_ROBOT, ROBOT_PRESETS, type MechanismKind, type RobotSpec } from '../config/robot';
 import { entriesFromMatch, entryPoints } from '../core/scouting';
 import { rng } from '../core/rng';
 import { ALLIANCES, type Alliance } from '../core/types';
@@ -55,6 +55,9 @@ function mechVariants(p: string, name: string, spec: RobotSpec): Record<string, 
 export const ROBOT_PLANS = {
   ...mechVariants('piv', 'Pivote', PIVOT_ROBOT),
   ...mechVariants('p180', 'Pivote 180°', PIVOT_180_ROBOT),
+  ...mechVariants('larm', 'Brazo largo', LONG_ARM_ROBOT),
+  ...mechVariants('elev', 'Elevador', ELEVATOR_ROBOT),
+  ...mechVariants('dual', 'Doble intake', DUAL_INTAKE_ROBOT),
   bloqueo: { id: 'bloqueo', name: 'Pivote que bloquea la Cámara rival', spec: PIVOT_ROBOT, auto: LEAVE_ZONE, bot: { role: 'block' } },
 } satisfies Record<string, RobotPlan>;
 
@@ -63,10 +66,13 @@ const mp = (a: string, b: string, name: string): AlliancePlan => {
   return { id: `${a}+${b}`, name, robots: [plans[a], plans[b]] };
 };
 
-/** Los dos tipos del simulador (`config/robot.ts`). */
+/** Los tipos del simulador (`config/robot.ts`). */
 const TYPES = [
   ['piv', 'Pivote'],
   ['p180', 'Pivote 180°'],
+  ['larm', 'Brazo largo'],
+  ['elev', 'Elevador'],
+  ['dual', 'Doble intake'],
 ] as const;
 
 /**
@@ -91,6 +97,13 @@ export const MECH_ALLIANCE_PLANS: AlliancePlan[] = [
   mp('pivhp3', 'p180lab3', 'Pivote HP + Pivote 180° Laboratorio'),
 ];
 
+/**
+ * Comparación de mecanismos con LA MISMA estrategia (2-nov): cada tipo juega dos robots iguales, uno
+ * con la Muestra Crítica y otro a N3 (`<tipo>crit3+<tipo>n3`). `npm run batch -- --set compare`
+ * los enfrenta todos contra todos.
+ */
+export const COMPARE_ALLIANCE_PLANS: AlliancePlan[] = TYPES.map(([p, n]) => mp(`${p}crit3`, `${p}n3`, `Dos ${n}: Crítica + N3`));
+
 /** Estrategias de alianza de siempre (`--set all`): las de `mech` más el bloqueo (para medir cuánto cuesta, §4.6). */
 export const ALLIANCE_PLANS: AlliancePlan[] = [...MECH_ALLIANCE_PLANS, mp('pivn3', 'bloqueo', 'Pivote + bloqueo')];
 
@@ -101,10 +114,9 @@ export const ALLIANCE_PLANS: AlliancePlan[] = [...MECH_ALLIANCE_PLANS, mp('pivn3
  */
 function aiPlans(): AlliancePlan[] {
   const out: AlliancePlan[] = [];
-  const pairs = [
-    [MECHANISM_KINDS[0], MECHANISM_KINDS[0]],
-    [MECHANISM_KINDS[0], MECHANISM_KINDS[1]],
-    [MECHANISM_KINDS[1], MECHANISM_KINDS[1]],
+  const pairs: Array<[MechanismKind, MechanismKind]> = [
+    ...MECHANISM_KINDS.map((k): [MechanismKind, MechanismKind] => [k, k]),
+    ...MECHANISM_KINDS.slice(1).map((k): [MechanismKind, MechanismKind] => [MECHANISM_KINDS[0], k]),
   ];
   for (const ks of pairs)
     for (const v of AI_LEVELS) {
@@ -116,7 +128,7 @@ function aiPlans(): AlliancePlan[] {
 export const AI_ALLIANCE_PLANS = aiPlans();
 
 /** Conjuntos de estrategias para `npm run batch -- --set <id>`. */
-export const PLAN_SETS: Record<string, AlliancePlan[]> = { all: ALLIANCE_PLANS, mech: MECH_ALLIANCE_PLANS, ai: AI_ALLIANCE_PLANS };
+export const PLAN_SETS: Record<string, AlliancePlan[]> = { all: ALLIANCE_PLANS, mech: MECH_ALLIANCE_PLANS, compare: COMPARE_ALLIANCE_PLANS, ai: AI_ALLIANCE_PLANS };
 
 /** Lo que hizo cada robot (del scouting del match, `core/scouting.ts`). */
 export interface RobotResult {

@@ -270,8 +270,8 @@ export class Bot {
     // para que libre (con la viga chocando, pegado a la Cámara el brazo no pasa de N1)
     // (si ahí tiene a otro robot no lo empuja: sigue su camino y el brazo libra después)
     const m = this.robot.mech;
-    if (m.armBlocked && this.freeT <= 0 && !pushTouch(this.robot, -clawDir(m.angle), touches(this.robot, this.others, CONTACT_GAP))) {
-      out.forward = -clawDir(m.angle) * 0.4;
+    if (m.armBlocked && this.freeT <= 0 && !pushTouch(this.robot, -clawDir(m.angle, this.robot.spec.arm), touches(this.robot, this.others, CONTACT_GAP))) {
+      out.forward = -clawDir(m.angle, this.robot.spec.arm) * 0.4;
       out.turn = 0;
     }
     this.noPush(out, dt);

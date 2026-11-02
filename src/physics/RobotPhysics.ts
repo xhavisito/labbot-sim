@@ -58,7 +58,7 @@ function qmul(a: Pose['r'], b: Pose['r']): Pose['r'] {
 const beamShort = (c: ClawDims): number => c.fingerLength / 2 + c.palmThickness + 0.01;
 
 /** Hacia dónde abre la garra: +1 si la punta está delante del eje del brazo, −1 si está detrás. */
-export const clawDir = (a: number): number => (Math.cos(a) >= 0 ? 1 : -1);
+export const clawDir = (a: number, arm?: { linear?: boolean; stowTip?: unknown }): number => (arm?.stowTip || arm?.linear ? 1 : Math.cos(a) >= 0 ? 1 : -1);
 
 export function yawQuat(h: number): { x: number; y: number; z: number; w: number } {
   return { x: 0, y: Math.sin(h / 2), z: 0, w: Math.cos(h / 2) };
@@ -127,7 +127,16 @@ export class RobotPhysics {
     // Torre del pivote (o los soportes del eje bajo), con las medidas del dibujo (`RobotView`); antes
     // era una caja invisible del 90 % del chasis hasta `baseHeight`
     const a = spec.arm;
-    if (a.pivotY > 0.29)
+    if (a.linear)
+      // Elevador: la torre va sobre el chasis (los rieles), no donde está el carro
+      add(
+        RAPIER.ColliderDesc.cuboid(0.04, (a.pivotY + a.length - 0.23) / 2, 0.15)
+          .setTranslation(a.pivotX - a.length, (a.pivotY + a.length + 0.23) / 2, 0)
+          .setMass(superMass)
+          .setFriction(0.3)
+          .setRestitution(0.05),
+      );
+    else if (a.pivotY > 0.29)
       add(
         RAPIER.ColliderDesc.cuboid(0.06, (a.pivotY - 0.23) / 2, 0.15)
           .setTranslation(a.pivotX, (a.pivotY + 0.23) / 2, 0)
@@ -201,11 +210,21 @@ export class RobotPhysics {
     const sa = Math.sin(a);
     const tip = armTip(arm, a);
     const fy = tip.y + this.claw.fingerHeight / 2;
+    // Viga: un arco desde el eje; plegada (`stowTip`) apunta del eje a la punta; en el elevador es la
+    // viga horizontal del carro
+    let beam: Pose = { t: { x: arm.pivotX + (ca * beamLen) / 2, y: arm.pivotY + (sa * beamLen) / 2, z: 0 }, r: { x: 0, y: 0, z: Math.sin(a / 2), w: Math.cos(a / 2) } };
+    if (arm.linear) {
+      // Elevador: el carro sale de la torre con una viga horizontal a la altura de la punta
+      beam = { t: { x: tip.x - this.claw.fingerLength / 2 - beamLen / 2, y: tip.y, z: 0 }, r: NO_ROT };
+    } else if (arm.stowTip && a > Math.PI / 2) {
+      const b = Math.atan2(tip.y - arm.pivotY, tip.x - arm.pivotX);
+      beam = { t: { x: arm.pivotX + (Math.cos(b) * beamLen) / 2, y: arm.pivotY + (Math.sin(b) * beamLen) / 2, z: 0 }, r: { x: 0, y: 0, z: Math.sin(b / 2), w: Math.cos(b / 2) } };
+    }
     return {
-      beam: { t: { x: arm.pivotX + (ca * beamLen) / 2, y: arm.pivotY + (sa * beamLen) / 2, z: 0 }, r: { x: 0, y: 0, z: Math.sin(a / 2), w: Math.cos(a / 2) } },
+      beam,
       finger0: { t: { x: tip.x, y: fy, z: this.claw.fingerZ }, r: NO_ROT },
       finger1: { t: { x: tip.x, y: fy, z: -this.claw.fingerZ }, r: NO_ROT },
-      palm: { t: { x: tip.x - clawDir(a) * (this.claw.fingerLength / 2 + this.claw.palmThickness / 2), y: fy, z: 0 }, r: NO_ROT },
+      palm: { t: { x: tip.x - clawDir(a, arm) * (this.claw.fingerLength / 2 + this.claw.palmThickness / 2), y: fy, z: 0 }, r: NO_ROT },
       sample: { t: { x: tip.x, y: tip.y + SAMPLE_SIZE / 2, z: 0 }, r: NO_ROT },
       critical: { t: { x: tip.x, y: tip.y + CRITICAL_SIZE / 2, z: 0 }, r: NO_ROT },
     };

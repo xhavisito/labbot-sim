@@ -19,7 +19,7 @@ npm run build        # revisa tipos y genera el sitio estático en dist/
 npm run preview      # sirve dist/
 npm run batch        # matches de solo IA entre estrategias de alianza (sin navegador): tabla de puntos, RP y faltas
                      #   --plans pivcrit3+pivn3  --vs pivn3+p180n3  --seeds 3  --workers 4  --out batch.json
-                     #   --set mech: el pivote y su variante de 180°, con puntos por robot
+                     #   --set mech: los cinco tipos con sus papeles; --set compare: los cinco con la misma estrategia
                      #   --set ai --a hard --b normal: una dificultad contra otra, alianzas de los dos tipos
 npm run shots        # capturas con Playwright en shots/ (requiere build; en la nube: CHROMIUM_PATH=/opt/pw-browsers/chromium; --mobile = celular)
 ```
@@ -161,6 +161,9 @@ En el menú eliges tu robot (Rojo 1–2, Azul 1–2) y el modo:
   - *Pivote* (sugerencia de CAD en MDF): chasis 60×60 cm, brazo de 50 cm con garra y eje a 44 cm.
     Empieza guardado con la precarga; con el brazo en el piso (tecla 0) y la garra encendida agarra
     una Muestra y la suelta al frente en N1–N3. Lleva una sola pieza (Muestra o Crítica).
+  - *Brazo largo*, *Elevador* y *Doble intake* (2-nov, SUPUESTOS D49): tres mecanismos más para comparar
+    con la misma estrategia (`npm run batch -- --set compare`). Todos dentro de §7.2 (65 × 65 cm,
+    100 cm, 40 cm de extensión) y de §4.1 (guardados dentro del perímetro al inicio).
   - *Pivote 180°* (estilo Jack in the Bot 2025): recoge **atrás** y anota al frente sin girar el
     chasis (volteado el 29-oct: al avanzar, el frente es el lado donde se acomoda para anotar). Eje
     bajo (17 cm) y 15 cm delante del centro, brazo de 71 cm: agarra del piso atrás (de reversa),

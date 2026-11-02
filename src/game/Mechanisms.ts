@@ -253,7 +253,7 @@ export class Mechanisms {
     const CLAW = clawOf(p.spec);
     const mode: GripMode = intake.kind === 'pinza' ? 'precise' : this.grip;
     // Lugar de la Muestra en la garra (agarre preciso): recargada en la placa (del lado del brazo)
-    const dir = clawDir(this.angle);
+    const dir = clawDir(this.angle, this.phys.spec.arm);
     const tip = this.tipX();
     let cx = tip - dir * (CLAW.fingerLength / 2 - SAMPLE_SIZE / 2);
     // Si la placa queda dentro del chasis, la Muestra se recarga en el chasis
@@ -345,7 +345,7 @@ export class Mechanisms {
    */
   grabCritical(events: MechEvent[]): boolean {
     // La garra tiene que estar del lado donde toma la Crítica (no guardada ni volteada al otro)
-    if (this.critical || this.inClaw || clawDir(this.angle) !== posDir(this.phys.spec, 4)) return false;
+    if (this.critical || this.inClaw || clawDir(this.angle, this.phys.spec.arm) !== posDir(this.phys.spec, 4)) return false;
     const p = this.phys;
     const c = this.pieces.critical(this.alliance);
     if (c.state.at !== 'field') return false;
@@ -382,7 +382,7 @@ export class Mechanisms {
     const h = p.heading();
     const v = p.body.linvel();
     const intake = intakeOf(p.spec);
-    const out = kind === 'sample' && !force && intake.kind === 'compliant' && this.grip !== 'precise' ? intake.rollerSpeed * clawDir(this.angle) : 0;
+    const out = kind === 'sample' && !force && intake.kind === 'compliant' && this.grip !== 'precise' ? intake.rollerSpeed * clawDir(this.angle, this.phys.spec.arm) : 0;
     this.pieces.place(piece, at.x, at.y, at.z, h, { x: v.x + Math.cos(h) * out, y: 0, z: v.z - Math.sin(h) * out });
     piece.lastRobot = p.index;
     this.cooldown = EJECT_COOLDOWN;

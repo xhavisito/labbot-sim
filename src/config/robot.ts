@@ -23,9 +23,14 @@ export const ROBOT_LIMITS = {
  * - pivot180: pivote que voltea el brazo por arriba (como Jack in the Bot, FRC 2025): recoge del
  *   piso atrás y anota al frente en N1–N3 sin girar el chasis. Eje bajo y adelante del centro, brazo
  *   largo (SUPUESTO de diseño, ver `PIVOT_180_ROBOT`).
+ * Variedad para comparar mecanismos con la misma estrategia (2-nov, a pedido de Xhavi):
+ * - longarm: brazo largo con eje atrás y bajo; se pliega (telescópico) para caber al inicio.
+ * - elevator: elevador vertical con el carro de la garra al frente (sube recto, sin arco).
+ * - dual: doble intake: la garra y un hopper de una Muestra; lleva dos a la vez.
+ * Todos son SUPUESTOS de diseño dentro de §7.2 (65 × 65 cm, 100 cm de alto, 40 cm de extensión).
  */
-export type MechanismKind = 'pivot' | 'pivot180';
-export const MECHANISM_KINDS: readonly MechanismKind[] = ['pivot', 'pivot180'];
+export type MechanismKind = 'pivot' | 'pivot180' | 'longarm' | 'elevator' | 'dual';
+export const MECHANISM_KINDS: readonly MechanismKind[] = ['pivot', 'pivot180', 'longarm', 'elevator', 'dual'];
 
 /** Brazo del pivote (local: x adelante desde el centro del robot, y sobre la base). */
 export interface ArmSpec {
@@ -52,6 +57,17 @@ export interface ArmSpec {
    * el brazo voltea por arriba para soltar al frente.
    */
   pickBack?: boolean;
+  /**
+   * Elevador: la punta no hace un arco sino que sube recto. `length` es la mitad del recorrido y el
+   * ángulo (−π/2…π/2) lo recorre de forma lineal: y = pivotY + length·(2a/π), x = pivotX.
+   */
+  linear?: boolean;
+  /**
+   * Punta (x, y locales) con el brazo plegado: con ángulos mayores a π/2 (el de guardado es π) la
+   * punta pasa linealmente de la posición con el brazo arriba (π/2) a esta. Lo usa el brazo largo y el
+   * elevador para caber en el perímetro al inicio (§4.1) sin salirse de §7.2 al trabajar.
+   */
+  stowTip?: { x: number; y: number };
 }
 
 export interface RobotSpec {
@@ -216,12 +232,63 @@ export const PIVOT_180_ROBOT: RobotSpec = {
   elevatorHeights: [0, mm(780), mm(780), mm(820), mm(615)],
 };
 
+/**
+ * Brazo largo (2-nov): eje atrás del centro y a 50 cm, brazo de 64 cm que se pliega (telescópico)
+ * a un punto dentro del perímetro al inicio. Anota en N3 más lejos de la pared que el Pivote, pero
+ * es más pesado y más lento. SUPUESTOS de diseño; el manual no habla de mecanismos (§7.2).
+ */
+export const LONG_ARM_ROBOT: RobotSpec = {
+  ...PIVOT_ROBOT,
+  name: 'Brazo largo',
+  mechanism: 'longarm',
+  massKg: 44,
+  maxSpeed: 2.8,
+  arm: { pivotX: mm(-50), pivotY: mm(500), length: mm(640), speed: 3.2, stowAngle: Math.PI, stowTip: { x: mm(-120), y: mm(800) } },
+  elevatorHeights: [0, mm(260), mm(610), mm(850), mm(615)],
+};
+
+/**
+ * Elevador (2-nov): carro de la garra 58 cm al frente del centro sobre una torre vertical de 1 m de
+ * recorrido total; sube recto y llega al piso, a N1–N3 y a la Repisa sin arco. Al inicio el carro
+ * se recoge dentro del perímetro (`stowTip`). Más rápido y preciso que un brazo, pero más alto y
+ * pesado (SUPUESTOS de diseño, §7.2).
+ */
+export const ELEVATOR_ROBOT: RobotSpec = {
+  ...PIVOT_ROBOT,
+  name: 'Elevador',
+  mechanism: 'elevator',
+  baseHeight: mm(300),
+  massKg: 46,
+  maxSpeed: 2.9,
+  arm: { pivotX: mm(580), pivotY: mm(500), length: mm(500), speed: 3.8, stowAngle: Math.PI, stowTip: { x: mm(200), y: mm(500) }, linear: true },
+  elevatorHeights: [0, mm(260), mm(610), mm(850), mm(615)],
+};
+
+/**
+ * Doble intake (2-nov): la garra más un hopper de una Muestra; lleva dos a la vez (la garra agarra
+ * del piso, la pasa a la boca del hopper atrás y toma la siguiente). Menos viajes a la Cámara y a la
+ * Campana, a cambio de un brazo más corto y ciclos de paso (SUPUESTOS de diseño, §7.2).
+ */
+export const DUAL_INTAKE_ROBOT: RobotSpec = {
+  ...PIVOT_ROBOT,
+  name: 'Doble intake',
+  mechanism: 'dual',
+  baseHeight: mm(600),
+  massKg: 34,
+  capacity: 2,
+  arm: { pivotX: mm(290), pivotY: mm(400), length: mm(450), speed: 4.5, stowAngle: Math.PI, hopperAngle: Math.PI, transferTime: 0.25 },
+  elevatorHeights: [0, mm(740), mm(740), mm(820), mm(730)],
+};
+
 /** Robot por defecto (el del menú la primera vez). */
 export const DEFAULT_ROBOT = PIVOT_ROBOT;
 
 export const ROBOT_PRESETS: Record<MechanismKind, RobotSpec> = {
   pivot: PIVOT_ROBOT,
   pivot180: PIVOT_180_ROBOT,
+  longarm: LONG_ARM_ROBOT,
+  elevator: ELEVATOR_ROBOT,
+  dual: DUAL_INTAKE_ROBOT,
 };
 
 /**
@@ -250,12 +317,22 @@ export const posTip = (s: RobotSpec, pos: ElevatorPos): { x: number; y: number }
 
 /** Ángulo del brazo (rad, 0 = horizontal hacia adelante) para que la punta quede a la altura `h`. */
 export function armAngle(arm: ArmSpec, h: number): number {
+  if (arm.linear) return Math.max(-Math.PI / 2, Math.min(Math.PI / 2, ((h - arm.pivotY) / arm.length) * (Math.PI / 2)));
   return Math.asin(Math.max(-1, Math.min(1, (h - arm.pivotY) / arm.length)));
 }
 
 /** Punta del brazo (local x, y) con el ángulo `a`. */
 export function armTip(arm: ArmSpec, a: number): { x: number; y: number } {
-  return { x: arm.pivotX + arm.length * Math.cos(a), y: arm.pivotY + arm.length * Math.sin(a) };
+  const arc = (b: number) =>
+    arm.linear
+      ? { x: arm.pivotX, y: arm.pivotY + arm.length * ((2 * b) / Math.PI) }
+      : { x: arm.pivotX + arm.length * Math.cos(b), y: arm.pivotY + arm.length * Math.sin(b) };
+  if (arm.stowTip && a > Math.PI / 2) {
+    const k = Math.min(1, (a - Math.PI / 2) / (Math.PI / 2));
+    const up = arc(Math.PI / 2);
+    return { x: up.x + (arm.stowTip.x - up.x) * k, y: up.y + (arm.stowTip.y - up.y) * k };
+  }
+  return arc(a);
 }
 
 /** Revisa los límites de §7.2. Devuelve la lista de problemas (vacía si cumple). */
