@@ -78,7 +78,12 @@ Muestras a menos de 2.5 s son un ciclo; solo TELEOP), distancia y velocidad. Se 
 panel o en Ajustes; por defecto, quieto) y Muestras ilimitadas del Human Player. Un cronómetro de ciclos
 (de recoger la pieza a que cuente en tu Cámara o, la Crítica, en tu Repisa) da, al terminar, intentos vs.
 anotadas, acierto, tiempo promedio, mejor ciclo y puntos de TELEOP (§4.4) por N1/N2/N3 y Crítica, y guarda
-tu mejor ciclo por robot. SUPUESTOS: intento = soltar la pieza en un nivel, acierta si cuenta en 2.5 s;
+tu mejor ciclo por robot, parte cada ciclo en **buscar** (de que contó la anterior a recoger) y **llevar**
+(de recoger a anotar) y dibuja el **mapa de tiro**: desde dónde soltaste cada pieza (lleno = contó, × = falló),
+celdas de rojo a verde por acierto, lo que anotó el rival y una tabla por zona (cerca / media / lejos de tu
+Cámara) con tu mejor zona. Se acumula por robot (últimos 400 tiros, llevados al lado rojo). En las
+Estadísticas de una repetición, el mapa tiene la vista **Dónde anotó**. SUPUESTOS: zonas a 0.6 y 1.5 m de la
+orilla de la Cámara (`core/scoreMap.ts`); intento = soltar la pieza en un nivel, acierta si cuenta en 2.5 s;
 el rival usa tu mismo tipo de robot; la IA rival solo anota (sin defensa ni ENDGAME).
 
 **Práctica de AUTO** (menú → Taller): solo tu robot en su Zona de Inicio con la precarga y sin Human
