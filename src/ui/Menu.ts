@@ -2,6 +2,7 @@
  * Pantallas en DOM con el estilo de rebuilt-sim: menú principal (la cancha gira detrás), ajustes,
  * controles (reasignar), reglas, pausa y resultados.
  */
+import { cloudEnabled } from '../net/cloud';
 import { AUTO_ROUTINES } from '../auto/AutoRoutine';
 import { routeRoutine, savedRoutes } from '../auto/recorded';
 import { loadPaths, pathRoutine } from '../game/autoPathStore';
@@ -118,6 +119,7 @@ export class Menu {
   onStrategies: () => void = () => undefined;
   /** Abre el desafío semanal (lo conecta App). */
   onWeekly: () => void = () => undefined;
+  onAccount: () => void = () => undefined;
   onAutoPaths: () => void = () => undefined;
   /** Abre la pantalla de logros (la conecta App). */
   onAchievements: () => void = () => undefined;
@@ -181,6 +183,7 @@ export class Menu {
             ${tool('training', ic.medal, 'tn_title', 'trainingDesc')}
             ${tool('weekly', ic.trophy, 'weekly', 'weeklyDesc')}
             ${tool('achievements', ic.trophy, 'ach_title', 'achDesc')}
+            ${cloudEnabled ? tool('account', ic.go, 'acct_title', 'acct_desc') : ''}
             ${tool('replays', ic.film, 'replays', 'replaysDesc')}
             ${tool('editor', ic.cube, 'editor', 'editorDesc')}
             ${tool('autoPractice', ic.route, 'autoPractice', 'autoPracticeDesc')}
@@ -222,6 +225,7 @@ export class Menu {
     this.on('[data-go="strategies"]', () => this.onStrategies());
     this.on('[data-go="autoPaths"]', () => this.onAutoPaths());
     this.on('[data-go="achievements"]', () => this.onAchievements());
+    this.on('[data-go="account"]', () => this.onAccount());
     this.on('[data-go="replays"]', () => this.onReplays());
     this.on('[data-go="editor"]', () => this.onEditor());
     this.on('[data-go="autoPractice"]', () => this.onStart({ mode: 'auto', player: this.player }));

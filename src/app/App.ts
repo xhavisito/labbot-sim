@@ -69,6 +69,7 @@ import { loadShotLog } from '../game/shotStore';
 import { matchFacts, recordMatch, emptyAch, type AchProgress } from '../core/achievements';
 import { loadAch, saveAch } from '../game/achievementStore';
 import { AchievementsScreen } from '../ui/Achievements';
+import { AccountScreen } from '../ui/Account';
 import { StrategyScreen } from '../ui/StrategyScreen';
 import { AutoPathScreen } from '../ui/AutoPathScreen';
 import { PlanView } from '../render/PlanView';
@@ -173,6 +174,7 @@ export class App {
   private ach: AchProgress = loadAch();
   private achNew: string[] = [];
   readonly achievements: AchievementsScreen;
+  readonly account: AccountScreen;
   /** Aviso de resultados del último match del torneo (se guarda una vez; los resultados se reabren). */
   private tourNote = '';
   /** `?touch=1` fuerza los controles touch (para probar en escritorio). */
@@ -245,6 +247,8 @@ export class App {
       },
     });
     this.menu.onAchievements = () => this.achievements.show();
+    this.account = new AccountScreen(this.menu.root, () => this.toMenu());
+    this.menu.onAccount = () => this.account.show();
     this.strategies = new StrategyScreen(this.menu.root);
     this.menu.onStrategies = () => this.strategies.show(() => this.toMenu());
     this.autoPaths = new AutoPathScreen(this.menu.root, {
