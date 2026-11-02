@@ -396,7 +396,7 @@ export class App {
     const specs: RobotSpec[] = [];
     specs[player] = spec;
     specs[rival] = spec;
-    return { player, preload: true, solo: true, ai: false, specs, rival: this.settings.practice.rival, hp: { enabled: true, interval: this.settings.hpInterval }, grip: this.settings.grip };
+    return { player, preload: true, solo: true, ai: false, specs, rival: this.settings.practice.rival, aiPersona: this.settings.practice.persona, hp: { enabled: true, interval: this.settings.hpInterval }, grip: this.settings.grip };
   }
 
   private closePractice1v1(): void {
@@ -478,9 +478,9 @@ export class App {
       return strategy(i) === 'park' && a.bot ? LEAVE_ZONE : a;
     };
     const bot = (i: number) => {
-      const ai = m.robots[i].ai;
-      if (i === mate && plan) return { ...planBotOptions(plan, i < 2 ? 'red' : 'blue'), ai };
-      return { ...STRATEGY_OPTIONS[strategy(i)], ai };
+      const { ai, persona } = m.robots[i];
+      if (i === mate && plan) return { ...planBotOptions(plan, i < 2 ? 'red' : 'blue'), ai, persona };
+      return { ...STRATEGY_OPTIONS[strategy(i)], ai, persona };
     };
     const autos = [0, 1, 2, 3].map((i) => (i === player ? routine(s.playerAuto) : botAuto(i)));
     // Tu robot es el del menú (con tu velocidad y capacidad), salvo en el Scouting: el de tu equipo
