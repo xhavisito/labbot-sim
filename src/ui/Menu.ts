@@ -105,6 +105,8 @@ export class Menu {
   /** Abre la lista de retos del entrenamiento (la conecta App). */
   onTraining: () => void = () => undefined;
   onStrategies: () => void = () => undefined;
+  /** Abre la pantalla de logros (la conecta App). */
+  onAchievements: () => void = () => undefined;
 
   constructor(
     host: HTMLElement,
@@ -162,6 +164,7 @@ export class Menu {
           <div class="mm-tools late">
             ${tool('practice1v1', ic.go, 'p1_title', 'p1_desc')}
             ${tool('training', ic.medal, 'tn_title', 'trainingDesc')}
+            ${tool('achievements', ic.trophy, 'ach_title', 'achDesc')}
             ${tool('replays', ic.film, 'replays', 'replaysDesc')}
             ${tool('editor', ic.cube, 'editor', 'editorDesc')}
             ${tool('autoPractice', ic.route, 'autoPractice', 'autoPracticeDesc')}
@@ -198,6 +201,7 @@ export class Menu {
     this.on('[data-go="training"]', () => this.onTraining());
     this.on('[data-go="practice1v1"]', () => this.onStart({ mode: 'practice1v1', player: this.player }));
     this.on('[data-go="strategies"]', () => this.onStrategies());
+    this.on('[data-go="achievements"]', () => this.onAchievements());
     this.on('[data-go="replays"]', () => this.onReplays());
     this.on('[data-go="editor"]', () => this.onEditor());
     this.on('[data-go="autoPractice"]', () => this.onStart({ mode: 'auto', player: this.player }));
@@ -607,7 +611,7 @@ export class Menu {
    * `note`: aviso arriba de las acciones (p. ej. que el match se guardó en el scouting). `cont`: match
    * del torneo, sin "Jugar de nuevo" (el resultado ya cuenta) y el botón principal es este.
    */
-  results(m: Match, onRestart: () => void, onMenu: () => void, onDownload: () => void, player: number, note = '', cont?: string): void {
+  results(m: Match, onRestart: () => void, onMenu: () => void, onDownload: () => void, player: number, note = '', cont?: string, earned: string[] = []): void {
     const b = { red: m.breakdown('red'), blue: m.breakdown('blue') };
     const rp = { red: m.rankingPoints('red'), blue: m.rankingPoints('blue') };
     const winner: Alliance | null = b.red.total === b.blue.total ? null : b.red.total > b.blue.total ? 'red' : 'blue';
@@ -659,6 +663,7 @@ export class Menu {
         <div class="rpgrid">${UI_ALLIANCES.map(rpCell).join('')}</div>
         <h3>${t('fouls')}</h3><ul class="fouls">${fouls}</ul>
         ${note ? `<div class="msg ok">${ic.check}${note}</div>` : ''}
+        ${earned.map((n) => `<div class="msg ok ach-toast">${ic.medal}<b>${t('ach_new')}:</b>&nbsp;${n}</div>`).join('')}
         <div class="actions">
           ${cont ? `<button class="btn primary" data-act="menu">${ic.go}<span>${cont}</span></button>` : `<button class="btn primary" data-act="restart">${ic.reset}<span>${t('playAgain')}</span></button>
           <button class="btn" data-act="menu">${ic.home}<span>${t('backToMenu')}</span></button>`}
