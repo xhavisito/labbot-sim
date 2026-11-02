@@ -1399,3 +1399,7 @@ canvas.board-drawing { cursor: crosshair; touch-action: none; }
 .vs-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; align-items: start; }
 .vs-team { margin-bottom: 16px; }
 @media (max-width: 760px) { .vs-grid { grid-template-columns: 1fr; } }
+
+.cmp-pick { display: flex; flex-wrap: wrap; gap: 12px; margin: 10px 0 14px; }
+.cmp-stats td.best { color: #7be495; font-weight: 600; }
+.cmp-stats td.nodata { color: var(--muted, #8a93a0); font-style: italic; }

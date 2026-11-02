@@ -18,6 +18,8 @@ import { addShots, asRed, zoneStats, ZONES, type Shot, type ShotLog } from '../c
 import * as F from '../config/field';
 import { CycleTracker } from '../game/cycleTracker';
 import { saveShotLog } from '../game/shotStore';
+import { addPerf, type PerfData } from '../core/robotCompare';
+import { savePerf } from '../game/perfStore';
 import type { GameSession, SessionTap } from '../game/GameSession';
 import { saveCycleBests } from '../game/cycleStore';
 import { saveGhosts } from '../game/ghostStore';
@@ -47,6 +49,8 @@ export interface Practice1v1Host {
   /** Mapa de tiro acumulado por robot (se guarda al terminar cada práctica). */
   shots: ShotLog;
   robot: { id: string; name: string };
+  /** Rendimiento acumulado por robot (puntos por minuto y ciclos, para comparar robots). */
+  perf: PerfData;
   exit: () => void;
 }
 
@@ -218,6 +222,9 @@ export class Practice1v1 {
       addShots(this.h.shots, this.id2, tr2.stats.shots.map((x) => asRed(x, a2)));
     }
     saveShotLog(this.h.shots);
+    for (const [id, sm] of [[this.h.robot.id, this.summary], [this.id2, this.summary2]] as const)
+      if (sm) addPerf(this.h.perf, id, { seconds: sm.time, points: sm.points, cycles: sm.scored, cycleSeconds: (sm.avg ?? 0) * sm.scored });
+    savePerf(this.h.perf);
     this.mapView = 'session';
     this.stop();
     this.phase = 'result';

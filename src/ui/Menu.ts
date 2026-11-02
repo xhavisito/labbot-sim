@@ -121,6 +121,7 @@ export class Menu {
   onAutoPaths: () => void = () => undefined;
   /** Abre la pantalla de logros (la conecta App). */
   onAchievements: () => void = () => undefined;
+  onCompare: () => void = () => undefined;
 
   constructor(
     host: HTMLElement,
@@ -181,6 +182,7 @@ export class Menu {
             ${tool('training', ic.medal, 'tn_title', 'trainingDesc')}
             ${tool('weekly', ic.trophy, 'weekly', 'weeklyDesc')}
             ${tool('achievements', ic.trophy, 'ach_title', 'achDesc')}
+            ${tool('compare', ic.cube, 'compare', 'compareDesc')}
             ${tool('replays', ic.film, 'replays', 'replaysDesc')}
             ${tool('editor', ic.cube, 'editor', 'editorDesc')}
             ${tool('autoPractice', ic.route, 'autoPractice', 'autoPracticeDesc')}
@@ -222,6 +224,7 @@ export class Menu {
     this.on('[data-go="strategies"]', () => this.onStrategies());
     this.on('[data-go="autoPaths"]', () => this.onAutoPaths());
     this.on('[data-go="achievements"]', () => this.onAchievements());
+    this.on('[data-go="compare"]', () => this.onCompare());
     this.on('[data-go="replays"]', () => this.onReplays());
     this.on('[data-go="editor"]', () => this.onEditor());
     this.on('[data-go="autoPractice"]', () => this.onStart({ mode: 'auto', player: this.player }));
