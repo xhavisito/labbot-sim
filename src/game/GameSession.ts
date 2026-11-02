@@ -346,7 +346,7 @@ export class GameSession {
         if (o.grabCritical) r.mech.grabCritical(this.stepMechEvents);
         if (o.releaseCritical) r.mech.release('critical', this.stepMechEvents);
       } else if (runner) {
-        const o = runner.step(dt);
+        const o = runner.step(dt, r);
         forward = Math.max(-1, Math.min(1, o.raw ? o.forward : (o.forward * AUTO_REF_SPEED) / r.spec.maxSpeed));
         turn = o.turn;
         if (o.elevator !== undefined) r.mech.target = o.elevator;

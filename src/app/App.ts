@@ -9,11 +9,16 @@ import { SECRET_AUTOS, SECRET_STRATEGIES, STRATEGY_OPTIONS, weighted, type Strat
 import { activeColorMode } from '../config/palette';
 import { applyAccessibility } from '../ui/a11y';
 import { allAutoRoutines, autoRoutineIds } from '../auto/recorded';
+import { clampSpot } from '../config/startSpot';
 import { FieldAudio } from '../audio/FieldAudio';
 import { ROBOT_PRESETS, type MechanismKind, type RobotSpec } from '../config/robot';
 import { robotSpec } from '../config/robotIds';
 import { loadSettings, saveSettings, type Settings } from '../config/settings';
 import { formatTimer, timerSeconds } from '../core/clock';
+import { callForEvent, EndgameWatcher, type RefCall } from '../core/refCalls';
+import { ALLIANCES } from '../core/types';
+import { GAME } from '../config/game';
+import { refText, voiceLang } from '../ui/refText';
 import { buildMatchLog } from '../core/matchLog';
 import type { Match } from '../core/match';
 import { drillById } from '../core/training';
@@ -31,6 +36,7 @@ import { CAMERA_MODES, CameraRig, type CameraMode } from '../render/CameraRig';
 import { Arena } from '../render/Arena';
 import { Effects } from '../render/Effects';
 import { guessQuality, QUALITIES, Renderer, type Quality } from '../render/Renderer';
+import { PerfProfile, QualityGovernor } from '../render/perf';
 import { pwa } from '../pwa/register';
 import type { Replay } from '../replay/format';
 import { Recorder } from '../replay/Recorder';
@@ -53,10 +59,12 @@ import { TournamentScreen, WATCH_CAMERA } from '../ui/TournamentScreen';
 import { TrainingRun, TrainingScreen, type TrainingRobot } from '../ui/Training';
 import { Practice1v1 } from '../ui/Practice1v1';
 import { loadCycleBests } from '../game/cycleStore';
+import { loadShotLog } from '../game/shotStore';
 import { matchFacts, recordMatch, emptyAch, type AchProgress } from '../core/achievements';
 import { loadAch, saveAch } from '../game/achievementStore';
 import { AchievementsScreen } from '../ui/Achievements';
 import { StrategyScreen } from '../ui/StrategyScreen';
+import { AutoPathScreen } from '../ui/AutoPathScreen';
 import { PlanView } from '../render/PlanView';
 import * as THREE from 'three';
 import { Board } from '../core/board';
@@ -74,7 +82,14 @@ export class App {
   readonly effects = new Effects();
   /** Calidad elegida por "Automática" (baja un nivel si los FPS caen). */
   private autoQuality: Quality = guessQuality();
-  private fps = { frames: 0, time: 0, drops: 0 };
+  /** Gobernador de "Auto": baja resolución y luego calidad si los FPS caen. */
+  private governor = new QualityGovernor(this.autoQuality);
+  private govWin = { frames: 0, time: 0 };
+  /** Perfil de FPS y tiempos (F3, `?fps=1` o Ajustes). */
+  readonly perf = new PerfProfile();
+  private fpsEl: HTMLElement | null = null;
+  private fpsShown = new URLSearchParams(location.search).get('fps') === '1';
+  private fpsTick = 0;
   readonly cam: CameraRig;
   readonly input = new InputManager();
   /** Menús con el control: foco, A elige, B regresa (`ui/padNav.ts`). */
@@ -104,9 +119,12 @@ export class App {
   private boardCam: CameraMode = 'free';
   readonly boardBar: BoardBar;
   readonly strategies: StrategyScreen;
+  readonly autoPaths: AutoPathScreen;
   readonly settings: Settings = loadSettings(autoRoutineIds());
   /** Sonidos del campo (inicio, TELEOP, ENDGAME, fin). */
   readonly audio = new FieldAudio(this.settings.volume / 100);
+  /** Avisos del árbitro de Plataforma y Muestra Crítica en el ENDGAME (`core/refCalls.ts`). */
+  private endgameWatch = new EndgameWatcher(GAME);
   private last = performance.now();
   /** Último cuadro dibujado detrás de una pantalla opaca (ver `loop`). */
   private lastBehind = 0;
@@ -137,6 +155,8 @@ export class App {
   /** Práctica 1 contra 1 en curso (`ui/Practice1v1.ts`). */
   practice1v1: Practice1v1 | null = null;
   readonly cycleBests = loadCycleBests();
+  /** Mapa de tiro acumulado por robot de la práctica por ciclos. */
+  readonly shotLog = loadShotLog();
   /** Logros y progreso (localStorage) y su pantalla; `achNew` = logros del último match. */
   private ach: AchProgress = loadAch();
   private achNew: string[] = [];
@@ -164,7 +184,9 @@ export class App {
       applyAccessibility(s.colorMode, s.textScale);
       this.applyQuality();
       this.audio.setVolume(s.volume / 100);
+      this.audio.setRefMode(s.refAudio);
     }, this.input);
+    this.audio.setRefMode(this.settings.refAudio);
     this.replayBar = new ReplayBar(ui, { camera: () => this.cycleCamera(), stats: () => this.replayStats(), exit: () => this.exitReplay() });
     this.replays = new ReplaysScreen(this.menu.root, {
       back: () => this.toMenu(),
@@ -172,6 +194,7 @@ export class App {
       stats: (r) => this.showStats(r, () => this.openReplays(), () => this.watchReplay(r, () => this.openReplays())),
     });
     this.menu.onReplays = () => this.openReplays();
+    this.menu.perfInfo = () => this.perfText();
     this.editor = new RobotEditor(this.menu.root, () => this.toMenu(), (id) => this.menu.useRobot(id));
     this.menu.onEditor = () => this.editor.show(null);
     this.scouting = new ScoutingScreen(this.menu.root, this.scoutData, () => this.toMenu(), (p) => this.start({ mode: 'match', player: p.player, scout: p }));
@@ -202,6 +225,21 @@ export class App {
     this.menu.onAchievements = () => this.achievements.show();
     this.strategies = new StrategyScreen(this.menu.root);
     this.menu.onStrategies = () => this.strategies.show(() => this.toMenu());
+    this.autoPaths = new AutoPathScreen(this.menu.root, {
+      back: () => this.toMenu(),
+      spec: () => this.playerSpec(),
+      use: (id) => {
+        this.settings.playerAuto = id;
+        saveSettings(this.settings);
+      },
+      currentAuto: () => this.settings.playerAuto,
+      play: (id) => {
+        this.settings.playerAuto = id;
+        saveSettings(this.settings);
+        this.start({ mode: 'match', player: this.menu.player });
+      },
+    });
+    this.menu.onAutoPaths = () => this.autoPaths.show();
     this.renderer.scene.add(this.planView.group, this.boardView.group);
     this.boardBar = new BoardBar(ui, this.renderer.renderer.domElement, this.board, {
       pick: (x, y) => this.pickField(x, y),
@@ -216,6 +254,10 @@ export class App {
     window.addEventListener('resize', onResize);
     window.addEventListener('keydown', (e) => {
       if (e.code === 'Backspace' && !this.input.capturing) this.resetPractice();
+      if (e.code === 'F3') {
+        e.preventDefault();
+        this.fpsShown = !this.fpsShown;
+      }
     });
     onResize();
     document.addEventListener('visibilitychange', () => document.hidden && this.flushPlaytime());
@@ -293,6 +335,7 @@ export class App {
           this.start(c);
         },
         bests: this.cycleBests,
+        shots: this.shotLog,
         robot: { id: this.settings.robotType, name: robotLabel(this.session.player.spec) },
         exit: () => this.toMenu(),
       });
@@ -402,15 +445,22 @@ export class App {
       if (i === mate && plan) return { ...planBotOptions(plan, i < 2 ? 'red' : 'blue'), ai };
       return { ...STRATEGY_OPTIONS[strategy(i)], ai };
     };
+    const autos = [0, 1, 2, 3].map((i) => (i === player ? routine(s.playerAuto) : botAuto(i)));
+    // Tu robot es el del menú (con tu velocidad y capacidad), salvo en el Scouting: el de tu equipo
+    const specs = types.map((k, i) => (i === player && (!kinds || tour) ? this.playerSpec() : ROBOT_PRESETS[k]));
+    // Una rutina dibujada arranca donde se dibujó si el robot está en esa Zona de Inicio (§4.1)
+    const pathStart = (i: number) => {
+      const p = autos[i].path;
+      return p && p.station === i % 2 ? clampSpot(specs[i].length, specs[i].width, p.start) : undefined;
+    };
     return {
       player,
       preload: true,
       ai: s.ai,
-      // Tu robot es el del menú (con tu velocidad y capacidad), salvo en el Scouting: el de tu equipo
-      specs: types.map((k, i) => (i === player && (!kinds || tour) ? this.playerSpec() : ROBOT_PRESETS[k])),
-      autos: [0, 1, 2, 3].map((i) => (i === player ? routine(s.playerAuto) : botAuto(i))),
+      specs,
+      autos,
       bots: [0, 1, 2, 3].map((i) => (i === player ? undefined : bot(i))),
-      starts: [0, 1, 2, 3].map((i) => (i === player ? m.start : undefined)),
+      starts: [0, 1, 2, 3].map((i) => pathStart(i) ?? (i === player ? m.start : undefined)),
       hp: { enabled: s.hpEnabled, interval: s.hpInterval, smart: s.hpSmart },
       grip: s.grip,
       damage: { ...s.damage },
@@ -432,27 +482,68 @@ export class App {
   /** Calidad gráfica: `?quality=` manda; si no, el ajuste (o la automática). */
   applyQuality(): void {
     const forced = new URLSearchParams(location.search).get('quality') as Quality | null;
-    const q = forced && QUALITIES.includes(forced) ? forced : this.settings.quality === 'auto' ? this.autoQuality : this.settings.quality;
+    const auto = !forced && this.settings.quality === 'auto';
+    const q = forced && QUALITIES.includes(forced) ? forced : auto ? this.autoQuality : (this.settings.quality as Quality);
     if (q !== this.renderer.quality || !this.qualityApplied) this.renderer.setQuality(q, this.cam.camera);
     this.qualityApplied = true;
+    // Resolución dinámica: solo en Auto (`?dynres=0` la apaga)
+    const dyn = auto && new URLSearchParams(location.search).get('dynres') !== '0';
+    this.renderer.setDynScale(dyn ? this.governor.state.scale : 1, this.cam.camera);
   }
 
   private qualityApplied = false;
 
-  /** "Automática": si el promedio de 4 s baja de 40 FPS jugando, un nivel menos (hasta 2 veces). */
+  /**
+   * "Automática": cada 2 s jugando mide los FPS y deja que el gobernador baje la resolución y, si no
+   * alcanza, un nivel de calidad (`render/perf.ts`).
+   */
   private watchFps(dt: number): void {
-    if (this.settings.quality !== 'auto' || this.state !== 'playing' || this.fps.drops >= 2) return;
-    this.fps.frames++;
-    this.fps.time += dt;
-    if (this.fps.time < 4) return;
-    const avg = this.fps.frames / this.fps.time;
-    this.fps.frames = this.fps.time = 0;
-    const i = QUALITIES.indexOf(this.autoQuality);
-    if (avg < 40 && i > 0) {
-      this.autoQuality = QUALITIES[i - 1];
-      this.fps.drops++;
-      this.applyQuality();
+    if (this.settings.quality !== 'auto' || this.state !== 'playing') {
+      this.govWin.frames = this.govWin.time = 0;
+      return;
     }
+    // Un cuadro enorme (pestaña en segundo plano) no cuenta
+    if (dt >= 0.1) return;
+    this.govWin.frames++;
+    this.govWin.time += dt;
+    if (this.govWin.time < 2) return;
+    const avg = this.govWin.frames / this.govWin.time;
+    this.govWin.frames = this.govWin.time = 0;
+    if (this.governor.step(avg)) {
+      this.autoQuality = this.governor.state.quality;
+      this.applyQuality();
+      this.perf.reset();
+    }
+  }
+
+  /** Texto del perfil de rendimiento para Ajustes (null si no se ha medido). */
+  perfText(): string | null {
+    const s = this.perf.summary();
+    if (!s.frames) return null;
+    const res = Math.round(this.renderer.preset.renderScale * this.renderer.dynScale * 100);
+    return (
+      t('perfLive', { fps: s.fps.toFixed(0), low: s.low1.toFixed(0), sim: s.simMs.toFixed(1), draw: s.renderMs.toFixed(1) }) +
+      '\n' +
+      t('perfUsing', { q: t(`quality_${this.renderer.quality}` as Key), res })
+    );
+  }
+
+  /** Marcador de FPS en pantalla (F3, `?fps=1` o Ajustes). */
+  private updateFpsOverlay(): void {
+    const on = this.fpsShown || this.settings.showFps;
+    if (!on) {
+      if (this.fpsEl) this.fpsEl.style.display = 'none';
+      return;
+    }
+    if (!this.fpsEl) {
+      this.fpsEl = document.createElement('div');
+      this.fpsEl.className = 'fps-overlay';
+      document.body.appendChild(this.fpsEl);
+    }
+    this.fpsEl.style.display = '';
+    if (++this.fpsTick % 15 !== 0) return;
+    const s = this.perf.summary();
+    this.fpsEl.textContent = `${s.fps.toFixed(0)} FPS · 1% ${s.low1.toFixed(0)} · sim ${s.simMs.toFixed(1)} · dibujo ${s.renderMs.toFixed(1)} ms · ${this.renderer.quality} ${Math.round(this.renderer.dynScale * 100)}%`;
   }
 
   /** Reacomoda la cancha en práctica (Backspace o el botón del HUD). */
@@ -603,7 +694,35 @@ export class App {
     }, null);
   }
 
+  /**
+   * Avisos del árbitro del cuadro: faltas y tarjetas del match, y en el ENDGAME los robots sobre la
+   * Plataforma y la Muestra Crítica en la Repisa. Cartel en el HUD y silbato/voz según Ajustes.
+   */
+  private refereeCalls(dt: number): void {
+    const s = this.session;
+    const m = s.match;
+    if (!m) return;
+    const calls: RefCall[] = [];
+    for (const e of s.matchEvents) {
+      const c = callForEvent(e, s.game);
+      if (c) calls.push(c);
+    }
+    const platform = { red: 0, blue: 0 };
+    const critical = { red: false, blue: false };
+    if (m.phase === 'ENDGAME') {
+      for (const r of s.robots) if (s.sensors.onPlatform(r)) platform[r.alliance]++;
+      for (const a of ALLIANCES) critical[a] = s.sensors.criticalOnRepisa(a);
+    }
+    this.endgameWatch.cfg = s.game;
+    calls.push(...this.endgameWatch.update(dt, m.phase, platform, critical));
+    if (!calls.length) return;
+    const texts = calls.map(refText);
+    this.hud.referee(texts);
+    calls.forEach((c, i) => this.audio.referee(c.sound, texts[i].voice, voiceLang()));
+  }
+
   toMenu(): void {
+    this.audio.stopVoice();
     this.flushPlaytime();
     this.closeAutoPractice();
     this.closeTraining();
@@ -629,6 +748,7 @@ export class App {
     if (this.boardBar.isOpen) return this.closeBoard();
     if (this.state === 'playing') {
       this.state = 'paused';
+      this.audio.stopVoice();
       this.pauseMenu();
     } else if (this.state === 'paused') {
       this.state = 'playing';
@@ -726,6 +846,7 @@ export class App {
   }
 
   private loop = (now: number): void => {
+    const t0 = performance.now();
     const dt = Math.min(0.1, (now - this.last) / 1000);
     this.last = now;
     // Mientras el Scouting simula matches no se mueve ni se dibuja la cancha de fondo (la pantalla la
@@ -749,6 +870,7 @@ export class App {
       this.practice1v1?.update(dt);
       this.hud.events(this.session.matchEvents);
       this.audio.events(this.session.matchEvents);
+      this.refereeCalls(dt);
       this.hud.damage(this.session);
       this.hud.update(this.session, this.cam.mode);
       const sm = this.session.match;
@@ -808,8 +930,12 @@ export class App {
     const behind = this.menu.root.style.display !== 'none' && this.menu.root.classList.contains('solid');
     if (!behind || now - this.lastBehind > 125) {
       this.lastBehind = now;
+      const t1 = performance.now();
       this.renderer.render(this.cam.camera);
+      const t2 = performance.now();
+      this.perf.push(dt, t1 - t0, t2 - t1);
     }
+    this.updateFpsOverlay();
     requestAnimationFrame(this.loop);
   };
 }

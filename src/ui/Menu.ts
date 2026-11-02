@@ -4,11 +4,12 @@
  */
 import { AUTO_ROUTINES } from '../auto/AutoRoutine';
 import { routeRoutine, savedRoutes } from '../auto/recorded';
+import { loadPaths, pathRoutine } from '../game/autoPathStore';
 import { customById } from '../config/customRobots';
 import { allRobotIds, robotSpec, type RobotId } from '../config/robotIds';
 import { GRIP_MODES, MECHANISM_KINDS } from '../config/robot';
 import { GAME } from '../config/game';
-import { DEFAULT_SETTINGS, PLAN_BOARDS, PRACTICE_LIMITS, RIVALS, SETTINGS_RANGE, type PlanBoard, type RivalKind, type Settings } from '../config/settings';
+import { DEFAULT_SETTINGS, PLAN_BOARDS, PRACTICE_LIMITS, REF_AUDIO_MODES, RIVALS, SETTINGS_RANGE, type PlanBoard, type RefAudioMode, type RivalKind, type Settings } from '../config/settings';
 import { DAMAGE_LEVELS, type DamageLevel, type DamageTargets } from '../core/damage';
 import { buildRefereeReport } from '../core/refereeReport';
 import { refereeHtml } from './refereeView';
@@ -100,6 +101,8 @@ const stationLabel = (i: number): string => `${t(i < 2 ? 'red' : 'blue')} ${(i %
 export class Menu {
   /** Abre la pantalla de Repeticiones y el editor de robot (los conecta App). */
   onReplays: () => void = () => undefined;
+  /** Texto del perfil de rendimiento para Ajustes (lo da App; null = sin datos). */
+  perfInfo: (() => string | null) | null = null;
   onEditor: () => void = () => undefined;
   readonly root: HTMLElement;
   player = DEFAULT_PLAYER;
@@ -110,6 +113,7 @@ export class Menu {
   /** Abre la lista de retos del entrenamiento (la conecta App). */
   onTraining: () => void = () => undefined;
   onStrategies: () => void = () => undefined;
+  onAutoPaths: () => void = () => undefined;
   /** Abre la pantalla de logros (la conecta App). */
   onAchievements: () => void = () => undefined;
 
@@ -173,6 +177,7 @@ export class Menu {
             ${tool('replays', ic.film, 'replays', 'replaysDesc')}
             ${tool('editor', ic.cube, 'editor', 'editorDesc')}
             ${tool('autoPractice', ic.route, 'autoPractice', 'autoPracticeDesc')}
+            ${tool('autoPaths', ic.route, 'autoPaths', 'autoPathsDesc')}
             ${tool('strategies', ic.field, 'strategies', 'strategiesDesc')}
             ${tool('settings', ic.sliders, 'settings', 'settingsDesc')}
             ${tool('controls', ic.gamepad, 'controlsTitle', 'controlsDesc')}
@@ -206,6 +211,7 @@ export class Menu {
     this.on('[data-go="training"]', () => this.onTraining());
     this.on('[data-go="practice1v1"]', () => this.onStart({ mode: 'practice1v1', player: this.player }));
     this.on('[data-go="strategies"]', () => this.onStrategies());
+    this.on('[data-go="autoPaths"]', () => this.onAutoPaths());
     this.on('[data-go="achievements"]', () => this.onAchievements());
     this.on('[data-go="replays"]', () => this.onReplays());
     this.on('[data-go="editor"]', () => this.onEditor());
@@ -293,9 +299,10 @@ export class Menu {
       const opt = (id: string, label: string) => `<option value="${id}" ${id === sel ? 'selected' : ''}>${label}</option>`;
       const fixed = AUTO_ROUTINES.map((r) => opt(r.id, t(`auto_${r.id}` as Key))).join('');
       const mine = routes ? savedRoutes.map((r) => opt(routeRoutine(r).id, esc(r.name))).join('') : '';
-      return fixed + (mine ? `<optgroup label="${t('grp_routes')}">${mine}</optgroup>` : '');
+      const drawn = loadPaths().map((r) => opt(pathRoutine(r).id, esc(r.name))).join('');
+      return fixed + (mine ? `<optgroup label="${t('grp_routes')}">${mine}</optgroup>` : '') + (drawn ? `<optgroup label="${t('grp_paths')}">${drawn}</optgroup>` : '');
     };
-    const toggle = (k: 'ai' | 'hpEnabled' | 'hpSmart') => `<button class="toggle ${s[k] ? 'on' : ''}" data-tog="${k}"><i></i>${s[k] ? t('on_') : t('no_')}</button>`;
+    const toggle = (k: 'ai' | 'hpEnabled' | 'hpSmart' | 'showFps') => `<button class="toggle ${s[k] ? 'on' : ''}" data-tog="${k}"><i></i>${s[k] ? t('on_') : t('no_')}</button>`;
     const range = (k: keyof typeof SETTINGS_RANGE, unit: string) => {
       const r = SETTINGS_RANGE[k];
       return `<div class="range"><input type="range" data-k="${k}" min="${r.min}" max="${r.max}" step="${r.step}" value="${s[k]}"><output data-unit="${unit}">${s[k]} ${unit}</output></div>`;
@@ -340,6 +347,8 @@ export class Menu {
           <h3>${t('sec_graphics')}</h3>
           <label>${t('setQuality')}</label><div class="seg" data-qseg>${(['auto', 'low', 'medium', 'high'] as const).map((q) => `<button class="${q === s.quality ? 'on' : ''}" data-v="${q}">${t(`quality_${q}`)}</button>`).join('')}</div>
           <p class="full sub">${t('qualityNote')}</p>
+          <label>${t('setShowFps')}</label>${toggle('showFps')}
+          <label>${t('perfTitle')}</label><div class="perf-live" data-perf></div>
           <h3>${t('sec_access')}</h3>
           <label>${t('setColorMode')}</label>${seg('colorMode', COLOR_MODES, s.colorMode, (v) => t(`colorMode_${v}` as Key))}
           <label>${t('setTextScale')}</label>${seg('textScale', TEXT_SCALES.map(String), String(s.textScale), (v) => `${Math.round(Number(v) * 100)} %`)}
@@ -347,6 +356,8 @@ export class Menu {
           <h3>${t('sec_sound')}</h3>
           <label>${t('setVolume')}</label>${range('volume', '%')}
           <p class="full sub">${t('soundNote')}</p>
+          <label>${t('setRefAudio')}</label>${seg('refAudio', REF_AUDIO_MODES, s.refAudio, (v) => t(`refAudio_${v}` as Key))}
+          <p class="full sub">${t('refAudioNote')}</p>
         </div></div>
       </div>
       <div class="actionbar">${backBtn('data-act="cancel"')}<div class="grow"></div>
@@ -364,7 +375,7 @@ export class Menu {
       });
     });
     this.on('[data-tog]', (el) => {
-      const k = el.dataset.tog as 'ai' | 'hpEnabled' | 'hpSmart';
+      const k = el.dataset.tog as 'ai' | 'hpEnabled' | 'hpSmart' | 'showFps';
       s[k] = !s[k];
       el.classList.toggle('on', s[k]);
       el.lastChild!.textContent = s[k] ? t('on_') : t('no_');
@@ -384,6 +395,16 @@ export class Menu {
         }
       }),
     );
+    // Perfil de rendimiento en vivo mientras esta pantalla esté abierta
+    const perfEl = this.root.querySelector<HTMLElement>('[data-perf]');
+    if (perfEl) {
+      const tick = () => {
+        if (!perfEl.isConnected) return clearInterval(id);
+        perfEl.textContent = this.perfInfo?.() ?? t('perfIdle');
+      };
+      const id = setInterval(tick, 500);
+      tick();
+    }
     this.root.querySelectorAll<HTMLElement>('[data-qseg] button').forEach((b) =>
       b.addEventListener('click', () => {
         s.quality = b.dataset.v as Settings['quality'];
@@ -400,6 +421,7 @@ export class Menu {
         else if (k === 'damage.level') s.damage = { ...s.damage, level: v as DamageLevel };
         else if (k === 'damage.targets') s.damage = { ...s.damage, targets: v as DamageTargets };
         else if (k === 'planBoard') s.planBoard = v as PlanBoard;
+        else if (k === 'refAudio') s.refAudio = v as RefAudioMode;
         else if (k === 'colorMode') s.colorMode = v as ColorMode;
         else if (k === 'textScale') {
           s.textScale = nearestTextScale(Number(v));
@@ -423,7 +445,7 @@ export class Menu {
       this.main();
     });
     this.on('[data-act="defaults"]', () => {
-      Object.assign(this.settings, { ...structuredClone(DEFAULT_SETTINGS), touch: this.settings.touch, quality: this.settings.quality, volume: this.settings.volume, colorMode: this.settings.colorMode, textScale: this.settings.textScale });
+      Object.assign(this.settings, { ...structuredClone(DEFAULT_SETTINGS), touch: this.settings.touch, quality: this.settings.quality, volume: this.settings.volume, refAudio: this.settings.refAudio, colorMode: this.settings.colorMode, textScale: this.settings.textScale });
       this.onSettings(this.settings);
       this.settingsPanel();
     });
