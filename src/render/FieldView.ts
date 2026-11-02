@@ -8,9 +8,11 @@ import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js
 import * as F from '../config/field';
 import { fieldSolids, startTape, type FieldMaterial } from '../config/fieldLayout';
 import { ALLIANCES, type Alliance } from '../core/types';
+import { PALETTES } from '../config/palette';
 import { boxUV, carpetTexture, mdfTexture, textTexture } from './textures';
 
-export const ALLIANCE_COLOR: Record<Alliance, number> = { red: 0xc0262d, blue: 0x1d4fd6 };
+/** Color de cada alianza; `ui/a11y.ts` lo cambia en el lugar (modo daltónico) antes de armar la escena. */
+export const ALLIANCE_COLOR: Record<Alliance, number> = { ...PALETTES.normal.alliance };
 
 type Mats = Record<Exclude<FieldMaterial, 'invisible'>, THREE.MeshStandardMaterial> & { carpet: THREE.MeshStandardMaterial };
 let mats: Mats | null = null;

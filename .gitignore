@@ -3,3 +3,5 @@ dist
 shots
 *.log
 batch-results*.json
+docs/manual.txt
+docs/manual.pdf
