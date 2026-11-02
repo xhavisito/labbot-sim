@@ -5,9 +5,18 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import * as F from '../config/field';
+import { driverEye, cornerEye, onboardMount, ONBOARD_PITCH, FOV } from '../config/cameras';
+import type { Alliance } from '../core/types';
 
-export type CameraMode = 'free' | 'top' | 'driverRed' | 'driverBlue' | 'follow';
-export const CAMERA_MODES: readonly CameraMode[] = ['driverBlue', 'follow', 'top', 'driverRed', 'free'];
+export type CameraMode = 'free' | 'top' | 'driverRed' | 'driverBlue' | 'follow' | 'driverEye' | 'corner' | 'onboard';
+export const CAMERA_MODES: readonly CameraMode[] = ['driverBlue', 'driverEye', 'corner', 'onboard', 'follow', 'top', 'driverRed', 'free'];
+
+/** Quién mira: su alianza, estación y medidas (para las cámaras de conductor, esquina y a bordo). */
+export interface Viewer {
+  alliance: Alliance;
+  station: 0 | 1;
+  spec: { length: number; baseHeight: number };
+}
 
 export class CameraRig {
   readonly camera = new THREE.PerspectiveCamera(50, 1, 0.05, 100);
@@ -49,9 +58,31 @@ export class CameraRig {
   }
 
   /** Actualiza la cámara de seguimiento (detrás del robot). */
-  update(dt: number, target?: { x: number; y: number; z: number; heading: number }): void {
+  update(dt: number, target?: { x: number; y: number; z: number; heading: number }, viewer?: Viewer): void {
     if (this.mode === 'free') this.orbit.update();
     if (!target) return;
+    const fov = this.mode === 'onboard' ? FOV.onboard : this.mode === 'driverEye' ? FOV.driver : FOV.default;
+    if (this.camera.fov !== fov) {
+      this.camera.fov = fov;
+      this.camera.updateProjectionMatrix();
+    }
+    if (viewer && (this.mode === 'driverEye' || this.mode === 'corner')) {
+      // Fija en su puesto (conductor de pie o poste de esquina) y gira para seguir al robot propio
+      const e = this.mode === 'driverEye' ? driverEye(viewer.alliance, viewer.station) : cornerEye(viewer.alliance, viewer.station);
+      this.camera.position.set(e.x, e.y, e.z);
+      this.look.set(target.x, target.y + 0.3, target.z);
+      this.lookSet = true;
+      this.camera.lookAt(this.look);
+      return;
+    }
+    if (viewer && this.mode === 'onboard') {
+      const m = onboardMount(viewer.spec);
+      const c = Math.cos(target.heading);
+      const sn = Math.sin(target.heading);
+      this.camera.position.set(target.x + c * m.forward, target.y + m.up, target.z - sn * m.forward);
+      this.camera.lookAt(this.camera.position.x + c * 5, this.camera.position.y - Math.tan(ONBOARD_PITCH) * 5, this.camera.position.z - sn * 5);
+      return;
+    }
     if (this.mode === 'driverRed' || this.mode === 'driverBlue') {
       // Vista del driver: la cámara se queda en la Driver Station y gira para seguir al robot propio.
       const want = new THREE.Vector3(target.x, target.y + 0.3, target.z);

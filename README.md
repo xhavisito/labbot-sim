@@ -33,7 +33,7 @@ genera `vite.config.ts` con la lista del build) y el simulador abre y juega sin 
 muestra "Sin conexión" cuando ya está listo. Para instalarlo en el celular: en Android, el botón
 **Instalar** del menú (o "Agregar a la pantalla principal" de Chrome); en iPhone, Safari → Compartir →
 **Agregar a inicio**. Cada build nuevo cambia la versión de la caché: la app se actualiza sola al
-abrirla con conexión (los cambios se ven la siguiente vez que se abre). Íconos: `public/icons/`
+abrirla con conexión; cuando la versión nueva ya quedó guardada aparece el botón **Actualizar** en el menú, y sin internet aparece "Sin internet". Se pide almacenamiento persistente para que el navegador no borre la caché. Prueba real sin conexión: `npm run build && npm run e2e:offline` (en la nube, con `CHROMIUM_PATH=/opt/pw-browsers/chromium`). Íconos: `public/icons/`
 (`node scripts/icons.mjs` los regenera desde `icon.svg`).
 
 ## Cómo se juega
@@ -236,7 +236,7 @@ src/
   replay/     format.ts (repetición en binario compacto), Recorder.ts (graba cada match, cuelga de
               GameSession.tap), ReplayPlayer.ts (sesión "títere" que pone las poses grabadas),
               stats.ts (mapa de calor, Muestras por robot y tiempos de ciclo) y store.ts (IndexedDB, .lbreplay)
-  pwa/        register.ts (service worker, botón Instalar) y sw-template.js (precache del build)
+  pwa/        register.ts (service worker, Instalar/Actualizar), precache.ts (lista de precache, con pruebas) y sw-template.js
 tests/        field, physics, robot, match (reglas y casos borde), session (match completo),
               bot (IA en un match completo, sin faltas de cancha), settings (ajustes y registro),
               lineup (tipos de la IA y niveles de dificultad)

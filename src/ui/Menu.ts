@@ -19,9 +19,11 @@ import type { InputManager } from '../input/InputManager';
 import { CAMERA_MODES, type CameraMode } from '../render/CameraRig';
 import { padHelp } from './controlsHelp';
 import { backBtn, brandbar, ic, kbds, langChips, robotSilhouette, UI_ALLIANCES, UI_SLOTS } from './chrome';
+import { formatPlaytime } from '../core/playtime';
+import { loadPlaytime } from '../game/playtimeStore';
 import { getLang, setLang, t, type Key } from './i18n';
 import type { ScoutPlay } from './Scouting';
-import { isIos, isStandalone, promptInstall, pwa } from '../pwa/register';
+import { applyUpdate, isIos, isStandalone, promptInstall, pwa } from '../pwa/register';
 
 const esc = (v: string): string => v.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
 
@@ -176,6 +178,7 @@ export class Menu {
             <div class="bay-head"><span class="bay-label">${t('yourRobot')}</span></div>
             <div class="showcase">${robotSilhouette(robotSpec(s.robotType).mechanism)}<span class="dim">${chassisSize(s.robotType)} · ${t('robotType')}</span></div>
             <div class="robotinfo" data-robotinfo></div>
+            <div class="playtime" title="${t('playtimeTip')}"><span>${t('playtime')}</span><b>${formatPlaytime(loadPlaytime().total)}</b></div>
           </div>
         </div>
       </div>
@@ -221,9 +224,12 @@ export class Menu {
     const box = this.root.querySelector<HTMLElement>('[data-pwa]');
     if (!box) return;
     const canInstall = !isStandalone() && (pwa.installEvent || isIos());
-    box.innerHTML = `${pwa.offlineReady ? `<span class="chipbtn static" title="${t('pwa_offlineTitle')}">${ic.offline}<span>${t('pwa_offline')}</span></span>` : ''}${
+    box.innerHTML = `${pwa.updateReady ? `<button class="chipbtn" data-update title="${t('pwa_updateTitle')}">${ic.phone}<span>${t('pwa_update')}</span></button>` : ''}${
+      pwa.online ? '' : `<span class="chipbtn static" title="${t('pwa_noNetTitle')}">${ic.offline}<span>${t('pwa_noNet')}</span></span>`
+    }${pwa.offlineReady ? `<span class="chipbtn static" title="${t('pwa_offlineTitle')}">${ic.offline}<span>${t('pwa_offline')}</span></span>` : ''}${
       canInstall ? `<button class="chipbtn" data-install title="${t('pwa_installTitle')}">${ic.phone}<span>${t('pwa_install')}</span></button>` : ''
     }`;
+    box.querySelector('[data-update]')?.addEventListener('click', applyUpdate);
     box.querySelector('[data-install]')?.addEventListener('click', () => {
       if (pwa.installEvent) void promptInstall();
       else if (!box.querySelector('.pwa-tip')) box.insertAdjacentHTML('beforeend', `<div class="pwa-tip msg">${t('pwa_ios')}</div>`);
