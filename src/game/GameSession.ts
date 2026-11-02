@@ -140,6 +140,7 @@ export class GameSession {
   private sinkView: SinkView | null = null;
   private pieceView: PieceView;
   private robotViews: RobotView[] = [];
+  private ghostMesh: THREE.Group | null = null;
   private autos: AutoRunner[] = [];
   /** IA de cada robot (AUTO de IA y/o TELEOP), coordinada por alianza en un `Team`. */
   bots: Array<BotDriver | null> = [];
@@ -482,6 +483,31 @@ export class GameSession {
    * Pone las vistas justo en la pose actual de los cuerpos, sin interpolar (la repetición mueve los
    * cuerpos a mano y nunca da pasos de física).
    */
+  /** Fantasma semitransparente del mejor ciclo (práctica 1 contra 1); null lo esconde. */
+  setGhost(pose: { x: number; z: number; heading: number } | null): void {
+    if (!pose) {
+      if (this.ghostMesh) this.ghostMesh.visible = false;
+      return;
+    }
+    if (!this.ghostMesh) {
+      const sp = this.player.spec;
+      const g = new THREE.Group();
+      const mat = new THREE.MeshBasicMaterial({ color: 0x9be7ff, transparent: true, opacity: 0.35, depthWrite: false });
+      const body = new THREE.Mesh(new THREE.BoxGeometry(sp.length, 0.2, sp.width), mat);
+      body.position.y = 0.15;
+      // Marca del frente: la punta del brazo es la del robot, aquí solo hace falta saber hacia dónde mira
+      const nose = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.24, sp.width * 0.5), mat);
+      nose.position.set(sp.length / 2, 0.15, 0);
+      g.add(body, nose);
+      g.renderOrder = 5;
+      this.root.add(g);
+      this.ghostMesh = g;
+    }
+    this.ghostMesh.visible = true;
+    this.ghostMesh.position.set(pose.x, 0, pose.z);
+    this.ghostMesh.rotation.y = pose.heading;
+  }
+
   snapViews(): void {
     this.pieceView.capture();
     this.pieceView.capture();
