@@ -1244,3 +1244,6 @@ body.touch-on .plan-card { left: auto; right: calc(var(--gut) + var(--safe-r)); 
 .p1-table tbody th { text-align: left; font-weight: 700; }
 .p1-table tr.dim { opacity: 0.45; }
 .p1-table tr.total { font-weight: 800; color: var(--accent); }
+
+.playtime { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-top: 10px; padding: 8px 10px; border-radius: 8px; background: rgba(255,255,255,0.05); color: var(--muted); font-size: 12px; }
+.playtime b { color: var(--text, #fff); font-variant-numeric: tabular-nums; }
