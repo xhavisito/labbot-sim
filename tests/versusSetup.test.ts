@@ -50,7 +50,7 @@ describe('2 jugadores: preparación', () => {
     im.versus = true;
     im.layout = { p1: 'keys2', p2: 'keys1' };
     key('keydown', 'ArrowUp');
-    key('keydown', 'KeyA');
+    key('keydown', 'KeyJ');
     expect(im.poll().forward).toBe(1);
     expect(im.poll2().turn).toBe(1);
     expect(im.poll2().forward).toBe(0);
