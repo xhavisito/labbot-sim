@@ -81,6 +81,8 @@ export interface Settings {
   practice: PracticeSettings;
   /** Volumen de los sonidos del campo (`audio/FieldAudio.ts`), 0–100 %; 0 = silencio. */
   volume: number;
+  /** Avisos del árbitro (`core/refCalls.ts`): silbato y voz, solo silbato, o sin sonido (el cartel siempre sale). */
+  refAudio: RefAudioMode;
   /**
    * Pizarra de la estrategia de alianza en el match (`render/PlanView.ts` y la tarjeta del HUD):
    * líneas en la cancha y tarjeta, solo la tarjeta, o nada.
@@ -90,6 +92,10 @@ export interface Settings {
   colorMode: ColorMode;
   textScale: TextScale;
 }
+
+/** Sonido de los avisos del árbitro: silbato y voz, solo silbato, o nada. */
+export type RefAudioMode = 'voice' | 'whistle' | 'off';
+export const REF_AUDIO_MODES: readonly RefAudioMode[] = ['voice', 'whistle', 'off'];
 
 export type PlanBoard = 'all' | 'card' | 'off';
 export const PLAN_BOARDS: readonly PlanBoard[] = ['all', 'card', 'off'];
@@ -113,6 +119,7 @@ export const DEFAULT_SETTINGS: Settings = {
   // SUPUESTO: por defecto el rival está quieto, como un obstáculo que no te quita Muestras
   practice: { rival: 'passive', limit: 0 },
   volume: 80,
+  refAudio: 'whistle',
   planBoard: 'all',
   colorMode: 'normal',
   textScale: 1,
@@ -179,6 +186,7 @@ export function sanitizeSettings(raw: unknown, autoIds: readonly string[]): Sett
     damage: sanitizeDamage(o.damage),
     practice: sanitizePractice(o.practice),
     volume: num(o.volume, d.volume, SETTINGS_RANGE.volume),
+    refAudio: REF_AUDIO_MODES.find((m) => m === o.refAudio) ?? d.refAudio,
     planBoard: PLAN_BOARDS.find((b) => b === o.planBoard) ?? d.planBoard,
     colorMode: COLOR_MODES.find((m) => m === o.colorMode) ?? d.colorMode,
     textScale: nearestTextScale(o.textScale ?? d.textScale),
