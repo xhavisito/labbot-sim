@@ -14,11 +14,9 @@ export type FaultKind =
   /** El brazo queda lento (un engrane dañado / la cadena floja) el resto del match. */
   | 'armSlow'
   /** Un lado de la transmisión pierde potencia: más lento y jala hacia un lado. */
-  | 'motorWeak'
-  /** Pérdida de comunicación (un cable flojo o un brownout): el robot se desactiva unos segundos. */
-  | 'commLoss';
+  | 'motorWeak';
 
-export const FAULT_KINDS: readonly FaultKind[] = ['clawJam', 'armSlow', 'motorWeak', 'commLoss'];
+export const FAULT_KINDS: readonly FaultKind[] = ['clawJam', 'armSlow', 'motorWeak'];
 
 /** Nivel de daño de Ajustes. 'off' = sin fallas. */
 export type DamageLevel = 'off' | 'low' | 'normal' | 'high';
@@ -61,7 +59,7 @@ export const DAMAGE = {
   /** Giro (rad/s a toda velocidad) hacia el lado débil. */
   motorWeakPull: 0.9,
   /** Duración (s) [mín, máx] de las fallas que se quitan solas; armSlow y motorWeak duran el match. */
-  duration: { clawJam: [5, 10], commLoss: [1.5, 3.5] } as Record<'clawJam' | 'commLoss', [number, number]>,
+  duration: { clawJam: [5, 10] } as Record<'clawJam', [number, number]>,
 } as const;
 
 /** Duración de las fallas permanentes (hasta reacomodar la cancha o acabar el match). */
@@ -88,11 +86,11 @@ export function impactSide(dvx: number, dvz: number): ImpactSide {
 
 /**
  * Qué se daña con un golpe. La garra (al frente) sufre los golpes de frente; la transmisión, los de
- * lado y atrás; la comunicación (cables, batería) cualquiera. Ya dañado algo permanente, no se repite.
+ * lado y atrás. Ya dañado algo permanente, no se repite.
  */
 export function pickFault(rand: () => number, side: ImpactSide, active: ReadonlySet<FaultKind>): FaultKind | null {
   const w: Record<FaultKind, number> =
-    side === 'front' ? { clawJam: 4, armSlow: 2.5, motorWeak: 1, commLoss: 2 } : side === 'back' ? { clawJam: 0.5, armSlow: 1.5, motorWeak: 3, commLoss: 2 } : { clawJam: 1, armSlow: 1.5, motorWeak: 3, commLoss: 2 };
+    side === 'front' ? { clawJam: 4, armSlow: 2.5, motorWeak: 1 } : side === 'back' ? { clawJam: 0.5, armSlow: 1.5, motorWeak: 3 } : { clawJam: 1, armSlow: 1.5, motorWeak: 3 };
   const options = FAULT_KINDS.filter((k) => !active.has(k));
   const total = options.reduce((s, k) => s + w[k], 0);
   if (total <= 0) return null;
