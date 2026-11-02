@@ -2,14 +2,25 @@
  * Cuerpo físico de un robot con chasis tipo tanque (§7.2: obligatorio; sin bumpers).
  *
  * Colisionadores: 4 esferas-rueda SIN fricción (la tracción la decide el controlador), la caja
- * del chasis (65 × 65 cm) y la superestructura hasta `baseHeight`. Idea tomada de rebuilt-sim:
+ * del chasis (65 × 65 cm) y la torre del pivote. Idea tomada de rebuilt-sim:
  * un controlador de velocidad cuyo cambio por paso está limitado por min(aceleración del motor,
  * μ·g)·(fracción de ruedas en el piso). Así los empujones los deciden la masa y la tracción, y en
  * las rampas de 15° de la Plataforma el robot sube y se inclina por pura física.
  * Tanque: solo avanza sobre su eje; la tracción resiste el deslizamiento lateral.
+ *
+ * Hitbox literal (Xhavi, 29 y 30-oct: "hitbox literal a cualquier parte del robot"): chasis, torre
+ * del pivote (o los soportes del eje bajo), viga del brazo, los dos dedos y la placa de la garra y la
+ * pieza que lleva chocan con todo: piezas, otros robots, la pared perimetral y la madera (Cámara,
+ * Campana, Plataforma, Repisa, barra y rendija; D34). Cada colisionador mide lo mismo que su dibujo
+ * (`render/RobotView.ts`). El brazo se mueve con `setArmPose` en cada paso; si la nueva pose lo
+ * metería en una estructura, se detiene ahí (`armHitsField`), como un brazo real que topa con la
+ * madera. Los mecanismos van sin masa (densidad 0) para no mover el centro de masa al girar el brazo,
+ * y no chocan con la alfombra: la garra pasa rozándola al recoger.
+ * CCD en el cuerpo: a toda velocidad o girando no atraviesa las paredes de 8 mm de la Cámara.
  */
-import type { RobotSpec } from '../config/robot';
-import { GROUPS, RAPIER, type PhysicsWorld } from './PhysicsWorld';
+import { armTip, clawOf, type ClawDims, type RobotSpec } from '../config/robot';
+import { CRITICAL_SIZE, SAMPLE_SIZE } from '../config/field';
+import { G, GROUPS, RAPIER, groups, type PhysicsWorld } from './PhysicsWorld';
 
 export interface DriveCommand {
   /** Velocidad hacia adelante deseada (m/s). */
@@ -20,7 +31,34 @@ export interface DriveCommand {
 
 const WHEEL_R = 0.05;
 const CHASSIS_Y0 = 0.03;
-const CHASSIS_Y1 = 0.22;
+/** Altura de la placa del chasis (lo que se ve: `RobotView`). */
+const CHASSIS_TOP = 0.235;
+/** Consulta de "¿el brazo se metería en la madera?": solo la cancha (no robots ni piezas). */
+const FIELD_QUERY = groups(G.ARM, G.FIELD);
+/**
+ * Las consultas usan cada pieza 8 mm más chica por lado: el contacto normal (unos milímetros de
+ * encimado) no cuenta como "metido", así que el brazo apoyado o rozando la madera no se traba.
+ */
+const QUERY_SHRINK = 0.008;
+const shrunk = (hx: number, hy: number, hz: number) => new RAPIER.Cuboid(Math.max(0.004, hx - QUERY_SHRINK), Math.max(0.004, hy - QUERY_SHRINK), Math.max(0.004, hz - QUERY_SHRINK));
+
+type Pose = { t: { x: number; y: number; z: number }; r: { x: number; y: number; z: number; w: number } };
+const NO_ROT = { x: 0, y: 0, z: 0, w: 1 };
+
+/** Producto de cuaterniones a·b. */
+function qmul(a: Pose['r'], b: Pose['r']): Pose['r'] {
+  return {
+    w: a.w * b.w - a.x * b.x - a.y * b.y - a.z * b.z,
+    x: a.w * b.x + a.x * b.w + a.y * b.z - a.z * b.y,
+    y: a.w * b.y - a.x * b.z + a.y * b.w + a.z * b.x,
+    z: a.w * b.z + a.x * b.y - a.y * b.x + a.z * b.w,
+  };
+}
+/** El brazo (colisionador) termina antes de la punta: ahí van la placa y los dedos de la garra. */
+const beamShort = (c: ClawDims): number => c.fingerLength / 2 + c.palmThickness + 0.01;
+
+/** Hacia dónde abre la garra: +1 si la punta está delante del eje del brazo, −1 si está detrás. */
+export const clawDir = (a: number, arm?: { linear?: boolean; stowTip?: unknown }): number => (arm?.stowTip || arm?.linear ? 1 : Math.cos(a) >= 0 ? 1 : -1);
 
 export function yawQuat(h: number): { x: number; y: number; z: number; w: number } {
   return { x: 0, y: Math.sin(h / 2), z: 0, w: Math.cos(h / 2) };
@@ -38,6 +76,15 @@ export class RobotPhysics {
   /** Ruedas apoyadas en la Plataforma de Contención (rampa, plataforma superior o Repisa). */
   wheelsOnPlatform = 0;
   lastCmd: DriveCommand = { forward: 0, turn: 0 };
+  /** Fallas (`game/Damage.ts`): fracción de la potencia de los motores (1 = sana). */
+  driveScale = 1;
+  /** Fallas: un lado de la transmisión más débil jala el robot (rad/s de giro a toda velocidad). */
+  turnBias = 0;
+  /** Colisionadores del brazo, la garra y la pieza agarrada (se mueven con el brazo). */
+  /** Formas (un poco más chicas) para preguntar si el brazo se metería en la madera. */
+  private claw: ClawDims;
+  private armQuery: Record<'beam' | 'finger' | 'palm' | 'sample' | 'critical', RAPIER.Shape>;
+  readonly armColliders: { beam: RAPIER.Collider; fingers: [RAPIER.Collider, RAPIER.Collider]; palm: RAPIER.Collider; sample: RAPIER.Collider; critical: RAPIER.Collider };
   private wheelLocal: Array<[number, number]> = [];
   private ray = new RAPIER.Ray({ x: 0, y: 0, z: 0 }, { x: 0, y: -1, z: 0 });
 
@@ -58,7 +105,8 @@ export class RobotPhysics {
         .setRotation(yawQuat(heading))
         .setLinearDamping(0.2)
         .setAngularDamping(1.5)
-        .setCanSleep(false),
+        .setCanSleep(false)
+        .setCcdEnabled(true),
     );
     const wheelMass = 0.8;
     const superMass = spec.massKg * 0.25;
@@ -70,21 +118,41 @@ export class RobotPhysics {
     };
     // Chasis: centro de masa bajo (batería y motores)
     this.chassis = add(
-      RAPIER.ColliderDesc.cuboid(this.halfL, (CHASSIS_Y1 - CHASSIS_Y0) / 2, this.halfW)
-        .setTranslation(0, (CHASSIS_Y0 + CHASSIS_Y1) / 2, 0)
+      RAPIER.ColliderDesc.cuboid(this.halfL, (CHASSIS_TOP - CHASSIS_Y0) / 2, this.halfW)
+        .setTranslation(0, (CHASSIS_Y0 + CHASSIS_TOP) / 2, 0)
         .setMass(chassisMass)
         .setFriction(0.3)
         .setRestitution(0.05),
     );
-    // Superestructura (un poco adentro del perímetro)
-    const top = Math.max(CHASSIS_Y1 + 0.02, spec.baseHeight);
-    add(
-      RAPIER.ColliderDesc.cuboid(this.halfL * 0.9, (top - CHASSIS_Y1) / 2, this.halfW * 0.9)
-        .setTranslation(0, (top + CHASSIS_Y1) / 2, 0)
-        .setMass(superMass)
-        .setFriction(0.3)
-        .setRestitution(0.05),
-    );
+    // Torre del pivote (o los soportes del eje bajo), con las medidas del dibujo (`RobotView`); antes
+    // era una caja invisible del 90 % del chasis hasta `baseHeight`
+    const a = spec.arm;
+    if (a.linear)
+      // Elevador: la torre va sobre el chasis (los rieles), no donde está el carro
+      add(
+        RAPIER.ColliderDesc.cuboid(0.04, (a.pivotY + a.length - 0.23) / 2, 0.15)
+          .setTranslation(a.pivotX - a.length, (a.pivotY + a.length + 0.23) / 2, 0)
+          .setMass(superMass)
+          .setFriction(0.3)
+          .setRestitution(0.05),
+      );
+    else if (a.pivotY > 0.29)
+      add(
+        RAPIER.ColliderDesc.cuboid(0.06, (a.pivotY - 0.23) / 2, 0.15)
+          .setTranslation(a.pivotX, (a.pivotY + 0.23) / 2, 0)
+          .setMass(superMass)
+          .setFriction(0.3)
+          .setRestitution(0.05),
+      );
+    else
+      for (const z of [-1, 1])
+        add(
+          RAPIER.ColliderDesc.cuboid(0.07, 0.08, 0.015)
+            .setTranslation(a.pivotX, 0.25, z * 0.13)
+            .setMass(superMass / 2)
+            .setFriction(0.3)
+            .setRestitution(0.05),
+        );
     // Ruedas
     const ix = this.halfL - 0.08;
     const iz = this.halfW - 0.06;
@@ -104,6 +172,105 @@ export class RobotPhysics {
           .setRestitution(0)
           .setRestitutionCombineRule(RAPIER.CoefficientCombineRule.Min),
       );
+    // Mecanismos: brazo, dedos y placa de la garra, pieza agarrada (sin masa; ver arriba)
+    const mech = (desc: RAPIER.ColliderDesc, group: number = GROUPS.arm): RAPIER.Collider => {
+      const c = w.createCollider(desc.setDensity(0).setFriction(0.4).setRestitution(0.05).setCollisionGroups(group).setActiveEvents(RAPIER.ActiveEvents.COLLISION_EVENTS), this.body);
+      pw.tag(c, { kind: 'robot', robot: index });
+      return c;
+    };
+    const claw = clawOf(spec);
+    this.claw = claw;
+    const beamLen = Math.max(0.05, spec.arm.length - beamShort(claw));
+    const fh = claw.fingerHeight / 2;
+    this.armQuery = {
+      beam: shrunk(beamLen / 2, 0.02, claw.fingerZ),
+      finger: shrunk(claw.fingerLength / 2, fh, claw.fingerThickness / 2),
+      palm: shrunk(claw.palmThickness / 2, fh * 0.75, claw.fingerZ + claw.fingerThickness / 2),
+      sample: shrunk(SAMPLE_SIZE / 2, SAMPLE_SIZE / 2, SAMPLE_SIZE / 2),
+      critical: shrunk(CRITICAL_SIZE / 2, CRITICAL_SIZE / 2, CRITICAL_SIZE / 2),
+    };
+    this.armColliders = {
+      beam: mech(RAPIER.ColliderDesc.cuboid(beamLen / 2, 0.02, claw.fingerZ)),
+      fingers: [
+        mech(RAPIER.ColliderDesc.cuboid(claw.fingerLength / 2, fh, claw.fingerThickness / 2)),
+        mech(RAPIER.ColliderDesc.cuboid(claw.fingerLength / 2, fh, claw.fingerThickness / 2)),
+      ],
+      palm: mech(RAPIER.ColliderDesc.cuboid(claw.palmThickness / 2, fh * 0.75, claw.fingerZ + claw.fingerThickness / 2)),
+      sample: mech(RAPIER.ColliderDesc.cuboid(SAMPLE_SIZE / 2, SAMPLE_SIZE / 2, SAMPLE_SIZE / 2)),
+      critical: mech(RAPIER.ColliderDesc.cuboid(CRITICAL_SIZE / 2, CRITICAL_SIZE / 2, CRITICAL_SIZE / 2)),
+    };
+    this.setArmPose(spec.arm.stowAngle ?? 0, null);
+  }
+
+  /** Pose local (respecto al cuerpo) de cada colisionador del brazo con el brazo en el ángulo `a`. */
+  private armPoses(a: number): Record<'beam' | 'finger0' | 'finger1' | 'palm' | 'sample' | 'critical', Pose> {
+    const arm = this.spec.arm;
+    const beamLen = Math.max(0.05, arm.length - beamShort(this.claw));
+    const ca = Math.cos(a);
+    const sa = Math.sin(a);
+    const tip = armTip(arm, a);
+    const fy = tip.y + this.claw.fingerHeight / 2;
+    // Viga: un arco desde el eje; plegada (`stowTip`) apunta del eje a la punta; en el elevador es la
+    // viga horizontal del carro
+    let beam: Pose = { t: { x: arm.pivotX + (ca * beamLen) / 2, y: arm.pivotY + (sa * beamLen) / 2, z: 0 }, r: { x: 0, y: 0, z: Math.sin(a / 2), w: Math.cos(a / 2) } };
+    if (arm.linear) {
+      // Elevador: el carro sale de la torre con una viga horizontal a la altura de la punta
+      beam = { t: { x: tip.x - this.claw.fingerLength / 2 - beamLen / 2, y: tip.y, z: 0 }, r: NO_ROT };
+    } else if (arm.stowTip && a > Math.PI / 2) {
+      const b = Math.atan2(tip.y - arm.pivotY, tip.x - arm.pivotX);
+      beam = { t: { x: arm.pivotX + (Math.cos(b) * beamLen) / 2, y: arm.pivotY + (Math.sin(b) * beamLen) / 2, z: 0 }, r: { x: 0, y: 0, z: Math.sin(b / 2), w: Math.cos(b / 2) } };
+    }
+    return {
+      beam,
+      finger0: { t: { x: tip.x, y: fy, z: this.claw.fingerZ }, r: NO_ROT },
+      finger1: { t: { x: tip.x, y: fy, z: -this.claw.fingerZ }, r: NO_ROT },
+      palm: { t: { x: tip.x - clawDir(a, arm) * (this.claw.fingerLength / 2 + this.claw.palmThickness / 2), y: fy, z: 0 }, r: NO_ROT },
+      sample: { t: { x: tip.x, y: tip.y + SAMPLE_SIZE / 2, z: 0 }, r: NO_ROT },
+      critical: { t: { x: tip.x, y: tip.y + CRITICAL_SIZE / 2, z: 0 }, r: NO_ROT },
+    };
+  }
+
+  /**
+   * Coloca los colisionadores del brazo y la garra con el brazo en el ángulo `a` (rad, 0 = horizontal
+   * al frente) y prende el de la pieza que lleva en la garra. Llamar en cada paso, antes de la física.
+   */
+  setArmPose(a: number, held: 'sample' | 'critical' | null): void {
+    const c = this.armColliders;
+    const p = this.armPoses(a);
+    const put = (col: RAPIER.Collider, pose: Pose) => {
+      col.setTranslationWrtParent(pose.t);
+      col.setRotationWrtParent(pose.r);
+    };
+    put(c.beam, p.beam);
+    put(c.fingers[0], p.finger0);
+    put(c.fingers[1], p.finger1);
+    put(c.palm, p.palm);
+    put(c.sample, p.sample);
+    put(c.critical, p.critical);
+    c.sample.setEnabled(held === 'sample');
+    c.critical.setEnabled(held === 'critical');
+  }
+
+  /**
+   * ¿La viga, la garra o la pieza que lleva se meterían en una estructura de la cancha (madera o
+   * pared) con el brazo en el ángulo `a`? Para detener el brazo donde topa (`Mechanisms.step`).
+   */
+  armHitsField(a: number, held: 'sample' | 'critical' | null): boolean {
+    const q = this.armQuery;
+    const p = this.armPoses(a);
+    const br = this.body.rotation();
+    const parts: Array<[RAPIER.Shape, Pose]> = [
+      [q.beam, p.beam],
+      [q.finger, p.finger0],
+      [q.finger, p.finger1],
+      [q.palm, p.palm],
+    ];
+    if (held) parts.push([q[held], p[held]]);
+    for (const [shape, pose] of parts) {
+      const w = this.localToWorld(pose.t.x, pose.t.y, pose.t.z);
+      if (this.pw.world.intersectionWithShape(w, qmul(br, pose.r), shape, RAPIER.QueryFilterFlags.EXCLUDE_DYNAMIC, FIELD_QUERY)) return true;
+    }
+    return false;
   }
 
   /** Rumbo (rad): adelante = (cos θ, −sin θ) en (x, z). */
@@ -164,6 +331,27 @@ export class RobotPhysics {
     });
   }
 
+  /**
+   * Contorno del robot completo en el piso (x, z), en orden: el chasis estirado hasta donde llega la
+   * garra con el brazo en el ángulo `a` (la garra es más angosta que el chasis). Para "fuera de la
+   * cancha" (D33: solo cuando TODO el robot está fuera).
+   */
+  outline(a: number): Array<{ x: number; z: number }> {
+    const tip = armTip(this.spec.arm, a).x;
+    const reach = this.claw.fingerLength / 2 + this.claw.palmThickness;
+    const x0 = Math.min(-this.halfL, tip - reach);
+    const x1 = Math.max(this.halfL, tip + reach);
+    return [
+      [x1, this.halfW],
+      [x1, -this.halfW],
+      [x0, -this.halfW],
+      [x0, this.halfW],
+    ].map(([lx, lz]) => {
+      const p = this.localToWorld(lx, 0, lz);
+      return { x: p.x, z: p.z };
+    });
+  }
+
   /** Rayos bajo cada rueda: cuántas tienen piso y cuántas pisan la alfombra. */
   senseGround(): void {
     let n = 0;
@@ -194,11 +382,12 @@ export class RobotPhysics {
     const h = this.heading();
     const fx = Math.cos(h);
     const fz = -Math.sin(h);
-    const fwd = Math.max(-s.maxSpeed, Math.min(s.maxSpeed, cmd.forward));
+    const top = s.maxSpeed * this.driveScale;
+    const fwd = Math.max(-top, Math.min(top, cmd.forward));
     const tx = fwd * fx;
     const tz = fwd * fz;
     const mu = s.traction * this.grounded;
-    const aMax = Math.max(0, Math.min(s.maxAccel, mu * 9.81));
+    const aMax = Math.max(0, Math.min(s.maxAccel * this.driveScale, mu * 9.81));
     let dvx = tx - v.x;
     let dvz = tz - v.z;
     const dv = Math.hypot(dvx, dvz);
@@ -215,7 +404,9 @@ export class RobotPhysics {
     if (dv > 1e-5) b.applyImpulse({ x: dvx * m, y: 0, z: dvz * m }, true);
     // Giro: aceleración angular limitada por la tracción (un tanque derrapa al girar)
     const w = b.angvel();
-    const omegaT = Math.max(-s.maxOmega, Math.min(s.maxOmega, cmd.turn));
+    // Falla de un lado de la transmisión: al avanzar, el robot se va hacia el lado débil
+    const pull = this.turnBias * (fwd / Math.max(0.1, s.maxSpeed));
+    const omegaT = Math.max(-s.maxOmega, Math.min(s.maxOmega, cmd.turn + pull));
     const alpha = (aMax / Math.hypot(this.halfL, this.halfW)) * 1.2;
     let dw = omegaT - w.y;
     const wl = alpha * dt;

@@ -1,13 +1,24 @@
 /**
- * HUD en DOM: marcador (rojo · timer y fase · azul), estado del robot propio, avisos del match
- * (Muestras, línea, faltas, cambios de fase) y ayuda de controles.
+ * HUD en DOM con el estilo de rebuilt-sim: marcador (rojo · timer, fase y avance · azul) con el
+ * medidor de Dominio de Cámara, panel del robot propio (Muestra en la garra, Crítica,
+ * brazo), botones de cámara / reacomodar / pausa, ayuda de teclas y avisos del match.
+ * En práctica libre el marcador se cambia por una píldora con las Muestras anotadas.
  */
-import { formatTimer, timerSeconds } from '../core/clock';
-import { RULES } from '../core/fouls';
+import { GAME } from '../config/game';
+import { bounds, formatTimer, timerSeconds } from '../core/clock';
+import type { FaultKind } from '../core/damage';
+import type { RefText } from './refText';
 import type { MatchEvent } from '../core/match';
+import { ALLIANCES } from '../core/types';
 import type { GameSession } from '../game/GameSession';
+import { keyLabel, type Bindings } from '../input/bindings';
 import type { CameraMode } from '../render/CameraRig';
+import { ic } from './chrome';
+import { keyboardHelp } from './controlsHelp';
 import { t, type Key } from './i18n';
+import { activeStep, nextStep, PREVIEW_S, type StrategyPlan } from '../core/plan';
+import type { Phase } from '../core/clock';
+import { partnerSummary, stepLabel } from './StrategyScreen';
 
 const el = (tag: string, cls: string, parent?: HTMLElement): HTMLElement => {
   const e = document.createElement(tag);
@@ -16,39 +27,148 @@ const el = (tag: string, cls: string, parent?: HTMLElement): HTMLElement => {
   return e;
 };
 
+/** Falla activa en la tarjeta del robot: nombre y lo que le queda. */
+function faultChip(k: FaultKind, left: number): string {
+  const rest = left === Infinity ? t('faultUntilEnd') : `${Math.ceil(left)} s`;
+  return `<span class="fault-chip ${k}">⚠ ${t(`fault_${k}` as Key)}<em>${rest}</em></span>`;
+}
+
+export interface HudActions {
+  camera: () => void;
+  pause: () => void;
+  reset: () => void;
+}
+
 export class Hud {
   readonly root: HTMLElement;
-  private red: HTMLElement;
-  private blue: HTMLElement;
+  private board: HTMLElement;
+  private sides: Record<'red' | 'blue', { side: HTMLElement; score: HTMLElement; meter: HTMLElement; txt: HTMLElement; rp: HTMLElement }>;
   private timer: HTMLElement;
   private phase: HTMLElement;
-  private robot: HTMLElement;
+  private prog: HTMLElement;
+  private pill: HTMLElement;
+  private pillCount: HTMLElement;
+  private player: HTMLElement;
+  /** Tarjeta del jugador 2 (multijugador local). */
+  private player2: HTMLElement;
   private toasts: HTMLElement;
-  private cam: HTMLElement;
-  private help: HTMLElement;
+  private camLabel: HTMLElement;
+  private resetBtn: HTMLElement;
+  private keys: HTMLElement;
+  /** Tarjeta de la estrategia de alianza: paso en curso, lo que hace tu compañero y tu nota. */
+  private planCard: HTMLElement;
+  private plan: StrategyPlan | null = null;
+  private planKey = '';
+  /** Línea "Sigue … en 0:04" de la tarjeta (solo en los últimos `PREVIEW_S` del paso). */
+  private planNext: HTMLElement | null = null;
+  private planNextText = '';
   private lastKey = '';
+  private lastScore = { red: -1, blue: -1 };
 
-  constructor(host: HTMLElement) {
+  constructor(host: HTMLElement, act: HudActions) {
     this.root = el('div', 'hud', host);
-    const board = el('div', 'board', this.root);
-    this.red = el('div', 'score red', board);
-    const mid = el('div', 'mid', board);
-    this.timer = el('div', 'timer', mid);
-    this.phase = el('div', 'phase', mid);
-    this.blue = el('div', 'score blue', board);
-    this.robot = el('div', 'robot-status', this.root);
+    this.board = el('div', 'scorebug', this.root);
+    const side = (a: 'red' | 'blue') => {
+      const s = el('div', `sb-side ${a}`, this.board);
+      const score = el('div', 'sb-score', s);
+      const info = el('div', 'sb-info', s);
+      el('div', 'sb-name', info).textContent = t(a);
+      const rp = el('div', 'sb-rp', info);
+      const meter = el('div', 'meter', rp);
+      const txt = el('div', 'sb-rp-txt', rp);
+      return { side: s, score, meter: el('i', '', meter), txt, rp };
+    };
+    // Azul a la izquierda, rojo a la derecha (como en el resto de la UI)
+    const blue = side('blue');
+    const center = el('div', 'sb-center', this.board);
+    this.timer = el('div', 'timer', center);
+    this.phase = el('div', 'period', center);
+    this.prog = el('i', '', el('div', 'sb-prog', center));
+    const red = side('red');
+    this.sides = { red, blue };
+
+    this.pill = el('div', 'practice-pill', this.root);
+    el('div', 'pp-mode', this.pill).textContent = t('practiceMode');
+    this.pillCount = el('div', 'pp-count', this.pill);
+
+    this.player = el('div', 'player', this.root);
+    this.player2 = el('div', 'player p2', this.root);
+    this.player2.style.display = 'none';
     this.toasts = el('div', 'toasts', this.root);
-    this.cam = el('div', 'cam-label', this.root);
-    this.help = el('div', 'help', this.root);
+
+    const tr = el('div', 'hud-tr', this.root);
+    const cam = el('button', 'hud-btn cam', tr);
+    cam.innerHTML = `${ic.camera}<span></span><kbd>C</kbd>`;
+    cam.title = t('camera');
+    cam.addEventListener('click', act.camera);
+    this.camLabel = cam;
+    this.resetBtn = el('button', 'hud-btn reset', tr);
+    this.resetBtn.innerHTML = `${ic.reset}<span>${t('resetShort')}</span>`;
+    this.resetBtn.title = t('resetField');
+    this.resetBtn.addEventListener('click', act.reset);
+    const pause = el('button', 'hud-btn icon', tr);
+    pause.innerHTML = ic.pause;
+    pause.title = t('paused');
+    pause.setAttribute('aria-label', t('paused'));
+    pause.addEventListener('click', act.pause);
+    this.keys = el('div', 'hud-keys', this.root);
+    this.planCard = el('div', 'plan-card', this.root);
+    this.planCard.style.display = 'none';
   }
 
-  /** Ayuda de controles con la asignación actual. */
-  setHelp(keyboard: string, pad: string): void {
-    this.help.innerHTML = `${keyboard}<br>${pad}`;
+  setPlan(p: StrategyPlan | null): void {
+    this.plan = p;
+    this.planKey = '';
+    this.planCard.style.display = 'none';
+  }
+
+  /** Pizarra apagada en Ajustes (`Settings.planBoard` = 'off'): sin tarjeta. */
+  set planCardOn(v: boolean) {
+    this.planCard.classList.toggle('off', !v);
+  }
+
+  /** Cambia la tarjeta al empezar otro paso de la estrategia y avisa cuánto falta para el siguiente. */
+  planStep(phase: Phase, remaining: number): void {
+    const a = this.plan ? activeStep(this.plan, phase, remaining) : null;
+    const key = a?.key ?? '';
+    if (key !== this.planKey) {
+      this.planKey = key;
+      this.planNextText = '';
+      this.planCard.style.display = a ? '' : 'none';
+      if (!a || !this.plan) return;
+      const esc = (v: string) => v.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
+      this.planCard.innerHTML = `<div class="pc-head"><span>${t('hud_plan')}</span><b>${esc(this.plan.name)}</b></div>
+        <div class="pc-step">${stepLabel(a.key, a.step)}</div>
+        <div class="pc-row mate"><i></i><span><b>${t('hud_mate')}:</b> ${partnerSummary(this.plan, a)}</span></div>
+        ${a.step.me.note || a.step.me.route.length ? `<div class="pc-row me"><i></i><span><b>${t('hud_me')}:</b> ${esc(a.step.me.note || '—')}</span></div>` : ''}
+        <div class="pc-next"></div>`;
+      this.planNext = this.planCard.querySelector('.pc-next');
+      this.planCard.classList.remove('flash');
+      void this.planCard.offsetWidth;
+      this.planCard.classList.add('flash');
+    }
+    if (!this.plan || !this.planNext) return;
+    const n = nextStep(this.plan, phase, remaining);
+    const text = n && n.in <= PREVIEW_S ? t('hud_next', { step: n.phase === 'TELEOP' ? `TELEOP ${n.turn + 1}` : n.key, s: formatTimer(n.in) }) : '';
+    if (text === this.planNextText) return;
+    this.planNextText = text;
+    this.planNext.textContent = text;
+  }
+
+  /** Ayuda de teclas con la asignación actual. */
+  setHelp(b: Bindings): void {
+    this.keys.innerHTML = keyboardHelp(b)
+      .map((h) => `<span>${h.keys.map((k) => (k === '–' ? k : `<kbd>${k}</kbd>`)).join('')} ${h.what}</span>`)
+      .join('');
+    this.camLabel.querySelector('kbd')!.textContent = b.keys.camera[0] ? keyLabel(b.keys.camera[0]) : '';
+    this.lastKey = '';
   }
 
   show(v: boolean): void {
+    this.player2.style.display = 'none';
     this.root.style.display = v ? '' : 'none';
+    this.lastKey = '';
+    this.lastScore = { red: -1, blue: -1 };
   }
 
   toast(text: string, cls = ''): void {
@@ -56,7 +176,7 @@ export class Hud {
     d.textContent = text;
     setTimeout(() => d.classList.add('out'), 2600);
     setTimeout(() => d.remove(), 3200);
-    while (this.toasts.children.length > 5) this.toasts.firstElementChild?.remove();
+    while (this.toasts.children.length > 4) this.toasts.firstElementChild?.remove();
   }
 
   /** Avisos de los eventos del match del cuadro. */
@@ -67,38 +187,120 @@ export class Hud {
         else if (e.phase === 'TELEOP') this.toast(t('teleopStart'), 'big');
         else if (e.phase === 'ENDGAME') this.toast(t('endgameStart'), 'big warn');
       } else if (e.type === 'sample') this.toast(t('sampleScored', { level: e.level, alliance: t(e.alliance), points: e.points }), e.alliance);
-      else if (e.type === 'autoLine') this.toast(t('autoLineMsg', { robot: e.robot + 1 }), e.alliance);
-      else if (e.type === 'foul') {
-        const r = RULES[e.foul.rule];
-        this.toast(t('foulMsg', { kind: e.foul.kind === 'TECH' ? 'Tech Foul' : 'Foul', alliance: t(e.foul.offender), robot: e.foul.robot + 1, rule: `${r.es} (${r.section})` }), 'foul');
-      } else if (e.type === 'card') this.toast(`${e.card.type} CARD · ${t(e.card.alliance)} (robot ${e.card.robot + 1}): ${e.card.reason}`, 'foul');
+      else if (e.type === 'autoLine') this.toast(t('autoLineMsg', { alliance: t(e.alliance), robot: (e.robot % 2) + 1 }), e.alliance);
+      // Las faltas y tarjetas las anuncia el árbitro (`referee`, con su sección del manual)
     }
   }
 
+  /** Carteles del árbitro: faltas, tarjetas, Plataforma y Muestra Crítica, con la sección del manual. */
+  referee(calls: readonly RefText[]): void {
+    for (const c of calls) {
+      const d = el('div', `toast refcall ${c.cls}`, this.toasts);
+      el('b', 'rc-title', d).textContent = c.title;
+      el('span', 'rc-detail', d).textContent = c.detail;
+      el('span', 'rc-sec', d).textContent = c.section;
+      setTimeout(() => d.classList.add('out'), 3400);
+      setTimeout(() => d.remove(), 4000);
+      while (this.toasts.children.length > 4) this.toasts.firstElementChild?.remove();
+    }
+  }
+
+  private lastMiss = -Infinity;
+
+  /** Avisos de golpes y fallas del robot propio (y de los demás, solo sus fallas). */
+  damage(s: GameSession): void {
+    const me = s.opts.player;
+    for (const e of s.damageEvents) {
+      if (e.type === 'fault') {
+        const fault = t(`fault_${e.kind}` as Key);
+        if (e.robot === me) {
+          const speed = s.damage.impact(me).toFixed(1);
+          this.toast(e.cause === 'impact' ? t('faultHit', { speed, fault }) : t('faultRandom', { fault }), 'fault big');
+        } else {
+          const r = s.robots.find((x) => x.index === e.robot);
+          if (r) this.toast(t('faultOther', { robot: `${t(r.alliance)} ${r.station + 1}`, fault }), 'fault');
+        }
+      } else if (e.robot !== me) continue;
+      else if (e.type === 'repaired') this.toast(t('faultFixed', { fault: t(`fault_${e.kind}` as Key) }), 'ok');
+      else if (e.type === 'dropped') this.toast(t('faultDropped'), 'fault');
+    }
+    // Agarre con compliants o preciso: avisa (cada tanto) que la Muestra se resbaló
+    for (const e of s.events)
+      if (e.type === 'grabMiss' && e.robot === me && s.time - this.lastMiss > 4) {
+        this.lastMiss = s.time;
+        this.toast(t('grabMiss'));
+      }
+  }
+
   update(s: GameSession, cam: CameraMode): void {
+    // Viendo un match del torneo (sin robot propio): sin tarjeta de "tu robot" ni teclas
+    this.root.classList.toggle('watch', s.opts.player < 0);
     const m = s.match;
-    const redScore = m ? m.score('red') : s.practiceCount.red;
-    const blueScore = m ? m.score('blue') : s.practiceCount.blue;
-    const time = m ? formatTimer(timerSeconds(m.t, s.game)) : '–:––';
-    const phase = m ? t(`phase_${m.phase}` as Key) : t('practiceMode');
     const me = s.player;
     const mech = me.mech;
-    const elev = t('elevatorNames').split('|')[mech.target];
-    const key = `${redScore}|${blueScore}|${time}|${phase}|${me.index}|${mech.capacity}|${mech.stored.length}|${!!mech.critical}|${elev}|${mech.intakeOn}|${cam}`;
+    const elev = mech.stowed ? t('stowed') : t('elevatorNames').split('|')[mech.target];
+    const time = m ? formatTimer(timerSeconds(m.t, s.game)) : '';
+    const score = { red: m ? m.score('red') : s.practiceCount.red, blue: m ? m.score('blue') : s.practiceCount.blue };
+    const faults = [...s.damage.faults(me.index)];
+    const faultKey = faults.map(([k, left]) => `${k}${left === Infinity ? '' : Math.ceil(left)}`).join(',');
+    const p2 = s.player2;
+    this.root.classList.toggle('versus', !!p2);
+    const key = `${p2 ? p2.mech.stored.length + '/' + !!p2.mech.critical + '/' + p2.mech.intakeOn + '/' + p2.mech.target + '/' + [...s.damage.faults(p2.index).keys()] : ''}|${score.red}|${score.blue}|${time}|${m?.phase}|${me.index}|${mech.capacity}|${mech.stored.length}|${!!mech.critical}|${elev}|${mech.intakeOn}|${mech.inClaw}|${cam}|${faultKey}`;
     if (key === this.lastKey) return;
     this.lastKey = key;
-    this.red.textContent = String(redScore);
-    this.blue.textContent = String(blueScore);
-    this.timer.textContent = time;
-    this.phase.textContent = m ? phase : `${phase} · ${t('sampleCount', { red: redScore, blue: blueScore })}`;
-    this.timer.classList.toggle('endgame', m?.phase === 'ENDGAME');
-    this.robot.className = `robot-status ${me.alliance}`;
-    this.robot.innerHTML =
-      `<b>${t('yourRobot')}: ${t(me.alliance)} ${me.station + 1}</b>` +
-      `<span>${t('stored')}: ${mech.stored.length}/${mech.capacity}</span>` +
-      `<span>${t('critical')}: ${mech.critical ? '■' : '–'}</span>` +
-      `<span>${t('elevator')}: ${elev}</span>` +
-      `<span>${t('intake')}: ${mech.intakeOn ? t('on') : t('off')}</span>`;
-    this.cam.textContent = `${t('camera')}: ${t(`cam_${cam}` as Key)} (C)`;
+    this.root.classList.toggle('practice', !m);
+    this.board.style.display = m ? '' : 'none';
+    this.pill.style.display = m ? 'none' : '';
+    this.resetBtn.style.display = m ? 'none' : '';
+
+    if (m) {
+      const need = GAME.rp.dominanceSamples;
+      for (const a of ALLIANCES) {
+        const v = this.sides[a];
+        v.score.textContent = String(score[a]);
+        if (this.lastScore[a] >= 0 && score[a] !== this.lastScore[a]) {
+          v.score.classList.remove('bump');
+          void v.score.offsetWidth;
+          v.score.classList.add('bump');
+        }
+        this.lastScore[a] = score[a];
+        v.side.classList.toggle('mine', a === me.alliance);
+        const n = m.samplesIn(a);
+        v.meter.style.transform = `scaleX(${Math.min(1, n / need)})`;
+        v.rp.classList.toggle('full', n >= need);
+        v.txt.innerHTML = `<span>${t('samplesShort')} ${n}</span><em>${t('dominance')} ≥${need}</em>`;
+      }
+      const sec = timerSeconds(m.t, s.game);
+      this.timer.textContent = time;
+      this.timer.classList.toggle('endgame', m.phase === 'ENDGAME');
+      this.timer.classList.toggle('low', m.running && (m.phase === 'ENDGAME' || m.phase === 'AUTO') && sec <= 10);
+      this.phase.textContent = t(`phase_${m.phase}` as Key);
+      this.prog.style.transform = `scaleX(${Math.min(1, Math.max(0, m.t / bounds(s.game).teleopEnd))})`;
+    } else
+      this.pillCount.innerHTML = `<b>${score[me.alliance]}</b><span>${t('practiceScored')}</span>${s.hps[me.alliance].enabled ? `<span class="pp-hp">HP ∞</span>` : ''}`;
+
+    this.card(this.player, s, me, p2 ? t('vs_p1') : t('you'));
+    this.player2.style.display = p2 ? '' : 'none';
+    if (p2) this.card(this.player2, s, p2, t('vs_p2'));
+    this.camLabel.querySelector('span')!.textContent = t(`cam_${cam}` as Key);
+  }
+
+  /** Tarjeta de un robot manejado por una persona: Muestras, garra, brazo y fallas. */
+  private card(box: HTMLElement, s: GameSession, me: GameSession['player'], tag: string): void {
+    const mech = me.mech;
+    const kind = me.spec.mechanism;
+    const elev = mech.stowed ? t('stowed') : t('elevatorNames').split('|')[mech.target];
+    const faults = [...s.damage.faults(me.index)];
+    const full = mech.stored.length >= mech.capacity;
+    box.className = `player ${box.classList.contains('p2') ? 'p2 ' : ''}${me.alliance} ${full ? 'full' : ''}`;
+    box.innerHTML = `
+      <div class="p-head"><span class="p-num">${t(me.alliance).slice(0, 1)}${me.station + 1}</span><span class="p-name">${t(`type_${kind}` as Key)}</span><span class="p-tag">${tag}</span></div>
+      <div class="p-hopper"><div class="p-fuel"><b>${mech.stored.length}</b><small>/${mech.capacity}</small><span>${t('stored')}</span></div>
+        <div class="hbar">${Array.from({ length: mech.capacity }, (_, i) => `<i class="${i < mech.stored.length ? 'on' : ''}"></i>`).join('')}</div></div>
+      <div class="chips"><span class="${mech.intakeOn ? 'on' : 'off'}">${t('intake')} ${mech.intakeOn ? t('on') : t('off')}</span>
+        <span class="${mech.critical ? 'on' : 'off'}">${t('critical')} ${mech.critical ? '■' : '–'}</span>
+        <span class="${mech.inClaw ? 'on' : 'off'}">${t('claw')} ${mech.inClaw ? '■' : '–'}</span>
+        <span>${t('arm')}: ${elev}</span></div>${faults.length ? `<div class="faults">${faults.map(([k, left]) => faultChip(k, left)).join('')}</div>` : ''}`;
+    box.classList.toggle('damaged', faults.length > 0);
   }
 }

@@ -1,34 +1,56 @@
 /**
- * Robot visual: chasis tanque con placa del color de la alianza (no lleva bumpers, §7.2) y el
- * mecanismo de su tipo: elevador con depósito al frente (genérico), plataforma que empuja por atrás
- * (elevador) o brazo con garra (pivote). Intake visible al desplegarse, Muestras guardadas y Muestra
- * Crítica en la pinza o la garra.
+ * Robot visual: chasis tanque con placa del color de la alianza (no lleva bumpers, §7.2), la torre
+ * del pivote y el brazo con garra, con la Muestra o la Muestra Crítica que lleva.
+ * El robot que maneja el jugador lleva placa y LEDs morados (pedido del equipo); la alianza se sigue
+ * leyendo en la placa lateral con la estación (R1, B2…).
  */
 import * as THREE from 'three';
+import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
 import { CRITICAL_SIZE, SAMPLE_SIZE } from '../config/field';
+import { armTip, clawOf, type ClawDims } from '../config/robot';
+import { PALETTES } from '../config/palette';
+import { clawDir } from '../physics/RobotPhysics';
 import type { Robot } from '../game/Robot';
 import { ALLIANCE_COLOR } from './FieldView';
+import { criticalMaterial, sampleMaterial } from './PieceView';
+import { brushedTexture, textTexture } from './textures';
 
-const dark = new THREE.MeshStandardMaterial({ color: 0x30343b, roughness: 0.6, metalness: 0.3 });
-const alu = new THREE.MeshStandardMaterial({ color: 0xb8bec7, roughness: 0.4, metalness: 0.6 });
-const wheelMat = new THREE.MeshStandardMaterial({ color: 0x151515, roughness: 0.9 });
-const sampleMat = new THREE.MeshStandardMaterial({ color: 0xd9c9a8, roughness: 0.95 });
+const brushed = brushedTexture();
+const dark = new THREE.MeshStandardMaterial({ color: 0x3c424c, roughness: 0.5, metalness: 0.4 });
+const alu = new THREE.MeshStandardMaterial({ color: brushed ? 0xd2d7de : 0xb8bec7, map: brushed, roughness: 0.32, metalness: 0.85 });
+const wheelMat = new THREE.MeshStandardMaterial({ color: 0x141414, roughness: 0.85 });
+const hubMat = new THREE.MeshStandardMaterial({ color: 0xe0a419, roughness: 0.35, metalness: 0.6 });
+const sampleMat = sampleMaterial();
+const WHEEL_R = 0.05;
+/** Color de la placa y los LEDs del robot propio, en cualquier alianza. */
+export const ROBOT_STYLE = { own: PALETTES.normal.own, fault: PALETTES.normal.fault, plate: { ...PALETTES.normal.plate } };
 
 export class RobotView {
   readonly group = new THREE.Group();
-  private carriage = new THREE.Group();
   private arm = new THREE.Group();
-  private intake: THREE.Mesh | null = null;
-  private storedMeshes: THREE.Mesh[] = [];
   private criticalMesh: THREE.Mesh;
-  /** Muestra en la garra del pivote. */
-  private clawSample: THREE.Mesh | null = null;
+  /** Muestra en la garra. */
+  private clawSample: THREE.Mesh;
+  /** LEDs bajo el chasis: parpadean en ámbar con una falla. */
+  private led: THREE.MeshStandardMaterial;
+  private ledColor: THREE.Color;
+  private faultColor = new THREE.Color();
+    /** Fallas activas del robot (las pone la sesión, `game/Damage.ts`). */
+  faults: () => ReadonlyMap<string, number> = () => new Map();
+  /** Placa de la garra (del lado del brazo). */
+  private palm: THREE.Mesh;
+  private claw: ClawDims;
+  private wheels: Array<{ mesh: THREE.Object3D; side: number }> = [];
+  private lastP = new THREE.Vector3();
+  private lastYaw = 0;
+  private spin = [0, 0];
+  private halfW = 0;
   private prevP = new THREE.Vector3();
   private curP = new THREE.Vector3();
   private prevQ = new THREE.Quaternion();
   private curQ = new THREE.Quaternion();
 
-  constructor(private robot: Robot) {
+  constructor(private robot: Robot, own = false) {
     const s = robot.spec;
     const L = s.length;
     const W = s.width;
@@ -40,52 +62,69 @@ export class RobotView {
       parent.add(m);
       return m;
     };
-    // Chasis y orugas del tanque
-    add(new THREE.BoxGeometry(L, 0.16, W - 0.12), dark, 0, 0.13, 0);
-    for (const z of [-1, 1]) add(new THREE.BoxGeometry(L, 0.1, 0.06), wheelMat, 0, 0.05, z * (W / 2 - 0.03));
-    const plate = new THREE.MeshStandardMaterial({ color: ALLIANCE_COLOR[robot.alliance], roughness: 0.5 });
-    add(new THREE.BoxGeometry(L * 0.98, 0.02, W * 0.98), plate, 0, 0.22, 0);
+    const color = own ? ROBOT_STYLE.own : ALLIANCE_COLOR[robot.alliance];
+    // Chasis redondeado y tanque: tres ruedas por lado con cubo dorado (giran al avanzar) y oruga
+    add(new RoundedBoxGeometry(L, 0.16, W - 0.12, 3, 0.025), dark, 0, 0.13, 0);
+    this.halfW = W / 2 - 0.03;
+    const wheelGeo = new THREE.CylinderGeometry(WHEEL_R, WHEEL_R, 0.045, 18).rotateX(Math.PI / 2);
+    const hubGeo = new THREE.CylinderGeometry(WHEEL_R * 0.45, WHEEL_R * 0.45, 0.05, 6).rotateX(Math.PI / 2);
+    for (const z of [-1, 1]) {
+      for (const x of [-L / 2 + 0.07, 0, L / 2 - 0.07]) {
+        const w = new THREE.Group();
+        w.position.set(x, WHEEL_R, z * this.halfW);
+        add(wheelGeo, wheelMat, 0, 0, 0, w);
+        add(hubGeo, hubMat, 0, 0, 0, w);
+        this.group.add(w);
+        this.wheels.push({ mesh: w, side: z > 0 ? 1 : 0 });
+      }
+      add(new THREE.BoxGeometry(L - 0.04, 0.012, 0.05), wheelMat, 0, WHEEL_R * 2 + 0.004, z * this.halfW);
+    }
+    const plate = new THREE.MeshStandardMaterial({ color, roughness: 0.35, metalness: 0.2 });
+    add(new RoundedBoxGeometry(L * 0.98, 0.025, W * 0.98, 2, 0.01), plate, 0, 0.22, 0);
+    // Tira de LEDs bajo el chasis (el bloom la hace brillar) y placa con la estación en los costados
+    const led = new THREE.MeshStandardMaterial({ color: 0x000000, emissive: color, emissiveIntensity: 2.6 });
+    this.led = led;
+    this.ledColor = new THREE.Color(color);
+    for (const z of [-1, 1]) add(new THREE.BoxGeometry(L * 0.8, 0.012, 0.01), led, 0, 0.065, z * (W / 2 - 0.115));
+    const num = textTexture(`${robot.alliance === 'red' ? 'R' : 'B'}${robot.station + 1}`, { w: 128, h: 64, bg: ROBOT_STYLE.plate[robot.alliance] });
+    if (num) {
+      const numMat = new THREE.MeshStandardMaterial({ map: num, roughness: 0.5 });
+      for (const z of [-1, 1]) {
+        const m = add(new THREE.PlaneGeometry(0.16, 0.08), numMat, -L * 0.18, 0.14, z * ((W - 0.12) / 2 + 0.002));
+        m.rotation.y = z > 0 ? 0 : Math.PI;
+        m.castShadow = false;
+      }
+    }
     const sz = SAMPLE_SIZE * 0.95;
     const c = CRITICAL_SIZE;
-    const critMat = new THREE.MeshStandardMaterial({ color: ALLIANCE_COLOR[robot.alliance], roughness: 0.9 });
-    if (s.mechanism === 'pivot' && s.arm) {
-      // Torre del pivote, brazo y garra; la pieza agarrada va en la punta
-      const a = s.arm;
-      add(new THREE.BoxGeometry(0.12, a.pivotY - 0.23, 0.3), dark, a.pivotX, (a.pivotY + 0.23) / 2, 0);
-      add(new THREE.BoxGeometry(L * 0.35, 0.2, W * 0.7), dark, -L * 0.3, 0.33, 0);
-      this.group.add(this.arm);
-      this.arm.position.set(a.pivotX, a.pivotY, 0);
-      for (const z of [-0.09, 0.09]) add(new THREE.BoxGeometry(a.length, 0.04, 0.03), alu, a.length / 2, 0, z, this.arm);
-      // Garra: dedos a los lados de la pieza (el sistema local del brazo gira con él)
-      const claw = new THREE.Group();
-      claw.position.set(a.length, 0, 0);
-      this.arm.add(claw);
-      for (const z of [-1, 1]) add(new THREE.BoxGeometry(0.2, 0.16, 0.02), alu, 0, 0.08, z * 0.11, claw);
-      this.clawSample = add(new THREE.BoxGeometry(sz, sz, sz), sampleMat, 0, sz / 2, 0, claw);
-      this.criticalMesh = add(new THREE.BoxGeometry(c, c, c), critMat, 0, c / 2, 0, claw);
-      // La garra queda nivelada aunque el brazo gire (se corrige en sync)
-      claw.name = 'claw';
-    } else {
-      // Mástil del elevador y carro con la plataforma/depósito: al frente (genérico) o atrás (elevador)
-      const side = s.mechanism === 'elevator' ? -1 : 1;
-      add(new THREE.BoxGeometry(L * 0.4, s.baseHeight - 0.23, W * 0.8), dark, -side * L * 0.25, (s.baseHeight + 0.23) / 2, 0);
-      for (const z of [-0.12, 0.12]) add(new THREE.BoxGeometry(0.04, s.baseHeight - 0.2, 0.04), alu, side * L * 0.25, (s.baseHeight + 0.2) / 2, z);
-      this.group.add(this.carriage);
-      this.carriage.position.set(side * L * 0.25, 0, 0);
-      const trayLen = L / 2 - L * 0.25 + s.reach;
-      add(new THREE.BoxGeometry(trayLen, 0.02, 0.3), alu, (side * trayLen) / 2, -0.01, 0, this.carriage);
-      add(new THREE.BoxGeometry(0.05, 0.2, 0.3), alu, 0, 0.1, 0, this.carriage);
-      // Muestras guardadas (en la tolva) y Muestra Crítica (en la pinza)
-      for (let i = 0; i < s.capacity; i++) {
-        const m = add(new THREE.BoxGeometry(sz, sz, sz), sampleMat, -side * L * 0.05 - side * (i % 2) * 0.16, 0.23 + sz / 2 + Math.floor(i / 2) * sz, (i % 2 ? -1 : 1) * 0.08);
-        m.visible = false;
-        this.storedMeshes.push(m);
-      }
-      this.criticalMesh = add(new THREE.BoxGeometry(c, c, c), critMat, side * (trayLen - c / 2), c / 2, 0, this.carriage);
-    }
+    const critMat = criticalMaterial(robot.alliance);
+    // Torre del pivote, brazo y garra; la pieza agarrada va en la punta
+    const a = s.arm;
+    if (a.linear) add(new THREE.BoxGeometry(0.08, a.pivotY + a.length - 0.23, 0.3), dark, a.pivotX - a.length, (a.pivotY + a.length + 0.23) / 2, 0);
+    else if (a.pivotY > 0.29) add(new THREE.BoxGeometry(0.12, a.pivotY - 0.23, 0.3), dark, a.pivotX, (a.pivotY + 0.23) / 2, 0);
+    // Eje bajo (el brazo que voltea): soportes a los lados del canal por donde pasa el brazo
+    else for (const z of [-1, 1]) add(new THREE.BoxGeometry(0.14, 0.16, 0.03), dark, a.pivotX, 0.25, z * 0.13);
+    this.group.add(this.arm);
+    this.arm.position.set(a.pivotX, a.pivotY, 0);
+    // Elevador: dos rieles verticales detrás del carro; los demás, dos barras del brazo
+    if (a.linear) for (const z of [-0.09, 0.09]) add(new THREE.BoxGeometry(0.04, 2 * a.length + 0.1, 0.03), alu, -a.length, 0, z, this.arm);
+    else for (const z of [-0.09, 0.09]) add(new THREE.BoxGeometry(a.length, 0.04, 0.03), alu, a.length / 2, 0, z, this.arm);
+    // Garra: dedos a los lados de la pieza (el sistema local del brazo gira con él)
+    const claw = new THREE.Group();
+    claw.position.set(a.linear ? 0 : a.length, 0, 0);
+    this.arm.add(claw);
+    const CLAW = clawOf(s);
+    this.claw = CLAW;
+    // Elevador: viga horizontal del carro, de los rieles a la garra
+    if (a.linear) for (const z of [-0.09, 0.09]) add(new THREE.BoxGeometry(a.length - 0.1, 0.04, 0.03), alu, -(a.length - 0.1) / 2 - CLAW.fingerLength / 2, 0, z, claw);
+    // Mismas medidas que la hitbox (`CLAW`, `RobotPhysics.setArmPose`): dos dedos y la placa
+    for (const z of [-1, 1]) add(new THREE.BoxGeometry(CLAW.fingerLength, CLAW.fingerHeight, CLAW.fingerThickness), alu, 0, CLAW.fingerHeight / 2, z * CLAW.fingerZ, claw);
+    this.palm = add(new THREE.BoxGeometry(CLAW.palmThickness, CLAW.fingerHeight * 0.75, 2 * CLAW.fingerZ + CLAW.fingerThickness), dark, -(CLAW.fingerLength / 2 + CLAW.palmThickness / 2), CLAW.fingerHeight / 2, 0, claw);
+    this.clawSample = add(new THREE.BoxGeometry(sz, sz, sz), sampleMat, 0, sz / 2, 0, claw);
+    this.criticalMesh = add(new THREE.BoxGeometry(c, c, c), critMat, 0, c / 2, 0, claw);
+    // La garra queda nivelada aunque el brazo gire (se corrige en sync)
+    claw.name = 'claw';
     this.criticalMesh.visible = false;
-    // Intake (barra con rodillo al frente)
-    if (s.intake.extension > 0) this.intake = add(new THREE.BoxGeometry(s.intake.extension, 0.08, s.intake.width), alu, L / 2 + s.intake.extension / 2, 0.06, 0);
     this.capture();
     this.capture();
   }
@@ -103,16 +142,59 @@ export class RobotView {
   sync(alpha: number): void {
     this.group.position.lerpVectors(this.prevP, this.curP, alpha);
     this.group.quaternion.slerpQuaternions(this.prevQ, this.curQ, alpha);
+    // Giro de las ruedas: avance en la dirección del robot ± lo que gira cada lado
+    const fwd = new THREE.Vector3(1, 0, 0).applyQuaternion(this.group.quaternion);
+    const yaw = Math.atan2(-fwd.z, fwd.x);
+    const ds = this.lastP.distanceToSquared(this.group.position) < 1 ? this.group.position.clone().sub(this.lastP).dot(fwd) : 0;
+    let dy = yaw - this.lastYaw;
+    if (dy > Math.PI) dy -= 2 * Math.PI;
+    if (dy < -Math.PI) dy += 2 * Math.PI;
+    this.spin[0] += (ds - dy * this.halfW) / WHEEL_R;
+    this.spin[1] += (ds + dy * this.halfW) / WHEEL_R;
+    this.lastP.copy(this.group.position);
+    this.lastYaw = yaw;
+    for (const w of this.wheels) w.mesh.rotation.z = -this.spin[w.side];
     const m = this.robot.mech;
-    this.carriage.position.y = m.height;
-    if (this.intake) this.intake.visible = m.intakeOn;
-    this.storedMeshes.forEach((mesh, i) => (mesh.visible = i < m.stored.length));
     this.criticalMesh.visible = m.critical !== null;
-    if (this.clawSample) {
+    const claw = this.arm.getObjectByName('claw');
+    const sa = this.robot.spec.arm;
+    if (sa.linear && claw) {
+      // El carro sube recto por los rieles (el grupo del brazo no gira)
+      const tip = armTip(sa, m.angle);
+      this.arm.rotation.z = 0;
+      claw.rotation.z = 0;
+      claw.position.set(tip.x - sa.pivotX, tip.y - sa.pivotY, 0);
+    } else if (sa.stowTip && m.angle > Math.PI / 2 && claw) {
+      // Brazo plegado: del eje a la punta, acortado
+      const tip = armTip(sa, m.angle);
+      const dx = tip.x - sa.pivotX;
+      const dy = tip.y - sa.pivotY;
+      const b = Math.atan2(dy, dx);
+      const k = Math.max(0.05, Math.hypot(dx, dy) / sa.length);
+      this.arm.rotation.z = b;
+      this.arm.scale.x = k;
+      claw.scale.x = 1 / k;
+      claw.rotation.z = -b;
+    } else {
       this.arm.rotation.z = m.angle;
-      const claw = this.arm.getObjectByName('claw');
-      if (claw) claw.rotation.z = -m.angle;
-      this.clawSample.visible = m.stored.length > 0;
+      this.arm.scale.x = 1;
+      if (claw) {
+        claw.scale.x = 1;
+        claw.rotation.z = -m.angle;
+      }
+    }
+    this.palm.position.x = -clawDir(m.angle, sa) * (this.claw.fingerLength / 2 + this.claw.palmThickness / 2);
+    this.clawSample.visible = m.inClaw;
+    // Con falla: LEDs en ámbar parpadeando
+    const f = this.faults();
+    const now = performance.now() / 1000;
+    if (f.size === 0) {
+      this.led.emissive.copy(this.ledColor);
+      this.led.emissiveIntensity = 2.6;
+    } else {
+      const on = Math.sin(now * 7) > 0;
+      this.led.emissive.copy(this.faultColor.set(ROBOT_STYLE.fault));
+      this.led.emissiveIntensity = on ? 2.8 : 0.2;
     }
   }
 }
