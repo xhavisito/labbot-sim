@@ -33,6 +33,7 @@ import { CAMERA_MODES, CameraRig, type CameraMode } from '../render/CameraRig';
 import { Arena } from '../render/Arena';
 import { Effects } from '../render/Effects';
 import { guessQuality, QUALITIES, Renderer, type Quality } from '../render/Renderer';
+import { PerfProfile, QualityGovernor } from '../render/perf';
 import { pwa } from '../pwa/register';
 import type { Replay } from '../replay/format';
 import { Recorder } from '../replay/Recorder';
@@ -78,7 +79,14 @@ export class App {
   readonly effects = new Effects();
   /** Calidad elegida por "Automática" (baja un nivel si los FPS caen). */
   private autoQuality: Quality = guessQuality();
-  private fps = { frames: 0, time: 0, drops: 0 };
+  /** Gobernador de "Auto": baja resolución y luego calidad si los FPS caen. */
+  private governor = new QualityGovernor(this.autoQuality);
+  private govWin = { frames: 0, time: 0 };
+  /** Perfil de FPS y tiempos (F3, `?fps=1` o Ajustes). */
+  readonly perf = new PerfProfile();
+  private fpsEl: HTMLElement | null = null;
+  private fpsShown = new URLSearchParams(location.search).get('fps') === '1';
+  private fpsTick = 0;
   readonly cam: CameraRig;
   readonly input = new InputManager();
   /** Menús con el control: foco, A elige, B regresa (`ui/padNav.ts`). */
@@ -179,6 +187,7 @@ export class App {
       stats: (r) => this.showStats(r, () => this.openReplays(), () => this.watchReplay(r, () => this.openReplays())),
     });
     this.menu.onReplays = () => this.openReplays();
+    this.menu.perfInfo = () => this.perfText();
     this.editor = new RobotEditor(this.menu.root, () => this.toMenu(), (id) => this.menu.useRobot(id));
     this.menu.onEditor = () => this.editor.show(null);
     this.scouting = new ScoutingScreen(this.menu.root, this.scoutData, () => this.toMenu(), (p) => this.start({ mode: 'match', player: p.player, scout: p }));
@@ -222,6 +231,10 @@ export class App {
     window.addEventListener('resize', onResize);
     window.addEventListener('keydown', (e) => {
       if (e.code === 'Backspace' && !this.input.capturing) this.resetPractice();
+      if (e.code === 'F3') {
+        e.preventDefault();
+        this.fpsShown = !this.fpsShown;
+      }
     });
     onResize();
     document.addEventListener('visibilitychange', () => document.hidden && this.flushPlaytime());
@@ -433,27 +446,68 @@ export class App {
   /** Calidad gráfica: `?quality=` manda; si no, el ajuste (o la automática). */
   applyQuality(): void {
     const forced = new URLSearchParams(location.search).get('quality') as Quality | null;
-    const q = forced && QUALITIES.includes(forced) ? forced : this.settings.quality === 'auto' ? this.autoQuality : this.settings.quality;
+    const auto = !forced && this.settings.quality === 'auto';
+    const q = forced && QUALITIES.includes(forced) ? forced : auto ? this.autoQuality : (this.settings.quality as Quality);
     if (q !== this.renderer.quality || !this.qualityApplied) this.renderer.setQuality(q, this.cam.camera);
     this.qualityApplied = true;
+    // Resolución dinámica: solo en Auto (`?dynres=0` la apaga)
+    const dyn = auto && new URLSearchParams(location.search).get('dynres') !== '0';
+    this.renderer.setDynScale(dyn ? this.governor.state.scale : 1, this.cam.camera);
   }
 
   private qualityApplied = false;
 
-  /** "Automática": si el promedio de 4 s baja de 40 FPS jugando, un nivel menos (hasta 2 veces). */
+  /**
+   * "Automática": cada 2 s jugando mide los FPS y deja que el gobernador baje la resolución y, si no
+   * alcanza, un nivel de calidad (`render/perf.ts`).
+   */
   private watchFps(dt: number): void {
-    if (this.settings.quality !== 'auto' || this.state !== 'playing' || this.fps.drops >= 2) return;
-    this.fps.frames++;
-    this.fps.time += dt;
-    if (this.fps.time < 4) return;
-    const avg = this.fps.frames / this.fps.time;
-    this.fps.frames = this.fps.time = 0;
-    const i = QUALITIES.indexOf(this.autoQuality);
-    if (avg < 40 && i > 0) {
-      this.autoQuality = QUALITIES[i - 1];
-      this.fps.drops++;
-      this.applyQuality();
+    if (this.settings.quality !== 'auto' || this.state !== 'playing') {
+      this.govWin.frames = this.govWin.time = 0;
+      return;
     }
+    // Un cuadro enorme (pestaña en segundo plano) no cuenta
+    if (dt >= 0.1) return;
+    this.govWin.frames++;
+    this.govWin.time += dt;
+    if (this.govWin.time < 2) return;
+    const avg = this.govWin.frames / this.govWin.time;
+    this.govWin.frames = this.govWin.time = 0;
+    if (this.governor.step(avg)) {
+      this.autoQuality = this.governor.state.quality;
+      this.applyQuality();
+      this.perf.reset();
+    }
+  }
+
+  /** Texto del perfil de rendimiento para Ajustes (null si no se ha medido). */
+  perfText(): string | null {
+    const s = this.perf.summary();
+    if (!s.frames) return null;
+    const res = Math.round(this.renderer.preset.renderScale * this.renderer.dynScale * 100);
+    return (
+      t('perfLive', { fps: s.fps.toFixed(0), low: s.low1.toFixed(0), sim: s.simMs.toFixed(1), draw: s.renderMs.toFixed(1) }) +
+      '\n' +
+      t('perfUsing', { q: t(`quality_${this.renderer.quality}` as Key), res })
+    );
+  }
+
+  /** Marcador de FPS en pantalla (F3, `?fps=1` o Ajustes). */
+  private updateFpsOverlay(): void {
+    const on = this.fpsShown || this.settings.showFps;
+    if (!on) {
+      if (this.fpsEl) this.fpsEl.style.display = 'none';
+      return;
+    }
+    if (!this.fpsEl) {
+      this.fpsEl = document.createElement('div');
+      this.fpsEl.className = 'fps-overlay';
+      document.body.appendChild(this.fpsEl);
+    }
+    this.fpsEl.style.display = '';
+    if (++this.fpsTick % 15 !== 0) return;
+    const s = this.perf.summary();
+    this.fpsEl.textContent = `${s.fps.toFixed(0)} FPS · 1% ${s.low1.toFixed(0)} · sim ${s.simMs.toFixed(1)} · dibujo ${s.renderMs.toFixed(1)} ms · ${this.renderer.quality} ${Math.round(this.renderer.dynScale * 100)}%`;
   }
 
   /** Reacomoda la cancha en práctica (Backspace o el botón del HUD). */
@@ -746,6 +800,7 @@ export class App {
   }
 
   private loop = (now: number): void => {
+    const t0 = performance.now();
     const dt = Math.min(0.1, (now - this.last) / 1000);
     this.last = now;
     // Mientras el Scouting simula matches no se mueve ni se dibuja la cancha de fondo (la pantalla la
@@ -827,8 +882,12 @@ export class App {
     const behind = this.menu.root.style.display !== 'none' && this.menu.root.classList.contains('solid');
     if (!behind || now - this.lastBehind > 125) {
       this.lastBehind = now;
+      const t1 = performance.now();
       this.renderer.render(this.cam.camera);
+      const t2 = performance.now();
+      this.perf.push(dt, t1 - t0, t2 - t1);
     }
+    this.updateFpsOverlay();
     requestAnimationFrame(this.loop);
   };
 }

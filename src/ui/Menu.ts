@@ -98,6 +98,8 @@ const stationLabel = (i: number): string => `${t(i < 2 ? 'red' : 'blue')} ${(i %
 export class Menu {
   /** Abre la pantalla de Repeticiones y el editor de robot (los conecta App). */
   onReplays: () => void = () => undefined;
+  /** Texto del perfil de rendimiento para Ajustes (lo da App; null = sin datos). */
+  perfInfo: (() => string | null) | null = null;
   onEditor: () => void = () => undefined;
   readonly root: HTMLElement;
   player = DEFAULT_PLAYER;
@@ -293,7 +295,7 @@ export class Menu {
       const mine = routes ? savedRoutes.map((r) => opt(routeRoutine(r).id, esc(r.name))).join('') : '';
       return fixed + (mine ? `<optgroup label="${t('grp_routes')}">${mine}</optgroup>` : '');
     };
-    const toggle = (k: 'ai' | 'hpEnabled' | 'hpSmart') => `<button class="toggle ${s[k] ? 'on' : ''}" data-tog="${k}"><i></i>${s[k] ? t('on_') : t('no_')}</button>`;
+    const toggle = (k: 'ai' | 'hpEnabled' | 'hpSmart' | 'showFps') => `<button class="toggle ${s[k] ? 'on' : ''}" data-tog="${k}"><i></i>${s[k] ? t('on_') : t('no_')}</button>`;
     const range = (k: keyof typeof SETTINGS_RANGE, unit: string) => {
       const r = SETTINGS_RANGE[k];
       return `<div class="range"><input type="range" data-k="${k}" min="${r.min}" max="${r.max}" step="${r.step}" value="${s[k]}"><output data-unit="${unit}">${s[k]} ${unit}</output></div>`;
@@ -338,6 +340,8 @@ export class Menu {
           <h3>${t('sec_graphics')}</h3>
           <label>${t('setQuality')}</label><div class="seg" data-qseg>${(['auto', 'low', 'medium', 'high'] as const).map((q) => `<button class="${q === s.quality ? 'on' : ''}" data-v="${q}">${t(`quality_${q}`)}</button>`).join('')}</div>
           <p class="full sub">${t('qualityNote')}</p>
+          <label>${t('setShowFps')}</label>${toggle('showFps')}
+          <label>${t('perfTitle')}</label><div class="perf-live" data-perf></div>
           <h3>${t('sec_access')}</h3>
           <label>${t('setColorMode')}</label>${seg('colorMode', COLOR_MODES, s.colorMode, (v) => t(`colorMode_${v}` as Key))}
           <label>${t('setTextScale')}</label>${seg('textScale', TEXT_SCALES.map(String), String(s.textScale), (v) => `${Math.round(Number(v) * 100)} %`)}
@@ -364,7 +368,7 @@ export class Menu {
       });
     });
     this.on('[data-tog]', (el) => {
-      const k = el.dataset.tog as 'ai' | 'hpEnabled' | 'hpSmart';
+      const k = el.dataset.tog as 'ai' | 'hpEnabled' | 'hpSmart' | 'showFps';
       s[k] = !s[k];
       el.classList.toggle('on', s[k]);
       el.lastChild!.textContent = s[k] ? t('on_') : t('no_');
@@ -384,6 +388,16 @@ export class Menu {
         }
       }),
     );
+    // Perfil de rendimiento en vivo mientras esta pantalla esté abierta
+    const perfEl = this.root.querySelector<HTMLElement>('[data-perf]');
+    if (perfEl) {
+      const tick = () => {
+        if (!perfEl.isConnected) return clearInterval(id);
+        perfEl.textContent = this.perfInfo?.() ?? t('perfIdle');
+      };
+      const id = setInterval(tick, 500);
+      tick();
+    }
     this.root.querySelectorAll<HTMLElement>('[data-qseg] button').forEach((b) =>
       b.addEventListener('click', () => {
         s.quality = b.dataset.v as Settings['quality'];
