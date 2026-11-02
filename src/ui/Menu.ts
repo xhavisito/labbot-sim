@@ -11,7 +11,7 @@ import { customById } from '../config/customRobots';
 import { allRobotIds, robotSpec, type RobotId } from '../config/robotIds';
 import { GRIP_MODES, MECHANISM_KINDS } from '../config/robot';
 import { GAME } from '../config/game';
-import { DEFAULT_SETTINGS, PLAN_BOARDS, PRACTICE_LIMITS, REF_AUDIO_MODES, RIVALS, SETTINGS_RANGE, type PlanBoard, type RefAudioMode, type RivalKind, type Settings } from '../config/settings';
+import { DEFAULT_SETTINGS, HUD_KEYS, PLAN_BOARDS, PRACTICE_LIMITS, REF_AUDIO_MODES, RIVALS, SETTINGS_RANGE, type HudKey, type PlanBoard, type RefAudioMode, type RivalKind, type Settings } from '../config/settings';
 import { DAMAGE_LEVELS, type DamageLevel, type DamageTargets } from '../core/damage';
 import { buildRefereeReport } from '../core/refereeReport';
 import { refereeHtml } from './refereeView';
@@ -322,7 +322,7 @@ export class Menu {
       const drawn = loadPaths().map((r) => opt(pathRoutine(r).id, esc(r.name))).join('');
       return fixed + (mine ? `<optgroup label="${t('grp_routes')}">${mine}</optgroup>` : '') + (drawn ? `<optgroup label="${t('grp_paths')}">${drawn}</optgroup>` : '');
     };
-    const toggle = (k: 'ai' | 'hpEnabled' | 'hpSmart' | 'showFps' | 'showGhost' | 'rumble') => `<button class="toggle ${s[k] ? 'on' : ''}" data-tog="${k}"><i></i>${s[k] ? t('on_') : t('no_')}</button>`;
+    const toggle = (k: 'ai' | 'hpEnabled' | 'hpSmart' | 'showFps' | 'showGhost' | 'rumble' | HudKey) => `<button class="toggle ${s[k] ? 'on' : ''}" data-tog="${k}"><i></i>${s[k] ? t('on_') : t('no_')}</button>`;
     const range = (k: keyof typeof SETTINGS_RANGE, unit: string) => {
       const r = SETTINGS_RANGE[k];
       return `<div class="range"><input type="range" data-k="${k}" min="${r.min}" max="${r.max}" step="${r.step}" value="${s[k]}"><output data-unit="${unit}">${s[k]} ${unit}</output></div>`;
@@ -370,6 +370,9 @@ export class Menu {
           <label>${t('setShowFps')}</label>${toggle('showFps')}
           <label>${t('setShowGhost')}</label>${toggle('showGhost')}
           <label>${t('perfTitle')}</label><div class="perf-live" data-perf></div>
+          <h3>${t('hudTitle')}</h3>
+          ${HUD_KEYS.map((k) => `<label>${t(`${k}_l` as Key)}</label>${toggle(k)}`).join('')}
+          <p class="full sub">${t('hudNote')}</p>
           <h3>${t('sec_access')}</h3>
           <label>${t('setColorMode')}</label>${seg('colorMode', COLOR_MODES, s.colorMode, (v) => t(`colorMode_${v}` as Key))}
           <label>${t('setTextScale')}</label>${seg('textScale', TEXT_SCALES.map(String), String(s.textScale), (v) => `${Math.round(Number(v) * 100)} %`)}
@@ -397,7 +400,7 @@ export class Menu {
       });
     });
     this.on('[data-tog]', (el) => {
-      const k = el.dataset.tog as 'ai' | 'hpEnabled' | 'hpSmart' | 'showFps' | 'showGhost' | 'rumble';
+      const k = el.dataset.tog as 'ai' | 'hpEnabled' | 'hpSmart' | 'showFps' | 'showGhost' | 'rumble' | HudKey;
       s[k] = !s[k];
       el.classList.toggle('on', s[k]);
       el.lastChild!.textContent = s[k] ? t('on_') : t('no_');

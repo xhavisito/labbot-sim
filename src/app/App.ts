@@ -127,6 +127,7 @@ export class App {
     const b = this.settings.planBoard;
     this.planView.visible = b === 'all';
     this.hud.planCardOn = b !== 'off';
+    this.hud.applySettings(this.settings);
   }
   /** Pizarra táctica: trazos dibujados con el match en pausa (`core/board.ts`). */
   readonly board = new Board();
