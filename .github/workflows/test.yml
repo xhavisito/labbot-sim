@@ -1,0 +1,20 @@
+# Pruebas en cada PR (incluye la auditoría contra el manual, tests/manual.test.ts). El deploy ya
+# las corre al entrar a main; aquí se ven antes de fusionar.
+name: Pruebas
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
