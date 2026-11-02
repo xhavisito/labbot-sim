@@ -904,6 +904,7 @@ textarea.tin { resize: vertical; min-height: 56px; }
 .acard .pred { text-align: right; }
 .acard .pred b { display: block; font: 700 calc(24px * var(--ts))/1 var(--display); }
 .acard .pred small { font: 600 calc(10px * var(--ts)) var(--font); color: var(--muted); }
+.acard.noseed { grid-template-columns: minmax(0, 1fr) auto; }
 .roles { display: flex; flex-direction: column; gap: 2px; margin-top: 4px; font-size: calc(12px * var(--ts)); color: var(--muted); }
 .roles b { color: #cfd3da; font-weight: 600; }
 .partners .rprow { display: flex; flex-wrap: wrap; gap: 4px; }
@@ -1019,6 +1020,8 @@ textarea.tin { resize: vertical; min-height: 56px; }
   .scout .actionbar .btn, .scout .actionbar .btn.primary { padding: 10px 4px; gap: 4px; font-size: calc(11.5px * var(--ts)); letter-spacing: 0; }
   .scout .actionbar .btn .ic { display: none; }
   .acard .pred { grid-column: 2; text-align: left; }
+  .acard.noseed { grid-template-columns: minmax(0, 1fr); }
+  .acard.noseed .pred { grid-column: 1; }
 }
 /* poca altura (celular horizontal): todo más compacto */
 @media (max-height: 520px) {

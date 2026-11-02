@@ -850,7 +850,7 @@ export class ScoutingScreen {
     const sign = (x: number) => `${x > 0 ? '+' : ''}${f1(x)}`;
     const few = (n: number) => (n < PRIOR ? ` <span class="dim">· ${t('an_few')}</span>` : '');
     const card = (label: string, value: string, r: ComboRow<string> | null) =>
-      `<div class="acard"><div class="who"><small class="dim">${label}</small><div><b>${value}</b></div>
+      `<div class="acard noseed"><div class="who"><small class="dim">${label}</small><div><b>${value}</b></div>
         ${r ? `<div class="dim">${t('an_comboLine', { pts: f1(r.points), win: pct(r.winRate), n: r.matches })}${few(r.matches)}</div>` : ''}</div>
         ${r ? `<div class="pred"><b class="${r.lift >= 0 ? '' : 'neg'}">${sign(r.lift)}</b><small>${t('an_lift')}</small></div>` : ''}</div>`;
     const tips = adv.style
