@@ -13,6 +13,7 @@ import { DEFAULT_SETTINGS, PLAN_BOARDS, PRACTICE_LIMITS, REF_AUDIO_MODES, RIVALS
 import { DAMAGE_LEVELS, type DamageLevel, type DamageTargets } from '../core/damage';
 import { buildRefereeReport } from '../core/refereeReport';
 import { refereeHtml } from './refereeView';
+import { shareSummary } from './summaryImage';
 import type { Match } from '../core/match';
 import type { DrillId } from '../core/training';
 import { ALLIANCES, type Alliance } from '../core/types';
@@ -699,6 +700,7 @@ export class Menu {
         <div class="actions">
           ${cont ? `<button class="btn primary" data-act="menu">${ic.go}<span>${cont}</span></button>` : `<button class="btn primary" data-act="restart">${ic.reset}<span>${t('playAgain')}</span></button>
           <button class="btn" data-act="menu">${ic.home}<span>${t('backToMenu')}</span></button>`}
+          <button class="btn" data-act="share">${ic.download}<span>${t('shareSummary')}</span></button>
           <button class="btn" data-act="log">${ic.download}<span>${t('downloadLog')}</span></button>
         </div>
       </div>`,
@@ -707,5 +709,9 @@ export class Menu {
     this.on('[data-act="restart"]', onRestart);
     this.on('[data-act="menu"]', onMenu);
     this.on('[data-act="log"]', onDownload);
+    const share = this.root.querySelector<HTMLButtonElement>('[data-act="share"]');
+    share?.addEventListener('click', () => {
+      shareSummary(m).then((r) => { if (r === 'downloaded') share.textContent = t('summaryDownloaded'); }).catch(() => undefined);
+    });
   }
 }
