@@ -10,7 +10,8 @@ import { GRIP_MODES, MECHANISM_KINDS } from '../config/robot';
 import { GAME } from '../config/game';
 import { DEFAULT_SETTINGS, PLAN_BOARDS, PRACTICE_LIMITS, RIVALS, SETTINGS_RANGE, type PlanBoard, type RivalKind, type Settings } from '../config/settings';
 import { DAMAGE_LEVELS, type DamageLevel, type DamageTargets } from '../core/damage';
-import { RULES } from '../core/fouls';
+import { buildRefereeReport } from '../core/refereeReport';
+import { refereeHtml } from './refereeView';
 import type { Match } from '../core/match';
 import type { DrillId } from '../core/training';
 import { ALLIANCES, type Alliance } from '../core/types';
@@ -631,14 +632,7 @@ export class Menu {
       `<div class="rpcard ${a}"><div class="rptotal"><b>${rp[a].total}</b> / ${rpMax} RP</div>` +
       `<div class="rpmeter">${Array.from({ length: rpMax }, (_, i) => `<i class="${i < rp[a].total ? 'on' : ''}"></i>`).join('')}</div>` +
       `<div class="rprow">${chip(rp[a].win > 0, `${t('rpWin')} +${rp[a].win}`)}${chip(rp[a].autoLine, t('rpAuto'))}${chip(rp[a].critical, t('rpCritical'))}${chip(rp[a].dominance, `${t('dominance')} ${m.samplesIn(a)}/${GAME.rp.dominanceSamples}`)}</div></div>`;
-    const fouls = m.fouls.length
-      ? m.fouls
-          .map(
-            (f) =>
-              `<li><span class="tag ${f.offender}">${t(f.offender).toUpperCase()} ${f.robot % 2 + 1}</span>${f.kind === 'TECH' ? 'Tech Foul' : 'Foul'} · ${RULES[f.rule].es}<em>${RULES[f.rule].section} · ${Math.max(0, Math.floor(f.time))} s</em></li>`,
-          )
-          .join('')
-      : `<li class="none">${t('noFouls')}</li>`;
+    const fouls = refereeHtml(buildRefereeReport(m));
     this.open(
       `<div class="dialog results">
         <div class="kicker"><span></span>${t('resultsKick')}${player >= 0 ? ` · ${t('yourRobot')}: ${stationLabel(player)}` : ''}</div>
@@ -661,7 +655,7 @@ export class Menu {
         </div>
         <h3>${t('rp')}</h3>
         <div class="rpgrid">${UI_ALLIANCES.map(rpCell).join('')}</div>
-        <h3>${t('fouls')}</h3><ul class="fouls">${fouls}</ul>
+        <h3>${t('ref_title')}</h3>${fouls}
         ${note ? `<div class="msg ok">${ic.check}${note}</div>` : ''}
         ${earned.map((n) => `<div class="msg ok ach-toast">${ic.medal}<b>${t('ach_new')}:</b>&nbsp;${n}</div>`).join('')}
         <div class="actions">
