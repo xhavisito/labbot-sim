@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { toCloudUser, usernameToEmail, validateCredentials } from '../src/net/cloud';
+import { isEmailSetupError, toCloudUser, usernameToEmail, validateCredentials } from '../src/net/cloud';
 
 describe('cloud', () => {
   it('el usuario se normaliza y se convierte en un correo interno estable', () => {
@@ -12,6 +12,11 @@ describe('cloud', () => {
     expect(validateCredentials('ana pérez', '123456')).toBe('acct_badUser');
     expect(validateCredentials('x'.repeat(21), '123456')).toBe('acct_badUser');
     expect(validateCredentials('ana', '123')).toBe('acct_badPass');
+  });
+  it('reconoce los errores de correo de Supabase', () => {
+    expect(isEmailSetupError('email rate limit exceeded')).toBe(true);
+    expect(isEmailSetupError('Error sending confirmation email')).toBe(true);
+    expect(isEmailSetupError('User already registered')).toBe(false);
   });
   it('toCloudUser prefiere el usuario guardado', () => {
     expect(toCloudUser(null)).toBeNull();
