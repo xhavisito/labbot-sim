@@ -13,6 +13,7 @@ import { allAutoRoutines, autoRoutineIds } from '../auto/recorded';
 import { clampSpot } from '../config/startSpot';
 import { FieldAudio } from '../audio/FieldAudio';
 import { ROBOT_PRESETS, type MechanismKind, type RobotSpec } from '../config/robot';
+import { robotStats } from '../replay/stats';
 import { robotSpec } from '../config/robotIds';
 import { loadSettings, saveSettings, type Settings } from '../config/settings';
 import { formatTimer, timerSeconds } from '../core/clock';
@@ -69,6 +70,10 @@ import { loadGhosts } from '../game/ghostStore';
 import { loadShotLog } from '../game/shotStore';
 import { matchFacts, recordMatch, emptyAch, type AchProgress } from '../core/achievements';
 import { loadAch, saveAch } from '../game/achievementStore';
+import { addPerf, summarize } from '../core/robotCompare';
+import { loadPerf, savePerf } from '../game/perfStore';
+import { CompareScreen } from '../ui/CompareScreen';
+import { allRobotIds } from '../config/robotIds';
 import { AchievementsScreen } from '../ui/Achievements';
 import { StrategyScreen } from '../ui/StrategyScreen';
 import { AutoPathScreen } from '../ui/AutoPathScreen';
@@ -170,6 +175,9 @@ export class App {
   readonly ghosts = loadGhosts();
   /** Mapa de tiro acumulado por robot de la práctica por ciclos. */
   readonly shotLog = loadShotLog();
+  /** Rendimiento acumulado por robot (puntos por minuto y ciclos) para comparar robots. */
+  readonly robotPerf = loadPerf();
+  readonly compare: CompareScreen;
   /** Logros y progreso (localStorage) y su pantalla; `achNew` = logros del último match. */
   private ach: AchProgress = loadAch();
   private achNew: string[] = [];
@@ -246,6 +254,12 @@ export class App {
       },
     });
     this.menu.onAchievements = () => this.achievements.show();
+    this.compare = new CompareScreen(
+      this.menu.root,
+      () => allRobotIds().map((id) => summarize(id, robotLabel(robotSpec(id)), this.cycleBests, this.shotLog, this.robotPerf)),
+      () => this.toMenu(),
+    );
+    this.menu.onCompare = () => this.compare.show();
     this.strategies = new StrategyScreen(this.menu.root);
     this.menu.onStrategies = () => this.strategies.show(() => this.toMenu());
     this.autoPaths = new AutoPathScreen(this.menu.root, {
@@ -374,6 +388,7 @@ export class App {
         bests: this.cycleBests,
         ghosts: this.ghosts,
         shots: this.shotLog,
+        perf: this.robotPerf,
         robot: { id: this.settings.robotType, name: robotLabel(this.session.player.spec) },
         exit: () => this.toMenu(),
       });
@@ -682,6 +697,21 @@ export class App {
     saveScenarios(this.scenarioProgress);
     const medal = r.medal ? t(`medal_${r.medal}` as Key) : t('tn_noMedal');
     return `${t(`sn_${s.id}` as Key)}: ${t(o.met ? 'sn_met' : 'sn_missed')} (${o.diff >= 0 ? '+' : ''}${o.diff}) · ${medal}${r.improved ? ` · ${t('tn_newRecord')}` : ''}`;
+  }
+
+  /** Suma al rendimiento del robot propio lo que hizo en el match (de su repetición; `core/robotCompare.ts`). */
+  private recordPerf(m: Match, rp: Replay | null): void {
+    if (this.choice.mode !== 'match' || this.choice.player < 0 || !rp) return;
+    const i = rp.header.robots.findIndex((r) => r.index === rp.header.player);
+    const st = robotStats(rp)[i];
+    if (!st) return;
+    addPerf(this.robotPerf, this.settings.robotType, {
+      seconds: m.cfg.times.auto + m.cfg.times.teleop,
+      points: st.samplePoints,
+      cycles: st.cycles.length,
+      cycleSeconds: st.cycles.reduce((a, c) => a + c, 0),
+    });
+    savePerf(this.robotPerf);
   }
 
   /** Suma el match terminado al progreso de logros (solo si manejas un robot en un match). */
@@ -1006,6 +1036,7 @@ export class App {
         this.scenarioNote = scn ? this.finishScenario(m, scn) : '';
         this.recordAchievements(m);
         this.lastReplay = this.recorder?.build(this.session) ?? null;
+        this.recordPerf(m, this.lastReplay);
         if (this.lastReplay) void storeReplay(this.lastReplay);
         this.showResults();
       }
