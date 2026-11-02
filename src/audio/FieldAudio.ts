@@ -11,7 +11,7 @@ import type { RefAudioMode } from '../config/settings';
 
 /**
  * Avisos del árbitro (`core/refCalls.ts`): silbatos y campanas sintetizados, más la voz del navegador
- * si se elige (SUPUESTO, D44: el manual no define sonidos del árbitro). Mismo volumen que el campo.
+ * si se elige (SUPUESTO, D46: el manual no define sonidos del árbitro). Mismo volumen que el campo.
  */
 /** Segundos mínimos entre dos sonidos iguales del árbitro (dos faltas a la vez suenan una vez). */
 export const REF_SOUND_GAP = 0.3;
