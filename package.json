@@ -10,6 +10,7 @@
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
+    "audit:manual": "node scripts/audit-manual.mjs",
     "typecheck": "tsc --noEmit",
     "shots": "node scripts/screenshot.mjs",
     "ui-shots": "node scripts/ui-shots.mjs",
