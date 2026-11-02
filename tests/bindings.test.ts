@@ -25,7 +25,7 @@ describe('asignación de controles', () => {
   it('asignar mueve la tecla de otra acción y respeta el máximo por acción', () => {
     let b = assign(DEFAULT_BINDINGS, 'keys', 'intake', 'KeyE'); // E no es predeterminada; K es la de soltar Muestra
     expect(b.keys.intake).toEqual(['ShiftLeft', 'KeyE']);
-    expect(b.keys.releaseSample).toEqual(['KeyK', 'Semicolon']);
+    expect(b.keys.releaseSample).toEqual(['KeyK']);
     b = assign(b, 'keys', 'intake', 'KeyQ');
     expect(b.keys.intake).toEqual(['KeyE', 'KeyQ']); // se va la más vieja
     expect(b.keys.intake.length).toBeLessThanOrEqual(MAX_PER_ACTION);
