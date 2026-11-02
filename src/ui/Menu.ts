@@ -4,6 +4,7 @@
  */
 import { AUTO_ROUTINES } from '../auto/AutoRoutine';
 import { routeRoutine, savedRoutes } from '../auto/recorded';
+import { loadPaths, pathRoutine } from '../game/autoPathStore';
 import { customById } from '../config/customRobots';
 import { allRobotIds, robotSpec, type RobotId } from '../config/robotIds';
 import { GRIP_MODES, MECHANISM_KINDS } from '../config/robot';
@@ -110,6 +111,7 @@ export class Menu {
   /** Abre la lista de retos del entrenamiento (la conecta App). */
   onTraining: () => void = () => undefined;
   onStrategies: () => void = () => undefined;
+  onAutoPaths: () => void = () => undefined;
   /** Abre la pantalla de logros (la conecta App). */
   onAchievements: () => void = () => undefined;
 
@@ -173,6 +175,7 @@ export class Menu {
             ${tool('replays', ic.film, 'replays', 'replaysDesc')}
             ${tool('editor', ic.cube, 'editor', 'editorDesc')}
             ${tool('autoPractice', ic.route, 'autoPractice', 'autoPracticeDesc')}
+            ${tool('autoPaths', ic.route, 'autoPaths', 'autoPathsDesc')}
             ${tool('strategies', ic.field, 'strategies', 'strategiesDesc')}
             ${tool('settings', ic.sliders, 'settings', 'settingsDesc')}
             ${tool('controls', ic.gamepad, 'controlsTitle', 'controlsDesc')}
@@ -206,6 +209,7 @@ export class Menu {
     this.on('[data-go="training"]', () => this.onTraining());
     this.on('[data-go="practice1v1"]', () => this.onStart({ mode: 'practice1v1', player: this.player }));
     this.on('[data-go="strategies"]', () => this.onStrategies());
+    this.on('[data-go="autoPaths"]', () => this.onAutoPaths());
     this.on('[data-go="achievements"]', () => this.onAchievements());
     this.on('[data-go="replays"]', () => this.onReplays());
     this.on('[data-go="editor"]', () => this.onEditor());
@@ -293,7 +297,8 @@ export class Menu {
       const opt = (id: string, label: string) => `<option value="${id}" ${id === sel ? 'selected' : ''}>${label}</option>`;
       const fixed = AUTO_ROUTINES.map((r) => opt(r.id, t(`auto_${r.id}` as Key))).join('');
       const mine = routes ? savedRoutes.map((r) => opt(routeRoutine(r).id, esc(r.name))).join('') : '';
-      return fixed + (mine ? `<optgroup label="${t('grp_routes')}">${mine}</optgroup>` : '');
+      const drawn = loadPaths().map((r) => opt(pathRoutine(r).id, esc(r.name))).join('');
+      return fixed + (mine ? `<optgroup label="${t('grp_routes')}">${mine}</optgroup>` : '') + (drawn ? `<optgroup label="${t('grp_paths')}">${drawn}</optgroup>` : '');
     };
     const toggle = (k: 'ai' | 'hpEnabled' | 'hpSmart' | 'showFps') => `<button class="toggle ${s[k] ? 'on' : ''}" data-tog="${k}"><i></i>${s[k] ? t('on_') : t('no_')}</button>`;
     const range = (k: keyof typeof SETTINGS_RANGE, unit: string) => {

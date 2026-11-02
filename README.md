@@ -4,7 +4,7 @@ Simulador 3D web del reto interno **LabBot Rescue 2026** (Robotics WinterFest, L
 Cancha, piezas, robots tanque, reloj, puntuación, faltas y Ranking Points según el manual del reto.
 
 - **Reglas:** [`docs/reglas-reto.md`](docs/reglas-reto.md) resume el manual con la sección de cada
-  regla (§x.y), las medidas tomadas de las figuras y la lista de dudas y supuestos (D1–D36).
+  regla (§x.y), las medidas tomadas de las figuras y la lista de dudas y supuestos (D1–D47).
 - **Plan y arquitectura:** [`docs/PLAN.md`](docs/PLAN.md).
 
 ## Instalar y correr
@@ -94,6 +94,18 @@ SUPUESTO Foul) o si la pose movida ya no cabe en la Zona de Inicio (§4.1). **Pr
 corre la ruta sin dibujar desde N poses al azar (± cm, ± °) y dice cuántas dan los mismos puntos y
 cuánto se desvía la pose final. **Guardar** la deja en Ajustes → AUTO de tu robot para el match.
 Ojo: repite tus controles, así que con otro robot u otra Zona de Inicio termina en otro lugar.
+
+**Rutinas de AUTO** (menú → Taller): dibuja la trayectoria de los 15 s del AUTO (§2, §4.2) tocando la
+cancha (arrastra los puntos para moverlos) y dile al robot qué hacer en cada uno: velocidad, de reversa,
+girar a un rumbo, mover el brazo, prender la garra, soltar la pieza y esperar. Atajos para **anotar en
+N1/N2/N3**, **recoger una Muestra** del Laboratorio y **alejarse** de la Cámara. Muestra el tiempo estimado
+contra los 15 s y avisa si la ruta pasa de 15 s, no saca al robot de su Zona de Inicio (§4.4, D1), pisa la
+Plataforma (§4.6) o atraviesa la Cámara o la Campana. **Probar solo** da los puntos de AUTO (§4.4);
+**Probar contra la IA** corre 6 AUTOs de un match 2 contra 2 (tu compañero y los rivales en "Anotar y
+recolectar") y da puntos de tu alianza vs. rival, línea y faltas. A diferencia de las rutas grabadas, el
+robot corrige con su posición real, así que sirve con cualquier robot y desde una pose movida. **Usar como
+mi AUTO** la elige en Ajustes y en Preparar match (también para tu compañero de la IA); se guardan en el
+navegador. SUPUESTOS: D47.
 
 **Entrenamiento por retos** (menú → Taller): ejercicios cortos con tu robot solo en la cancha, con
 medalla (bronce, plata, oro) y récord personal por robot guardados en el navegador. Cada reto tiene

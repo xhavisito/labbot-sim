@@ -6,6 +6,7 @@
  * Los controles son fracción de la velocidad máxima del robot con el que se grabó: con otro robot,
  * o desde la otra Zona de Inicio (no es simétrica a la tuya), la ruta termina en otro lugar.
  */
+import { loadPaths, pathRoutine } from '../game/autoPathStore';
 import { AUTO_ROUTINES, type AutoAction, type AutoOutput, type AutoRoutine, type AutoTrack } from './AutoRoutine';
 
 export const ROUTE_PREFIX = 'rec:';
@@ -150,6 +151,6 @@ export function deleteRoute(id: string): void {
 
 export const newRouteId = (): string => Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
 
-/** Rutinas fijas + rutas grabadas (las de tu robot). */
-export const allAutoRoutines = (): AutoRoutine[] => [...AUTO_ROUTINES, ...savedRoutes.map(routeRoutine)];
+/** Rutinas fijas + rutas grabadas (las de tu robot) + rutinas dibujadas en el editor. */
+export const allAutoRoutines = (): AutoRoutine[] => [...AUTO_ROUTINES, ...savedRoutes.map(routeRoutine), ...loadPaths().map(pathRoutine)];
 export const autoRoutineIds = (): string[] => allAutoRoutines().map((r) => r.id);

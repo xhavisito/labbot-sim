@@ -9,6 +9,7 @@ import { SECRET_AUTOS, SECRET_STRATEGIES, STRATEGY_OPTIONS, weighted, type Strat
 import { activeColorMode } from '../config/palette';
 import { applyAccessibility } from '../ui/a11y';
 import { allAutoRoutines, autoRoutineIds } from '../auto/recorded';
+import { clampSpot } from '../config/startSpot';
 import { FieldAudio } from '../audio/FieldAudio';
 import { ROBOT_PRESETS, type MechanismKind, type RobotSpec } from '../config/robot';
 import { robotSpec } from '../config/robotIds';
@@ -62,6 +63,7 @@ import { matchFacts, recordMatch, emptyAch, type AchProgress } from '../core/ach
 import { loadAch, saveAch } from '../game/achievementStore';
 import { AchievementsScreen } from '../ui/Achievements';
 import { StrategyScreen } from '../ui/StrategyScreen';
+import { AutoPathScreen } from '../ui/AutoPathScreen';
 import { PlanView } from '../render/PlanView';
 import * as THREE from 'three';
 import { Board } from '../core/board';
@@ -116,6 +118,7 @@ export class App {
   private boardCam: CameraMode = 'free';
   readonly boardBar: BoardBar;
   readonly strategies: StrategyScreen;
+  readonly autoPaths: AutoPathScreen;
   readonly settings: Settings = loadSettings(autoRoutineIds());
   /** Sonidos del campo (inicio, TELEOP, ENDGAME, fin). */
   readonly audio = new FieldAudio(this.settings.volume / 100);
@@ -217,6 +220,21 @@ export class App {
     this.menu.onAchievements = () => this.achievements.show();
     this.strategies = new StrategyScreen(this.menu.root);
     this.menu.onStrategies = () => this.strategies.show(() => this.toMenu());
+    this.autoPaths = new AutoPathScreen(this.menu.root, {
+      back: () => this.toMenu(),
+      spec: () => this.playerSpec(),
+      use: (id) => {
+        this.settings.playerAuto = id;
+        saveSettings(this.settings);
+      },
+      currentAuto: () => this.settings.playerAuto,
+      play: (id) => {
+        this.settings.playerAuto = id;
+        saveSettings(this.settings);
+        this.start({ mode: 'match', player: this.menu.player });
+      },
+    });
+    this.menu.onAutoPaths = () => this.autoPaths.show();
     this.renderer.scene.add(this.planView.group, this.boardView.group);
     this.boardBar = new BoardBar(ui, this.renderer.renderer.domElement, this.board, {
       pick: (x, y) => this.pickField(x, y),
@@ -416,15 +434,22 @@ export class App {
       if (i === mate && plan) return { ...planBotOptions(plan, i < 2 ? 'red' : 'blue'), ai };
       return { ...STRATEGY_OPTIONS[strategy(i)], ai };
     };
+    const autos = [0, 1, 2, 3].map((i) => (i === player ? routine(s.playerAuto) : botAuto(i)));
+    // Tu robot es el del menú (con tu velocidad y capacidad), salvo en el Scouting: el de tu equipo
+    const specs = types.map((k, i) => (i === player && (!kinds || tour) ? this.playerSpec() : ROBOT_PRESETS[k]));
+    // Una rutina dibujada arranca donde se dibujó si el robot está en esa Zona de Inicio (§4.1)
+    const pathStart = (i: number) => {
+      const p = autos[i].path;
+      return p && p.station === i % 2 ? clampSpot(specs[i].length, specs[i].width, p.start) : undefined;
+    };
     return {
       player,
       preload: true,
       ai: s.ai,
-      // Tu robot es el del menú (con tu velocidad y capacidad), salvo en el Scouting: el de tu equipo
-      specs: types.map((k, i) => (i === player && (!kinds || tour) ? this.playerSpec() : ROBOT_PRESETS[k])),
-      autos: [0, 1, 2, 3].map((i) => (i === player ? routine(s.playerAuto) : botAuto(i))),
+      specs,
+      autos,
       bots: [0, 1, 2, 3].map((i) => (i === player ? undefined : bot(i))),
-      starts: [0, 1, 2, 3].map((i) => (i === player ? m.start : undefined)),
+      starts: [0, 1, 2, 3].map((i) => pathStart(i) ?? (i === player ? m.start : undefined)),
       hp: { enabled: s.hpEnabled, interval: s.hpInterval, smart: s.hpSmart },
       grip: s.grip,
       damage: { ...s.damage },
