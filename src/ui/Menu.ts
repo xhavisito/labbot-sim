@@ -2,6 +2,7 @@
  * Pantallas en DOM con el estilo de rebuilt-sim: menú principal (la cancha gira detrás), ajustes,
  * controles (reasignar), reglas, pausa y resultados.
  */
+import { clearMatchHistory, loadMatchHistory } from '../core/matchHistory';
 import { AUTO_ROUTINES } from '../auto/AutoRoutine';
 import { routeRoutine, savedRoutes } from '../auto/recorded';
 import { loadPaths, pathRoutine } from '../game/autoPathStore';
@@ -183,6 +184,7 @@ export class Menu {
             ${tool('weekly', ic.trophy, 'weekly', 'weeklyDesc')}
             ${tool('achievements', ic.trophy, 'ach_title', 'achDesc')}
             ${tool('replays', ic.film, 'replays', 'replaysDesc')}
+            ${tool('matchHistory', ic.clipboard, 'mhTitle', 'mhDesc')}
             ${tool('editor', ic.cube, 'editor', 'editorDesc')}
             ${tool('autoPractice', ic.route, 'autoPractice', 'autoPracticeDesc')}
             ${tool('autoPaths', ic.route, 'autoPaths', 'autoPathsDesc')}
@@ -224,6 +226,7 @@ export class Menu {
     this.on('[data-go="autoPaths"]', () => this.onAutoPaths());
     this.on('[data-go="achievements"]', () => this.onAchievements());
     this.on('[data-go="replays"]', () => this.onReplays());
+    this.on('[data-go="matchHistory"]', () => this.matchHistoryPanel());
     this.on('[data-go="editor"]', () => this.onEditor());
     this.on('[data-go="autoPractice"]', () => this.onStart({ mode: 'auto', player: this.player }));
     this.on('[data-go="settings"]', () => this.settingsPanel());
@@ -556,6 +559,41 @@ export class Menu {
 
   // ------------------------------------------------------------------ reglas
   /** Resumen de `config/game.ts` con la sección del manual de cada número. */
+  /** Historial de partidas, del más reciente al más antiguo. */
+  matchHistoryPanel(): void {
+    const list = loadMatchHistory();
+    const fmt = new Intl.DateTimeFormat(getLang() === 'es' ? 'es-MX' : 'en-US', { dateStyle: 'medium', timeStyle: 'short' });
+    const name = (id: string) => {
+      try {
+        return robotName(id as RobotId);
+      } catch {
+        return id;
+      }
+    };
+    const rows = list
+      .map((h) => {
+        const res = h.score.red === h.score.blue ? t('tie') : h.score.red > h.score.blue ? t('red') : t('blue');
+        const you = h.player < 0 ? '' : `<br><span class="help">${t('mhYou', { slot: stationLabel(h.player), robot: name(h.playerRobot) })}</span>`;
+        return `<li><b>${fmt.format(new Date(h.date))}</b> · ${h.mode} · ${res}<br>
+          <span class="red">${t('red')} ${h.score.red}</span> – <span class="blue">${h.score.blue} ${t('blue')}</span> · ${t('mhRp')} ${h.rp.red}–${h.rp.blue}${you}</li>`;
+      })
+      .join('');
+    this.open(
+      `${brandbar(t('mhTitle'))}
+      <h1>${t('mhTitle')}</h1>
+      ${list.length ? `<ul class="fouls">${rows}</ul>` : `<p class="sub">${t('mhEmpty')}</p>`}
+      <div class="actionbar">${backBtn('data-act="back"')}<div class="grow"></div>${list.length ? `<button class="btn" data-act="clear">${t('mhClear')}</button>` : ''}</div>`,
+      'screen solid',
+    );
+    this.on('[data-act="back"]', () => this.main());
+    this.on('[data-act="clear"]', () => {
+      if (confirm(t('mhClearConfirm'))) {
+        clearMatchHistory();
+        this.matchHistoryPanel();
+      }
+    });
+  }
+
   rulesPanel(): void {
     const g = GAME;
     const p = g.points;

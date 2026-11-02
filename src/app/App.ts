@@ -2,6 +2,7 @@
  * Orquestador: renderer, cámara, entrada, sesión, HUD y menús; bucle principal.
  * Estados: menú (la cancha gira de fondo) → jugando ⇄ pausa → resultados.
  */
+import { addMatchHistory, matchHistoryEntry } from '../core/matchHistory';
 import { LEAVE_ZONE, type AutoRoutine } from '../auto/AutoRoutine';
 import { aiLineup } from '../ai/lineup';
 import { planAutoRoutine, planBotOptions } from '../ai/plan';
@@ -699,6 +700,7 @@ export class App {
     if (!m) return this.toMenu();
     this.state = 'results';
     this.clearBoard();
+    addMatchHistory(matchHistoryEntry(m, this.choice.player, this.settings.robotType, '', this.choice.mode));
     const sc = this.choice.scout;
     this.menu.results(
       m,
