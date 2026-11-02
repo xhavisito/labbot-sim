@@ -1,15 +1,17 @@
 /**
  * Árbitro automático: revisa cada paso de física las faltas que se pueden ver en la simulación
  * (catálogo en `core/fouls.ts`). Cada umbral está documentado junto a su regla; los que el manual
- * no fija son SUPUESTOS listados en docs/reglas-reto.md (D7, D8, D11).
+ * no fija son SUPUESTOS listados en docs/reglas-reto.md (D7, D8, D11, D17, D21, D33).
  */
 import * as F from '../config/field';
 import { isTeleop, type Phase } from '../core/clock';
 import type { RuleCode } from '../core/fouls';
 import type { Match } from '../core/match';
-import type { Alliance } from '../core/types';
+import { ALLIANCES, type Alliance } from '../core/types';
 import type { MechEvent } from '../game/Mechanisms';
 import type { Robot } from '../game/Robot';
+import type { Sensors } from '../game/Sensors';
+import type { Pieces } from '../physics/Pieces';
 import type { PhysicsWorld } from '../physics/PhysicsWorld';
 
 /** Segundos mínimos entre dos faltas por contacto del mismo par (una por "instancia", D11). */
@@ -18,6 +20,32 @@ export const CONTACT_COOLDOWN = 2;
 export const CONTACT_MIN_SPEED = 0.15;
 /** Pinning: más de 3 s; otra falta cada 3 s más (D11). */
 export const PIN_SECONDS = 3;
+/** Obstruir (D17, SUPUESTO): más de 3 s seguidos en una zona de anotación rival (`obstructZones`); otra falta cada 5 s más. */
+export const OBSTRUCT_SECONDS = 3;
+export const OBSTRUCT_REPEAT = 5;
+/**
+ * Tirar la Muestra Crítica rival de la Repisa (§4.6 dice "intencionalmente"; D21, SUPUESTO): Tech
+ * Foul si un robot rival la tocaba, o la dejó de tocar hace menos de esto (s), cuando sale de la Repisa.
+ */
+export const KNOCK_WINDOW = 1;
+
+/** Frente de la Cámara de cada alianza (D17, SUPUESTO): el largo de la Cámara y 1 m hacia la cancha. */
+export function camaraFront(a: Alliance): F.Rect {
+  return F.rectFor(a, { x0: F.CAMARA_X_END_RED - F.CAMARA_LENGTH, x1: F.CAMARA_X_END_RED, z0: F.CAMARA_Z_RED[0] - 1.0, z1: F.CAMARA_Z_RED[0] });
+}
+
+/**
+ * Zonas que un rival no puede obstruir (§4.6 "bloquear u obstruir las zonas del equipo contrario";
+ * D17, SUPUESTO con el criterio de un mentor del reto, 30-oct: "cualquier zona de anotación que sea
+ * obstruida es foul, hasta subirse a la rampa enemiga"): el frente de su Cámara, el frente de su
+ * Campana (donde su robot recibe las Muestras del Human Player) y su rampa de la Plataforma (del pie a
+ * la Repisa, sin la Repisa compartida).
+ */
+export function obstructZones(a: Alliance): F.Rect[] {
+  const campanaFront: F.Rect = { x0: F.CAMPANA_X_RED[0], x1: F.CAMPANA_X_RED[1], z0: -F.HALF_W, z1: -F.HALF_W + 0.8 };
+  const ramp: F.Rect = { x0: F.REPISA_DEPTH / 2, x1: F.PLATFORM_LENGTH / 2, z0: -F.PLATFORM_WIDTH / 2, z1: F.PLATFORM_WIDTH / 2 };
+  return [camaraFront(a), F.rectFor(a, campanaFront), F.rectFor(a, ramp)];
+}
 
 /** Zonas del color de cada alianza (D8, SUPUESTO): sus 2 Zonas de Inicio y el frente de su Campana. */
 export function allianceZones(a: Alliance): F.Rect[] {
@@ -38,11 +66,17 @@ export class Referee {
   private contacts = new Map<string, number>();
   private flags = new Map<string, boolean>();
   private platformClear = new Map<number, number>();
+  private obstruct = new Map<number, { t: number; charged: number }>();
+  /** Contactos robot–Muestra Crítica: "pieza-robot" → nº de pares de colisionadores y último cambio (s). */
+  private critTouch = new Map<string, { n: number; t: number }>();
+  private critOnRepisa = new Map<Alliance, boolean>();
 
   constructor(
     private pw: PhysicsWorld,
     private robots: Robot[],
     private match: () => Match | null,
+    /** Para la Muestra Crítica en la Repisa (§4.6); sin ellos no se revisa. */
+    private field?: { pieces: Pieces; sensors: Sensors },
   ) {}
 
   reset(): void {
@@ -50,6 +84,9 @@ export class Referee {
     this.contacts.clear();
     this.flags.clear();
     this.platformClear.clear();
+    this.obstruct.clear();
+    this.critTouch.clear();
+    this.critOnRepisa.clear();
   }
 
   /** Lee los eventos de colisión del último paso (llamar después de `world.step`). */
@@ -57,6 +94,14 @@ export class Referee {
     this.pw.events.drainCollisionEvents((h1, h2, started) => {
       const a = this.pw.tagOf(h1);
       const b = this.pw.tagOf(h2);
+      const robot = a?.kind === 'robot' ? a : b?.kind === 'robot' ? b : undefined;
+      const piece = a?.kind === 'piece' ? a : b?.kind === 'piece' ? b : undefined;
+      if (robot && piece && this.field?.pieces.list[piece.index]?.kind === 'critical') {
+        const k = `${piece.index}-${robot.robot}`;
+        const c = this.critTouch.get(k) ?? { n: 0, t: 0 };
+        this.critTouch.set(k, { n: Math.max(0, c.n + (started ? 1 : -1)), t: this.match()?.t ?? 0 });
+        return;
+      }
       if (a?.kind !== 'robot' || b?.kind !== 'robot' || a.robot === b.robot) return;
       const key = a.robot < b.robot ? `${a.robot}-${b.robot}` : `${b.robot}-${a.robot}`;
       const n = (this.contacts.get(key) ?? 0) + (started ? 1 : -1);
@@ -83,8 +128,9 @@ export class Referee {
 
     for (const r of this.robots) {
       const corners = r.phys.footprint();
-      // §4.6: el robot sale de los límites de la cancha
-      const out = corners.some((c) => Math.abs(c.x) > F.HALF_L || Math.abs(c.z) > F.HALF_W);
+      // §4.6: el robot sale de los límites de la cancha. Solo cuando TODO el robot (chasis y garra)
+      // queda fuera (Xhavi, 29-oct; el manual no aclara si basta una parte: SUPUESTO, D33)
+      const out = F.fullyOutOfField(r.phys.outline(r.mech.angle));
       this.once(`oob:${r.index}`, out, r, 'OUT_OF_BOUNDS');
       // §4.6: subir a la Plataforma antes del endgame (una por instancia; se rearma tras 1 s fuera)
       const on = r.phys.wheelsOnPlatform > 0;
@@ -96,6 +142,23 @@ export class Referee {
         this.flags.set(key, true);
       }
       if (clear >= 1) this.flags.set(key, false);
+      // §4.6 (y §6.1 "no hay defensa"): quedarse en una zona de anotación rival en el TELEOP (D17)
+      const p = r.phys.position();
+      const zones = obstructZones(r.alliance === 'red' ? 'blue' : 'red');
+      const ob = this.obstruct.get(r.index) ?? { t: 0, charged: 0 };
+      if (isTeleop(phase) && zones.some((z) => F.inRect(z, p.x, p.z))) ob.t += dt;
+      else {
+        ob.t = 0;
+        ob.charged = 0;
+      }
+      if (ob.t > OBSTRUCT_SECONDS) {
+        const due = 1 + Math.floor((ob.t - OBSTRUCT_SECONDS) / OBSTRUCT_REPEAT);
+        if (due > ob.charged) {
+          ob.charged = due;
+          this.charge('OBSTRUCT', r);
+        }
+      }
+      this.obstruct.set(r.index, ob);
       // §4.2: no cruzar la línea central en AUTO (D7: el manual no da la falta; SUPUESTO Foul)
       if (phase === 'AUTO') {
         const s = r.alliance === 'red' ? 1 : -1;
@@ -104,7 +167,26 @@ export class Referee {
     }
 
     // §4.6: tomar la Muestra Crítica antes del endgame
-    for (const e of mechEvents) if (e.type === 'grabCritical' && phase !== 'ENDGAME') this.charge('CRITICAL_EARLY', this.robots[e.robot]);
+    for (const e of mechEvents) {
+      const r = e.type === 'grabCritical' && phase !== 'ENDGAME' ? this.robots.find((x) => x.index === e.robot) : undefined;
+      if (r) this.charge('CRITICAL_EARLY', r);
+    }
+
+    // §4.6: tirar la Muestra Crítica del equipo contrario de la Repisa (D21)
+    if (this.field)
+      for (const al of ALLIANCES) {
+        const on = this.field.sensors.criticalOnRepisa(al);
+        const was = this.critOnRepisa.get(al) ?? false;
+        this.critOnRepisa.set(al, on);
+        const c = this.field.pieces.critical(al);
+        // La tomó un robot (solo puede su dueño): no es tirarla
+        if (!was || on || c.state.at !== 'field') continue;
+        const rival = this.robots.find((r) => {
+          const k = this.critTouch.get(`${c.index}-${r.index}`);
+          return r.alliance !== al && !!k && (k.n > 0 || t - k.t <= KNOCK_WINDOW);
+        });
+        if (rival) this.charge('CRITICAL_KNOCK', rival);
+      }
 
     // §4.5 contacto y pinning; §4.6 contacto en zonas del color contrario
     for (let i = 0; i < this.robots.length; i++)

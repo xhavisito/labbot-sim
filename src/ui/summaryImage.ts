@@ -20,8 +20,7 @@ export function buildSummary(m: Match): Summary {
     ({ label, red: String(f('red')), blue: String(f('blue')), bold });
   const title = b.red.total === b.blue.total ? t('tie') : `${t('winner')}: ${t(b.red.total > b.blue.total ? 'red' : 'blue')}`;
   const rows: SummaryRow[] = [
-    row(t('autoLine'), (a) => b[a].autoLine),
-    row(t('samplesAuto'), (a) => b[a].samplesAuto),
+    row(t('autoPoints'), (a) => b[a].auto),
     row(t('samplesTeleop'), (a) => b[a].samplesTeleop),
     row(t('platform'), (a) => b[a].platform),
     row(t('criticalSample'), (a) => b[a].critical),
