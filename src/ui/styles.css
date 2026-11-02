@@ -418,6 +418,16 @@ input[type='range'] { width: 100%; accent-color: var(--accent); }
 .fouls li.none { color: var(--muted); }
 .fouls .tag { display: inline-block; margin-right: 6px; padding: 2px 6px; border-radius: var(--radius-sm); font: 700 10px var(--font); }
 .fouls .tag.red { background: rgba(229, 65, 58, 0.22); color: #ffc2bd; }
+.ref-summary { margin: 0 0 8px; font-size: 12px; }
+.ref-verdict { padding: 6px 8px; border-radius: var(--radius-sm); background: var(--surface-3); color: var(--muted); }
+.ref-verdict.decisive { background: rgba(255, 193, 7, 0.16); color: #ffe08a; }
+.ref-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 6px; }
+.ref-col { display: flex; flex-direction: column; gap: 2px; padding: 6px 8px; border-radius: var(--radius-sm); background: var(--surface-2, var(--surface-3)); color: var(--muted); }
+.ref-col.red b { color: #ffc2bd; } .ref-col.blue b { color: #bcd5ff; }
+.ref-red { color: #ff8a83; }
+.ref-impact { margin-top: 2px; color: var(--muted); }
+.fouls.ref-list { max-height: 220px; }
+@media (max-width: 560px) { .ref-cols { grid-template-columns: 1fr; } }
 .fouls .tag.blue { background: rgba(47, 125, 246, 0.22); color: #bcd5ff; }
 .actions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin-top: 8px; }
 .actions .btn { flex: 1 1 180px; max-width: 260px; }
