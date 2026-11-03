@@ -119,9 +119,15 @@ export interface Settings {
   versus: VersusSettings;
 }
 
-/** Con qué controla una persona en 2 jugadores: el teclado de WASD, el de flechas, o el 1.º o 2.º control. */
-export const VERSUS_DEVICES = ['keys1', 'keys2', 'pad1', 'pad2'] as const;
+/**
+ * Con qué controla una persona en 2 jugadores: el teclado de WASD, el de flechas, el 1.º o 2.º
+ * control, o los controles touch en su mitad de la pantalla (tablet o celular).
+ */
+export const VERSUS_DEVICES = ['keys1', 'keys2', 'pad1', 'pad2', 'touch'] as const;
 export type VersusDevice = (typeof VERSUS_DEVICES)[number];
+/** Cámaras que sirven en media pantalla (siguen al robot de cada quien; la libre usa el mouse). */
+export const VERSUS_CAMERAS = ['follow', 'onboard', 'driverEye', 'corner'] as const;
+export type VersusCamera = (typeof VERSUS_CAMERAS)[number];
 
 /** Lo que elige cada persona en 2 jugadores: su robot, su AUTO, su lugar en la Zona de Inicio y sus controles. */
 export interface VersusSide {
@@ -129,6 +135,8 @@ export interface VersusSide {
   auto: string;
   start: StartSpot;
   device: VersusDevice;
+  /** Cámara de su mitad de la pantalla. */
+  camera: VersusCamera;
 }
 
 /**
@@ -181,8 +189,8 @@ export const DEFAULT_SETTINGS: Settings = {
   textScale: 1,
   versus: {
     team: 'opp',
-    p1: { robot: DEFAULT_ROBOT.mechanism, auto: 'leave', start: { ...CENTER_SPOT }, device: 'keys1' },
-    p2: { robot: DEFAULT_ROBOT.mechanism, auto: 'leave', start: { ...CENTER_SPOT }, device: 'keys2' },
+    p1: { robot: DEFAULT_ROBOT.mechanism, auto: 'leave', start: { ...CENTER_SPOT }, device: 'keys1', camera: 'follow' },
+    p2: { robot: DEFAULT_ROBOT.mechanism, auto: 'leave', start: { ...CENTER_SPOT }, device: 'keys2', camera: 'follow' },
   },
 };
 
@@ -225,6 +233,7 @@ export function sanitizeVersus(raw: unknown, autoIds: readonly string[]): Versus
       auto: typeof r.auto === 'string' && autoIds.includes(r.auto) ? r.auto : 'leave',
       start: r.start === undefined ? { ...start } : sanitizeSpot(r.start),
       device: VERSUS_DEVICES.find((x) => x === r.device) ?? dev,
+      camera: VERSUS_CAMERAS.find((x) => x === r.camera) ?? 'follow',
     };
   };
   return {

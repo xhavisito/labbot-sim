@@ -225,11 +225,15 @@ a la Plataforma y suéltala sobre la Repisa (E).
 
 ### Multijugador local (2 jugadores)
 
-Menú → **2 jugadores**: dos personas en la misma pantalla (dividida), una por alianza; los otros dos
-robots los maneja la IA. Jugador 1: `W A S D`, Espacio (garra), `E` (soltar), `0–4` (brazo). Jugador 2:
-flechas, `Enter` (garra), `.` (soltar), `RePág/AvPág` (brazo). Con dos controles conectados, el primero
-es del jugador 1 y el segundo del 2. SUPUESTO: el manual no habla de controles ni de simuladores;
-ambos usan el robot y el AUTO de tus Ajustes. En pantalla dividida no hay bloom ni FXAA.
+Menú → Competir → **2 jugadores**: dos personas en la misma pantalla dividida (lado a lado; arriba/abajo
+con el celular en vertical). La preparación va en tres pasos: el modo (**uno contra otro** o **mismo
+equipo** contra dos robots de la IA), los lugares en la cancha (con "Intercambiar lugares") y cada
+jugador: sus controles (teclado WASD, flechas, control 1 o 2, o **touch** en su mitad de la pantalla),
+con prueba en vivo de las teclas, su robot, su AUTO, su cámara y su lugar de inicio. Al empezar, cada
+mitad presenta a su jugador con sus controles. En la pausa cada quien cambia su cámara; en los
+resultados se ve quién ganó de los dos, lo que aportó cada uno, y hay revancha, revancha cambiando
+lados y "Cambiar ajustes". Capturas: `npm run build && node scripts/versus-shots.mjs`. SUPUESTO: el
+manual no habla de controles ni de simuladores. En pantalla dividida no hay bloom ni FXAA.
 
 ## Estructura
 

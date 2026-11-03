@@ -171,6 +171,7 @@ export function saveBindings(b: Bindings): void {
 export function keyLabel(code: string): string {
   if (code.startsWith('Key')) return code.slice(3);
   if (code.startsWith('Digit')) return code.slice(5);
+  if (code === 'NumpadDecimal') return 'Num .';
   if (code.startsWith('Numpad')) return `Num ${code.slice(6)}`;
   const named: Record<string, string> = {
     ArrowUp: '↑',
@@ -188,6 +189,20 @@ export function keyLabel(code: string): string {
     Enter: 'Enter',
     Tab: 'Tab',
     Backspace: 'Backspace',
+    PageUp: 'RePág',
+    PageDown: 'AvPág',
+    // Signos: el símbolo en lugar del nombre en inglés ("Semicolon" → ";")
+    Semicolon: ';',
+    Period: '.',
+    Comma: ',',
+    Slash: '/',
+    Quote: "'",
+    Minus: '-',
+    Equal: '=',
+    BracketLeft: '[',
+    BracketRight: ']',
+    Backslash: '\\',
+    Backquote: '`',
   };
   return named[code] ?? code;
 }

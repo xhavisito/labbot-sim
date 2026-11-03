@@ -58,9 +58,11 @@ import { Hud } from '../ui/Hud';
 import { t, type Key } from '../ui/i18n';
 import { ic } from '../ui/chrome';
 import { MatchSetup } from '../ui/MatchSetup';
-import { partnerStation, VersusSetup } from '../ui/VersusSetup';
+import { VersusSetup } from '../ui/VersusSetup';
+import { DEVICE_LABEL, deviceHelp, partnerStation, swapStations } from '../ui/versus';
+import type { VersusSide } from '../config/settings';
 import { PadNav } from '../ui/padNav';
-import { DEFAULT_PLAYER, Menu, type MenuChoice } from '../ui/Menu';
+import { DEFAULT_PLAYER, Menu, type MenuChoice, type PauseInfo, type VsResults } from '../ui/Menu';
 import { saveMatchEntries, ScoutingScreen, type ScoutPlay } from '../ui/Scouting';
 import { isTouchDevice, TouchControls } from '../ui/TouchControls';
 import { TournamentScreen, WATCH_CAMERA } from '../ui/TournamentScreen';
@@ -146,6 +148,10 @@ export class App {
   /** Último cuadro dibujado detrás de una pantalla opaca (ver `loop`). */
   private lastBehind = 0;
   readonly touch: TouchControls;
+  /** Controles touch del jugador 2 (2 jugadores con touch: cada quien en su mitad). */
+  private touch2: TouchControls;
+  /** Pantalla dividida arriba/abajo (celular en vertical) en lugar de izquierda/derecha. */
+  private stacked = false;
   /** Repetición: grabadora del match en curso, la del último match y el reproductor abierto. */
   private recorder: Recorder | null = null;
   lastReplay: Replay | null = null;
@@ -205,6 +211,7 @@ export class App {
     this.applyQuality();
     this.hud = new Hud(ui, { camera: () => this.cycleCamera(), pause: () => this.togglePause(), reset: () => this.resetPractice() });
     this.touch = new TouchControls(ui, this.input);
+    this.touch2 = new TouchControls(ui, this.input, 'p2', 'vs-touch p2');
     this.menu = new Menu(ui, (c) => this.start(c), this.settings, (s) => {
       saveSettings(s);
       // El color de la cancha y los robots se arma al iniciar: con otro modo de colores se recarga
@@ -289,7 +296,11 @@ export class App {
       if (this.state === 'menu') this.menu.pwaChips();
     };
     this.toMenu();
-    const onResize = () => this.renderer.resize(this.cam.camera);
+    const onResize = () => {
+      this.renderer.resize(this.cam.camera);
+      // 2 jugadores: al girar el celular la pantalla se parte del otro lado
+      if (this.input.versus) this.applySplit();
+    };
     window.addEventListener('resize', onResize);
     window.addEventListener('keydown', (e) => {
       if (e.code === 'Backspace' && !this.input.capturing) this.resetPractice();
@@ -365,11 +376,10 @@ export class App {
     this.updateTouch();
     this.cam.setMode(c.player < 2 ? 'driverRed' : 'driverBlue');
     if (c.mode === 'versus' || duo) {
-      // Cada quien ve su robot desde atrás (pantalla dividida)
-      this.cam.setMode('follow');
-      this.cam2.setMode('follow');
-      this.hud.toast(`${t('vs_p1')}: ${t('vs_keys1')}`, 'big');
-      this.hud.toast(`${t('vs_p2')}: ${t('vs_keys2')}`, 'big');
+      // Cada quien ve su robot con la cámara que eligió (pantalla dividida); la presentación de cada
+      // mitad dice quién es quién y sus controles (`Hud.setVersus`)
+      this.cam.setMode(this.settings.versus.p1.camera);
+      this.cam2.setMode(this.settings.versus.p2.camera);
     }
     if (c.mode === 'auto')
       this.autoPractice = new AutoPractice(this.hud.root.parentElement ?? document.body, {
@@ -457,7 +467,35 @@ export class App {
     const v = this.settings.versus;
     this.input.layout = { p1: v.p1.device, p2: v.p2.device };
     this.splitBar.style.display = on ? '' : 'none';
+    this.touch.root.classList.toggle('vs-touch', on);
+    this.touch.root.classList.toggle('p1', on);
+    document.body.classList.toggle('vs-split', on);
+    this.applySplit();
+    const p2 = this.session.player2;
+    this.hud.setVersus(
+      on && p2
+        ? {
+            stacked: this.stacked,
+            team: this.session.player.alliance === p2.alliance ? 'same' : 'opp',
+            players: [
+              { r: this.session.player, side: v.p1 },
+              { r: p2, side: v.p2 },
+            ].map(({ r, side }) => {
+              const help = deviceHelp(side.device, this.input.deviceKeys(side.device), this.input.bindings);
+              return { station: r.index, robot: robotLabel(r.spec), keys: help.map((h) => h.keys), help: help.map((h) => h.what) };
+            }),
+          }
+        : null,
+    );
     if (!on) this.renderer.resize(this.cam.camera);
+  }
+
+  /** Lado a lado en horizontal; arriba/abajo cuando la pantalla es más alta que ancha. */
+  private applySplit(): void {
+    this.stacked = this.input.versus && window.innerHeight > window.innerWidth;
+    this.splitBar.classList.toggle('stacked', this.stacked);
+    document.body.classList.toggle('vs-stacked', this.stacked);
+    this.hud.setStacked(this.stacked);
   }
 
   /** Sesión de la práctica 1 contra 1: tu robot y, enfrente, el rival elegido (mismo tipo de robot; SUPUESTO). */
@@ -500,6 +538,8 @@ export class App {
     new VersusSetup(this.menu.root, this.settings, {
       back: () => this.toMenu(),
       save: () => saveSettings(this.settings),
+      keys: (d) => this.input.deviceKeys(d),
+      bindings: () => this.input.bindings,
       start: (player) => {
         this.menu.player = player;
         this.start({ ...c, player, ready: true });
@@ -698,9 +738,13 @@ export class App {
   /** Muestra los controles touch solo jugando (y según el ajuste). */
   private updateTouch(): void {
     const s = this.settings.touch;
-    const want = !this.input.versus && (this.touchForced || s === 'on' || (s === 'auto' && isTouchDevice()));
-    document.body.classList.toggle('touch-on', want);
+    // 2 jugadores: touch solo para quien lo eligió, cada juego de controles en su mitad
+    const vs = this.input.versus;
+    const want = vs ? this.input.layout.p1 === 'touch' : this.touchForced || s === 'on' || (s === 'auto' && isTouchDevice());
+    const want2 = vs && this.input.layout.p2 === 'touch';
+    document.body.classList.toggle('touch-on', want || want2);
     this.touch.show(want && this.state === 'playing');
+    this.touch2.show(want2 && this.state === 'playing');
   }
 
   /** Evalúa y guarda el escenario terminado; devuelve el aviso para los resultados. */
@@ -755,6 +799,7 @@ export class App {
       sc?.tour ? this.tourNote : sc ? t('sc_saved', { match: sc.match }) : this.scenarioNote,
       sc?.tour ? t('tr_continue') : undefined,
       this.achNew,
+      this.vsResults(),
     );
     this.revealRivals();
     const rep = this.lastReplay;
@@ -764,6 +809,39 @@ export class App {
     const back = () => this.showResults();
     bar.querySelector('[data-act="replay"]')!.addEventListener('click', () => this.watchReplay(rep, back));
     bar.querySelector('[data-act="stats"]')!.addEventListener('click', () => this.showStats(rep, back, () => this.watchReplay(rep, back)));
+  }
+
+  /** De la pausa o los resultados a "Preparar 2 jugadores" (el match en curso se deja). */
+  private versusSetupAgain(): void {
+    const c = this.choice;
+    this.toMenu();
+    this.start({ ...c, ready: false });
+  }
+
+  /** Resultados de 2 jugadores: lo que hizo cada quien (de la repetición) y las revanchas. */
+  private vsResults(): VsResults | undefined {
+    const p2 = this.session.player2;
+    if (this.choice.mode !== 'versus' || !p2) return undefined;
+    const rep = this.lastReplay;
+    const all = rep ? robotStats(rep) : [];
+    const stats = (index: number) => (rep ? (all[rep.header.robots.findIndex((r) => r.index === index)] ?? null) : null);
+    const me = this.session.player;
+    return {
+      team: me.alliance === p2.alliance ? 'same' : 'opp',
+      stations: [me.index, p2.index],
+      players: [me, p2].map((r) => {
+        const st = stats(r.index);
+        // Lo que aportó cada quien: sus Muestras y su Línea de Autónomo (§4.4); la Plataforma es de la alianza
+        const line = rep?.header.endgame.autoLine.includes(r.index) ? GAME.points.autoLine : 0;
+        return { robot: robotLabel(r.spec), points: (st?.samplePoints ?? 0) + line, stats: st };
+      }),
+      onSwap: () => {
+        const player = swapStations(this.choice.player, this.settings.versus.team);
+        this.menu.player = player;
+        this.start({ ...this.choice, player, ready: true });
+      },
+      onSetup: () => this.versusSetupAgain(),
+    };
   }
 
   /**
@@ -785,6 +863,7 @@ export class App {
   showStats(r: Replay, back: () => void, watch: (() => void) | null): void {
     this.hud.show(false);
     this.touch.show(false);
+    this.touch2.show(false);
     new StatsPanel(this.menu.root, r, back, watch).show();
   }
 
@@ -799,6 +878,7 @@ export class App {
     this.menu.hide();
     this.hud.show(false);
     this.touch.show(false);
+    this.touch2.show(false);
     // La estrategia de alianza es tuya: no va en la repetición
     this.planView.set(null, 'red');
     this.replay = new ReplayPlayer(r);
@@ -887,6 +967,7 @@ export class App {
     this.state = 'menu';
     this.clearBoard();
     this.touch.show(false);
+    this.touch2.show(false);
     this.hud.show(false);
     this.planView.set(null, 'red');
     this.cam.setMode('free');
@@ -926,10 +1007,34 @@ export class App {
       setCamera: (c) => this.setCamera(c),
       onResume: () => this.togglePause(),
       onRestart: this.choice.scout?.tour ? undefined : () => this.start(this.choice),
-      onBoard: m ? () => this.openBoard() : undefined,
+      // En pantalla dividida la pizarra (cámara superior y trazos) no aplica
+      onBoard: m && !this.input.versus ? () => this.openBoard() : undefined,
       onMenu: () => (this.choice.scout ? this.toScouting() : this.toMenu()),
       menuLabel: this.choice.scout?.tour ? t('tr_backTo') : undefined,
+      versus: this.vsPause(),
     });
+  }
+
+  /** Pausa de 2 jugadores: cámara y controles de cada quien (la cámara elegida se guarda). */
+  private vsPause(): PauseInfo['versus'] {
+    const p2 = this.session.player2;
+    if (!this.input.versus || !p2) return undefined;
+    const v = this.settings.versus;
+    const player = (i: 0 | 1, side: VersusSide, station: number) => ({
+      station,
+      camera: side.camera,
+      device: t(DEVICE_LABEL[side.device].name),
+      help: deviceHelp(side.device, this.input.deviceKeys(side.device), this.input.bindings),
+      setCamera: (c: VersusSide['camera']) => {
+        side.camera = c;
+        (i === 0 ? this.cam : this.cam2).setMode(c);
+        saveSettings(this.settings);
+      },
+    });
+    return {
+      players: [player(0, v.p1, this.session.player.index), player(1, v.p2, p2.index)],
+      onSetup: this.choice.mode === 'versus' ? () => this.versusSetupAgain() : undefined,
+    };
   }
 
   /** Pizarra táctica: cámara superior y trazos con el puntero; el match sigue en pausa. */
@@ -1037,6 +1142,7 @@ export class App {
         this.hud.planStep(sm.phase, sm.remaining);
       }
       this.touch.setIntake(this.session.player.mech.intakeOn);
+      if (this.session.player2) this.touch2.setIntake(this.session.player2.mech.intakeOn);
       for (const f of this.session.scoreFx) this.effects.burst(f.x, f.y, f.z, f.alliance);
       const m = this.session.match;
       if (m?.finished) {
@@ -1095,7 +1201,7 @@ export class App {
     if (!behind || now - this.lastBehind > 125) {
       this.lastBehind = now;
       const t1 = performance.now();
-      if (p2 && this.state !== 'replay') this.renderer.renderSplit(this.cam.camera, this.cam2.camera);
+      if (p2 && this.state !== 'replay') this.renderer.renderSplit(this.cam.camera, this.cam2.camera, this.stacked);
       else this.renderer.render(this.cam.camera);
       const t2 = performance.now();
       this.perf.push(dt, t1 - t0, t2 - t1);
