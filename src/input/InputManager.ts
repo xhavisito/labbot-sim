@@ -93,6 +93,8 @@ export class InputManager {
   private padPrev2: boolean[] = [];
   private input2 = emptyInput();
   readonly touch: TouchState = { forward: 0, turn: 0, pressed: new Set(), held: new Set() };
+  /** Controles touch del jugador 2 (2 jugadores con `touch`: cada quien en su mitad de la pantalla). */
+  readonly touch2: TouchState = { forward: 0, turn: 0, pressed: new Set(), held: new Set() };
   /** Esperando una tecla o botón para reasignar (lo maneja el menú de Controles). */
   private capture: ((c: Captured) => void) | null = null;
 
@@ -154,6 +156,11 @@ export class InputManager {
     return {};
   }
 
+  /** Teclas de un dispositivo de 2 jugadores (para la ayuda de cada quien; vacío si es un control o touch). */
+  deviceKeys(dev: VersusDevice): Partial<Record<Action, string[]>> {
+    return this.keyMap(dev);
+  }
+
   /** El control de una persona en versus (`pad1` = el primero, `pad2` = el segundo). */
   private padDev(dev: VersusDevice | null): Gamepad | null {
     if (!dev) return this.pad();
@@ -212,6 +219,14 @@ export class InputManager {
       for (const a of ACTIONS) if (b.pad[a].some((i) => !!now[i] && !this.padPrev2[i])) acts.add(a);
       this.padPrev2 = now;
     }
+    if (this.layout.p2 === 'touch') {
+      const tc = this.touch2;
+      if (Math.abs(tc.forward) > Math.abs(inp.forward)) inp.forward = tc.forward;
+      if (Math.abs(tc.turn) > Math.abs(inp.turn)) inp.turn = tc.turn;
+      if (tc.held.has('intake')) inp.intake = true;
+      for (const a of tc.pressed) acts.add(a);
+    }
+    this.touch2.pressed.clear();
     inp.releaseSample = acts.has('releaseSample');
     for (const [a, pos] of ELEVATOR_ACTIONS) if (acts.has(a)) inp.elevator = this.elevatorPos2 = pos;
     if (acts.has('elevatorUp')) inp.elevator = this.elevatorPos2 = Math.min(4, this.elevatorPos2 + 1) as ElevatorPos;
@@ -227,6 +242,7 @@ export class InputManager {
       this.pollCapture();
       this.pressed.clear();
       this.touch.pressed.clear();
+      this.touch2.pressed.clear();
       this.camera = this.pause = false;
       return inp;
     }

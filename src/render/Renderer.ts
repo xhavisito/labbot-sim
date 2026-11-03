@@ -166,20 +166,30 @@ export class Renderer {
    * Pantalla dividida (multijugador local): dos vistas lado a lado, directo al canvas (sin bloom ni
    * FXAA; con dos vistas el costo se duplica). `camB` null = pantalla completa normal.
    */
-  renderSplit(camA: THREE.PerspectiveCamera, camB: THREE.PerspectiveCamera): void {
+  /**
+   * Pantalla dividida (2 jugadores): `camA` a la izquierda y `camB` a la derecha, o con `stacked`
+   * (celular en vertical) `camA` arriba y `camB` abajo. Una raya de 2 px entre las dos.
+   */
+  renderSplit(camA: THREE.PerspectiveCamera, camB: THREE.PerspectiveCamera, stacked = false): void {
     const r = this.renderer;
     const w = r.domElement.clientWidth || window.innerWidth;
     const h = r.domElement.clientHeight || window.innerHeight;
-    const half = Math.floor(w / 2);
     r.setScissorTest(true);
-    const views: Array<[THREE.PerspectiveCamera, number, number]> = [
-      [camA, 0, half - 1],
-      [camB, half + 1, w - half - 1],
-    ];
-    for (const [cam, x, vw] of views) {
-      r.setViewport(x, 0, vw, h);
-      r.setScissor(x, 0, vw, h);
-      const aspect = vw / h;
+    // [cámara, x, y, ancho, alto] en píxeles CSS; en WebGL la y cuenta desde abajo
+    const half = Math.floor((stacked ? h : w) / 2);
+    const views: Array<[THREE.PerspectiveCamera, number, number, number, number]> = stacked
+      ? [
+          [camA, 0, half + 1, w, h - half - 1],
+          [camB, 0, 0, w, half - 1],
+        ]
+      : [
+          [camA, 0, 0, half - 1, h],
+          [camB, half + 1, 0, w - half - 1, h],
+        ];
+    for (const [cam, x, y, vw, vh] of views) {
+      r.setViewport(x, y, vw, vh);
+      r.setScissor(x, y, vw, vh);
+      const aspect = vw / vh;
       if (Math.abs(cam.aspect - aspect) > 1e-3) {
         cam.aspect = aspect;
         cam.updateProjectionMatrix();

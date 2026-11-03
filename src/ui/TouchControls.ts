@@ -4,7 +4,7 @@
  * el resto del juego no sabe de dónde vino la entrada. Cámara y pausa son los botones del HUD.
  */
 import type { Action } from '../input/bindings';
-import type { InputManager } from '../input/InputManager';
+import type { InputManager, TouchState } from '../input/InputManager';
 import { t, type Key } from './i18n';
 
 const BUTTONS: Array<{ action: Action; label: Key | string; cls: string }> = [
@@ -29,13 +29,14 @@ export class TouchControls {
   private radius = 60;
 
   private intake: HTMLElement;
+  /** Dónde escribe: los del jugador 1 (`input.touch`) o, en 2 jugadores, los del 2 (`input.touch2`). */
+  private state: TouchState;
 
-  constructor(
-    host: HTMLElement,
-    private input: InputManager,
-  ) {
+  /** `cls`: clase extra (en 2 jugadores, `vs-touch p1|p2`: cada juego va en su mitad de la pantalla). */
+  constructor(host: HTMLElement, input: InputManager, which: 'p1' | 'p2' = 'p1', cls = '') {
+    this.state = which === 'p2' ? input.touch2 : input.touch;
     this.root = document.createElement('div');
-    this.root.className = 'touch';
+    this.root.className = `touch ${cls}`.trim();
     this.root.innerHTML = `
       <div class="stick"><div class="knob"></div><span>${t('touchStick')}</span></div>
       <div class="pad">${BUTTONS.map((b) => `<button class="tbtn ${b.cls}" data-a="${b.action}">${b.label.length <= 2 ? b.label : t(b.label as Key)}</button>`).join('')}</div>`;
@@ -53,16 +54,16 @@ export class TouchControls {
         // La garra trabaja mientras el dedo sigue encima (como la tecla o el botón del control)
         if (HOLD.has(a)) {
           b.setPointerCapture(e.pointerId);
-          this.input.touch.held.add(a);
+          this.state.held.add(a);
           return;
         }
-        this.input.touch.pressed.add(a);
+        this.state.pressed.add(a);
         setTimeout(() => b.classList.remove('on'), 150);
       });
       if (HOLD.has(a))
         for (const ev of ['pointerup', 'pointercancel', 'lostpointercapture'] as const)
           b.addEventListener(ev, () => {
-            this.input.touch.held.delete(a);
+            this.state.held.delete(a);
             b.classList.remove('on');
           });
     });
@@ -79,7 +80,7 @@ export class TouchControls {
     this.root.style.display = v ? '' : 'none';
     if (!v) {
       this.release();
-      this.input.touch.held.clear();
+      this.state.held.clear();
       this.root.querySelectorAll('.tbtn.on').forEach((b) => b.classList.remove('on'));
     }
   }
@@ -106,8 +107,8 @@ export class TouchControls {
     this.knob.style.transform = `translate(${dx}px, ${dy}px)`;
     const k = (v: number) => (Math.abs(v) < 0.12 ? 0 : v);
     // Arriba avanza; izquierda gira a la izquierda (+turn)
-    this.input.touch.forward = k(-dy / this.radius);
-    this.input.touch.turn = k(-dx / this.radius);
+    this.state.forward = k(-dy / this.radius);
+    this.state.turn = k(-dx / this.radius);
   }
 
   private stickUp(e: PointerEvent): void {
@@ -118,7 +119,7 @@ export class TouchControls {
   private release(): void {
     this.stickId = null;
     this.knob.style.transform = '';
-    this.input.touch.forward = 0;
-    this.input.touch.turn = 0;
+    this.state.forward = 0;
+    this.state.turn = 0;
   }
 }

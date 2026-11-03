@@ -10,6 +10,9 @@ import { customById } from '../config/customRobots';
 import { allRobotIds, robotSpec, type RobotId } from '../config/robotIds';
 import { GRIP_MODES, MECHANISM_KINDS } from '../config/robot';
 import { GAME } from '../config/game';
+import { VERSUS_CAMERAS, type VersusCamera } from '../config/settings';
+import type { RobotStats } from '../replay/stats';
+import { versusOutcome, type DeviceHelpRow } from './versus';
 import { DEFAULT_SETTINGS, HUD_KEYS, PLAN_BOARDS, PRACTICE_LIMITS, REF_AUDIO_MODES, RIVALS, SETTINGS_RANGE, type HudKey, type PlanBoard, type RefAudioMode, type RivalKind, type Settings } from '../config/settings';
 import { DAMAGE_LEVELS, type DamageLevel, type DamageTargets } from '../core/damage';
 import { buildRefereeReport } from '../core/refereeReport';
@@ -68,6 +71,28 @@ export interface PauseInfo {
   onMenu: () => void;
   /** Texto del botón de salir (p. ej. volver al torneo). */
   menuLabel?: string;
+  /** 2 jugadores: la cámara y los controles de cada quien (en lugar de los de una persona). */
+  versus?: { players: VsPausePlayer[]; onSetup?: () => void };
+}
+
+/** Un jugador en la pausa de 2 jugadores. */
+export interface VsPausePlayer {
+  station: number;
+  camera: VersusCamera;
+  setCamera: (c: VersusCamera) => void;
+  help: DeviceHelpRow[];
+  device: string;
+}
+
+/** Resultados de 2 jugadores: quién era quién, lo que hizo cada uno y las revanchas. */
+export interface VsResults {
+  team: 'opp' | 'same';
+  /** Estación del jugador 1 y del 2. */
+  stations: [number, number];
+  /** `points`: lo que aportó (Muestras y su Línea de Autónomo, §4.4). */
+  players: { robot: string; points: number; stats: RobotStats | null }[];
+  onSwap: () => void;
+  onSetup: () => void;
 }
 
 
@@ -710,7 +735,7 @@ export class Menu {
     this.open(
       `<div class="pause">
         <div class="ps-main">
-          <div class="kicker"><span></span>${t(m ? 'pauseKick' : 'pauseKickPractice')}</div>
+          <div class="kicker"><span></span>${t(p.versus && m ? 'vs_pauseKick' : m ? 'pauseKick' : 'pauseKickPractice')}</div>
           <h2>${t('paused')}</h2>
           ${
             m
@@ -723,18 +748,19 @@ export class Menu {
             <button class="primary" data-act="resume">${ic.play}<span>${t('resume')}</span>${key('pause')}</button>
             ${p.onRestart ? `<button data-act="restart">${ic.reset}<span>${t('restart')}</span></button>` : ''}
             ${p.onBoard ? `<button data-act="board">${ic.route}<span>${t('board_open')}</span></button>` : ''}
+            ${p.versus?.onSetup ? `<button data-act="setup">${ic.sliders}<span>${t('vs_editSetup')}</span></button>` : ''}
             <button data-act="controls">${ic.gamepad}<span>${t('controlsTitle')}</span></button>
             <button class="quit" data-act="menu">${ic.home}<span>${p.menuLabel ?? t('backToMenu')}</span></button>
           </div>
         </div>
-        <div class="ps-side">
+        ${p.versus ? this.vsPauseSide(p.versus.players) : `<div class="ps-side">
           <h3>${t('camerasTitle')}</h3>
           <div class="ps-cams">${CAMERA_MODES.map((c) => `<button class="chipbtn ${c === p.camera ? 'on' : ''}" data-cam="${c}">${t(`cam_${c}` as Key)}</button>`).join('')}</div>
           <h3 class="ps-keys-title">${t('keysTitle')}</h3>
           <div class="ps-keys">${keyRows.map((a) => `<div>${t(`act_${a}` as Key)}<span class="k">${kbds(b.keys[a].map(keyLabel))}</span></div>`).join('')}</div>
           <h3 class="ps-keys-title">${t('padTitle')}</h3>
           <div class="ps-pad">${padHelp(b)}<br>${t('padMenus')}</div>
-        </div>
+        </div>`}
       </div>`,
       'overlay',
     );
@@ -743,6 +769,14 @@ export class Menu {
       p.camera = el.dataset.cam as CameraMode;
       this.root.querySelectorAll('[data-cam]').forEach((x) => x.classList.toggle('on', x === el));
     });
+    this.on('[data-vcam]', (el) => {
+      const i = Number(el.dataset.vcam);
+      const c = el.dataset.val as VersusCamera;
+      p.versus?.players[i].setCamera(c);
+      if (p.versus) p.versus.players[i].camera = c;
+      this.root.querySelectorAll(`[data-vcam="${i}"]`).forEach((x) => x.classList.toggle('on', x === el));
+    });
+    if (p.versus?.onSetup) this.on('[data-act="setup"]', p.versus.onSetup);
     this.on('[data-act="controls"]', () => this.controlsPanel(() => this.pause(p)));
     if (p.onBoard) this.on('[data-act="board"]', p.onBoard);
     this.on('[data-act="resume"]', p.onResume);
@@ -751,12 +785,27 @@ export class Menu {
     (this.root.querySelector('[data-act="resume"]') as HTMLElement).focus({ preventScroll: true });
   }
 
+  /** Lado derecho de la pausa en 2 jugadores: una columna por persona con su cámara y sus controles. */
+  private vsPauseSide(players: VsPausePlayer[]): string {
+    const col = (pl: VsPausePlayer, i: number) => {
+      const a = pl.station < 2 ? 'red' : 'blue';
+      return `<div class="vs-pcol ${a}">
+        <div class="vs-pcol-h"><span class="vs-badge">${t(i === 0 ? 'vs_p1short' : 'vs_p2short')}</span><div><b>${t(i === 0 ? 'vs_p1' : 'vs_p2')}</b><small>${stationLabel(pl.station)} · ${pl.device}</small></div></div>
+        <h3>${t('vs_camera')}</h3>
+        <div class="seg vs-cams">${VERSUS_CAMERAS.map((c) => `<button class="${pl.camera === c ? 'on' : ''}" data-vcam="${i}" data-val="${c}">${t(`vs_cam_${c}` as Key)}</button>`).join('')}</div>
+        <h3>${t('vs_pauseKeys')}</h3>
+        <div class="vs-keys">${pl.help.map((r) => `<span class="vs-key">${r.keys.map((k) => (k.label === '–' ? '<i>–</i>' : `<kbd>${k.label}</kbd>`)).join('')}<em>${r.what}</em></span>`).join('')}</div>
+      </div>`;
+    };
+    return `<div class="ps-side vs-pside"><h3>${t('vs_pausePlayers')}</h3><div class="vs-pcols">${players.map(col).join('')}</div></div>`;
+  }
+
   // ------------------------------------------------------------------ resultados
   /**
    * `note`: aviso arriba de las acciones (p. ej. que el match se guardó en el scouting). `cont`: match
    * del torneo, sin "Jugar de nuevo" (el resultado ya cuenta) y el botón principal es este.
    */
-  results(m: Match, onRestart: () => void, onMenu: () => void, onDownload: () => void, player: number, note = '', cont?: string, earned: string[] = []): void {
+  results(m: Match, onRestart: () => void, onMenu: () => void, onDownload: () => void, player: number, note = '', cont?: string, earned: string[] = [], vs?: VsResults): void {
     const b = { red: m.breakdown('red'), blue: m.breakdown('blue') };
     const rp = { red: m.rankingPoints('red'), blue: m.rankingPoints('blue') };
     const winner: Alliance | null = b.red.total === b.blue.total ? null : b.red.total > b.blue.total ? 'red' : 'blue';
@@ -777,15 +826,24 @@ export class Menu {
       `<div class="rpmeter">${Array.from({ length: rpMax }, (_, i) => `<i class="${i < rp[a].total ? 'on' : ''}"></i>`).join('')}</div>` +
       `<div class="rprow">${chip(rp[a].win > 0, `${t('rpWin')} +${rp[a].win}`)}${chip(rp[a].autoLine, t('rpAuto'))}${chip(rp[a].critical, t('rpCritical'))}${chip(rp[a].dominance, `${t('dominance')} ${m.samplesIn(a)}/${GAME.rp.dominanceSamples}`)}</div></div>`;
     const fouls = refereeHtml(buildRefereeReport(m));
+    // 2 jugadores: el título dice quién ganó de las dos personas y cada lado del marcador, quién iba ahí
+    const who = (a: Alliance): string => {
+      if (!vs) return mine === a ? ` · ${t('you')}` : '';
+      const tags = vs.stations.map((st, i) => ((st < 2 ? 'red' : 'blue') === a ? t(i === 0 ? 'vs_p1short' : 'vs_p2short') : '')).filter(Boolean);
+      return ` · ${tags.length ? tags.join(' + ') : t('vs_ai')}`;
+    };
+    const outcome = vs ? versusOutcome(winner, vs.stations[0], vs.team) : null;
+    const title = outcome ? t(`vs_res_${outcome}` as Key) : winner ? `${t('winner')} ${t(winner)}` : t('tie');
     this.open(
-      `<div class="dialog results">
-        <div class="kicker"><span></span>${t('resultsKick')}${player >= 0 ? ` · ${t('yourRobot')}: ${stationLabel(player)}` : ''}</div>
-        <h2 class="${winner ?? ''}">${winner ? `${t('winner')} ${t(winner)}` : t('tie')}</h2>
+      `<div class="dialog results ${vs ? 'vs-results' : ''}">
+        <div class="kicker"><span></span>${vs ? t('vs_resKick') : `${t('resultsKick')}${player >= 0 ? ` · ${t('yourRobot')}: ${stationLabel(player)}` : ''}`}</div>
+        <h2 class="${winner ?? ''}">${title}</h2>
         <div class="final">
-          <div class="blue ${winner === 'blue' ? 'win' : ''}"><small>${t('blue')}${mine === 'blue' ? ` · ${t('you')}` : ''}</small>${b.blue.total}</div>
+          <div class="blue ${winner === 'blue' ? 'win' : ''}"><small>${t('blue')}${who('blue')}</small>${b.blue.total}</div>
           <div class="dash">–</div>
-          <div class="red ${winner === 'red' ? 'win' : ''}"><small>${t('red')}${mine === 'red' ? ` · ${t('you')}` : ''}</small>${b.red.total}</div>
+          <div class="red ${winner === 'red' ? 'win' : ''}"><small>${t('red')}${who('red')}</small>${b.red.total}</div>
         </div>
+        ${vs ? this.vsPlayersHtml(vs, winner) : ''}
         <h3>${t('breakdown')}</h3>
         <div class="bchart">
           <div class="bc-head"><span class="blue">${t('blue')}</span><span class="red">${t('red')}</span></div>
@@ -803,8 +861,17 @@ export class Menu {
         ${note ? `<div class="msg ok">${ic.check}${note}</div>` : ''}
         ${earned.map((n) => `<div class="msg ok ach-toast">${ic.medal}<b>${t('ach_new')}:</b>&nbsp;${n}</div>`).join('')}
         <div class="actions">
-          ${cont ? `<button class="btn primary" data-act="menu">${ic.go}<span>${cont}</span></button>` : `<button class="btn primary" data-act="restart">${ic.reset}<span>${t('playAgain')} (R)</span></button>
-          <button class="btn" data-act="menu">${ic.home}<span>${t('backToMenu')}</span></button>`}
+          ${
+            vs
+              ? `<button class="btn primary" data-act="restart">${ic.reset}<span>${t('vs_rematch')} (R)</span></button>
+          <button class="btn" data-act="swap">${ic.swap}<span>${t('vs_rematchSwap')}</span></button>
+          <button class="btn" data-act="setup">${ic.sliders}<span>${t('vs_editSetup')}</span></button>
+          <button class="btn" data-act="menu">${ic.home}<span>${t('backToMenu')}</span></button>`
+              : cont
+                ? `<button class="btn primary" data-act="menu">${ic.go}<span>${cont}</span></button>`
+                : `<button class="btn primary" data-act="restart">${ic.reset}<span>${t('playAgain')} (R)</span></button>
+          <button class="btn" data-act="menu">${ic.home}<span>${t('backToMenu')}</span></button>`
+          }
           <button class="btn" data-act="share">${ic.download}<span>${t('shareSummary')}</span></button>
           <button class="btn" data-act="log">${ic.download}<span>${t('downloadLog')}</span></button>
         </div>
@@ -814,9 +881,44 @@ export class Menu {
     this.on('[data-act="restart"]', onRestart);
     this.on('[data-act="menu"]', onMenu);
     this.on('[data-act="log"]', onDownload);
+    if (vs) {
+      this.on('[data-act="swap"]', vs.onSwap);
+      this.on('[data-act="setup"]', vs.onSetup);
+    }
     const share = this.root.querySelector<HTMLButtonElement>('[data-act="share"]');
     share?.addEventListener('click', () => {
       shareSummary(m).then((r) => { if (r === 'downloaded') share.textContent = t('summaryDownloaded'); }).catch(() => undefined);
     });
+  }
+  /** Tarjetas de los dos jugadores en los resultados: su robot y lo que hizo (de la repetición). */
+  private vsPlayersHtml(vs: VsResults, winner: Alliance | null): string {
+    const pts = vs.players.map((p) => p.points);
+    const top = pts[0] === pts[1] ? -1 : pts[0] > pts[1] ? 0 : 1;
+    const card = (i: number) => {
+      const st = vs.stations[i];
+      const a: Alliance = st < 2 ? 'red' : 'blue';
+      const x = vs.players[i].stats;
+      const n = x ? [1, 2, 3].reduce((acc, l) => acc + x.samples.AUTO[l as 1 | 2 | 3] + x.samples.TELEOP[l as 1 | 2 | 3], 0) : 0;
+      const row = (k: Key, v: string) => `<div><span>${t(k)}</span><b>${v}</b></div>`;
+      return `<div class="vs-rcard ${a} ${winner === a ? 'win' : ''}">
+        <div class="vs-rcard-h"><span class="vs-badge">${t(i === 0 ? 'vs_p1short' : 'vs_p2short')}</span>
+          <div><b>${t(i === 0 ? 'vs_p1' : 'vs_p2')}</b><small>${stationLabel(st)} · ${esc(vs.players[i].robot)}</small></div>
+          ${top === i ? `<span class="vs-top">${ic.trophy}${t('vs_resTop')}</span>` : ''}</div>
+        ${
+          x
+            ? `<div class="vs-rbig"><b>${vs.players[i].points}</b><span>${t('vs_stat_points')}<small>${t('vs_stat_pointsNote')}</small></span></div>
+        <div class="vs-rstats">
+          ${row('vs_stat_samples', String(n))}
+          ${row('vs_stat_cycles', String(x.cycles.length))}
+          ${row('vs_stat_best', x.bestCycle !== null ? `${x.bestCycle.toFixed(1)} s` : '—')}
+          ${row('vs_stat_dist', `${Math.round(x.distance)} m`)}
+          ${x.onPlatform ? row('vs_stat_platform', t('vs_yes')) : ''}
+          ${x.critical ? row('vs_stat_critical', t('vs_yes')) : ''}
+        </div>`
+            : ''
+        }
+      </div>`;
+    };
+    return `<h3>${t('vs_resPlayers')}</h3><div class="vs-rgrid">${card(0)}${card(1)}</div>`;
   }
 }

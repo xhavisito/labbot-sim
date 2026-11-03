@@ -34,6 +34,13 @@ function faultChip(k: FaultKind, left: number): string {
   return `<span class="fault-chip ${k}">⚠ ${t(`fault_${k}` as Key)}<em>${rest}</em></span>`;
 }
 
+/** 2 jugadores en pantalla dividida: quién va en cada mitad y cómo se parte (lado a lado o arriba/abajo). */
+export interface HudVersus {
+  stacked: boolean;
+  team: 'opp' | 'same';
+  players: { station: number; robot: string; keys: { label: string }[][]; help: string[] }[];
+}
+
 export interface HudActions {
   camera: () => void;
   pause: () => void;
@@ -67,6 +74,8 @@ export class Hud {
   private flags = { hudToasts: true, hudFouls: true };
   private tr!: HTMLElement;
   private lastScore = { red: -1, blue: -1 };
+  /** Mitades de la pantalla dividida (2 jugadores): etiqueta, avisos propios y presentación. */
+  private halves: { root: HTMLElement; tag: HTMLElement; toasts: HTMLElement; intro: HTMLElement }[] = [];
 
   constructor(host: HTMLElement, act: HudActions) {
     this.root = el('div', 'hud', host);
@@ -117,6 +126,57 @@ export class Hud {
     this.keys = el('div', 'hud-keys', this.root);
     this.planCard = el('div', 'plan-card', this.root);
     this.planCard.style.display = 'none';
+    for (const k of ['p1', 'p2']) {
+      const root = el('div', `vs-half ${k}`, this.root);
+      this.halves.push({ root, tag: el('div', 'vs-tag', root), toasts: el('div', 'toasts vs-toasts', root), intro: el('div', 'vs-intro', root) });
+    }
+  }
+
+  /**
+   * Pantalla dividida de 2 jugadores (o nada): cada mitad lleva su etiqueta (J1/J2, estación, robot),
+   * la tarjeta de su robot, sus avisos (fallas, se resbaló la Muestra) y, al empezar, una presentación
+   * con sus controles que se va sola.
+   */
+  setVersus(v: HudVersus | null): void {
+    this.root.classList.toggle('vs-on', !!v);
+    this.root.classList.toggle('vs-stacked', !!v?.stacked);
+    this.root.classList.remove('vs-intro-on');
+    for (const [i, h] of this.halves.entries()) {
+      h.toasts.innerHTML = '';
+      h.intro.innerHTML = '';
+      h.intro.classList.remove('out');
+      const p = v?.players[i];
+      if (!v || !p) continue;
+      const a = p.station < 2 ? 'red' : 'blue';
+      const st = `${t(a)} ${(p.station % 2) + 1}`;
+      const me = t(i === 0 ? 'vs_p1' : 'vs_p2');
+      const other = t(i === 0 ? 'vs_p2' : 'vs_p1');
+      h.root.className = `vs-half p${i + 1} ${a}`;
+      h.tag.innerHTML = `<b>${t(i === 0 ? 'vs_p1short' : 'vs_p2short')}</b><span>${st}</span>`;
+      h.intro.innerHTML = `<div class="vi-card">
+        <span class="vi-kick">${t('vs_introGo')}</span>
+        <b class="vi-name"><i>${t(i === 0 ? 'vs_p1short' : 'vs_p2short')}</i>${me}</b>
+        <span class="vi-sub">${st} · ${p.robot} · ${t(v.team === 'opp' ? 'vs_introOpp' : 'vs_introSame', { other })}</span>
+        <div class="vi-keys">${p.keys.map((ks, j) => `<span>${ks.map((k) => (k.label === '–' ? '–' : `<kbd>${k.label}</kbd>`)).join('')}<em>${p.help[j]}</em></span>`).join('')}</div>
+      </div>`;
+      // La tarjeta del robot de cada quien vive en su mitad
+      h.root.appendChild(i === 0 ? this.player : this.player2);
+    }
+    if (!v) {
+      this.root.insertBefore(this.player, this.toasts);
+      this.root.insertBefore(this.player2, this.toasts);
+      return;
+    }
+    this.introOut = false;
+    this.root.classList.add('vs-intro-on');
+  }
+
+  /** La presentación de cada mitad se va a los 4 s de juego (cuenta el tiempo de la sesión: no corre en pausa). */
+  private introOut = true;
+
+  /** Cambia cómo se parte la pantalla (al girar el celular). */
+  setStacked(stacked: boolean): void {
+    this.root.classList.toggle('vs-stacked', stacked);
   }
 
   setPlan(p: StrategyPlan | null): void {
@@ -181,18 +241,22 @@ export class Hud {
 
   show(v: boolean): void {
     this.player2.style.display = 'none';
+    if (!v) this.setVersus(null);
+    this.lastMiss = {};
     this.root.style.display = v ? '' : 'none';
     this.lastKey = '';
     this.lastScore = { red: -1, blue: -1 };
   }
 
-  toast(text: string, cls = ''): void {
+  /** Aviso del match; con `half` (0 = jugador 1, 1 = jugador 2) va solo en su mitad de la pantalla. */
+  toast(text: string, cls = '', half?: number): void {
     if (!this.flags.hudToasts) return;
-    const d = el('div', `toast ${cls}`, this.toasts);
+    const box = half !== undefined && this.root.classList.contains('vs-on') ? this.halves[half].toasts : this.toasts;
+    const d = el('div', `toast ${cls}`, box);
     d.textContent = text;
     setTimeout(() => d.classList.add('out'), 2600);
     setTimeout(() => d.remove(), 3200);
-    while (this.toasts.children.length > 4) this.toasts.firstElementChild?.remove();
+    while (box.children.length > 4) box.firstElementChild?.remove();
   }
 
   /** Avisos de los eventos del match del cuadro. */
@@ -222,34 +286,44 @@ export class Hud {
     }
   }
 
-  private lastMiss = -Infinity;
+  private lastMiss: Record<number, number> = {};
 
-  /** Avisos de golpes y fallas del robot propio (y de los demás, solo sus fallas). */
+  /**
+   * Avisos de golpes y fallas de los robots manejados por personas (y de los demás, solo sus fallas).
+   * En 2 jugadores, los de cada quien salen en su mitad de la pantalla.
+   */
   damage(s: GameSession): void {
-    const me = s.opts.player;
+    const humans = [s.opts.player, ...(s.player2 ? [s.player2.index] : [])];
+    const half = (robot: number) => (humans.length > 1 ? humans.indexOf(robot) : undefined);
     for (const e of s.damageEvents) {
+      const mine = humans.includes(e.robot);
       if (e.type === 'fault') {
         const fault = t(`fault_${e.kind}` as Key);
-        if (e.robot === me) {
-          const speed = s.damage.impact(me).toFixed(1);
-          this.toast(e.cause === 'impact' ? t('faultHit', { speed, fault }) : t('faultRandom', { fault }), 'fault big');
+        if (mine) {
+          const speed = s.damage.impact(e.robot).toFixed(1);
+          this.toast(e.cause === 'impact' ? t('faultHit', { speed, fault }) : t('faultRandom', { fault }), 'fault big', half(e.robot));
         } else {
           const r = s.robots.find((x) => x.index === e.robot);
           if (r) this.toast(t('faultOther', { robot: `${t(r.alliance)} ${r.station + 1}`, fault }), 'fault');
         }
-      } else if (e.robot !== me) continue;
-      else if (e.type === 'repaired') this.toast(t('faultFixed', { fault: t(`fault_${e.kind}` as Key) }), 'ok');
-      else if (e.type === 'dropped') this.toast(t('faultDropped'), 'fault');
+      } else if (!mine) continue;
+      else if (e.type === 'repaired') this.toast(t('faultFixed', { fault: t(`fault_${e.kind}` as Key) }), 'ok', half(e.robot));
+      else if (e.type === 'dropped') this.toast(t('faultDropped'), 'fault', half(e.robot));
     }
     // Agarre con compliants o preciso: avisa (cada tanto) que la Muestra se resbaló
     for (const e of s.events)
-      if (e.type === 'grabMiss' && e.robot === me && s.time - this.lastMiss > 4) {
-        this.lastMiss = s.time;
-        this.toast(t('grabMiss'));
+      if (e.type === 'grabMiss' && humans.includes(e.robot) && s.time - (this.lastMiss[e.robot] ?? -Infinity) > 4) {
+        this.lastMiss[e.robot] = s.time;
+        this.toast(t('grabMiss'), '', half(e.robot));
       }
   }
 
   update(s: GameSession, cam: CameraMode): void {
+    if (!this.introOut && s.time > 4) {
+      this.introOut = true;
+      this.root.classList.remove('vs-intro-on');
+      this.halves.forEach((h) => h.intro.classList.add('out'));
+    }
     // Viendo un match del torneo (sin robot propio): sin tarjeta de "tu robot" ni teclas
     this.root.classList.toggle('watch', s.opts.player < 0);
     const m = s.match;
