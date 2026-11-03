@@ -37,6 +37,8 @@ export interface MatchSetup {
   robots: [MatchRobot, MatchRobot, MatchRobot, MatchRobot];
   /** Lugar de tu robot dentro de su Zona de Inicio (§3.2.1, §4.1; `config/startSpot.ts`). */
   start: StartSpot;
+  /** Modo secreto: tipo, estrategia, AUTO y personalidad de los rivales los elige la IA y no se ven (2 contra 2, Xhavi 30-oct). Apagado, los eliges. */
+  secret: boolean;
 }
 
 /**
@@ -151,7 +153,7 @@ const botDefault = (): MatchRobot => ({ kind: 'random', strategy: 'auto', ai: 'h
 export const DEFAULT_SETTINGS: Settings = {
   ai: true,
   playerAuto: 'leave',
-  match: { robots: [botDefault(), botDefault(), botDefault(), botDefault()], start: { ...CENTER_SPOT } },
+  match: { robots: [botDefault(), botDefault(), botDefault(), botDefault()], start: { ...CENTER_SPOT }, secret: true },
   robotType: DEFAULT_ROBOT.mechanism,
   maxSpeed: DEFAULT_ROBOT.maxSpeed,
   hpEnabled: true,
@@ -258,7 +260,7 @@ export function sanitizeSettings(raw: unknown, autoIds: readonly string[]): Sett
   return {
     ai: typeof o.ai === 'boolean' ? o.ai : d.ai,
     playerAuto: auto(o.playerAuto, d.playerAuto),
-    match: { robots: [robot(0), robot(1), robot(2), robot(3)], start: m.start === undefined ? { ...CENTER_SPOT } : sanitizeSpot(m.start) },
+    match: { robots: [robot(0), robot(1), robot(2), robot(3)], start: m.start === undefined ? { ...CENTER_SPOT } : sanitizeSpot(m.start), secret: typeof m.secret === 'boolean' ? m.secret : true },
     // Un tipo quitado (genérico, elevador, torre, chasis, pivote con hopper) vuelve al pivote
     robotType: kind(o.robotType, d.robotType),
     maxSpeed: num(o.maxSpeed, d.maxSpeed, SETTINGS_RANGE.maxSpeed),
