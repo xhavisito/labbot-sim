@@ -111,3 +111,13 @@ describe('interruptores del HUD', () => {
     expect(s.hudHelp).toBe(true);
   });
 });
+
+import { describe as d2, it as i2, expect as e2 } from 'vitest';
+import { DEFAULT_SETTINGS as DS2, sanitizeSettings as san2 } from '../src/config/settings';
+d2('modo secreto', () => {
+  i2('viene prendido y se respeta apagado', () => {
+    e2(DS2.match.secret).toBe(true);
+    e2(san2({ match: { secret: false } }, []).match.secret).toBe(false);
+    e2(san2({}, []).match.secret).toBe(true);
+  });
+});

@@ -123,12 +123,12 @@ export class MatchSetup {
           <div class="ms-f"><span>${t('ms_strategy')}</span><span class="ms-fixed">${t('ms_youDrive')}</span></div>
           <div class="ms-f"><span>AUTO</span><select data-pauto>${autoOpts(s.playerAuto, true)}</select></div></div>`;
       // Rival: solo su dificultad (el tipo se ve si lo fija su equipo en el Scouting o el torneo)
-      if ((i < 2) !== (player < 2))
+      if (m.secret && (i < 2) !== (player < 2))
         return `<div class="ms-row rival">${head}
         <div class="ms-f"><span>${t('ms_type')}</span>${inp.kinds ? `<span class="ms-fixed">${t(`type_${inp.kinds[i]}` as Key)}</span>` : lock}</div>
         <div class="ms-f"><span>${t('ms_strategy')}</span>${lock}</div>
         <div class="ms-f"><span>${t('ms_difficulty')}</span>${aiSel(i, r.ai)}</div>
-        <div class="ms-f"><span>${t('ms_persona')}</span>${personaSel(i, r.persona)}</div>
+        <div class="ms-f"><span>${t('ms_persona')}</span>${lock}</div>
         <div class="ms-f"><span>AUTO</span>${lock}</div>
         <p class="ms-desc">${t('ms_rivalDesc')}</p></div>`;
       const plan = planOf(r);
@@ -162,6 +162,8 @@ export class MatchSetup {
         </div>
         <div class="panel ms-robots">
           <h3>${t('ms_robots')}</h3>
+          <label class="ms-all"><span>${t('ms_secretMode')}</span><input type="checkbox" data-secret ${m.secret ? 'checked' : ''}></label>
+          <p class="ms-note">${t('ms_secretModeDesc')}</p>
           <label class="ms-all"><span>${t('ms_allAi')}</span><select data-allai>${allAiOpts()}</select></label>
           <div data-rows>${rows()}</div>
         </div>
@@ -256,6 +258,11 @@ export class MatchSetup {
       bindRows();
     };
     bindRows();
+    q<HTMLInputElement>('[data-secret]').addEventListener('change', (e) => {
+      m.secret = (e.target as HTMLInputElement).checked;
+      this.act.save();
+      redrawRows();
+    });
     allAi.addEventListener('change', () => {
       for (const r of m.robots) r.ai = allAi.value as AiLevel;
       this.act.save();

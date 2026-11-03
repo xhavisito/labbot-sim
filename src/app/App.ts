@@ -6,6 +6,7 @@ import { addMatchHistory, matchHistoryEntry } from '../core/matchHistory';
 import { LEAVE_ZONE, type AutoRoutine } from '../auto/AutoRoutine';
 import { aiLineup } from '../ai/lineup';
 import { planAutoRoutine, planBotOptions } from '../ai/plan';
+import { AI_PERSONAS, type AiPersona } from '../ai/persona';
 import { SECRET_AUTOS, SECRET_STRATEGIES, STRATEGY_OPTIONS, weighted, type StrategyId } from '../ai/strategy';
 import { activeColorMode } from '../config/palette';
 import { applyAccessibility } from '../ui/a11y';
@@ -115,7 +116,7 @@ export class App {
   state: State = 'menu';
   private choice: MenuChoice = { mode: 'match', player: DEFAULT_PLAYER };
   /** Estrategia y AUTO que la IA eligió en secreto para cada rival del match (null = no es rival). */
-  private secret: Array<{ strategy: StrategyId; auto: string } | null> = [];
+  private secret: Array<{ strategy: StrategyId; auto: string; persona: AiPersona } | null> = [];
   /** Estrategia de alianza que sigue tu compañero en este match (se dibuja en la cancha y el HUD). */
   private activePlan: StrategyPlan | null = null;
   /** Rutas del paso de la estrategia en curso, sobre la cancha. */
@@ -545,8 +546,8 @@ export class App {
     const random = aiLineup(player, this.playerSpec().mechanism);
     // 2 contra 2: no eliges ni ves lo de los rivales (Xhavi, 30-oct). Su tipo, estrategia y AUTO los
     // elige la IA en secreto en cada match; de ellos solo se elige la dificultad
-    const rival = (i: number) => player >= 0 && (i < 2) !== (player < 2);
-    this.secret = [0, 1, 2, 3].map((i) => (rival(i) ? { strategy: weighted(SECRET_STRATEGIES), auto: weighted(SECRET_AUTOS) } : null));
+    const rival = (i: number) => m.secret && player >= 0 && (i < 2) !== (player < 2);
+    this.secret = [0, 1, 2, 3].map((i) => (rival(i) ? { strategy: weighted(SECRET_STRATEGIES), auto: weighted(SECRET_AUTOS), persona: AI_PERSONAS[Math.floor(Math.random() * AI_PERSONAS.length)] } : null));
     const strategy = (i: number) => this.secret[i]?.strategy ?? m.robots[i].strategy;
     // Tu compañero sigue la estrategia de alianza que elegiste para él (si la IA está prendida)
     const mate = player >= 0 ? player ^ 1 : -1;
@@ -560,7 +561,8 @@ export class App {
       return strategy(i) === 'park' && a.bot ? LEAVE_ZONE : a;
     };
     const bot = (i: number) => {
-      const { ai, persona } = m.robots[i];
+      const ai = m.robots[i].ai;
+      const persona = this.secret[i]?.persona ?? m.robots[i].persona;
       if (i === mate && plan) return { ...planBotOptions(plan, i < 2 ? 'red' : 'blue'), ai, persona };
       return { ...STRATEGY_OPTIONS[strategy(i)], ai, persona };
     };
@@ -770,9 +772,9 @@ export class App {
    */
   private revealRivals(): void {
     const box = this.menu.root.querySelector('.results .fouls');
-    const row = (x: { strategy: StrategyId; auto: string }, i: number): string => {
+    const row = (x: { strategy: StrategyId; auto: string; persona: AiPersona }, i: number): string => {
       const a = i < 2 ? 'red' : 'blue';
-      return `<li><span class="tag ${a}">${t(a).toUpperCase()} ${(i % 2) + 1}</span>${t(`strat_${x.strategy}` as Key)}<em>AUTO: ${t(`auto_${x.auto}` as Key)}</em></li>`;
+      return `<li><span class="tag ${a}">${t(a).toUpperCase()} ${(i % 2) + 1}</span>${t(`strat_${x.strategy}` as Key)}<em>AUTO: ${t(`auto_${x.auto}` as Key)} · ${t(`persona_${x.persona}` as Key)}</em></li>`;
     };
     const rows = this.secret.map((x, i) => (x ? row(x, i) : '')).join('');
     if (!box || !rows) return;
