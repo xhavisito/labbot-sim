@@ -117,7 +117,7 @@ kbd {
   /* la cancha gira detrás: el fondo se aclara hacia la derecha para dejarla ver */
   background: radial-gradient(ellipse 70% 55% at 78% 30%, rgba(233, 35, 157, 0.06), transparent 70%), var(--grid-bg),
     linear-gradient(90deg, rgba(11, 6, 16, 0.97) 0%, rgba(11, 6, 16, 0.9) 45%, rgba(11, 6, 16, 0.62) 100%);
-  overflow-x: hidden; -webkit-overflow-scrolling: touch; animation: fade-in 0.25s ease-out;
+  overflow-x: hidden; -webkit-overflow-scrolling: touch; animation: screen-in 0.34s cubic-bezier(0.22, 0.8, 0.24, 1) both;
   /* lo que se enfoca o se desplaza a la vista no queda debajo de la barra de acciones */
   scroll-padding-bottom: 96px;
 }
@@ -976,7 +976,7 @@ textarea.tin { resize: vertical; min-height: 56px; }
 }
 
 /* ===================================================================== responsivo */
-@media (max-width: 1100px) { .mm-tools { grid-template-columns: 1fr 1fr 1fr; } .mm-tools .mt-txt small { display: none; } .robotinfo { grid-template-columns: 1fr; } }
+@media (max-width: 1100px) { .robotinfo { grid-template-columns: 1fr; } }
 @media (max-width: 860px) {
   .breakdown td:first-child { white-space: normal; }
   .mm-timeline { margin-top: 6px; }
@@ -990,8 +990,8 @@ textarea.tin { resize: vertical; min-height: 56px; }
   /* una columna: posición y robot justo después de los botones de jugar */
   .mm { flex: none; display: flex; flex-direction: column; gap: 10px; }
   .mm-left { display: contents; }
-  .mm-right { order: 1; }
-  .mm .late { order: 2; }
+  .mm-right { order: 3; }
+  .mm .mm-hubs { order: 2; }
 }
 @media (max-width: 560px) {
   .brandbar [data-fs] { display: none; }
@@ -1014,7 +1014,6 @@ textarea.tin { resize: vertical; min-height: 56px; }
   .final > div { padding: 10px 12px 8px; }
   .breakdown td, .breakdown th { padding: 6px 4px; }
   .binds .x { width: 26px; }
-  .mm-tools { grid-template-columns: 1fr 1fr; }
   .acard { grid-template-columns: 34px minmax(0, 1fr); }
   .scout .actionbar { gap: 6px; }
   .scout .actionbar .btn, .scout .actionbar .btn.primary { padding: 10px 4px; gap: 4px; font-size: calc(11.5px * var(--ts)); letter-spacing: 0; }
@@ -1042,9 +1041,11 @@ textarea.tin { resize: vertical; min-height: 56px; }
   .mm-hero.alt b { font-size: calc(19px * var(--ts)); }
   .mm-hero small, .mm-hero .mh-kick { display: none; }
   .mm-hero .mh-go { width: 32px; height: 32px; right: 12px; }
-  .mm-tools { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 5px; }
-  .mm-tool { min-height: 40px; padding: 6px 10px; gap: 8px; }
-  .mm-tool .mi { width: 18px; height: 18px; }
+  .mm-hubs { grid-template-columns: 1fr 1fr; gap: 5px; }
+  .mm-hub { min-height: 42px; padding: 6px 10px; gap: 8px; }
+  .mm-hub .mi { width: 18px; height: 18px; }
+  .mm-hub .chev { display: none; }
+  .mm-hub .mt-txt small { display: none; }
   .mt-txt b { font-size: calc(12.5px * var(--ts)); }
   .mt-txt small { display: none; }
   .bay { padding: 12px 14px 12px 18px; gap: 8px; }
@@ -1403,3 +1404,49 @@ canvas.board-drawing { cursor: crosshair; touch-action: none; }
 .cmp-pick { display: flex; flex-wrap: wrap; gap: 12px; margin: 10px 0 14px; }
 .cmp-stats td.best { color: #7be495; font-weight: 600; }
 .cmp-stats td.nodata { color: var(--muted, #8a93a0); font-style: italic; }
+
+/* ===================================================================== grupos del menú (rediseño) */
+.chipbtn.icon-only { width: 40px; padding: 0; justify-content: center; }
+.chipbtn.icon-only .ic { width: 18px; height: 18px; }
+.mm-hubs { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 6px; }
+.mm-hub, .hubcard {
+  position: relative; display: flex; align-items: center; gap: 14px; min-width: 0; padding: 14px 16px; text-align: left; cursor: pointer;
+  border: 1px solid var(--line); border-radius: var(--radius); background: linear-gradient(160deg, var(--surface-2), var(--surface)); color: var(--text);
+  transition: background 0.12s, border-color 0.12s, transform 0.1s;
+}
+.mm-hub .mi, .hubcard .mi { width: 26px; height: 26px; flex: none; color: var(--accent); }
+.mm-hub:hover, .hubcard:hover { border-color: rgba(233, 35, 157, 0.55); background: linear-gradient(160deg, #2e1233, var(--surface-2)); }
+.mm-hub:active, .hubcard:active { transform: scale(0.985); }
+.mm-hub .mt-txt b, .hubcard .mt-txt b { font: 700 calc(17px * var(--ts))/1.1 var(--display); }
+.mm-hub .mt-txt small, .hubcard .mt-txt small { white-space: normal; font-size: calc(12px * var(--ts)); }
+.mm-hub .chev, .hubcard .chev { margin-left: auto; display: grid; place-items: center; color: var(--faint); transition: transform 0.15s, color 0.15s; }
+.mm-hub .chev .ic, .hubcard .chev .ic { width: 18px; height: 18px; }
+.mm-hub:hover .chev, .hubcard:hover .chev { color: var(--accent); transform: translateX(3px); }
+.hubgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 340px), 1fr)); gap: 12px; max-width: 980px; }
+.hubcard { padding: 20px 22px; min-height: 96px; }
+.hubcard .mt-txt { gap: 6px; }
+.hubcard .mt-txt b { font-size: calc(21px * var(--ts)); }
+.hubcard.hero { grid-column: 1 / -1; background: linear-gradient(115deg, var(--brand-deep), var(--brand-purple) 75%, var(--brand-plum)); border-color: transparent; }
+.hubcard.hero .mi, .hubcard.hero .chev { color: #fff; }
+.hubcard.hero .mt-txt small { color: rgba(255, 255, 255, 0.82); }
+.panel.narrow { max-width: 880px; }
+.seg.tabs { align-self: flex-start; }
+@media (max-width: 560px) { .mm-hubs { grid-template-columns: 1fr; } .mm-hub { padding: 12px 14px; } .mm-hub .mt-txt small { font-size: calc(11.5px * var(--ts)); } }
+
+/* ===================================================================== transiciones */
+@keyframes screen-in { from { opacity: 0; transform: translateY(14px) scale(0.992); } to { opacity: 1; transform: none; } }
+@keyframes item-in { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+.screen .mm-hubs > *, .screen .hubgrid > *, .screen .mm-hero, .screen .mm-right .bay { animation: item-in 0.42s cubic-bezier(0.22, 0.8, 0.24, 1) both; }
+.screen .mm-hero { animation-delay: 0.04s; }
+.screen .mm-hero.alt { animation-delay: 0.09s; }
+.screen .mm-right .bay { animation-delay: 0.1s; }
+.screen .mm-hubs > :nth-child(1), .screen .hubgrid > :nth-child(1) { animation-delay: 0.14s; }
+.screen .mm-hubs > :nth-child(2), .screen .hubgrid > :nth-child(2) { animation-delay: 0.19s; }
+.screen .mm-hubs > :nth-child(3), .screen .hubgrid > :nth-child(3) { animation-delay: 0.24s; }
+.screen .mm-hubs > :nth-child(4), .screen .hubgrid > :nth-child(4) { animation-delay: 0.29s; }
+.screen .form[data-pane]:not([hidden]) { animation: item-in 0.28s cubic-bezier(0.22, 0.8, 0.24, 1) both; }
+.btn, .chipbtn, .seg button, .mm-hero .mh-go { transition-timing-function: cubic-bezier(0.22, 0.8, 0.24, 1); }
+@media (prefers-reduced-motion: reduce) {
+  .screen, .screen *, .overlay, .pause, .dialog { animation: none !important; }
+  .mm-hub, .hubcard, .btn { transition: none !important; }
+}
