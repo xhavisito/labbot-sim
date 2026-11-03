@@ -98,6 +98,41 @@ function adoptRobot(s: Settings, id: RobotId): void {
   s.maxSpeed = Math.min(SETTINGS_RANGE.maxSpeed.max, Math.round(spec.maxSpeed * 4) / 4);
 }
 
+export type GoId = 'versus' | 'practice1v1' | 'autoPractice' | 'training' | 'weekly' | 'strategies' | 'autoPaths' | 'achievements' | 'compare' | 'replays' | 'matchHistory' | 'editor' | 'settings' | 'controls' | 'rules' | 'scouting' | 'tournament';
+export type HubId = 'train' | 'compete' | 'workshop' | 'progress';
+interface HubItem { go: GoId; icon: string; label: Key; desc: Key; hero?: boolean }
+/** Los 17 destinos del menú, en 4 grupos: así el menú principal solo muestra 2 modos + 4 grupos. */
+const HUBS: { id: HubId; icon: string; title: Key; desc: Key; items: HubItem[] }[] = [
+  { id: 'train', icon: ic.medal, title: 'hub_train', desc: 'hub_train_d', items: [
+    { go: 'training', icon: ic.medal, label: 'tn_title', desc: 'trainingDesc', hero: true },
+    { go: 'practice1v1', icon: ic.bolt, label: 'p1_title', desc: 'p1_desc' },
+    { go: 'autoPractice', icon: ic.route, label: 'autoPractice', desc: 'autoPracticeDesc' },
+    { go: 'weekly', icon: ic.trophy, label: 'weekly', desc: 'weeklyDesc' },
+  ] },
+  { id: 'compete', icon: ic.trophy, title: 'hub_compete', desc: 'hub_compete_d', items: [
+    { go: 'tournament', icon: ic.trophy, label: 'tournament', desc: 'tournamentDesc', hero: true },
+    { go: 'versus', icon: ic.gamepad, label: 'vs_title', desc: 'vs_desc' },
+    { go: 'scouting', icon: ic.clipboard, label: 'scouting', desc: 'scoutingDesc' },
+    { go: 'strategies', icon: ic.field, label: 'strategies', desc: 'strategiesDesc' },
+  ] },
+  { id: 'workshop', icon: ic.cube, title: 'hub_workshop', desc: 'hub_workshop_d', items: [
+    { go: 'editor', icon: ic.cube, label: 'editor', desc: 'editorDesc', hero: true },
+    { go: 'compare', icon: ic.cube, label: 'compare', desc: 'compareDesc' },
+    { go: 'autoPaths', icon: ic.route, label: 'autoPaths', desc: 'autoPathsDesc' },
+  ] },
+  { id: 'progress', icon: ic.film, title: 'hub_progress', desc: 'hub_progress_d', items: [
+    { go: 'replays', icon: ic.film, label: 'replays', desc: 'replaysDesc', hero: true },
+    { go: 'matchHistory', icon: ic.clipboard, label: 'mhTitle', desc: 'mhDesc' },
+    { go: 'achievements', icon: ic.medal, label: 'ach_title', desc: 'achDesc' },
+  ] },
+];
+/** Atajos de la barra superior: configuración y ayuda. */
+const SYS_LINKS: { go: GoId; icon: string; label: Key }[] = [
+  { go: 'rules', icon: ic.book, label: 'rules' },
+  { go: 'controls', icon: ic.gamepad, label: 'controlsTitle' },
+  { go: 'settings', icon: ic.sliders, label: 'settings' },
+];
+
 /** Posición inicial por defecto al abrir la app: Azul 1 (índice 2; UI_SLOTS la muestra primero). */
 export const DEFAULT_PLAYER = 2;
 
@@ -145,6 +180,10 @@ export class Menu {
   /** Pantalla completa (`screen`) o diálogo sobre el juego (`overlay`). */
   private open(html: string, cls = 'screen'): void {
     this.root.className = cls;
+    // reinicia la animación de entrada aunque sea el mismo contenedor (menú → grupo → ajustes)
+    this.root.style.animation = 'none';
+    void this.root.offsetWidth;
+    this.root.style.animation = '';
     this.root.innerHTML = cls.startsWith('screen') ? `<div class="inner">${html}</div>` : html;
     this.root.style.display = '';
     this.root.scrollTop = 0;
@@ -160,11 +199,8 @@ export class Menu {
   main(): void {
     const s = this.settings;
     const fs = !!document.documentElement.requestFullscreen;
-    // Atajos del taller: solo ícono y nombre (la descripción va en el title)
-    const tool = (go: string, icon: string, label: Key, desc: Key) =>
-      `<button class="mm-tool" data-go="${go}" title="${t(desc)}">${icon.replace('class="ic"', 'class="mi"')}<span class="mt-txt"><b>${t(label)}</b></span></button>`;
     this.open(`
-      ${brandbar('', `<span class="pwa-chips" data-pwa></span>${langChips()}${fs ? `<button class="chipbtn" data-fs title="${t('fullscreen')}">${ic.expand}</button>` : ''}`)}
+      ${brandbar('', `<span class="pwa-chips" data-pwa></span>${SYS_LINKS.map((l) => `<button class="chipbtn icon-only" data-go="${l.go}" title="${t(l.label)}" aria-label="${t(l.label)}">${l.icon}</button>`).join('')}${langChips()}${fs ? `<button class="chipbtn" data-fs title="${t('fullscreen')}">${ic.expand}</button>` : ''}`)}
       <div class="mm">
         <div class="mm-left">
           <h1 class="mm-title">LabBot <span>Rescue 2026</span></h1>
@@ -178,24 +214,8 @@ export class Menu {
             <small>${t('practiceDesc')}</small>
             <span class="mh-go">${ic.go}</span>
           </button>
-          <div class="mm-tools late">
-            ${tool('versus', ic.gamepad, 'vs_title', 'vs_desc')}
-            ${tool('practice1v1', ic.go, 'p1_title', 'p1_desc')}
-            ${tool('training', ic.medal, 'tn_title', 'trainingDesc')}
-            ${tool('weekly', ic.trophy, 'weekly', 'weeklyDesc')}
-            ${tool('achievements', ic.trophy, 'ach_title', 'achDesc')}
-            ${tool('compare', ic.cube, 'compare', 'compareDesc')}
-            ${tool('replays', ic.film, 'replays', 'replaysDesc')}
-            ${tool('matchHistory', ic.clipboard, 'mhTitle', 'mhDesc')}
-            ${tool('editor', ic.cube, 'editor', 'editorDesc')}
-            ${tool('autoPractice', ic.route, 'autoPractice', 'autoPracticeDesc')}
-            ${tool('autoPaths', ic.route, 'autoPaths', 'autoPathsDesc')}
-            ${tool('strategies', ic.field, 'strategies', 'strategiesDesc')}
-            ${tool('settings', ic.sliders, 'settings', 'settingsDesc')}
-            ${tool('controls', ic.gamepad, 'controlsTitle', 'controlsDesc')}
-            ${tool('rules', ic.book, 'rules', 'rulesDesc')}
-            ${tool('scouting', ic.clipboard, 'scouting', 'scoutingDesc')}
-            ${tool('tournament', ic.trophy, 'tournament', 'tournamentDesc')}
+          <div class="mm-hubs">
+            ${HUBS.map((h) => `<button class="mm-hub" data-hub="${h.id}">${h.icon.replace('class="ic"', 'class="mi"')}<span class="mt-txt"><b>${t(h.title)}</b><small>${t(h.desc)}</small></span><i class="chev">${ic.go}</i></button>`).join('')}
           </div>
         </div>
         <div class="mm-right">
@@ -220,23 +240,8 @@ export class Menu {
     });
     this.on('[data-act="match"]', () => this.onStart({ mode: 'match', player: this.player }));
     this.on('[data-act="practice"]', () => this.onStart({ mode: 'practice', player: this.player }));
-    this.on('[data-go="versus"]', () => this.onStart({ mode: 'versus', player: this.player }));
-    this.on('[data-go="training"]', () => this.onTraining());
-    this.on('[data-go="weekly"]', () => this.onWeekly());
-    this.on('[data-go="practice1v1"]', () => this.onStart({ mode: 'practice1v1', player: this.player }));
-    this.on('[data-go="strategies"]', () => this.onStrategies());
-    this.on('[data-go="autoPaths"]', () => this.onAutoPaths());
-    this.on('[data-go="achievements"]', () => this.onAchievements());
-    this.on('[data-go="compare"]', () => this.onCompare());
-    this.on('[data-go="replays"]', () => this.onReplays());
-    this.on('[data-go="matchHistory"]', () => this.matchHistoryPanel());
-    this.on('[data-go="editor"]', () => this.onEditor());
-    this.on('[data-go="autoPractice"]', () => this.onStart({ mode: 'auto', player: this.player }));
-    this.on('[data-go="settings"]', () => this.settingsPanel());
-    this.on('[data-go="controls"]', () => this.controlsPanel(() => this.main()));
-    this.on('[data-go="rules"]', () => this.rulesPanel());
-    this.on('[data-go="scouting"]', () => this.onScouting());
-    this.on('[data-go="tournament"]', () => this.onTournament());
+    this.on('[data-hub]', (el) => this.hub(el.dataset.hub as HubId));
+    this.on('[data-go]', (el) => this.go(el.dataset.go as GoId));
     this.on('[data-lang]', (el) => {
       if (el.dataset.lang === getLang()) return;
       setLang(el.dataset.lang === 'en' ? 'en' : 'es');
@@ -247,6 +252,47 @@ export class Menu {
       else void document.documentElement.requestFullscreen().catch(() => undefined);
     });
     (this.root.querySelector('[data-act="match"]') as HTMLElement).focus({ preventScroll: true });
+  }
+
+  /** Abre un destino (de una tarjeta de grupo o de los atajos de la barra). */
+  private go(id: GoId): void {
+    switch (id) {
+      case 'versus': return this.onStart({ mode: 'versus', player: this.player });
+      case 'practice1v1': return this.onStart({ mode: 'practice1v1', player: this.player });
+      case 'autoPractice': return this.onStart({ mode: 'auto', player: this.player });
+      case 'training': return this.onTraining();
+      case 'weekly': return this.onWeekly();
+      case 'strategies': return this.onStrategies();
+      case 'autoPaths': return this.onAutoPaths();
+      case 'achievements': return this.onAchievements();
+      case 'compare': return this.onCompare();
+      case 'replays': return this.onReplays();
+      case 'matchHistory': return this.matchHistoryPanel();
+      case 'editor': return this.onEditor();
+      case 'settings': return this.settingsPanel();
+      case 'controls': return this.controlsPanel(() => this.main());
+      case 'rules': return this.rulesPanel();
+      case 'scouting': return this.onScouting();
+      case 'tournament': return this.onTournament();
+    }
+  }
+
+  /** Pantalla de un grupo del menú: tarjetas grandes con su descripción (pocas opciones, claras). */
+  hub(id: HubId): void {
+    const h = HUBS.find((x) => x.id === id)!;
+    this.open(
+      `${brandbar(t(h.title))}
+      <h1>${t(h.title)}</h1>
+      <p class="sub">${t(h.desc)}</p>
+      <div class="hubgrid">
+        ${h.items.map((it) => `<button class="hubcard ${it.hero ? 'hero' : ''}" data-go="${it.go}">${it.icon.replace('class="ic"', 'class="mi"')}<span class="mt-txt"><b>${t(it.label)}</b><small>${t(it.desc)}</small></span><i class="chev">${ic.go}</i></button>`).join('')}
+      </div>
+      <div class="actionbar">${backBtn('data-act="back"')}<div class="grow"></div></div>`,
+      'screen solid',
+    );
+    this.on('[data-act="back"]', () => this.main());
+    this.on('[data-go]', (el) => this.go(el.dataset.go as GoId));
+    (this.root.querySelector('.hubcard') as HTMLElement | null)?.focus({ preventScroll: true });
   }
 
   /**
@@ -330,8 +376,9 @@ export class Menu {
       `${brandbar(t('settings'))}
       <h1>${t('settings')}</h1>
       <p class="sub">${t('settingsNote')}</p>
-      <div class="panels">
-        <div class="panel"><div class="form">
+      <div class="seg tabs" role="tablist">${(['match', 'robot', 'display'] as const).map((k, i) => `<button class="${i === 0 ? 'on' : ''}" role="tab" data-tab="${k}">${t(`tab_${k}` as Key)}</button>`).join('')}</div>
+      <div class="panel narrow">
+        <div class="form" data-pane="match">
           <h3>${t('sec_match')}</h3>
           <label>${t('setAi')}</label>${toggle('ai')}
           <label>${t('setPlayerAuto')}</label><select data-k="playerAuto">${autoOpts(s.playerAuto, true)}</select>
@@ -348,8 +395,8 @@ export class Menu {
           <label>${t('p1_rival')}</label>${seg('p1.rival', RIVALS, s.practice.rival, (v) => t(`p1_rival_${v}` as Key))}
           <label>${t('p1_limit')}</label>${seg('p1.limit', PRACTICE_LIMITS.map(String), String(s.practice.limit), (v) => (v === '0' ? t('p1_free') : `${v} s`))}
           <p class="full sub">${t('p1_settingsNote')}</p>
-        </div></div>
-        <div class="panel"><div class="form">
+        </div>
+        <div class="form" data-pane="robot" hidden>
           <h3>${t('sec_robot')}</h3>
           <label>${t('robotType')}</label>${robotSel()}
           <p class="full sub" data-desc>${robotDesc(s.robotType)}</p>
@@ -360,6 +407,8 @@ export class Menu {
           <label>${t('setDamageWho')}</label>${seg('damage.targets', ['all', 'player'], s.damage.targets, (v) => t(`damageWho_${v}` as Key))}
           <label>${t('setDamageRandom')}</label><button class="toggle ${s.damage.random ? 'on' : ''}" data-tog-dmg><i></i>${s.damage.random ? t('on_') : t('no_')}</button>
           <p class="full sub">${t('realismNote')}</p>
+        </div>
+        <div class="form" data-pane="display" hidden>
           <h3>${t('sec_graphics')}</h3>
           <label>${t('setQuality')}</label><div class="seg" data-qseg>${(['auto', 'low', 'medium', 'high'] as const).map((q) => `<button class="${q === s.quality ? 'on' : ''}" data-v="${q}">${t(`quality_${q}`)}</button>`).join('')}</div>
           <p class="full sub">${t('qualityNote')}</p>
@@ -379,7 +428,7 @@ export class Menu {
           <label>${t('setRumble')}</label>${toggle('rumble')}
           <label>${t('setRefAudio')}</label>${seg('refAudio', REF_AUDIO_MODES, s.refAudio, (v) => t(`refAudio_${v}` as Key))}
           <p class="full sub">${t('refAudioNote')}</p>
-        </div></div>
+        </div>
       </div>
       <div class="actionbar">${backBtn('data-act="cancel"')}<div class="grow"></div>
         <button class="btn" data-act="defaults">${ic.reset}<span>${t('defaults')}</span></button>
@@ -394,6 +443,10 @@ export class Menu {
         const out = el.nextElementSibling;
         if (out instanceof HTMLOutputElement) out.textContent = `${v} ${out.dataset.unit ?? ''}`;
       });
+    });
+    this.on('[data-tab]', (el) => {
+      this.root.querySelectorAll<HTMLElement>('[data-tab]').forEach((b) => b.classList.toggle('on', b === el));
+      this.root.querySelectorAll<HTMLElement>('[data-pane]').forEach((p) => (p.hidden = p.dataset.pane !== el.dataset.tab));
     });
     this.on('[data-tog]', (el) => {
       const k = el.dataset.tog as 'ai' | 'hpEnabled' | 'hpSmart' | 'showFps' | 'showGhost' | 'rumble' | HudKey;
