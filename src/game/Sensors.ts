@@ -11,9 +11,9 @@ import type { Piece, Pieces } from '../physics/Pieces';
 import type { Robot } from './Robot';
 
 export class Sensors {
-  /** Muestras ya anotadas: índice → alianza dueña de la Cámara y nivel. */
+  /** Muestras ya anotadas: índice → alianza que anota (la Cámara es la del lado contrario a su Driver Station) y nivel. */
   readonly scored = new Map<number, { alliance: Alliance; level: Level }>();
-  private wells = ALLIANCES.flatMap((a) => LEVELS.map((level) => ({ alliance: a, level, rect: F.rectFor(a, F.camaraWells()[level]), rim: F.camaraWells()[level].rim })));
+  private wells = ALLIANCES.flatMap((a) => LEVELS.map((level) => ({ alliance: F.opposite(a), level, rect: F.rectFor(a, F.camaraWells()[level]), rim: F.camaraWells()[level].rim })));
 
   constructor(private pieces: Pieces) {}
 

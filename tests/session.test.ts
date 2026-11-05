@@ -50,7 +50,7 @@ describe('match completo en la física', () => {
     expect(Math.abs(g.player.phys.position().x - x0)).toBeGreaterThan(0.3);
   });
 
-  it('una Muestra que cae al Nivel 3 rojo vale 18 en AUTO y 15 en TELEOP (§4.4)', () => {
+  it('una Muestra que cae al Nivel 3 de la Cámara junto a la Driver Station roja la anota AZUL: 18 en AUTO y 15 en TELEOP (§4.4)', () => {
     const g = session();
     g.startMatch();
     const w = F.camaraWells()[3];
@@ -60,12 +60,12 @@ describe('match completo en la física', () => {
       steps(g, 1.5);
     };
     drop();
-    expect(g.match!.breakdown('red').samplesAuto).toBe(18);
+    expect(g.match!.breakdown('blue').samplesAuto).toBe(18);
     skipTo(g, 30);
     drop();
-    expect(g.match!.breakdown('red').samplesTeleop).toBe(15);
-    expect(g.match!.samplesIn('red')).toBe(2);
-    expect(g.match!.score('blue')).toBe(0);
+    expect(g.match!.breakdown('blue').samplesTeleop).toBe(15);
+    expect(g.match!.samplesIn('blue')).toBe(2);
+    expect(g.match!.score('red')).toBe(0);
   });
 
   it('el robot que sube a la Plataforma antes del endgame recibe Tech Foul (8 al contrario, §4.6)', () => {

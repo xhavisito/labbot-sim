@@ -74,8 +74,9 @@ export class Bot {
   /** Punto de anotación: frente a la pared de la Cámara propia, al centro del nivel, viendo hacia ella. */
   scoringPose(level: Level): { x: number; z: number; heading: number } {
     const w = F.camaraWells()[level];
-    const p = F.forAlliance(this.robot.alliance, { x: (w.x0 + w.x1) / 2, z: F.CAMARA_Z_RED[0] - this.robot.phys.halfL - 0.04 });
-    return { ...p, heading: this.robot.alliance === 'red' ? -Math.PI / 2 : Math.PI / 2 };
+    const geo = F.camaraGeometryOf(this.robot.alliance); // la Cámara a anotar está en la mitad contraria
+    const p = F.forAlliance(geo, { x: (w.x0 + w.x1) / 2, z: F.CAMARA_Z_RED[0] - this.robot.phys.halfL - 0.04 });
+    return { ...p, heading: geo === 'red' ? -Math.PI / 2 : Math.PI / 2 };
   }
 
   /** `timeLeft`: segundos para el final del match (para ir a la rampa antes del endgame). */
@@ -92,9 +93,13 @@ export class Bot {
     const endgame = phase === 'ENDGAME';
     // Con ~40 s por delante se acerca a su rampa (sube hasta que empiece el endgame, §4.6)
     if ((endgame || timeLeft < 40) && this.mode !== 'climb' && !this.opts.stayHome && (m.stored.length === 0 || this.mode === 'collect' || timeLeft < 34)) this.mode = 'climb';
-    if (this.mode === 'collect' && (m.stored.length >= Math.min(this.opts.batch, m.capacity) || (this.opts.scoreOnly && m.stored.length > 0))) this.mode = 'score';
-    if (this.mode === 'collect' && this.opts.scoreOnly) this.mode = 'idle';
+    if (this.mode === 'collect' && (m.stored.length >= Math.min(this.opts.batch, m.capacity) || (this.opts.scoreOnly && phase !== 'AUTO' && m.stored.length > 0))) this.mode = 'score';
+    if (this.mode === 'collect' && this.opts.scoreOnly && phase !== 'AUTO') this.mode = 'idle';
     if (this.mode === 'score' && m.stored.length === 0) this.mode = this.opts.scoreOnly ? 'idle' : endgame ? 'climb' : 'collect';
+
+    // La Cámara que anota está en la mitad contraria (F.camaraGeometryOf) y en AUTO no se cruza la
+    // línea central (§4.2): hasta el TELEOP no se va a anotar.
+    if (phase === 'AUTO' && this.mode === 'score') this.mode = 'collect';
 
     for (const [i, left] of this.ignore) if (left - dt <= 0) this.ignore.delete(i);
     else this.ignore.set(i, left - dt);
@@ -117,7 +122,7 @@ export class Bot {
       const pose = this.scoringPose(level);
       const dir = m.side; // +1 avanza hacia la pared, −1 retrocede hacia ella
       const want = dir > 0 ? pose.heading : wrap(pose.heading + Math.PI);
-      const away = this.robot.alliance === 'red' ? -1 : 1; // hacia la cancha (lejos de la Cámara)
+      const away = F.camaraGeometryOf(this.robot.alliance) === 'red' ? -1 : 1; // hacia la cancha (lejos de la Cámara)
       const stage = { x: pose.x, z: pose.z + away * 0.7 };
       const pos = r.phys.position();
       const err = wrap(want - r.phys.heading());

@@ -34,7 +34,7 @@ Origen en el centro de la cancha, Y hacia arriba, metros.
 | **Línea central** (§4.2) | Los robots no pueden cruzarla en AUTO. | X = 0. En la figura es roja de Z −3.5 a −0.75 y azul de 0.75 a 3.5 (interrumpida por la Plataforma). |
 | **Línea de autónomo** (§4.4) | Da puntos "cruzarla". El manual no la ubica. | **Resuelto (Xhavi, 24-oct)**: es la misma cinta en L de la Zona de Inicio; se cruza al salir por completo de la zona (D1). |
 | **Laboratorio** (§3.2.2) | Zona central; 16 Muestras distribuidas simétricamente sobre marcas en el suelo; ambas alianzas acceden libremente en TeleOp. | Rejilla 4×4: X ∈ {±0.46, ±1.46}, Z ∈ {±1.40, ±2.40} (separación 1.0 m). 8 de cada lado de la línea central. |
-| **Cámara de Seguridad** (§3.2.3) | 3 contenedores abiertos ("botes sin fondo") escalonados sobre MDF, en el área lateral de la mitad propia. Total 2150 × 600 mm, altura máx. 800 mm. | Pegada a la pared lateral +Z: Z[2.90,3.50], X[1.56,3.70]. Nivel 1 junto a la pared de la alianza, Nivel 3 hacia el centro. |
+| **Cámara de Seguridad** (§3.2.3) | 3 contenedores abiertos ("botes sin fondo") escalonados sobre MDF, en el área lateral de "su respectiva mitad". Total 2150 × 600 mm, altura máx. 800 mm. | Pegada a la pared lateral +Z: Z[2.90,3.50], X[1.56,3.70]. Nivel 1 junto a la pared de la Driver Station, Nivel 3 hacia el centro. **CORRECCIÓN (mentor, vía Xhavi): una alianza anota en la Cámara del lado CONTRARIO a su Driver Station.** La estructura de X>0 (junto a la DS roja) la anota AZUL y la de X<0 la anota ROJO (SUPUESTO de interpretación: el texto de §3.2.3 no dice a qué mitad pertenece). Ver D17. |
 | ─ Nivel 1 | 789 × 600 mm, apertura a **200 mm** | X ≈ [2.91, 3.70] |
 | ─ Nivel 2 | 689 × 600 mm, apertura a **500 mm** | X ≈ [2.23, 2.91] |
 | ─ Nivel 3 | 639 × 600 mm, apertura a **800 mm** | X ≈ [1.56, 2.23] |
@@ -188,3 +188,4 @@ difiere en que dice "Un robot sobre la Plataforma **durante el endgame**", mient
 **Pedido opcional:** el CAD de la cancha (§3.3, enlace de Google Drive) daría las posiciones
 exactas de la Zona de Inicio, Laboratorio, Plataforma y Repisa. Si se exporta a STEP/GLB y se
 sube al proyecto, reemplazo las medidas [fig.].
+| D17 | Lado de la Cámara de Seguridad | §3.2.3 la ubica "en el área lateral de su respectiva mitad"; el mentor aclaró que se anota del lado contrario a la propia Driver Station. | La Cámara junto a la DS de una alianza la anota la contraria (`F.opposite`, `config/field.ts`). **Contradicción abierta con §4.2:** en AUTO no se puede cruzar la línea central, así que en AUTO no se pueden anotar Muestras; la IA espera al TELEOP. Pendiente de confirmar con el mentor. |

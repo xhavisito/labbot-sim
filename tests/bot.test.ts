@@ -40,7 +40,7 @@ describe('IA en un match completo', () => {
     for (const a of ['red', 'blue'] as const) {
       const b = m.breakdown(a);
       expect(b.autoLine).toBe(10); // los 2 robots salen de la zona (D1)
-      expect(b.samplesAuto).toBeGreaterThanOrEqual(18); // al menos una precarga al Nivel 3 (§4.4)
+      expect(b.samplesAuto).toBe(0); // la Cámara está en la mitad contraria y en AUTO no se cruza la línea central (§4.2)
       expect(b.samplesTeleop).toBeGreaterThan(0);
     }
     // Azul tiene 2 robots de IA: los dos suben (20, no acumulable §4.4); rojo solo el de IA
@@ -57,6 +57,7 @@ describe('IA en un match completo', () => {
     const m = aiMatch(2, [SCORE_PRELOAD, COLLECT_HOME, LEAVE_ZONE, COLLECT_HOME]).match!;
     const field = m.fouls.filter((f) => f.rule === 'PLATFORM_EARLY' || f.rule === 'OUT_OF_BOUNDS' || f.rule === 'AUTO_CENTER');
     expect(field).toEqual([]);
-    expect(m.breakdown('red').samplesAuto).toBeGreaterThan(18);
+    expect(m.breakdown('red').samplesAuto).toBe(0); // ver la nota de la Cámara en config/field.ts
+    expect(m.breakdown('red').samplesTeleop).toBeGreaterThan(0);
   }, 120_000);
 });

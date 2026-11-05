@@ -64,6 +64,17 @@ export function labSpots(): Array<{ x: number; z: number }> {
 }
 
 // ---------------------------------------------------------------- Cámara de Seguridad (§3.2.3)
+/**
+ * CORRECCIÓN (Xhavi, 2026-11): la Cámara en la que anota una alianza NO es la que queda del lado
+ * de su Driver Station, sino la del lado contrario. La estructura sigue definida para ROJO junto a
+ * la Driver Station roja (X > 0); por eso la anota el AZUL, y la de azul (X < 0) la anota ROJO.
+ * El texto de §3.2.3 ("ubicada en el área lateral de su respectiva mitad") no fija a qué mitad
+ * pertenece: SUPUESTO por esta corrección. Ojo: §4.2 (AUTO sin cruzar la línea central) hace
+ * inalcanzable la Cámara en AUTO; el manual no resuelve esa contradicción.
+ */
+export const opposite = (a: Alliance): Alliance => (a === 'red' ? 'blue' : 'red');
+/** Alianza cuya geometría (referencia ROJA, rotada 180° para azul) ocupa la Cámara que `scorer` anota. */
+export const camaraGeometryOf = (scorer: Alliance): Alliance => opposite(scorer);
 export const CAMARA_LENGTH = mm(2150); // largo total
 export const CAMARA_WIDTH = mm(600); // ancho
 export const CAMARA_HEIGHT = mm(800); // altura máxima
