@@ -122,7 +122,7 @@ export function buildFieldView(): THREE.Group {
   }
   // Franja del color de la alianza en la pared trasera de cada Campana, para ubicarlas
   for (const a of ALLIANCES) {
-    const p = F.forAlliance(a, { x: (F.CAMPANA_X_RED[0] + F.CAMPANA_X_RED[1]) / 2, z: -W - F.CAMPANA_DEPTH });
+    const p = F.forAlliance(a, { x: (F.CAMPANA_X_RED[0] + F.CAMPANA_X_RED[1]) / 2, z: W + F.CAMPANA_DEPTH });
     const stripe = new THREE.Mesh(new THREE.BoxGeometry(F.CAMPANA_LENGTH, 0.02, 0.06), new THREE.MeshStandardMaterial({ color: ALLIANCE_COLOR[a] }));
     stripe.position.set(p.x, F.CAMPANA_HEIGHT + 0.01, p.z);
     g.add(stripe);

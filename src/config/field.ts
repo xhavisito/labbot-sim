@@ -123,8 +123,15 @@ export const CAMARA_WALL = (CAMARA_LENGTH - mm(789 + 689 + 639)) / 4;
 export const CAMARA_GAP_TO_WALL = 0.8;
 /** Extremo del Nivel 1 (X) para rojo; la Cámara va de aquí hacia el centro. */
 export const CAMARA_X_END_RED = HALF_L - CAMARA_GAP_TO_WALL; // 3.70
-/** Pegada al lado +Z [fig.]: Z ∈ [2.90, 3.50]. */
-export const CAMARA_Z_RED: readonly [number, number] = [HALF_W - CAMARA_WIDTH, HALF_W];
+/**
+ * CORRECCIÓN (mentor, vía Xhavi): la Cámara en la que anota una alianza NO está del lado de su
+ * Driver Station (donde está su Campana), sino del lado contrario. Antes la Cámara roja iba en la
+ * pared +Z y la Campana en −Z; ahora la Cámara va pegada a −Z: Z ∈ [−3.50, −2.90] (misma mitad,
+ * §3.2.3 "área lateral de su respectiva mitad"; el texto no dice a qué pared: SUPUESTO).
+ */
+export const CAMARA_Z_RED: readonly [number, number] = [-HALF_W, -HALF_W + CAMARA_WIDTH];
+/** Pared lateral de la Campana (ROJO): +Z, la contraria a la Cámara (ver CAMARA_Z_RED). */
+export const CAMPANA_WALL_Z = HALF_W;
 
 /** Interior (pozo) de cada nivel para ROJO: rectángulo y altura de la apertura. */
 export function camaraWells(): Record<Level, Rect & { rim: number }> {
@@ -146,7 +153,7 @@ export const CAMPANA_SLOT_HEIGHT = mm(160); // 160 mm de alto
 export const CAMPANA_SLOT_Y = mm(200); // a 200 mm del suelo
 /** Fondo de la estructura, por fuera de la cancha [fig.: ≈0.40 m]. */
 export const CAMPANA_DEPTH = 0.4;
-/** Lado −Z, desde la línea de la Driver Station roja hacia el centro [fig.]: X ∈ [2.5, 4.5]. */
+/** Lado +Z (corregido, ver CAMARA_Z_RED), desde la línea de la Driver Station roja hacia el centro [fig.]: X ∈ [2.5, 4.5]. */
 export const CAMPANA_X_RED: readonly [number, number] = [HALF_L - CAMPANA_LENGTH, HALF_L];
 /** Barra lateral de obstáculo: 1250 × 50.80 mm (§3.2.4), perpendicular a la pared en el extremo de la Campana [fig.]. */
 export const BARRIER_LENGTH = mm(1250);
@@ -157,7 +164,7 @@ export const BARRIER_HEIGHT = mm(200);
  * Muestra Crítica en la rendija deslizable de la parte superior (§3.2.4). Posición [fig.]:
  * X ≈ 3.92, sobresale ≈0.16 m hacia la cancha. SUPUESTO: apoyada a la altura de la pared (610 mm).
  */
-export const CRITICAL_HOLDER_RED = { x: 3.92, z: -HALF_W + 0.1, y: CAMPANA_HEIGHT };
+export const CRITICAL_HOLDER_RED = { x: 3.92, z: HALF_W - 0.1, y: CAMPANA_HEIGHT };
 /**
  * Hasta dónde puede deslizar el Human Player la Muestra Crítica a lo largo de la rendija (X del rojo).
  * SUPUESTO (D39): la rendija es "deslizable" (§3.2.4) y corre a lo largo de la pared de la Campana.

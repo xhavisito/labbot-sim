@@ -19,7 +19,7 @@ function twoSamples(spec: RobotSpec, station: 0 | 1): AutoPath {
   const p = newPath('Dos', station, 't1');
   const sp = scoringPoint(3, tip(spec, 3), spec.length / 2);
   const bo = backOffPoint(sp, 0.6);
-  p.points.push(sp, bo, ...pickupPoints(1.46, 2.4, bo, tip(spec, 0), !!spec.arm.pickBack), { ...sp, intake: null });
+  p.points.push(sp, bo, ...pickupPoints(1.46, -2.4, bo, tip(spec, 0), !!spec.arm.pickBack), { ...sp, intake: null });
   return p;
 }
 
