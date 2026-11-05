@@ -117,7 +117,7 @@ describe('match completo en la física', () => {
       steps(g, 0.5, { releaseSample: true });
       const c = F.CRITICAL_HOLDER_RED;
       const a = DEFAULT_ROBOT.arm;
-      g.player.phys.teleport(c.x, c.z + armTip(a, armAngle(a, DEFAULT_ROBOT.elevatorHeights[4])).x - 0.05, Math.PI / 2);
+      g.player.phys.teleport(c.x, c.z - armTip(a, armAngle(a, DEFAULT_ROBOT.elevatorHeights[4])).x + 0.05, -Math.PI / 2);
       steps(g, 1.5, { elevator: 4 });
       steps(g, 0.1, { intake: true });
       expect(g.player.mech.critical).not.toBeNull();
@@ -164,7 +164,7 @@ describe('match completo en la física', () => {
       g.step();
       for (const p of g.pieces.list) {
         const t = p.body.translation();
-        if (p.kind === 'sample' && p.state.at === 'field' && t.x > 2.4 && t.z < -2.5) g.pieces.place(p, 1.0, 0.08, -2.0 + (p.index % 5) * 0.2);
+        if (p.kind === 'sample' && p.state.at === 'field' && t.x > 2.4 && t.z > 2.5) g.pieces.place(p, 1.0, 0.08, 2.0 - (p.index % 5) * 0.2);
       }
     }
     expect(g.hps.red.introduced).toBe(F.HP_SAMPLES_PER_ALLIANCE);
@@ -190,11 +190,11 @@ describe('match completo en la física', () => {
     const g = session();
     g.startMatch();
     skipTo(g, 20);
-    // Azul 2 pegado a la Cámara roja; rojo 0 empujándolo hacia +Z
+    // Azul 2 pegado a la Cámara roja; rojo 0 empujándolo hacia −Z
     const w = F.camaraWells()[2];
     const x = (w.x0 + w.x1) / 2;
-    g.robots[2].phys.teleport(x, F.CAMARA_Z_RED[0] - 0.34, Math.PI / 2);
-    g.player.phys.teleport(x, F.CAMARA_Z_RED[0] - 0.34 - 0.7, -Math.PI / 2);
+    g.robots[2].phys.teleport(x, F.CAMARA_Z_RED[1] + 0.34, Math.PI / 2);
+    g.player.phys.teleport(x, F.CAMARA_Z_RED[1] + 0.34 + 0.7, Math.PI / 2);
     steps(g, 3.6, { forward: 0.6 });
     expect(g.match!.fouls.some((f) => f.rule === 'PIN' && f.offender === 'red')).toBe(true);
   });

@@ -69,14 +69,14 @@ function parkedMatch(player: number, spot: { x: number; z: number }) {
 
 describe('la IA no empuja al robot del jugador', () => {
   it('su compañero parado en el Laboratorio', () => {
-    const { m, pushing } = parkedMatch(0, { x: 1.0, z: 1.9 });
+    const { m, pushing } = parkedMatch(0, { x: 1.0, z: -1.9 });
     expect(pushing).toBeLessThan(1.5);
     expect(m.fouls.filter((f) => f.rule === 'PIN')).toEqual([]);
     expect(m.breakdown('blue').samplesTeleop).toBeGreaterThan(0);
   }, 120_000);
 
   it('un rival parado frente a la Cámara roja', () => {
-    const { m, pushing } = parkedMatch(2, { x: 1.0, z: 1.9 });
+    const { m, pushing } = parkedMatch(2, { x: 1.0, z: -1.9 });
     expect(pushing).toBeLessThan(1.5);
     // Antes: 13 s empujándolo y un Foul por pinning
     expect(m.fouls.filter((f) => f.rule === 'PIN' && f.offender === 'red')).toEqual([]);

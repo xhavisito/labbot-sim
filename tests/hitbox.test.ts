@@ -23,15 +23,15 @@ describe('hitbox de la garra contra la madera (D34, 30-oct)', () => {
   it('con la garra baja no atraviesa la pared de la Cámara: el robot se queda antes', () => {
     const g = new GameSession({ player: 0, preload: false, specs: [PIVOT_ROBOT] });
     const w = F.camaraWells()[3];
-    const flush = F.CAMARA_Z_RED[0] - PIVOT_ROBOT.length / 2;
-    g.player.phys.teleport((w.x0 + w.x1) / 2, flush - 1.0, -Math.PI / 2);
+    const flush = F.CAMARA_Z_RED[1] + PIVOT_ROBOT.length / 2; // la Cámara está en −Z: se llega desde +Z
+    g.player.phys.teleport((w.x0 + w.x1) / 2, flush + 1.0, Math.PI / 2);
     // N1 (26 cm): la garra queda abajo de la pared de 80 cm del Nivel 3 y sale del chasis
     run(g, 1.5, { elevator: 1 });
     run(g, 3, { forward: 0.4 });
     const tip = g.player.mech.tipX() - PIVOT_ROBOT.length / 2;
     expect(tip).toBeGreaterThan(0.05);
     // El chasis no llega a la pared: la garra lo detiene (antes la atravesaba y quedaba pegado)
-    expect(g.player.phys.position().z).toBeLessThan(flush - tip + 0.06);
+    expect(g.player.phys.position().z).toBeGreaterThan(flush + tip - 0.06);
   });
 });
 
@@ -40,7 +40,7 @@ describe('el Human Player centra la Muestra Crítica (D39)', () => {
     const g = new GameSession({ player: 0, preload: false, solo: true, specs: [PIVOT_ROBOT] });
     const h = F.CRITICAL_HOLDER_RED;
     const tip = 0.5; // aproximado: se mide abajo
-    g.player.phys.teleport(h.x - 0.45, h.z + tip + 0.35, Math.PI / 2);
+    g.player.phys.teleport(h.x - 0.45, h.z - tip - 0.35, -Math.PI / 2);
     run(g, 2.5, { elevator: 4 });
     const claw = g.player.phys.localToWorld(g.player.mech.tipX(), 0, 0);
     const c = g.pieces.critical('red').body.translation();
@@ -54,7 +54,7 @@ describe('el Human Player centra la Muestra Crítica (D39)', () => {
     const h = F.CRITICAL_HOLDER_RED;
     // El brazo ya abajo (al bajar pasa un instante por la altura de la rendija)
     run(g, 1.5, { elevator: 1 });
-    g.player.phys.teleport(h.x - 0.45, h.z + 0.85, Math.PI / 2);
+    g.player.phys.teleport(h.x - 0.45, h.z - 0.85, -Math.PI / 2);
     run(g, 2.5);
     expect(g.pieces.critical('red').body.translation().x).toBeCloseTo(h.x, 2);
   });
@@ -65,7 +65,7 @@ describe('hitbox literal del brazo y el chasis (D34, segundo pedido del 30-oct)'
     it(`${spec.name}: pegado a la pared de 80 cm del Nivel 3 sube la garra sin que la viga la atraviese`, () => {
       const g = new GameSession({ player: 0, preload: true, solo: true, specs: [spec], hp: { enabled: false, interval: 3 } });
       const w = F.camaraWells()[3];
-      g.player.phys.teleport((w.x0 + w.x1) / 2, F.CAMARA_Z_RED[0] - spec.length / 2 - 0.01, -Math.PI / 2);
+      g.player.phys.teleport((w.x0 + w.x1) / 2, F.CAMARA_Z_RED[1] + spec.length / 2 + 0.01, Math.PI / 2);
       run(g, 2.0, { elevator: 3 });
       const m = g.player.mech;
       // Donde quedó no está metido en la madera (con la tolerancia del contacto)
@@ -93,11 +93,11 @@ describe('hitbox literal del brazo y el chasis (D34, segundo pedido del 30-oct)'
   it('girando a toda velocidad contra las paredes de 8 mm de la Cámara no las cruza (CCD)', () => {
     const g = new GameSession({ player: 0, preload: false, solo: true, specs: [PIVOT_ROBOT], hp: { enabled: false, interval: 3 } });
     const p = g.player.phys;
-    p.teleport(2.6, 2.45, -Math.PI / 2);
+    p.teleport(2.6, -2.45, Math.PI / 2);
     for (let i = 0; i < 4 * 120; i++) {
       g.setInput({ ...emptyInput(), forward: 1, turn: i % 90 < 45 ? 1 : -1 });
       g.step();
-      expect(p.position().z).toBeLessThan(F.CAMARA_Z_RED[0]);
+      expect(p.position().z).toBeGreaterThan(F.CAMARA_Z_RED[1]);
     }
   });
 });
@@ -108,8 +108,8 @@ describe('obstruir zonas de anotación rivales (§4.6, D17)', () => {
     expect(inAny('blue', -1.2, 0.2)).toBe(true); // rampa azul
     expect(inAny('blue', 1.2, 0.2)).toBe(false); // rampa roja
     expect(inAny('blue', 0, 0)).toBe(false); // Repisa compartida
-    expect(inAny('blue', -3.5, 3.1)).toBe(true); // frente de la Campana azul
-    expect(inAny('blue', -2.6, -2.5)).toBe(true); // frente de la Cámara azul
+    expect(inAny('blue', -3.5, -3.1)).toBe(true); // frente de la Campana azul
+    expect(inAny('blue', -2.6, 2.5)).toBe(true); // frente de la Cámara azul
   });
 
   it('quedarse frente a la Campana rival en el TELEOP es Tech Foul', () => {
@@ -117,7 +117,7 @@ describe('obstruir zonas de anotación rivales (§4.6, D17)', () => {
     g.startMatch();
     const m = g.match!;
     while (m.phase !== 'TELEOP') g.step();
-    g.player.phys.teleport(-3.5, 2.95, Math.PI / 2);
+    g.player.phys.teleport(-3.5, -2.95, -Math.PI / 2);
     run(g, 3.5);
     expect(m.fouls.some((f) => f.rule === 'OBSTRUCT' && f.offender === 'red')).toBe(true);
   }, 60_000);
@@ -128,11 +128,11 @@ describe('holgura al anotar en la Cámara (D41, Xhavi 30-oct)', () => {
   function scoresFrom(spec: typeof PIVOT_ROBOT, level: 1 | 2 | 3, gap: number): boolean {
     const g = new GameSession({ player: 0, preload: true, solo: true, specs: [spec], hp: { enabled: false, interval: 3 } });
     const w = F.camaraWells()[level];
-    const face = F.CAMARA_Z_RED[0] - spec.length / 2;
+    const face = F.CAMARA_Z_RED[1] + spec.length / 2;
     // Sube la garra lejos de la pared y luego se coloca a esa distancia
-    g.player.phys.teleport((w.x0 + w.x1) / 2, face - 1.2, -Math.PI / 2);
+    g.player.phys.teleport((w.x0 + w.x1) / 2, face + 1.2, Math.PI / 2);
     run(g, 2, { elevator: level });
-    g.player.phys.teleport((w.x0 + w.x1) / 2, face - gap, -Math.PI / 2);
+    g.player.phys.teleport((w.x0 + w.x1) / 2, face + gap, Math.PI / 2);
     run(g, 0.2);
     run(g, 0.1, { releaseSample: true });
     for (let i = 0; i < 180; i++) {

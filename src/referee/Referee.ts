@@ -31,7 +31,7 @@ export const KNOCK_WINDOW = 1;
 
 /** Frente de la Cámara de cada alianza (D17, SUPUESTO): el largo de la Cámara y 1 m hacia la cancha. */
 export function camaraFront(a: Alliance): F.Rect {
-  return F.rectFor(a, { x0: F.CAMARA_X_END_RED - F.CAMARA_LENGTH, x1: F.CAMARA_X_END_RED, z0: F.CAMARA_Z_RED[0] - 1.0, z1: F.CAMARA_Z_RED[0] });
+  return F.rectFor(a, { x0: F.CAMARA_X_END_RED - F.CAMARA_LENGTH, x1: F.CAMARA_X_END_RED, z0: F.CAMARA_Z_RED[1], z1: F.CAMARA_Z_RED[1] + 1.0 });
 }
 
 /**
@@ -42,14 +42,14 @@ export function camaraFront(a: Alliance): F.Rect {
  * la Repisa, sin la Repisa compartida).
  */
 export function obstructZones(a: Alliance): F.Rect[] {
-  const campanaFront: F.Rect = { x0: F.CAMPANA_X_RED[0], x1: F.CAMPANA_X_RED[1], z0: -F.HALF_W, z1: -F.HALF_W + 0.8 };
+  const campanaFront: F.Rect = { x0: F.CAMPANA_X_RED[0], x1: F.CAMPANA_X_RED[1], z0: F.HALF_W - 0.8, z1: F.HALF_W };
   const ramp: F.Rect = { x0: F.REPISA_DEPTH / 2, x1: F.PLATFORM_LENGTH / 2, z0: -F.PLATFORM_WIDTH / 2, z1: F.PLATFORM_WIDTH / 2 };
   return [camaraFront(a), F.rectFor(a, campanaFront), F.rectFor(a, ramp)];
 }
 
 /** Zonas del color de cada alianza (D8, SUPUESTO): sus 2 Zonas de Inicio y el frente de su Campana. */
 export function allianceZones(a: Alliance): F.Rect[] {
-  const campanaFront: F.Rect = { x0: F.CAMPANA_X_RED[0], x1: F.CAMPANA_X_RED[1], z0: -F.HALF_W, z1: -F.HALF_W + 0.8 };
+  const campanaFront: F.Rect = { x0: F.CAMPANA_X_RED[0], x1: F.CAMPANA_X_RED[1], z0: F.HALF_W - 0.8, z1: F.HALF_W };
   return [...F.START_ZONES_RED, campanaFront].map((r) => F.rectFor(a, r));
 }
 
