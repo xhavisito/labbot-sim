@@ -453,7 +453,7 @@ export const CLAUSES: Clause[] = [
       expect(F.CAMARA_LEVELS[3]).toEqual({ length: 0.639, rim: 0.8 });
       // Una por alianza, en el lado de su mitad de cancha
       expect(F.CAMARA_X_END_RED - F.CAMARA_LENGTH).toBeGreaterThan(0);
-      expect(F.CAMARA_Z_RED[0]).toBeCloseTo(-F.HALF_W, 9); // pegada a −Z: lado contrario a la Campana (corrección del mentor)
+      expect(F.CAMARA_Z_RED[1]).toBeCloseTo(F.HALF_W, 9);
     },
   },
   {

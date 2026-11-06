@@ -210,7 +210,7 @@ export interface PathIssue {
 
 const PLATFORM: F.Rect = { x0: -F.PLATFORM_LENGTH / 2, x1: F.PLATFORM_LENGTH / 2, z0: -F.PLATFORM_WIDTH / 2, z1: F.PLATFORM_WIDTH / 2 };
 const CAMARA: F.Rect = { x0: F.CAMARA_X_END_RED - F.CAMARA_LENGTH, x1: F.CAMARA_X_END_RED, z0: F.CAMARA_Z_RED[0], z1: F.CAMARA_Z_RED[1] };
-const CAMPANA: F.Rect = { x0: F.CAMPANA_X_RED[0], x1: F.CAMPANA_X_RED[1], z0: F.HALF_W - F.CAMPANA_DEPTH, z1: F.HALF_W };
+const CAMPANA: F.Rect = { x0: F.CAMPANA_X_RED[0], x1: F.CAMPANA_X_RED[1], z0: -F.HALF_W, z1: -F.HALF_W + F.CAMPANA_DEPTH };
 
 /** ¿El tramo a→b (centro del robot, con un margen `m`) pasa por el rectángulo? Muestreo cada 5 cm. */
 function segmentHits(a: { x: number; z: number }, b: { x: number; z: number }, r: F.Rect, m: number): boolean {
@@ -247,7 +247,7 @@ export function pathIssues(p: AutoPath, spec: PathRobotSpec, halfLength = 0.3): 
 // ------------------------------------------------------------------ ayudas del editor
 
 /** Rumbo (marco rojo) para ver de frente la pared de la Cámara propia (+Z); de reversa si anota atrás. */
-export const FACE_CAMARA = Math.PI / 2; // la Cámara está en −Z
+export const FACE_CAMARA = -Math.PI / 2;
 
 /**
  * Punto de anotación en el nivel `level` (como la IA, `Bot.scoringPose`): frente a la pared de la
@@ -255,7 +255,7 @@ export const FACE_CAMARA = Math.PI / 2; // la Cámara está en −Z
  */
 export function scoringPoint(level: 1 | 2 | 3, tip: number, halfLength: number, scoreBack = false): PathPoint {
   const w = F.camaraWells()[level];
-  const z = Math.max((w.z0 + w.z1) / 2 + tip, F.CAMARA_Z_RED[1] + halfLength + 0.03);
+  const z = Math.min((w.z0 + w.z1) / 2 - tip, F.CAMARA_Z_RED[0] - halfLength - 0.03);
   const p = newPoint((w.x0 + w.x1) / 2, z);
   p.reverse = scoreBack;
   p.speed = 0.6;
@@ -273,7 +273,7 @@ export function scoringPoint(level: 1 | 2 | 3, tip: number, halfLength: number, 
  */
 export function backOffPoint(from: PathPoint, dist = 0.45): PathPoint {
   const back = from.face !== null && Math.abs(wrap(from.face - FACE_CAMARA)) > Math.PI / 2;
-  const p = newPoint(from.x, from.z + dist); // se aleja de la Cámara (+Z)
+  const p = newPoint(from.x, from.z - dist);
   p.reverse = !back;
   p.speed = 0.5;
   return p;

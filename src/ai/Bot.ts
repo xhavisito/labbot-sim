@@ -235,12 +235,12 @@ export class Bot {
     // Que la pieza caiga lo más al fondo del pozo que se pueda sin chocar con la Cámara, y cada
     // visita un poco a un lado (si todas caen en el mismo punto, la pila llega a la apertura)
     const hl = this.robot.phys.halfL;
-    const z = Math.max((w.z0 + w.z1) / 2 + this.tipDistance(level), F.CAMARA_Z_RED[1] + hl + 0.03);
+    const z = Math.min((w.z0 + w.z1) / 2 - this.tipDistance(level), F.CAMARA_Z_RED[0] - hl - 0.03);
     const spread = (w.x1 - w.x0) / 2 - 0.14;
     const dx = [0, -1, 1, -0.5, 0.5][this.visits % 5] * spread;
     const p = F.forAlliance(this.robot.alliance, { x: (w.x0 + w.x1) / 2 + dx, z });
     const back = this.scoreDir < 0 ? Math.PI : 0;
-    return { ...p, heading: wrap((this.robot.alliance === 'red' ? Math.PI / 2 : -Math.PI / 2) + back) };
+    return { ...p, heading: wrap((this.robot.alliance === 'red' ? -Math.PI / 2 : Math.PI / 2) + back) };
   }
 
   /** +1 si anota al frente, −1 si anota atrás (llega a la Cámara de reversa). */
@@ -843,13 +843,13 @@ export class Bot {
     const s = this.side;
     // Pegadas a un borde o junto a una Cámara: la garra no llega sin sacar una esquina
     // (salvo frente a la Campana: ahí deja el Human Player las suyas y se llega de frente a la pared)
-    const atCampana = Math.abs(t.x) > F.HALF_L - F.CAMPANA_LENGTH + 0.3 && Math.abs(t.x) < F.HALF_L - 0.35 && Math.sign(t.x) * t.z > 0;
+    const atCampana = Math.abs(t.x) > F.HALF_L - F.CAMPANA_LENGTH + 0.3 && Math.abs(t.x) < F.HALF_L - 0.35 && Math.sign(t.x) * t.z < 0;
     if (Math.abs(t.x) > F.HALF_L - 0.35 || Math.abs(t.z) > F.HALF_W - (atCampana ? 0.27 : 0.5)) return false;
     if (Math.abs(t.x) < F.PLATFORM_LENGTH / 2 + 0.1 && Math.abs(t.z) < F.PLATFORM_WIDTH / 2 + 0.1) return false;
     // AUTO: solo de su mitad (§4.2)
     if (phase === 'AUTO' && s * t.x < 0.5) return false;
     // Las que mete su Human Player quedan frente a su Campana (lado −Z del rojo, |x| > 2)
-    const nearHp = s * t.x > 2.0 && s * t.z > 1.5;
+    const nearHp = s * t.x > 2.0 && s * t.z < -1.5;
     if (labOnly && nearHp) return false;
     if (this.opts.source === 'hp' && !nearHp) return false;
     if (this.opts.source === 'lab' && nearHp) return false;
@@ -858,14 +858,14 @@ export class Bot {
     if (zone && !F.inRect(zone, t.x, t.z) && !(nearHp && this.opts.source !== 'lab')) return false;
     // Ya anotadas: dentro de una Cámara (botes sin fondo, §3.2.3; quedan en el piso del pozo)
     for (const a of ['red', 'blue'] as const) {
-      const c = F.rectFor(a, { x0: F.CAMARA_X_END_RED - F.CAMARA_LENGTH - 0.05, x1: F.CAMARA_X_END_RED + 0.05, z0: F.CAMARA_Z_RED[0] - 0.05, z1: F.CAMARA_Z_RED[1] + 0.05 });
+      const c = F.rectFor(a, { x0: F.CAMARA_X_END_RED - F.CAMARA_LENGTH - 0.05, x1: F.CAMARA_X_END_RED + 0.05, z0: F.CAMARA_Z_RED[0] - 0.05, z1: F.HALF_W });
       if (F.inRect(c, t.x, t.z)) return false;
     }
     // Junto al compañero que se acomoda frente a la Cámara: ir por ella le estorba (se traban los dos)
     for (const b of this.team.members) {
       if (b === this || b.mode !== 'score' || !this.isActive(b)) continue;
       const q = b.robot.phys.position();
-      if (Math.hypot(q.x - t.x, q.z - t.z) < 1.1 && s * q.z < -1.2) return false;
+      if (Math.hypot(q.x - t.x, q.z - t.z) < 1.1 && s * q.z > 1.2) return false;
     }
     // Pegadas a un robot parado (el del jugador que no se mueve, uno trabado): con la garra abajo lo
     // empujaría (a la Plataforma o fuera de la cancha) en vez de tomarla
@@ -877,9 +877,9 @@ export class Bot {
     }
     // Las del Human Player rival: quedan detrás de su barrera, en una zona de su color (D8). Solo se
     // roban (Experto) si ningún rival está cerca de ellas y queda tiempo; si no, se dejan
-    if (s * t.x < -2.0 && s * t.z < -1.5 && !this.canSteal(t, phase)) return false;
+    if (s * t.x < -2.0 && s * t.z > 1.5 && !this.canSteal(t, phase)) return false;
     // Junto a la Cámara rival: tomarla obliga a quedarse en su frente (D17)
-    if (s * t.x < -1.25 && s * t.z > 1.75) return false;
+    if (s * t.x < -1.25 && s * t.z < -1.75) return false;
     return true;
   }
 
@@ -887,7 +887,7 @@ export class Bot {
   private canSteal(t: { x: number; z: number }, phase: Phase): boolean {
     if (!this.profile.steal || phase === 'AUTO' || this.clock < 22) return false;
     if (this.robot.mech.stored.length >= this.batchSize()) return false;
-    const slot = F.forAlliance(opponent(this.robot.alliance), { x: 3.5, z: F.CAMPANA_WALL_Z - 0.085 });
+    const slot = F.forAlliance(opponent(this.robot.alliance), { x: 3.5, z: -F.HALF_W + 0.085 });
     return !this.others.some((o) => {
       if (o.alliance === this.robot.alliance) return false;
       const q = o.phys.position();
@@ -1038,7 +1038,7 @@ export class Bot {
   private hpPose(): { x: number; z: number } {
     const r = this.robot;
     const hp = this.team.hp;
-    const slot = hp ? hp.slot() : { ...F.forAlliance(r.alliance, { x: 3.5, z: F.CAMPANA_WALL_Z - 0.085 }), dz: -this.side };
+    const slot = hp ? hp.slot() : { ...F.forAlliance(r.alliance, { x: 3.5, z: -F.HALF_W + 0.085 }), dz: this.side };
     const reach = r.phys.halfL - 0.06;
     // Una Muestra que quedó junto a la ranura (fuera del alcance de la garra) no deja que el Human
     // Player meta la siguiente: se alinea con ella para tragársela
@@ -1064,7 +1064,7 @@ export class Bot {
     const r = this.robot;
     out.intake = true;
     const pose = this.hpPose();
-    const faceZ = this.side; // la Campana del rojo está en +Z (corrección: la Cámara va en −Z)
+    const faceZ = -this.side; // la Campana del rojo está en −Z
     // Un compañero sale de la Campana (es un pasillo entre la barra y la pared): lo deja salir
     const pos = r.phys.position();
     // Otro robot en la Campana (un compañero que sale, el del jugador que la ocupa): espera afuera
@@ -1103,7 +1103,7 @@ export class Bot {
     const near = Math.hypot(pose.x - pos.x, pose.z - pos.z) < 1.6;
     if (level === 3 && near) this.team.n3By = r.index;
     out.elevator = near ? level : 0;
-    const st = this.dock(pose, -this.side, this.scoreDir, out, phase, { stage: this.profile.dockStage, tol: 0.1 + this.profile.sloppy, edge: EDGE_CLEAR });
+    const st = this.dock(pose, this.side, this.scoreDir, out, phase, { stage: this.profile.dockStage, tol: 0.1 + this.profile.sloppy, edge: EDGE_CLEAR });
     // Ya se está arrimando: se queda con ese nivel hasta soltar todo
     if (st === 'creep' || st === 'docked') this.lockedLevel = level;
     if (st === 'docked') out.release = m.atTarget;
@@ -1193,7 +1193,7 @@ export class Bot {
   /** Dónde espera frente a la Campana para tomar la Crítica (§3.2.4). */
   private critStage(): { x: number; z: number } {
     const h = F.CRITICAL_HOLDER_RED;
-    return F.forAlliance(this.robot.alliance, { x: h.x, z: h.z - this.critDistance() - 0.55 });
+    return F.forAlliance(this.robot.alliance, { x: h.x, z: h.z + this.critDistance() + 0.55 });
   }
 
   /** +1 si la garra toma y suelta la Crítica al frente, −1 si atrás (el Pivote 180°). */
@@ -1262,8 +1262,8 @@ export class Bot {
         return;
       }
       const h = F.CRITICAL_HOLDER_RED;
-      const pose = F.forAlliance(r.alliance, { x: h.x, z: h.z - this.critDistance() });
-      const faceZ = this.side;
+      const pose = F.forAlliance(r.alliance, { x: h.x, z: h.z + this.critDistance() });
+      const faceZ = -this.side;
       const near = Math.hypot(pose.x - pos.x, pose.z - pos.z) < 1.4;
       out.elevator = near ? 4 : 0;
       const st = this.dock(pose, faceZ, dir, out, phase, { stage: 0.55, tol: 0.08, edge: 0.25, hold: !endgame });
@@ -1357,7 +1357,7 @@ export class Bot {
   /** Frente al Nivel 3 de la Cámara rival (papel 'block'). */
   private blockPose(): { x: number; z: number } {
     const w = F.camaraWells()[3];
-    return F.forAlliance(opponent(this.robot.alliance), { x: (w.x0 + w.x1) / 2, z: F.CAMARA_Z_RED[1] + this.robot.phys.halfL + 0.25 });
+    return F.forAlliance(opponent(this.robot.alliance), { x: (w.x0 + w.x1) / 2, z: F.CAMARA_Z_RED[0] - this.robot.phys.halfL - 0.25 });
   }
 
   // ------------------------------------------------------------------ manejo
@@ -1610,7 +1610,7 @@ export class Bot {
    */
   private avoidBarrier(pos: { x: number; z: number }, goal: { x: number; z: number }): { x: number; z: number } {
     const bx = F.HALF_L - F.CAMPANA_LENGTH - F.BARRIER_WIDTH / 2; // ≈ 2.47 (rojo)
-    const tip = F.HALF_W - F.BARRIER_LENGTH; // ≈ +2.25 (la Campana está en +Z)
+    const tip = -F.HALF_W + F.BARRIER_LENGTH; // ≈ −2.25
     const e = 0.45;
     for (const a of ['red', 'blue'] as const) {
       // Al marco del rojo
@@ -1618,14 +1618,14 @@ export class Bot {
       const q = F.forAlliance(a, goal);
       const cx = bx;
       const hx = F.BARRIER_WIDTH / 2 + e;
-      const z0 = F.HALF_W + 1;
-      const z1 = tip - e;
+      const z0 = -F.HALF_W - 1;
+      const z1 = tip + e;
       // Rectángulo |x − cx| ≤ hx, z ∈ [z0, z1] → centrado para segmentHitsRect
       const mz = (z0 + z1) / 2;
       const hz = (z1 - z0) / 2;
       if (!segmentHitsRect(p.x - cx, p.z - mz, q.x - cx, q.z - mz, hx, hz)) continue;
-      if (Math.abs(p.x - cx) <= hx && p.z >= z1) continue; // ya pegado a la barra: que lo saque el filtro
-      const wp = { x: q.x > cx ? cx + hx + 0.15 : cx - hx - 0.15, z: z1 - 0.25 };
+      if (Math.abs(p.x - cx) <= hx && p.z <= z1) continue; // ya pegado a la barra: que lo saque el filtro
+      const wp = { x: q.x > cx ? cx + hx + 0.15 : cx - hx - 0.15, z: z1 + 0.25 };
       return F.forAlliance(a, wp);
     }
     return goal;
@@ -1680,7 +1680,7 @@ const RIVAL_ZONES: Record<Alliance, F.Rect[]> = { red: obstructZones('blue'), bl
 
 /** Las dos Cámaras (§3.2.3) con 15 cm de margen: la garra y la pieza que lleva sobresalen de su punta. */
 const CAMARAS: readonly F.Rect[] = (['red', 'blue'] as const).map((a) =>
-  F.rectFor(a, { x0: F.CAMARA_X_END_RED - F.CAMARA_LENGTH - 0.15, x1: F.CAMARA_X_END_RED + 0.15, z0: F.CAMARA_Z_RED[0] - 0.15, z1: F.CAMARA_Z_RED[1] + 0.15 }),
+  F.rectFor(a, { x0: F.CAMARA_X_END_RED - F.CAMARA_LENGTH - 0.15, x1: F.CAMARA_X_END_RED + 0.15, z0: F.CAMARA_Z_RED[0] - 0.15, z1: F.HALF_W }),
 );
 
 /** ¿El robot está casi parado? (el del jugador sin moverse, uno dañado o trabado) */
@@ -1721,7 +1721,7 @@ export function segmentHitsRect(x0: number, z0: number, x1: number, z1: number, 
 /** ¿El punto queda a menos de `m` metros de la caja de alguna Cámara? (ahí un robot se atora) */
 function nearCamara(p: { x: number; z: number }, m: number): boolean {
   return (['red', 'blue'] as const).some((a) =>
-    F.inRect(F.rectFor(a, { x0: F.CAMARA_X_END_RED - F.CAMARA_LENGTH - m, x1: F.CAMARA_X_END_RED + m, z0: F.CAMARA_Z_RED[0] - m, z1: F.CAMARA_Z_RED[1] + m }), p.x, p.z),
+    F.inRect(F.rectFor(a, { x0: F.CAMARA_X_END_RED - F.CAMARA_LENGTH - m, x1: F.CAMARA_X_END_RED + m, z0: F.CAMARA_Z_RED[0] - m, z1: F.HALF_W }), p.x, p.z),
   );
 }
 
@@ -1730,12 +1730,12 @@ function nearBarrier(p: { x: number; z: number }, m: number): boolean {
   return (['red', 'blue'] as const).some((a) => {
     const q = F.forAlliance(a, p);
     const x0 = F.CAMPANA_X_RED[0] - F.BARRIER_WIDTH;
-    return q.x > x0 - m && q.x < F.CAMPANA_X_RED[0] + m && q.z > F.HALF_W - F.BARRIER_LENGTH - m;
+    return q.x > x0 - m && q.x < F.CAMPANA_X_RED[0] + m && q.z < -F.HALF_W + F.BARRIER_LENGTH + m;
   });
 }
 
 /** ¿El punto está en el pasillo de la Campana de esa alianza (entre su barra y la pared)? */
 function inCampana(a: Alliance, p: { x: number; z: number }): boolean {
   const q = F.forAlliance(a, p);
-  return q.x > F.HALF_L - F.CAMPANA_LENGTH - 0.3 && q.z > F.HALF_W - F.BARRIER_LENGTH - 0.4;
+  return q.x > F.HALF_L - F.CAMPANA_LENGTH - 0.3 && q.z < -F.HALF_W + F.BARRIER_LENGTH + 0.4;
 }

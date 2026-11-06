@@ -55,9 +55,7 @@ describe('scouting de un match de solo robots con mecanismo', () => {
 
 describe('mecanismos nuevos con la IA (2-nov)', () => {
   it.each(['larm', 'elev', 'dual'])('%s: con la misma estrategia anota, deja la Crítica casi siempre y sube a la Plataforma', (p) => {
-    // Con la Cámara en la pared contraria el brazo largo, con la semilla 1, roza la rampa al quedarse sin
-    // Muestras cerca de ella (PLATFORM_EARLY, pendiente de afinar la IA); con la 3 sale limpio.
-    const r = runMatch(plan(`${p}crit3+${p}n3`), plan('pivn3+pivn3'), p === 'larm' ? 3 : 1);
+    const r = runMatch(plan(`${p}crit3+${p}n3`), plan('pivn3+pivn3'), 1);
     expect(r.red.samples).toBeGreaterThan(10);
     expect(r.red.platform).toBeGreaterThanOrEqual(10);
     expect(r.red.fouls.CRITICAL_EARLY ?? 0).toBe(0);
