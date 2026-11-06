@@ -52,11 +52,6 @@ function camara(): Solid[] {
 }
 
 function campana(): Solid[] {
-  // Se arma en el lado −Z y se pasa al +Z (la Campana está en la pared contraria a la Cámara)
-  return campanaSide().map((s) => ({ ...s, points: s.points.map(([x, y, z]) => [x, y, -z] as Vec3) }));
-}
-
-function campanaSide(): Solid[] {
   const s: Solid[] = [];
   const [xa, xb] = F.CAMPANA_X_RED;
   const zf = -F.HALF_W; // cara hacia la cancha
@@ -83,7 +78,7 @@ function campanaSide(): Solid[] {
   const c = F.CRITICAL_HOLDER_RED;
   const half = F.CRITICAL_SIZE / 2 + 0.03;
   const [s0, s1] = F.CRITICAL_SLIDE_RED;
-  s.push({ part: 'criticalHolder', material: 'gray', points: box(s0 - half, s1 + half, c.y - t, c.y, zf - t, -c.z + half) }); // (en el marco −Z de campanaSide)
+  s.push({ part: 'criticalHolder', material: 'gray', points: box(s0 - half, s1 + half, c.y - t, c.y, zf - t, c.z + half) });
   return s;
 }
 
@@ -109,7 +104,7 @@ function platformRed(): Solid[] {
 
 /**
  * Pared perimetral baja (SUPUESTO: guardrail FRC de 20 in, `WALL_HEIGHT`) por fuera de la alfombra:
- * la pared de la Driver Station roja (+X) y el lado +Z hasta la Campana roja (que cierra el resto);
+ * la pared de la Driver Station roja (+X) y el lado −Z hasta la Campana roja (que cierra el resto);
  * la otra mitad es la rotación de 180°.
  */
 function wallsRed(): Solid[] {
@@ -117,7 +112,7 @@ function wallsRed(): Solid[] {
   const h = F.WALL_HEIGHT;
   const L = F.HALF_L;
   const W = F.HALF_W;
-  return [box(L, L + t, 0, h, -W - t, W + t), box(-L - t, F.CAMPANA_X_RED[0], 0, h, W, W + t)].map((points) => ({ part: 'wall' as const, material: 'wall' as const, points }));
+  return [box(L, L + t, 0, h, -W - t, W + t), box(-L - t, F.CAMPANA_X_RED[0], 0, h, -W - t, -W)].map((points) => ({ part: 'wall' as const, material: 'wall' as const, points }));
 }
 
 function boundary(): Solid[] {

@@ -79,8 +79,8 @@ export class HumanPlayer {
 
   /** Punto (dentro de la cancha) por donde sale la Muestra y su dirección. */
   slot(): { x: number; z: number; dz: number } {
-    const p = F.forAlliance(this.alliance, { x: (F.CAMPANA_X_RED[0] + F.CAMPANA_X_RED[1]) / 2, z: F.CAMPANA_WALL_Z - F.SAMPLE_SIZE / 2 - 0.01 });
-    return { ...p, dz: this.alliance === 'red' ? -1 : 1 };
+    const p = F.forAlliance(this.alliance, { x: (F.CAMPANA_X_RED[0] + F.CAMPANA_X_RED[1]) / 2, z: -F.HALF_W + F.SAMPLE_SIZE / 2 + 0.01 });
+    return { ...p, dz: this.alliance === 'red' ? 1 : -1 };
   }
 
   /**

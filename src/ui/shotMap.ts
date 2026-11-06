@@ -43,7 +43,7 @@ export function fieldLines(g: CanvasRenderingContext2D, W: number, H: number): v
     const col = a === 'red' ? 'rgba(255,138,131,0.9)' : 'rgba(143,182,255,0.9)';
     for (const z of F.START_ZONES_RED) rect(F.rectFor(a, z), col);
     rect(F.camaraRect(a), col, 'rgba(255,255,255,0.06)');
-    rect(F.rectFor(a, { x0: F.CAMPANA_X_RED[0], x1: F.CAMPANA_X_RED[1], z0: F.HALF_W - 0.08, z1: F.HALF_W }), col, col);
+    rect(F.rectFor(a, { x0: F.CAMPANA_X_RED[0], x1: F.CAMPANA_X_RED[1], z0: -F.HALF_W, z1: -F.HALF_W + 0.08 }), col, col);
   }
   rect({ x0: -F.PLATFORM_LENGTH / 2, x1: F.PLATFORM_LENGTH / 2, z0: -F.PLATFORM_WIDTH / 2, z1: F.PLATFORM_WIDTH / 2 }, 'rgba(255,199,44,0.8)', 'rgba(255,199,44,0.06)');
   g.fillStyle = 'rgba(217,201,168,0.55)';

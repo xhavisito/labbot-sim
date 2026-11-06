@@ -51,8 +51,8 @@ describe('pared perimetral (SUPUESTO: guardrail FRC de 20 in)', () => {
       const m = w.points.map(([x, y, z]) => [-x, y, -z].join(','));
       expect(walls.some((o) => o.points.every((p) => m.includes(p.join(','))))).toBe(true);
     }
-    // El tramo +Z llega hasta la Campana roja y no la tapa (§3.2.4: su pared cierra ese tramo)
-    const sideRed = walls.find((w) => w.points.every((p) => p[2] >= F.HALF_W - 1e-9))!;
+    // El tramo −Z llega hasta la Campana roja y no la tapa (§3.2.4: su pared cierra ese tramo)
+    const sideRed = walls.find((w) => w.points.every((p) => p[2] <= -F.HALF_W + 1e-9))!;
     expect(Math.max(...sideRed.points.map((p) => p[0]))).toBeCloseTo(F.CAMPANA_X_RED[0], 6);
   });
 
