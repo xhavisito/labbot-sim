@@ -13,6 +13,7 @@
     "audit:manual": "node scripts/audit-manual.mjs",
     "typecheck": "tsc --noEmit",
     "shots": "node scripts/screenshot.mjs",
+    "e2e": "node scripts/e2e.mjs",
     "e2e:offline": "node scripts/offline.mjs",
     "ui-shots": "node scripts/ui-shots.mjs",
     "ui-hit": "node scripts/ui-hit.mjs",
