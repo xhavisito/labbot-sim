@@ -72,7 +72,7 @@ const clamp1 = (v: number): number => Math.max(-1, Math.min(1, v));
 /** Margen alrededor de la Plataforma que la IA no pisa antes del endgame. */
 const PLATFORM_CLEAR = 0.65;
 /** Distancia (m) a la orilla de la Plataforma dentro de la cual la IA se aparta de ella antes del ENDGAME (§4.6). */
-const PLATFORM_GUARD = 0.55;
+const PLATFORM_GUARD = 0.75;
 /** Centro del robot a no menos de esto de los bordes (sus objetivos se recortan aquí). */
 const EDGE_CLEAR = 0.55;
 /** Distancia (m, al centro) a la que empieza a alejarse de la orilla al manejar: media diagonal + algo. */
