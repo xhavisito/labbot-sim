@@ -15,7 +15,7 @@ export const CAMERA_MODES: readonly CameraMode[] = ['driverBlue', 'driverEye', '
 export interface Viewer {
   alliance: Alliance;
   station: 0 | 1;
-  spec: { length: number; baseHeight: number };
+  spec: { length: number; baseHeight: number; arm?: { pickBack?: boolean } };
 }
 
 export class CameraRig {
@@ -75,6 +75,8 @@ export class CameraRig {
       this.camera.lookAt(this.look);
       return;
     }
+    // El frente es el lado del intake: con la garra atrás (Pivote 180°) Seguir y A bordo miran hacia allá
+    if (viewer?.spec.arm?.pickBack) target = { ...target, heading: target.heading + Math.PI };
     if (viewer && this.mode === 'onboard') {
       const m = onboardMount(viewer.spec);
       const c = Math.cos(target.heading);
