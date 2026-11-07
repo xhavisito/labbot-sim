@@ -22,6 +22,7 @@ import { MECHANISM_KINDS, type MechanismKind, type RobotSpec } from '../config/r
 import type { MatchRobot, Settings } from '../config/settings';
 import { CENTER_SPOT, clampSpot, spotValid, type StartSpot } from '../config/startSpot';
 import { backBtn, brandbar, ic, UI_ALLIANCES, UI_SLOTS } from './chrome';
+import { isLegacyFrame } from '../core/autoPath';
 import { t, type Key } from './i18n';
 
 const esc = (v: string): string => v.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
@@ -58,6 +59,9 @@ const W = MAP.z * 200;
 const H = (MAP.x1 - MAP.x0) * 100;
 
 /** Una opción de `<select>` con la actual seleccionada. */
+/** Marca para una opción de AUTO guardada con el marco viejo de la Cámara (anterior al PR #104). */
+export const legacyMark = (frame: number | undefined): string => (isLegacyFrame(frame) ? ' ⚠' : '');
+
 export const optionTag = (v: string, label: string, sel: string): string => `<option value="${v}" ${v === sel ? 'selected' : ''}>${label}</option>`;
 
 /** Rutinas de AUTO para un `<select>`: las de la app, tus rutas guardadas (si `mine`) y las dibujadas. */
@@ -66,9 +70,9 @@ export function autoOptionsHtml(sel: string, mine: boolean): string {
   const paths = loadPaths();
   return (
     AUTO_ROUTINES.map((r) => opt(r.id, t(`auto_${r.id}` as Key), sel)).join('') +
-    (mine && savedRoutes.length ? `<optgroup label="${t('grp_routes')}">${savedRoutes.map((r) => opt(routeRoutine(r).id, esc(r.name), sel)).join('')}</optgroup>` : '') +
+    (mine && savedRoutes.length ? `<optgroup label="${t('grp_routes')}">${savedRoutes.map((r) => opt(routeRoutine(r).id, esc(r.name) + legacyMark(r.frame), sel)).join('')}</optgroup>` : '') +
     // Las dibujadas sirven para cualquier robot (corrigen con la pose real), también para tu compañero
-    (paths.length ? `<optgroup label="${t('grp_paths')}">${paths.map((r) => opt(pathRoutine(r).id, esc(r.name), sel)).join('')}</optgroup>` : '')
+    (paths.length ? `<optgroup label="${t('grp_paths')}">${paths.map((r) => opt(pathRoutine(r).id, esc(r.name) + legacyMark(r.frame), sel)).join('')}</optgroup>` : '')
   );
 }
 

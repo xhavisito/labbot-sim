@@ -42,8 +42,22 @@ export interface PathPoint {
   wait: number;
 }
 
+/**
+ * Versión del marco de la Cámara con el que se guardó una ruta. 1 = antes del PR #104 (cada alianza
+ * anotaba en la Cámara de su propia mitad); 2 = desde el PR #104 (anota en la Cámara del extremo
+ * contrario, `F.forCamara`). Lo guardado sin versión es 1. No se migra solo: no hay forma segura de
+ * saber qué puntos de una ruta eran "para anotar" y cuáles no, así que se avisa (`isLegacyFrame`).
+ */
+export const CAMARA_FRAME = 2;
+/** ¿Se guardó con el marco viejo de la Cámara (anterior al PR #104)? */
+export const isLegacyFrame = (frame: number | undefined): boolean => (frame ?? 1) < CAMARA_FRAME;
+/** Versión de marco válida a partir de lo guardado (sin dato = 1, el marco viejo). */
+export const frameOf = (v: unknown): number => (typeof v === 'number' && Number.isInteger(v) && v >= 1 && v <= CAMARA_FRAME ? v : 1);
+
 export interface AutoPath {
   id: string;
+  /** Marco de la Cámara con el que se dibujó (`CAMARA_FRAME`); lo viejo es 1. */
+  frame: number;
   name: string;
   /** Última edición (ms). */
   updated: number;
@@ -69,7 +83,7 @@ const round = (v: number, k = 100) => Math.round(v * k) / k;
 export const newPathId = (): string => `a${Date.now().toString(36)}${Math.floor(Math.random() * 1e4).toString(36)}`;
 
 export function newPath(name: string, station: 0 | 1 = 0, id = newPathId()): AutoPath {
-  return { id, name, updated: Date.now(), station, start: { ...CENTER_SPOT }, points: [] };
+  return { id, name, frame: CAMARA_FRAME, updated: Date.now(), station, start: { ...CENTER_SPOT }, points: [] };
 }
 
 export function newPoint(x: number, z: number): PathPoint {
@@ -112,6 +126,7 @@ export function sanitizePath(raw: unknown): AutoPath | null {
   return {
     id: o.id,
     name: (typeof o.name === 'string' && o.name.trim() ? o.name.trim() : 'Rutina').slice(0, MAX_PATH_NAME),
+    frame: frameOf(o.frame),
     updated: num(o.updated) ?? 0,
     station: o.station === 1 ? 1 : 0,
     start: sanitizeSpot(o.start),

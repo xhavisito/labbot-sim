@@ -7,7 +7,8 @@
  */
 import { AutoRunner, type AutoTrack } from '../auto/AutoRoutine';
 import { applyOffset, AutoScorer, AUTO_STEPS, NO_OFFSET, randomOffsets, testVariations, type AutoResult, type StartOffset, type VariationSummary } from '../auto/practice';
-import { deleteRoute, newRouteId, routeRoutine, savedRoutes, storeRoute, TrackRecorder, type SavedRoute } from '../auto/recorded';
+import { CAMARA_FRAME, isLegacyFrame } from '../core/autoPath';
+import { deleteRoute, markRouteReviewed, newRouteId, routeRoutine, savedRoutes, storeRoute, TrackRecorder, type SavedRoute } from '../auto/recorded';
 import { GAME } from '../config/game';
 import type { GameSession } from '../game/GameSession';
 import { PHYSICS_HZ } from '../game/GameSession';
@@ -178,6 +179,7 @@ export class AutoPractice {
       id: this.savedId ?? newRouteId(),
       name: name.trim().slice(0, 40) || t('ap_defaultName', { n: savedRoutes.length + 1 }),
       createdAt: new Date().toISOString(),
+      frame: CAMARA_FRAME,
       robot: this.h.robotName,
       station: p.station,
       track: this.track,
@@ -195,7 +197,7 @@ export class AutoPractice {
     this.savedId = r.id;
     this.result = null;
     this.variations = null;
-    this.msg = r.station !== this.s.player.station ? t('ap_otherStation') : '';
+    this.msg = [r.station !== this.s.player.station ? t('ap_otherStation') : '', isLegacyFrame(r.frame) ? t('frame_legacyRoute') : ''].filter(Boolean).join(' ');
     this.play();
   }
 
@@ -264,7 +266,7 @@ export class AutoPractice {
     const routes = savedRoutes
       .map((r) => {
         const inUse = this.h.currentAuto() === routeRoutine(r).id;
-        return `<div class="ap-route" data-id="${esc(r.id)}"><span><b>${esc(r.name)}</b><small>${esc(r.robot)} · ${t('ap_station', { n: r.station + 1 })}${inUse ? ` · ${t('ap_inUse')}` : ''}</small></span>
+        return `<div class="ap-route" data-id="${esc(r.id)}"><span><b>${esc(r.name)}</b><small>${esc(r.robot)} · ${t('ap_station', { n: r.station + 1 })}${inUse ? ` · ${t('ap_inUse')}` : ''}</small>${isLegacyFrame(r.frame) ? `<small class="ap-warn">${t('frame_legacyRoute')} <button class="chipbtn" data-a="reviewed">${t('frame_reviewed')}</button></small>` : ''}</span>
           <button class="chipbtn" data-a="load" title="${t('ap_play')}">${ic.play}</button><button class="chipbtn" data-a="del" title="${t('rp_delete')}">${ic.x}</button></div>`;
       })
       .join('');
@@ -312,6 +314,10 @@ export class AutoPractice {
     on('load', (el) => {
       const r = savedRoutes.find((x) => x.id === el.closest<HTMLElement>('[data-id]')!.dataset.id);
       if (r) this.load(r);
+    });
+    on('reviewed', (el) => {
+      markRouteReviewed(el.closest<HTMLElement>('[data-id]')!.dataset.id!);
+      this.render();
     });
     on('del', (el) => {
       const id = el.closest<HTMLElement>('[data-id]')!.dataset.id!;

@@ -30,6 +30,7 @@ import { padHelp } from './controlsHelp';
 import { backBtn, brandbar, ic, kbds, langChips, robotSilhouette, UI_ALLIANCES, UI_SLOTS } from './chrome';
 import { formatPlaytime } from '../core/playtime';
 import { loadPlaytime } from '../game/playtimeStore';
+import { legacyMark } from './MatchSetup';
 import { getLang, setLang, t, type Key } from './i18n';
 import type { ScoutPlay } from './Scouting';
 import { applyUpdate, isIos, isStandalone, promptInstall, pwa } from '../pwa/register';
@@ -385,8 +386,8 @@ export class Menu {
     const autoOpts = (sel: string, routes = false) => {
       const opt = (id: string, label: string) => `<option value="${id}" ${id === sel ? 'selected' : ''}>${label}</option>`;
       const fixed = AUTO_ROUTINES.map((r) => opt(r.id, t(`auto_${r.id}` as Key))).join('');
-      const mine = routes ? savedRoutes.map((r) => opt(routeRoutine(r).id, esc(r.name))).join('') : '';
-      const drawn = loadPaths().map((r) => opt(pathRoutine(r).id, esc(r.name))).join('');
+      const mine = routes ? savedRoutes.map((r) => opt(routeRoutine(r).id, esc(r.name) + legacyMark(r.frame))).join('') : '';
+      const drawn = loadPaths().map((r) => opt(pathRoutine(r).id, esc(r.name) + legacyMark(r.frame))).join('');
       return fixed + (mine ? `<optgroup label="${t('grp_routes')}">${mine}</optgroup>` : '') + (drawn ? `<optgroup label="${t('grp_paths')}">${drawn}</optgroup>` : '');
     };
     const toggle = (k: 'ai' | 'hpEnabled' | 'hpSmart' | 'showFps' | 'showGhost' | 'rumble' | HudKey) => `<button class="toggle ${s[k] ? 'on' : ''}" data-tog="${k}"><i></i>${s[k] ? t('on_') : t('no_')}</button>`;

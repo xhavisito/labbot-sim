@@ -1710,3 +1710,6 @@ body.vs-stacked .touch.vs-touch.p1 .pad { bottom: 12px; }
   .screen, .screen *, .overlay, .pause, .dialog { animation: none !important; }
   .mm-hub, .hubcard, .btn { transition: none !important; }
 }
+
+.ap-warn { color: var(--warn, #ffb454); }
+.ap-msg.ap-warn { border-left-color: var(--warn, #ffb454); background: rgba(255, 180, 84, 0.1); }
