@@ -117,3 +117,11 @@ Cada regla en el código cita su sección del manual.
   robots: los tres tipos son presets en `src/config/robot.ts` con medidas SUPUESTAS.
 - El brazo del pivote empieza abajo (en el piso), un poco fuera del chasis; el manual pide nada fuera
   del perímetro al inicio (§4.1), pero la simulación no lo cobra.
+
+## Comparador de dificultades de la IA
+
+`npm run ai-bench -- --a dificil --b facil --matches 6` corre matches completos de solo IA (sin
+navegador), una dificultad por alianza y alternando lados, y reporta victorias, puntos, faltas y RP
+promedio por dificultad. `--all` compara todas contra todas. Las dificultades (`facil`, `normal`,
+`dificil`, en `src/ai/difficulty.ts`) son perfiles de prueba sobre las opciones de `Bot`
+(SUPUESTO: el manual no define niveles de IA); `dificil` = el comportamiento normal del juego.

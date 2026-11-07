@@ -6,7 +6,7 @@
  * puntuación, faltas y RP).
  */
 import * as THREE from 'three';
-import { Bot } from '../ai/Bot';
+import { Bot, type BotOptions } from '../ai/Bot';
 import { AutoRunner, LEAVE_ZONE, type AutoRoutine } from '../auto/AutoRoutine';
 import * as F from '../config/field';
 import { GAME, type GameConfig } from '../config/game';
@@ -43,6 +43,8 @@ export interface SessionOptions {
   ai?: boolean;
   /** Human Player automático: encendido y segundos entre Muestras (SUPUESTO, ver HumanPlayer). */
   hp?: { enabled: boolean; interval: number };
+  /** Opciones de la IA de TELEOP por alianza (para comparar dificultades; sin esto, las de siempre). */
+  botOptions?: Partial<Record<Alliance, Partial<BotOptions>>>;
 }
 
 export class GameSession {
@@ -140,7 +142,7 @@ export class GameSession {
       const b = this.autos[r.index].routine.bot;
       return b ? new Bot(r, this.pieces, this.robots, { scoreOnly: b.scoreOnly, stayHome: true }) : null;
     });
-    this.bots = this.robots.map((r) => (this.opts.ai && r !== this.player ? new Bot(r, this.pieces, this.robots) : null));
+    this.bots = this.robots.map((r) => (this.opts.ai && r !== this.player ? new Bot(r, this.pieces, this.robots, this.opts.botOptions?.[r.alliance]) : null));
     this.match.start();
   }
 
