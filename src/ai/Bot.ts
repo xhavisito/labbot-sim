@@ -71,6 +71,8 @@ const clamp = (v: number, m: number): number => Math.max(-m, Math.min(m, v));
 const clamp1 = (v: number): number => Math.max(-1, Math.min(1, v));
 /** Margen alrededor de la Plataforma que la IA no pisa antes del endgame. */
 const PLATFORM_CLEAR = 0.65;
+/** Distancia (m) a la orilla de la Plataforma dentro de la cual la IA se aparta de ella antes del ENDGAME (§4.6). */
+const PLATFORM_GUARD = 0.55;
 /** Centro del robot a no menos de esto de los bordes (sus objetivos se recortan aquí). */
 const EDGE_CLEAR = 0.55;
 /** Distancia (m, al centro) a la que empieza a alejarse de la orilla al manejar: media diagonal + algo. */
@@ -1451,6 +1453,17 @@ export class Bot {
         const wz = F.HALF_W - Math.abs(pos.z);
         if (wx < WALL_CLEAR) ax -= Math.sign(pos.x) * ((WALL_CLEAR - wx) / WALL_CLEAR) * 1.5;
         if (wz < WALL_CLEAR) az -= Math.sign(pos.z) * ((WALL_CLEAR - wz) / WALL_CLEAR) * 1.5;
+      }
+      // Antes del ENDGAME ni rozar la Plataforma: lejos de su orilla (la esquina del chasis al girar la alcanza)
+      if (!allowPlatform) {
+        const px = Math.max(Math.abs(pos.x) - F.PLATFORM_LENGTH / 2, 0);
+        const pz = Math.max(Math.abs(pos.z) - F.PLATFORM_WIDTH / 2, 0);
+        const pd = Math.hypot(px, pz);
+        if (pd < PLATFORM_GUARD && pd > 1e-3) {
+          const w = ((PLATFORM_GUARD - pd) / PLATFORM_GUARD) * 2.5;
+          ax += (Math.sign(pos.x) * (px / pd)) * w;
+          az += (Math.sign(pos.z) * (pz / pd)) * w;
+        }
       }
       const n = Math.hypot(ax, az) || 1;
       dx = (ax / n) * dist;
