@@ -6,6 +6,7 @@
  * Los controles son fracción de la velocidad máxima del robot con el que se grabó: con otro robot,
  * o desde la otra Zona de Inicio (no es simétrica a la tuya), la ruta termina en otro lugar.
  */
+import { CAMARA_FRAME, frameOf } from '../core/autoPath';
 import { loadPaths, pathRoutine } from '../game/autoPathStore';
 import { AUTO_ROUTINES, type AutoAction, type AutoOutput, type AutoRoutine, type AutoTrack } from './AutoRoutine';
 
@@ -16,6 +17,8 @@ export interface SavedRoute {
   id: string;
   name: string;
   createdAt: string;
+  /** Marco de la Cámara con el que se grabó (`CAMARA_FRAME`, core/autoPath); lo viejo es 1. */
+  frame: number;
   /** Robot con el que se grabó (nombre para mostrar) y su Zona de Inicio (0 o 1). */
   robot: string;
   station: 0 | 1;
@@ -107,6 +110,7 @@ export function sanitizeRoute(raw: unknown): SavedRoute | null {
   return {
     id: o.id,
     name: typeof o.name === 'string' && o.name.trim() ? o.name.trim().slice(0, 40) : 'Ruta',
+    frame: frameOf(o.frame),
     createdAt: typeof o.createdAt === 'string' ? o.createdAt : new Date(0).toISOString(),
     robot: typeof o.robot === 'string' ? o.robot.slice(0, 60) : '',
     station: o.station === 1 ? 1 : 0,
@@ -135,6 +139,14 @@ export function saveRoutes(list: readonly SavedRoute[]): void {
 
 /** Las rutas guardadas (se lee una vez; quien las cambia también actualiza este arreglo). */
 export const savedRoutes: SavedRoute[] = loadRoutes();
+
+/** Marca una ruta como revisada con el marco actual de la Cámara (o con otro, en pruebas). */
+export function markRouteReviewed(id: string, frame = CAMARA_FRAME): void {
+  const r = savedRoutes.find((x) => x.id === id);
+  if (!r) return;
+  r.frame = frame;
+  saveRoutes(savedRoutes);
+}
 
 export function storeRoute(r: SavedRoute): void {
   const i = savedRoutes.findIndex((x) => x.id === r.id);

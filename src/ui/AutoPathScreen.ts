@@ -27,6 +27,8 @@ import {
   PATH_PREFIX,
   pickupPoints,
   scoringPoint,
+  CAMARA_FRAME,
+  isLegacyFrame,
   type AutoPath,
   type PathPoint,
 } from '../core/autoPath';
@@ -96,7 +98,8 @@ export class AutoPathScreen {
         <div class="pl-mini">${this.svg(p, -1, true)}</div>
         <div class="pl-info"><b>${esc(p.name)}</b>
           <small>${t('ar_pointsN', { n: p.points.length })} · ~${e.total.toFixed(1)} s · ${t('ar_zone')} ${p.station ? 'B' : 'A'}</small>
-          <small>${p.updated ? dateTime(new Date(p.updated).toISOString()) : ''}</small></div>
+          <small>${p.updated ? dateTime(new Date(p.updated).toISOString()) : ''}</small>
+          ${isLegacyFrame(p.frame) ? `<small class="ap-warn">${t('frame_legacyShort')}</small>` : ''}</div>
         <div class="pl-btns">
           <button class="btn primary" data-edit>${ic.route}<span>${t('pl_edit')}</span></button>
           <button class="btn" data-dup>${t('pl_dup')}</button>
@@ -173,6 +176,7 @@ export class AutoPathScreen {
     this.root.className = 'screen solid';
     this.root.innerHTML = `<div class="inner">
       ${brandbar(t('ar_title'))}
+      ${isLegacyFrame(p.frame) ? `<div class="ap-msg ap-warn" data-legacy>${t('frame_legacyPath')} <button class="chipbtn" data-reviewed>${t('frame_reviewed')}</button></div>` : ''}
       <div class="pl-head"><input class="pl-name" data-name maxlength="${MAX_PATH_NAME}" value="${esc(p.name)}" aria-label="${t('pl_name')}"><span class="pl-saved">${ic.check}${t('pl_autosave')}</span></div>
       <div class="pl-edit">
         <div class="panel pl-field">
@@ -254,6 +258,11 @@ export class AutoPathScreen {
     name.addEventListener('change', () => {
       p.name = name.value.trim().slice(0, MAX_PATH_NAME) || p.name;
       this.save(p);
+    });
+    this.root.querySelector('[data-reviewed]')?.addEventListener('click', () => {
+      p.frame = CAMARA_FRAME;
+      this.save(p);
+      this.edit(p);
     });
     this.q('[data-act="list"]').addEventListener('click', () => {
       this.cancel = true;

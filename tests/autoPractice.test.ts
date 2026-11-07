@@ -2,6 +2,7 @@ import { beforeAll, describe, expect, it } from 'vitest';
 import { AutoScorer, AUTO_STEPS, autoSession, randomOffsets, runRoutine, summarize } from '../src/auto/practice';
 import { routeRoutine, rle, sanitizeRoute, TrackRecorder, unrle, type SavedRoute } from '../src/auto/recorded';
 import { DEFAULT_ROBOT } from '../src/config/robot';
+import { CAMARA_FRAME } from '../src/core/autoPath';
 import { PHYSICS_HZ } from '../src/game/GameSession';
 import { emptyInput } from '../src/input/InputManager';
 import { initRapier } from '../src/physics/PhysicsWorld';
@@ -23,7 +24,7 @@ function record(player: number, forward: number, secs: number): { route: SavedRo
   }
   const r = sc.result(s);
   s.dispose();
-  return { route: { id: 'test', name: 'Prueba', createdAt: '', robot: '', station: 0, track: rec.track }, final: r.final, points: r.points };
+  return { route: { id: 'test', name: 'Prueba', frame: CAMARA_FRAME, createdAt: '', robot: '', station: 0, track: rec.track }, final: r.final, points: r.points };
 }
 
 describe('práctica de AUTO', () => {
