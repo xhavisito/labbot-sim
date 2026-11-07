@@ -45,7 +45,7 @@ export class SinkView {
     const mat = new THREE.MeshBasicMaterial({ color: 0xffffff, map: sinkTexture(), transparent: true, depthWrite: false });
     for (const a of ALLIANCES)
       for (const l of LEVELS) {
-        const w = F.rectFor(a, F.camaraWells()[l]);
+        const w = F.rectForCamara(a, F.camaraWells()[l]);
         const size = Math.min(w.x1 - w.x0, w.z1 - w.z0) * 0.95;
         const m = new THREE.Mesh(new THREE.CircleGeometry(size / 2, 40), mat);
         m.rotation.x = -Math.PI / 2;

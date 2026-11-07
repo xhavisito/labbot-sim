@@ -22,9 +22,9 @@ export const PLATFORM_HOLD = 1;
  */
 export function camaraStart(alliance: 'red' | 'blue', spec: RobotSpec): { x: number; z: number; heading: number } {
   const w = F.camaraWells()[2];
-  const p = F.forAlliance(alliance, { x: (w.x0 + w.x1) / 2, z: F.CAMARA_Z_RED[0] - spec.length / 2 - 0.2 });
-  // Rojo ve hacia +Z (rumbo −π/2: adelante = (cos h, −sin h)); azul, al revés
-  return { ...p, heading: alliance === 'red' ? -Math.PI / 2 : Math.PI / 2 };
+  const p = F.forCamara(alliance, { x: (w.x0 + w.x1) / 2, z: F.CAMARA_Z_RED[0] - spec.length / 2 - 0.2 });
+  // Su Cámara está en la mitad rival: el rojo ve hacia −Z (rumbo π/2: adelante = (cos h, −sin h)); azul, al revés
+  return { ...p, heading: F.camaraHeading(alliance) };
 }
 
 /** Opciones de la sesión del reto: solo tu robot; precarga salvo en el de la Crítica (la garra del pivote va vacía). */

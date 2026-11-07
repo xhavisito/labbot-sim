@@ -238,9 +238,9 @@ export class Bot {
     const z = Math.min((w.z0 + w.z1) / 2 - this.tipDistance(level), F.CAMARA_Z_RED[0] - hl - 0.03);
     const spread = (w.x1 - w.x0) / 2 - 0.14;
     const dx = [0, -1, 1, -0.5, 0.5][this.visits % 5] * spread;
-    const p = F.forAlliance(this.robot.alliance, { x: (w.x0 + w.x1) / 2 + dx, z });
+    const p = F.forCamara(this.robot.alliance, { x: (w.x0 + w.x1) / 2 + dx, z });
     const back = this.scoreDir < 0 ? Math.PI : 0;
-    return { ...p, heading: wrap((this.robot.alliance === 'red' ? -Math.PI / 2 : Math.PI / 2) + back) };
+    return { ...p, heading: wrap(F.camaraHeading(this.robot.alliance) + back) };
   }
 
   /** +1 si anota al frente, −1 si anota atrás (llega a la Cámara de reversa). */
@@ -397,7 +397,6 @@ export class Bot {
       if (Math.abs(p.x) > F.HALF_L - 0.38 || Math.abs(p.z) > F.HALF_W - 0.38) return Infinity;
       const nearStart = Math.hypot(p.x - pos.x, p.z - pos.z) < 0.3;
       if (!nearStart && ((Math.abs(p.x) < px && Math.abs(p.z) < pz) || nearCamara(p, 0.38) || nearBarrier(p, 0.38))) return Infinity;
-      if (!nearStart && phase === 'AUTO' && this.side * p.x < 0.5) return Infinity;
       let c = 1;
       for (const o of robots) {
         const d = Math.hypot(p.x - o.x, p.z - o.z);
@@ -864,7 +863,8 @@ export class Bot {
     for (const b of this.team.members) {
       if (b === this || b.mode !== 'score' || !this.isActive(b)) continue;
       const q = b.robot.phys.position();
-      if (Math.hypot(q.x - t.x, q.z - t.z) < 1.1 && s * q.z > 1.2) return false;
+      // Su Cámara está en la mitad rival, en la pared −Z (rojo) / +Z (azul)
+      if (Math.hypot(q.x - t.x, q.z - t.z) < 1.1 && -s * q.z > 1.2 && -s * q.x > 1) return false;
     }
     // Pegadas a un robot parado (el del jugador que no se mueve, uno trabado): con la garra abajo lo
     // empujaría (a la Plataforma o fuera de la cancha) en vez de tomarla
@@ -1102,7 +1102,7 @@ export class Bot {
     const near = Math.hypot(pose.x - pos.x, pose.z - pos.z) < 1.6;
     if (level === 3 && near) this.team.n3By = r.index;
     out.elevator = near ? level : 0;
-    const st = this.dock(pose, this.side, this.scoreDir, out, phase, { stage: this.profile.dockStage, tol: 0.1 + this.profile.sloppy, edge: EDGE_CLEAR });
+    const st = this.dock(pose, -this.side, this.scoreDir, out, phase, { stage: this.profile.dockStage, tol: 0.1 + this.profile.sloppy, edge: EDGE_CLEAR });
     // Ya se está arrimando: se queda con ese nivel hasta soltar todo
     if (st === 'creep' || st === 'docked') this.lockedLevel = level;
     if (st === 'docked') out.release = m.atTarget;
@@ -1356,7 +1356,7 @@ export class Bot {
   /** Frente al Nivel 3 de la Cámara rival (papel 'block'). */
   private blockPose(): { x: number; z: number } {
     const w = F.camaraWells()[3];
-    return F.forAlliance(opponent(this.robot.alliance), { x: (w.x0 + w.x1) / 2, z: F.CAMARA_Z_RED[0] - this.robot.phys.halfL - 0.25 });
+    return F.forCamara(opponent(this.robot.alliance), { x: (w.x0 + w.x1) / 2, z: F.CAMARA_Z_RED[0] - this.robot.phys.halfL - 0.25 });
   }
 
   // ------------------------------------------------------------------ manejo
@@ -1410,7 +1410,6 @@ export class Bot {
       if (!allowPlatform) g = this.avoidPlatform(pos, g);
       g = this.avoidBarrier(pos, g);
     }
-    if (phase === 'AUTO') g = { x: this.side > 0 ? Math.max(0.5, g.x) : Math.min(-0.5, g.x), z: g.z };
     g = { x: clamp(g.x, F.HALF_L - edge), z: clamp(g.z, F.HALF_W - edge) };
     let dx = g.x - pos.x;
     let dz = g.z - pos.z;

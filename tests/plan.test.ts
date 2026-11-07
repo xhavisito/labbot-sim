@@ -33,7 +33,7 @@ describe('estrategias de alianza (core/plan)', () => {
     expect(p.name).toBe('Mi plan');
     expect(p.auto).toBe('leave');
     expect(p.steps.AUTO.partner.route).toEqual([
-      { x: 0.5, z: 0 },
+      { x: -2, z: 0 }, // manual nuevo (7-nov): AUTO sin límite de línea central
       { x: 4.5, z: -3.5 },
     ]);
     expect(p.steps.AUTO.partner.source).toBe('lab');
@@ -75,7 +75,7 @@ describe('estrategias de alianza (core/plan)', () => {
     const p = plan((x) => {
       x.steps.AUTO.partner.route = [{ x: 3.4, z: 0.5 }];
       x.steps.TELEOP[0].me.route = [{ x: 0.2, z: 0.1 }];
-      x.steps.TELEOP[0].partner.zone = { x0: -3.9, x1: -2, z0: -3.4, z1: -2.5 };
+      x.steps.TELEOP[0].partner.zone = { x0: 2, x1: 3.9, z0: 2.5, z1: 3.4 };
       x.steps.ENDGAME.partner.route = [{ x: 0.5, z: 0.3 }];
     });
     const codes = planIssues(p, obstructZones('blue')).map((i) => `${i.key}:${i.code}`);

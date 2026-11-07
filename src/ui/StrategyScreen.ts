@@ -360,6 +360,8 @@ export function fieldSvg(p: StrategyPlan, key: string, mini: boolean): string {
     return `<rect x="${x}" y="${y}" width="${Math.abs(r.x1 - r.x0) * S}" height="${Math.abs(r.z1 - r.z0) * S}" class="${cls}"/>`;
   };
   const both = (r: F.Rect, cls: string) => rect(r, `${cls} mine`) + rect(F.rectFor('blue', r), `${cls} rival`);
+  // La Cámara propia está en la mitad rival (F.camaraRect): la mía es la de −X/−Z y la rival la de +X/+Z
+  const bothCamara = (r: F.Rect, cls: string) => rect(F.rectForCamara('red', r), `${cls} mine`) + rect(F.rectForCamara('blue', r), `${cls} rival`);
   const label = (x: number, z: number, text: string, cls = '') => (mini ? '' : `<text x="${px(x)}" y="${py(z)}" class="pl-lbl ${cls}">${text}</text>`);
   const camara: F.Rect = { x0: F.CAMARA_X_END_RED - F.CAMARA_LENGTH, x1: F.CAMARA_X_END_RED, z0: F.CAMARA_Z_RED[0], z1: F.CAMARA_Z_RED[1] };
   const campana: F.Rect = { x0: F.CAMPANA_X_RED[0], x1: F.CAMPANA_X_RED[1], z0: -F.HALF_W, z1: -F.HALF_W + F.CAMPANA_DEPTH };
@@ -377,16 +379,16 @@ export function fieldSvg(p: StrategyPlan, key: string, mini: boolean): string {
     <rect x="0" y="0" width="${W}" height="${H}" class="pl-carpet"/>
     ${obstructZones('blue').map((r) => rect(r, 'pl-rivalzone')).join('')}
     ${F.START_ZONES_RED.map((r) => both(r, 'pl-start')).join('')}
-    ${both(camara, 'pl-camara')}${both(campana, 'pl-campana')}
+    ${bothCamara(camara, 'pl-camara')}${both(campana, 'pl-campana')}
     ${rect(platform, 'pl-platform')}${rect(repisa, 'pl-repisa')}
     ${F.labSpots().map((q) => `<rect x="${px(q.x) - 7.5}" y="${py(q.z) - 7.5}" width="15" height="15" class="pl-sample"/>`).join('')}
     <line x1="${px(0)}" y1="0" x2="${px(0)}" y2="${H}" class="pl-center ${key === 'AUTO' ? 'hot' : ''}"/>
     <line x1="${W}" y1="0" x2="${W}" y2="${H}" class="pl-wall rival"/><line x1="0" y1="0" x2="0" y2="${H}" class="pl-wall mine"/>
-    ${label(F.CAMARA_X_END_RED - F.CAMARA_LENGTH / 2, F.HALF_W - F.CAMARA_WIDTH / 2 + 0.08, t('pl_myCamara'))}
+    ${label(-F.CAMARA_X_END_RED + F.CAMARA_LENGTH / 2, -F.HALF_W + F.CAMARA_WIDTH / 2 + 0.08, t('pl_myCamara'))}
     ${label(F.CAMPANA_X_RED[0] + 1, -F.HALF_W + 0.28, t('pl_myCampana'))}
     ${label(0, 0.08, t('platform'))}
     ${label(1, 1.9, t('pl_lab'), 'dim')}
-    ${label(-F.CAMARA_X_END_RED + F.CAMARA_LENGTH / 2, -F.HALF_W + F.CAMARA_WIDTH / 2 + 0.08, t('pl_rivalCamara'), 'rival')}
+    ${label(F.CAMARA_X_END_RED - F.CAMARA_LENGTH / 2, F.HALF_W - F.CAMARA_WIDTH / 2 + 0.08, t('pl_rivalCamara'), 'rival')}
     ${label(0, F.HALF_W - 0.12, t('pl_centerLine'), 'dim')}
     ${label(3.4, 1.35, t('pl_you'), 'mine')}
     ${z ? rect(z, 'pl-zone') : ''}

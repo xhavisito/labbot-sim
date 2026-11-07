@@ -131,6 +131,7 @@ function boundary(): Solid[] {
 
 /** Todos los sólidos estáticos de la cancha (ambas alianzas). */
 export function fieldSolids(): Solid[] {
+  // OJO: `alliance` es la mitad donde está la estructura; la Cámara de +X la usa el AZUL (`camaraOwnerFrame`)
   const red: Solid[] = [...camara(), ...campana(), ...platformRed()].map((s) => ({ ...s, alliance: 'red' }));
   const blue: Solid[] = red.map((s) => ({ ...s, alliance: 'blue', points: mirror(s.points) }));
   const hz = F.PLATFORM_WIDTH / 2;

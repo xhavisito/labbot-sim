@@ -84,9 +84,9 @@ const clampZ = (z: number) => Math.max(-F.HALF_W, Math.min(F.HALF_W, z));
 const round = (v: number) => Math.round(v * 100) / 100;
 
 /** Punto dentro de la cancha (en AUTO, de tu lado de la línea central, §4.2). */
-export function cleanPoint(p: PlanPoint, phase: PlanPhase): PlanPoint {
+export function cleanPoint(p: PlanPoint, _phase: PlanPhase): PlanPoint {
   const x = clampX(p.x);
-  return { x: round(phase === 'AUTO' ? Math.max(AUTO_MIN_X, x) : x), z: round(clampZ(p.z)) };
+  return { x: round(x), z: round(clampZ(p.z)) }; // (manual nuevo: AUTO sin límite de línea central)
 }
 
 function route(v: unknown, phase: PlanPhase): PlanPoint[] {

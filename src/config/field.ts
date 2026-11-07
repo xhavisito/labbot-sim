@@ -203,8 +203,22 @@ export function forAlliance(a: Alliance, p: { x: number; z: number }): { x: numb
 export function rectFor(a: Alliance, r: Rect): Rect {
   return a === 'red' ? { ...r } : { x0: -r.x1, x1: -r.x0, z0: -r.z1, z1: -r.z0 };
 }
+
+/**
+ * DÓNDE ANOTA CADA ALIANZA (Xhavi, captura con círculos): la Cámara en la que anota el ROJO es la
+ * que está en el extremo azul (−X, pared −Z) y la del AZUL la del extremo rojo (+X, pared +Z). La
+ * cancha y las estructuras no se mueven: solo cambia de quién es cada Cámara. Las medidas
+ * `CAMARA_*_RED` siguen siendo las de la huella en +X/+Z; para la Cámara de la alianza `a` se usan
+ * estos ayudantes (rotación de 180° respecto a `forAlliance`/`rectFor`). SUPUESTO: §3.2.3 dice
+ * "en el área lateral de su respectiva mitad", la captura la pone en la mitad contraria (D51).
+ */
+export const camaraOwnerFrame = (a: Alliance): Alliance => (a === 'red' ? 'blue' : 'red');
+export const forCamara = (a: Alliance, p: { x: number; z: number }): { x: number; z: number } => forAlliance(camaraOwnerFrame(a), p);
+export const rectForCamara = (a: Alliance, r: Rect): Rect => rectFor(camaraOwnerFrame(a), r);
+/** Rumbo del robot de frente a la pared de su Cámara (adelante = (cos h, −sin h)). */
+export const camaraHeading = (a: Alliance): number => (a === 'red' ? Math.PI / 2 : -Math.PI / 2);
 /** Huella completa de la Cámara de Seguridad de una alianza en el piso (§3.2.3). */
-export const camaraRect = (a: Alliance): Rect => rectFor(a, { x0: CAMARA_X_END_RED - CAMARA_LENGTH, x1: CAMARA_X_END_RED, z0: CAMARA_Z_RED[0], z1: CAMARA_Z_RED[1] });
+export const camaraRect = (a: Alliance): Rect => rectForCamara(a, { x0: CAMARA_X_END_RED - CAMARA_LENGTH, x1: CAMARA_X_END_RED, z0: CAMARA_Z_RED[0], z1: CAMARA_Z_RED[1] });
 export const inRect = (r: Rect, x: number, z: number): boolean => x >= r.x0 && x <= r.x1 && z >= r.z0 && z <= r.z1;
 /** ¿El punto está dentro de alguna Cámara de Seguridad (las dos alianzas)? */
 export const inCamara = (x: number, z: number): boolean =>

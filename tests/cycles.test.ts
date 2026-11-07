@@ -136,7 +136,7 @@ describe('práctica 1 contra 1 en la física', () => {
     return new GameSession({ player: 0, preload: true, solo: true, rival, specs, hp: { enabled: true, interval: 3 } });
   };
   const drop = (g: GameSession, a: 'red' | 'blue', level: 1 | 2 | 3, robot: number) => {
-    const w = F.rectFor(a, F.camaraWells()[level]);
+    const w = F.rectForCamara(a, F.camaraWells()[level]);
     const p = g.pieces.list.find((x) => x.kind === 'sample' && x.state.at === 'hp')!;
     g.pieces.place(p, (w.x0 + w.x1) / 2, F.camaraWells()[level].rim + 0.2, (w.z0 + w.z1) / 2);
     p.lastRobot = robot;

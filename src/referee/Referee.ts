@@ -31,7 +31,7 @@ export const KNOCK_WINDOW = 1;
 
 /** Frente de la Cámara de cada alianza (D17, SUPUESTO): el largo de la Cámara y 1 m hacia la cancha. */
 export function camaraFront(a: Alliance): F.Rect {
-  return F.rectFor(a, { x0: F.CAMARA_X_END_RED - F.CAMARA_LENGTH, x1: F.CAMARA_X_END_RED, z0: F.CAMARA_Z_RED[0] - 1.0, z1: F.CAMARA_Z_RED[0] });
+  return F.rectForCamara(a, { x0: F.CAMARA_X_END_RED - F.CAMARA_LENGTH, x1: F.CAMARA_X_END_RED, z0: F.CAMARA_Z_RED[0] - 1.0, z1: F.CAMARA_Z_RED[0] });
 }
 
 /**

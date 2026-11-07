@@ -2,8 +2,7 @@ import { beforeAll, describe, expect, it } from 'vitest';
 import { runVsAi, summarizeVsAi } from '../src/auto/pathTest';
 import { runRoutine } from '../src/auto/practice';
 import { posTip, ROBOT_PRESETS, type RobotSpec } from '../src/config/robot';
-import { AUTO_MIN_X } from '../src/core/plan';
-import { backOffPoint, estimatePath, newPath, newPoint, pathIssues, pickupPoints, sanitizePath, sanitizePaths, scoringPoint, type AutoPath } from '../src/core/autoPath';
+import { backOffPoint, estimatePath, newPath, newPoint, pathIssues, sanitizePath, sanitizePaths, scoringPoint, type AutoPath } from '../src/core/autoPath';
 import { loadSettings, sanitizeSettings } from '../src/config/settings';
 import { pathRoutine } from '../src/game/autoPathStore';
 import { initRapier } from '../src/physics/PhysicsWorld';
@@ -14,12 +13,15 @@ beforeAll(async () => {
 
 const tip = (s: RobotSpec, l: 0 | 1 | 2 | 3) => Math.abs(posTip(s, l).x);
 
-/** Anota la precarga en N3, recoge una Muestra del Laboratorio y la anota. */
+/** Anota la precarga en N3 (la Cámara propia está en la mitad rival) y se aparta. */
 function twoSamples(spec: RobotSpec, station: 0 | 1): AutoPath {
   const p = newPath('Dos', station, 't1');
   const sp = scoringPoint(3, tip(spec, 3), spec.length / 2);
   const bo = backOffPoint(sp, 0.6);
-  p.points.push(sp, bo, ...pickupPoints(1.46, 2.4, bo, tip(spec, 0), !!spec.arm.pickBack), { ...sp, intake: null });
+  // Su Cámara está en la mitad rival: en 15 s alcanza para llevar la precarga rodeando la rampa de la
+  // Plataforma (§4.6) por el carril de la pared de la Cámara y alejarse; una segunda Muestra ya no cabe
+  const via = { ...newPoint(2.4, -1.6), speed: 1 };
+  p.points.push(via, { ...newPoint(sp.x, sp.z + 0.8), speed: 0.8, face: sp.face }, sp, { ...bo, speed: 1 });
   return p;
 }
 
@@ -34,7 +36,7 @@ describe('rutinas de AUTO dibujadas (core/autoPath)', () => {
     expect(p.name).toBe('Mi AUTO');
     expect(p.station).toBe(1);
     expect(p.points.length).toBe(2);
-    expect(p.points[0].x).toBe(AUTO_MIN_X);
+    expect(p.points[0].x).toBe(-3); // manual nuevo (7-nov): AUTO sin límite de línea central
     expect(p.points[0].z).toBeLessThan(3.5);
     expect(p.points[0].speed).toBe(1);
     expect(p.points[0].wait).toBe(5);
@@ -82,10 +84,11 @@ describe('seguidor de trayectoria en la física', () => {
       const spec = ROBOT_PRESETS[kind];
       for (const station of [0, 1] as const) {
         const r = runRoutine(station, spec, pathRoutine(twoSamples(spec, station)));
-        expect(r.samples[3]).toBe(2);
+        // Su Cámara está en la mitad rival: en 15 s llega la precarga y, a veces, una segunda Muestra
+        expect(r.samples[3]).toBeGreaterThanOrEqual(1);
         expect(r.line).toBe(true);
         expect(r.center).toBe(false);
-        expect(r.points).toBe(5 + 2 * 18);
+        expect(r.points).toBeGreaterThanOrEqual(5 + 18);
       }
     });
   }
