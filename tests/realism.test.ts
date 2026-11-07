@@ -169,7 +169,8 @@ describe('agarre preciso', () => {
         const d = posDir(spec, 0);
         const p = g.pieces.list[0];
         g.pieces.place(p, r.mech.tipX() + d * gap, F.SAMPLE_SIZE / 2, 2.0, yaw);
-        steps(g, 2.5, { forward: d * 0.08, intake: true });
+        // El frente es el lado del intake: con la garra atrás, avanzar (+) va hacia atrás
+        steps(g, 2.5, { forward: (spec.arm.pickBack ? -d : d) * 0.08, intake: true });
         return r.mech.inClaw;
       };
       expect(go(3 * DEG, 'precise', 0.35)).toBe(true);
@@ -209,7 +210,7 @@ describe('agarre con compliants (por defecto; Xhavi, 30-oct)', () => {
     steps(g, 1.5, { intake: true, elevator });
     const p = g.pieces.list[0];
     g.pieces.place(p, r.mech.tipX() + 0.5, F.SAMPLE_SIZE / 2, 2.0 + side, yaw);
-    for (let i = 0; i < 3 * 120 && !r.mech.inClaw; i++) steps(g, 1 / 120, { forward, intake: true });
+    for (let i = 0; i < 3 * 120 && !r.mech.inClaw; i++) steps(g, 1 / 120, { forward: spec.arm.pickBack ? -forward : forward, intake: true });
     return r.mech.inClaw;
   };
 

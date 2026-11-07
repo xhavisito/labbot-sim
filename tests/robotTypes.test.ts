@@ -105,7 +105,8 @@ describe('tipos de robot: pivotes, brazo largo, elevador y doble intake', () => 
     run(g, 2.0, { elevator: 3 });
     expect(m.atTarget).toBe(true);
     // Se arrima despacio hasta que la viga toca el borde: la garra queda sobre el pozo
-    run(g, 1.0, { forward: 0.2 });
+    // (el frente es el lado del intake: la garra del 180° está atrás, así que hacia la Cámara es retroceder)
+    run(g, 1.0, { forward: -0.2 });
     run(g, 0.4, { releaseSample: true });
     run(g, 1.5);
     expect(m.stored).toHaveLength(0);
@@ -113,14 +114,14 @@ describe('tipos de robot: pivotes, brazo largo, elevador y doble intake', () => 
     expect(Math.abs(g.player.phys.heading() - h0)).toBeLessThan(0.05);
   });
 
-  it('180°: avanzando de frente llega a la Cámara con la precarga y la anota en N3', () => {
+  it('180°: de espaldas (el frente es el intake) llega a la Cámara con la precarga y la anota en N3', () => {
     const g = session(S180, true);
     const m = g.player.mech;
     const w = F.camaraWells()[3];
     // 1 m antes de la Cámara, viéndola: avanza despacio con la garra arriba hasta que la viga toca el
     // borde de la pared de 80 cm (hitbox literal, D34; empujando más fuerte el robot se encarama en ella)
     g.player.phys.teleport(...camPose('red', (w.x0 + w.x1) / 2, F.CAMARA_Z_RED[0] - S180.length / 2 - 1.0));
-    run(g, 4.0, { elevator: 3, forward: 0.25 });
+    run(g, 4.0, { elevator: 3, forward: -0.25 });
     expect(m.atTarget).toBe(true);
     run(g, 0.4, { releaseSample: true });
     run(g, 1.5);
@@ -194,4 +195,19 @@ describe('estrategias por robot', () => {
     // La IA difícil le gana a la fácil
     expect(m.score('red')).toBeGreaterThan(m.score('blue'));
   }, 120_000);
+});
+
+describe('el frente es el lado del intake', () => {
+  it('avanzar (+) mueve al Pivote 180° hacia su garra (atrás del chasis) y al Pivote hacia el frente', () => {
+    for (const [spec, sign] of [[S180, -1], [PIVOT_ROBOT, 1]] as const) {
+      const g = session(spec, false);
+      g.player.phys.teleport(0, 2.0, 0);
+      const h = g.player.phys.heading();
+      const p0 = g.player.phys.position();
+      run(g, 0.5, { forward: 0.5 });
+      const p1 = g.player.phys.position();
+      const dx = (p1.x - p0.x) * Math.cos(h) - (p1.z - p0.z) * Math.sin(h);
+      expect(Math.sign(dx)).toBe(sign);
+    }
+  });
 });
