@@ -846,8 +846,7 @@ export class Bot {
     const atCampana = Math.abs(t.x) > F.HALF_L - F.CAMPANA_LENGTH + 0.3 && Math.abs(t.x) < F.HALF_L - 0.35 && Math.sign(t.x) * t.z < 0;
     if (Math.abs(t.x) > F.HALF_L - 0.35 || Math.abs(t.z) > F.HALF_W - (atCampana ? 0.27 : 0.5)) return false;
     if (Math.abs(t.x) < F.PLATFORM_LENGTH / 2 + 0.1 && Math.abs(t.z) < F.PLATFORM_WIDTH / 2 + 0.1) return false;
-    // AUTO: solo de su mitad (§4.2)
-    if (phase === 'AUTO' && s * t.x < 0.5) return false;
+    // AUTO: el manual nuevo (7-nov) ya no limita las Muestras a su mitad (§4.2)
     // Las que mete su Human Player quedan frente a su Campana (lado −Z del rojo, |x| > 2)
     const nearHp = s * t.x > 2.0 && s * t.z < -1.5;
     if (labOnly && nearHp) return false;

@@ -1,13 +1,29 @@
 # Reglas del reto — LabBot Rescue 2026 (Robotics WinterFest, LamBot 3478)
 
-Resumen del **manual de juego** (`game manual copy 2026.pdf`, 46 págs.), que es la **única fuente
-de verdad**. Cada dato cita su sección (§x.y). Lo que el manual no dice y el simulador necesita
+Resumen del **manual de juego** (versión actualizada del Google Doc "Manual LabBot Rescue 2026",
+revisada el 7-nov-2026; la copia anterior es `game manual copy 2026.pdf`, 46 págs.), que es la **única fuente
+de verdad**. Qué cambió: [Cambios del manual nuevo](#cambios-del-manual-nuevo-7-nov-2026). Cada dato cita su sección (§x.y). Lo que el manual no dice y el simulador necesita
 se marca **SUPUESTO** y se lista en [Dudas](#7-dudas-y-ambigüedades). Las posiciones que solo
 aparecen en las figuras se marcan **[fig.]**: medidas sobre la vista superior de §3.2 (pág. 7),
 que está a escala (622 px = 9000 mm → ≈14.5 mm/px, error ≈ ±30 mm).
 
 > El manual advierte que puede cambiar (§11.2) y que "las puntuaciones pueden variar un poco
 > durante la temporada" (§4.4). Por eso todos los números van en `src/config/` del simulador.
+
+---
+
+## Cambios del manual nuevo (7-nov-2026)
+
+Comparación de las secciones de juego (§2–§8) contra la copia anterior. El puntaje (§4.4), las
+faltas (§4.5–§4.6), las medidas, la duración de los periodos, el endgame y el torneo **no cambiaron**.
+
+| Sección | Antes | Ahora | En el sim |
+|---|---|---|---|
+| §4.2 Periodo autónomo | "manipular las Muestras **dentro de su propia área**. Los robots **no pueden cruzar la línea central** durante el periodo autónomo." | "manipular las Muestras de Laboratorio **de la cancha**." (se quitaron ambas restricciones) | **Hecho**: ya no se cobra la falta `AUTO_CENTER` (D7), la IA en AUTO ya no se limita a su mitad, la práctica de AUTO ya no marca "cruzó la línea central". D7, D22 y D27 quedan sin efecto. |
+| §3.2.3 Cámara de Seguridad | "Hay una Cámara por alianza, ubicada en el área lateral de **su respectiva mitad** de cancha" | "…ubicada en el área lateral de **la alianza del color contrario**" | **SIN CAMBIAR, por confirmar (D51)**: ya se intentó (PR #101) y se revirtió (PR #102); la Cámara sigue en la mitad propia. |
+| §7.3 Sensores | Excluye Limelight 2.0, Limelight 2+ y CTRE CANcoders | Excluye "Limelight 2.0, Limelight 2" (se perdió el "2+" y los CANcoders) | Sin efecto en el sim; posible errata. |
+| §4.1.1 Tolerancia | "±5 mm" | "5mm" (se perdió el ±) | Sin efecto (errata). |
+| §9–§11 | — | Fechas del evento (vie 11 / sáb 12 dic.), entregas de premios y calendario del taller | Fuera del alcance del sim. |
 
 ---
 
@@ -64,7 +80,7 @@ suman 789 + 689 + 639 = 2117 mm ≠ 2150 mm (los 33 mm restantes serían paredes
 | Fase | Duración | Notas |
 |---|---|---|
 | Acomodo previo | ≤ 3 min (§4.1.2) | No se simula (solo colocar robots). |
-| **AUTO** | **15 s** (§2, §4.2) | Solo instrucciones preprogramadas. Solo pueden manipular Muestras **de su propia área**; **no pueden cruzar la línea central**. |
+| **AUTO** | **15 s** (§2, §4.2) | Solo instrucciones preprogramadas. Pueden manipular las Muestras de la cancha (el manual nuevo quitó "su propia área" y la prohibición de cruzar la línea central). |
 | Cambio AUTO→TELEOP | sin pausa indicada | "la señal de sonido dará el aviso" (§4.2). SUPUESTO: 0 s de pausa (D9). |
 | **TELEOP** | **135 s** (§2, §4.3) | "2 minutos y 15 segundos restantes". Match total = 150 s. |
 | **ENDGAME** | **últimos 30 s del TELEOP** (§4.3.1) | Se habilita la Plataforma; se puede tomar la Muestra Crítica y depositarla en la Repisa. |
@@ -131,8 +147,7 @@ siempre los otorga; SUPUESTO).
 - Descalificación del torneo (§4.3.4): fuera del alcance del simulador.
 
 ### 4.4 Otras restricciones de juego
-- AUTO: no cruzar la línea central; solo muestras del área propia (§4.2). **El manual no dice qué
-  falta corresponde** (D7).
+- AUTO: el manual nuevo (7-nov) ya **no** prohíbe cruzar la línea central ni manipular Muestras fuera del área propia (§4.2).
 - TELEOP: "las únicas zonas restringidas son las de la alianza contraria y están marcadas como
   tales" (§4.3). **No se dice cuáles** (D8).
 - "No hay defensa durante el juego del match" (§6.1); no es un juego de combate.
@@ -178,7 +193,7 @@ en la carpeta del proyecto; ahí está cada regla con su sección, qué hace el 
 | **D4** | ¿Cuándo cuenta una Muestra en la Cámara? | "Botes sin fondo"; valor según periodo. ¿Al entrar o al final? ¿Se pueden sacar? ¿Hay capacidad por nivel? | **RESUELTO (Xhavi, 24-oct)**: las Muestras cuentan en todo momento del match, con el valor del periodo en que se depositan. Solo la Muestra Crítica tiene restricción (se toma de la Campana hasta el endgame). Supuesto restante: no se pueden sacar y no hay capacidad máxima. |
 | **D5** | ¿Qué es estar "sobre la Plataforma"? | Solo "sobre la Plataforma de Contención al sonar la bocina". ¿Vale estar en la rampa? ¿Tocando la alfombra? | **RESUELTO (Xhavi):** "nada más subirse a la rampa". Cuenta el robot apoyado en la estructura (rampa, plataforma o repisa) sin tocar la alfombra, evaluado al sonar la bocina; no necesita llegar arriba. |
 | **D6** | Medidas de la Repisa y ancho de la Plataforma | "~689 mm (344.50 de sobresaliente por cada lado)" no cuadra con la figura (≈0.39 m de fondo y ≈1.49 m de ancho). El ancho de las rampas no está en el texto. | Medidas de la figura; idealmente las tomamos del CAD de §3.3. |
-| **D7** | Cruzar la línea central en AUTO | Prohibido, pero sin falta asignada. | La IA y las rutinas no cruzan (pared virtual); si un jugador cruza, Foul (4). |
+| **D7** | Cruzar la línea central en AUTO | **Ya no aplica**: el manual nuevo (7-nov) quitó la prohibición. | Sin falta; la IA y las rutinas pueden cruzar. |
 | **D8** | Zonas "de la alianza contraria" | "Marcadas como tales" (§4.3) y Tech Foul por tocar a un robot en ellas; no se dice cuáles son. | Zonas de Inicio rivales + área frente a la Campana rival + huella de la Cámara rival. |
 | **D9** | Pausa AUTO→TELEOP | Solo "la señal de sonido". | Sin pausa. |
 | **D10** | Red Card en alianza | "Pierde todos los puntos el equipo que la reciba", y en PlayOffs se suman puntajes por robot. ¿Pierde la alianza entera o solo lo aportado por ese robot? ¿Y sus RP? | La alianza queda en 0 y sin RP (como pérdida de todo el match). |
@@ -193,12 +208,12 @@ en la carpeta del proyecto; ahí está cada regla con su sección, qué hace el 
 | D19 | Selección de alianzas | Solo el orden por ranking y Rank 1 ≠ Rank 2 (§8.2.1). | Los 4 primeros son capitanes y eligen 1→4 (una ronda); un capitán puede invitar a otro de menor seed y se puede rechazar (como FRC §10.6). Con 8 equipos no sobra nadie: un equipo libre tiene que aceptar. |
 | D20 | PlayOffs con 4 alianzas | "Cada alianza se enfrenta a las otras dos" (§8.2.2), pero son 4 alianzas (§8.2). | Cada una contra las otras 3 (6 series a 2 de 3). "Victorias" = series ganadas; desempate: matches ganados, puntos, seed. Empate en un match: puntos sin faltas, AUTO, ENDGAME; si sigue, se repite. Opcional: doble eliminación de rebuilt-sim. |
 | D21 | Tirar "intencionalmente" la Muestra Crítica rival de la Repisa (§4.6) | El sim no puede juzgar la intención. | Tech Foul al robot rival que la tocaba (o la dejó de tocar hace ≤ 1 s) cuando sale de la Repisa. Si la mueve el propio equipo o una pieza, no hay falta. |
-| D22 | ¿Qué es "cruzar" la línea central en AUTO? (§4.2) | No dice si basta con una parte del robot. | Solo cuando el chasis completo pasa al otro lado (lo mismo que la línea de autónomo, D1). |
+| ~~D22~~ | (Sin efecto: el manual nuevo quitó la regla de la línea central en AUTO.) | — | — |
 | D23 | Contacto con un rival dentro de una zona de su color | §4.5 (Foul por contacto) y §4.6 (Tech Foul por tocarlo en su zona) describen el mismo hecho. | Se cobra una sola falta: la Tech Foul (8). |
 | D24 | ¿Los 100 cm de altura (§7.2) aplican con mecanismos extendidos? | §7.2 da 40 cm de extensión "en cualquier dirección" y 100 cm de altura máxima. | La altura máxima vale todo el match (elevador arriba con la pieza incluida); los 40 cm de extensión son solo horizontales. **Excepción del sim:** el Pivote 180° llega a ~103 cm solo mientras voltea el brazo con una Muestra (no hay diseño de volteo que cumpla 100 cm y alcance la Crítica a 60 cm); verificar con los jueces. |
 | D25 | ¿Las Yellow Cards se acumulan entre matches? (§4.3.3) | "Acumular 2 Yellow Cards" sin decir en qué periodo. | Se cuentan por match (el sim no arrastra tarjetas de un match a otro). |
 | D26 | Human Players en Qualifications | §8.2.2 dice "un human player por alianza" solo para PlayOffs. | Uno por alianza en todos los matches. **Human Player inteligente** (por defecto, Ajustes → Human Player): mete una Muestra cada 3 s (ajustable), cada 1.2 s si su robot espera enfrente; se la guarda si un robot rival está a menos de 1.8 m de la ranura y el suyo no está enfrente, y no deja más de una tirada si nadie viene por ella. Apagado: una cada 3 s si la ranura está libre. El manual (§3.2.4) solo dice que las desliza "durante todo el TeleOp"; cuándo hacerlo lo decide el HP. |
-| D27 | "Manipular las Muestras dentro de su propia área" en AUTO (§4.2) | No asigna falta. | Sin falta propia: lo cubre la de cruzar la línea central (D7, D22); la IA solo toma Muestras de su mitad. |
+| ~~D27~~ | (Sin efecto: el manual nuevo quitó "su propia área" en AUTO, §4.2.) | — | — |
 | D28 | ¿Qué parte de la Plataforma cuenta? (§4.4, D5) | La estructura es compartida (§3.2.5). | Cualquier rampa (también la del rival), la plataforma superior o la Repisa. |
 | D29 | Muestra Crítica tomada antes del endgame | Es Tech Foul (§4.6); no dice si después anota. | Se cobra la Tech Foul y, si está en la Repisa al sonar la bocina, cuenta igual (15 + 1 RP). |
 | D30 | Foul "en caso especial no se otorgarán los puntos" (§4.5) y Tech Foul doble por salir de la cancha (§4.6 lo lista dos veces) | Criterio de los referees. | El sim siempre otorga los puntos; salir de la cancha es una Tech Foul por cada salida. |
@@ -222,3 +237,4 @@ en la carpeta del proyecto; ahí está cada regla con su sección, qué hace el 
 | D46 | Avisos del árbitro (silbato, voz y cartel) | El manual no habla de anuncios ni sonidos del árbitro; solo de la bocina final (§4.3.1) y de la señal de sonido del TELEOP (§4.2). | **SUPUESTO** (Xhavi, 2-nov: audio de arbitraje). Cada Foul (§4.5) suena con un silbato y cada Tech Foul (§4.6) con dos; las tarjetas con uno largo (Yellow §4.3.2, Red §4.3.3). En el ENDGAME, una campana cuando cambia cuántos robots de una alianza están sobre la Plataforma o cuando su Muestra Crítica queda en la Repisa (o sale), solo si el cambio dura 0.5 s; es informativo, los puntos se dan al sonar la bocina (§4.3.1). Cartel en pantalla con la sección del manual; voz opcional (la del navegador). Ajustes → Sonido → Avisos del árbitro; respeta el volumen (0 % = silencio). `core/refCalls.ts`. |
 | D49 | ¿Qué otros mecanismos hay para comparar con la misma estrategia? | El manual no define robots; §7.2 solo limita 65 × 65 cm, 100 cm de alto y 40 cm de extensión, y §4.1 pide todo dentro del perímetro al inicio. | **Xhavi, 2-nov** ("más variedad de robots: elevador, brazo largo o doble intake"). **SUPUESTOS de diseño** (todos validados con `validateRobot`): **Brazo largo** (eje 5 cm atrás y a 50 cm, brazo telescópico de 64 cm que se pliega a un punto dentro del perímetro al inicio; 44 kg, 2.8 m/s; llega a N3 ~4.6 cm más lejos que el Pivote sin pasar de 40 cm). **Elevador** (torre sobre el chasis, carro de la garra a 58 cm del centro que sube recto de 0 a 100 cm; se recoge a 20 cm del centro al inicio; 46 kg, 2.9 m/s). **Doble intake** (brazo de 45 cm con eje a 40 cm y hopper de una Muestra: lleva 2; el brazo con la Muestra no pasa de 100 cm; 34 kg). Un brazo rígido más largo no cabe al inicio sin pasar de 100 cm o del perímetro: por eso el pliegue (`ArmSpec.stowTip`) y el elevador (`ArmSpec.linear`). Medido con `npm run batch -- --set compare` (3 semillas, misma estrategia Crítica + N3): puntos por alianza Pivote ≈ 320, Brazo largo ≈ 308, Pivote 180° ≈ 301, Elevador ≈ 294, Doble intake ≈ 293; Crítica 92–100 % salvo Doble intake (63 %). La IA reparte los cinco tipos (`ai/lineup.ts`). |
 | D50 | ¿Se cobran faltas en la práctica 1 contra 1? | §4.5 y §4.6 cobran Foul (4) y Tech Foul (8) al contrario; §4.3.2–§4.3.3: 2 Yellow = Red y la Red pierde todos los puntos. El manual no habla de práctica ni da una regla automática de Yellow. | **Xhavi, 2-nov** (las faltas cuentan igual en práctica). **SUPUESTO**: con rival (quieto, IA o persona) el árbitro virtual cobra las mismas faltas y puntos que en el match y avisa al instante con su § (`core/practiceFouls.ts`); sin ENDGAME no se cobra Plataforma ni Muestra Crítica antes de tiempo ni la línea central; el 2.º, 4.º… Tech Foul del mismo robot es Yellow Card y 2 Yellow = Red. El resultado de la práctica lista cada falta y suma las faltas del rival a tus puntos (0 con Red Card). |
+| **D51** | ¿Dónde está la Cámara de cada alianza? (§3.2.3, manual nuevo) | "Ubicada en el área lateral de la alianza del color contrario." No dice si la estructura se movió o si solo se asigna al lado contrario. | **POR CONFIRMAR con Xhavi/mentores.** Sigue en la mitad propia (el intento del PR #101 se revirtió en el #102). Opciones: (a) cada alianza anota en la Cámara de la mitad contraria; (b) la Cámara se mueve al otro lado de la cancha. |
