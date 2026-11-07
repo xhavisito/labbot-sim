@@ -339,12 +339,11 @@ export const CLAUSES: Clause[] = [
   {
     id: 'auto-center',
     section: '§4.2',
-    quote: 'Los robots no pueden cruzar la línea central durante el periodo autónomo.',
-    supuestos: ['D7', 'D22'],
+    quote: 'teniendo la capacidad de manipular las Muestras de Laboratorio de la cancha.',
+    supuestos: ['D7'],
     verify: () => {
-      // El manual no le asigna falta: el sim cobra un Foul y lo marca como SUPUESTO
-      expect(RULES.AUTO_CENTER.kind).toBe('FOUL');
-      expect(RULES.AUTO_CENTER.supuesto).toMatch(/D7/);
+      // Manual 7-nov: se quitó "no pueden cruzar la línea central" y "dentro de su propia área"
+      expect(RULES.AUTO_CENTER.supuesto).toMatch(/OBSOLETA/);
       expect(F.CENTER_LINE_X).toBe(0);
     },
   },

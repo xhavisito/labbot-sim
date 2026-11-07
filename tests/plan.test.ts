@@ -33,7 +33,7 @@ describe('estrategias de alianza (core/plan)', () => {
     expect(p.name).toBe('Mi plan');
     expect(p.auto).toBe('leave');
     expect(p.steps.AUTO.partner.route).toEqual([
-      { x: 0.5, z: 0 },
+      { x: -2, z: 0 }, // manual nuevo (7-nov): AUTO sin límite de línea central
       { x: 4.5, z: -3.5 },
     ]);
     expect(p.steps.AUTO.partner.source).toBe('lab');

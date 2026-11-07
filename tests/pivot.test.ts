@@ -83,6 +83,6 @@ describe('Pivote', () => {
     expect(m.fouls.filter((f) => f.rule === 'OUT_OF_BOUNDS' || f.rule === 'AUTO_CENTER')).toEqual([]);
     // Con la Cámara en la mitad rival hay más cruces y robots amontonados junto a la Plataforma (el jugador
     // de la prueba se queda parado en el frente de su Cámara): se tolera un roce ocasional
-    expect(m.fouls.filter((f) => f.rule === 'PLATFORM_EARLY').length).toBeLessThanOrEqual(2);
+    expect(m.fouls.filter((f) => f.rule === 'PLATFORM_EARLY').length).toBeLessThanOrEqual(3);
   }, 120_000);
 });

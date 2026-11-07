@@ -2,7 +2,6 @@ import { beforeAll, describe, expect, it } from 'vitest';
 import { runVsAi, summarizeVsAi } from '../src/auto/pathTest';
 import { runRoutine } from '../src/auto/practice';
 import { posTip, ROBOT_PRESETS, type RobotSpec } from '../src/config/robot';
-import { AUTO_MIN_X } from '../src/core/plan';
 import { backOffPoint, estimatePath, newPath, newPoint, pathIssues, sanitizePath, sanitizePaths, scoringPoint, type AutoPath } from '../src/core/autoPath';
 import { loadSettings, sanitizeSettings } from '../src/config/settings';
 import { pathRoutine } from '../src/game/autoPathStore';
@@ -37,7 +36,7 @@ describe('rutinas de AUTO dibujadas (core/autoPath)', () => {
     expect(p.name).toBe('Mi AUTO');
     expect(p.station).toBe(1);
     expect(p.points.length).toBe(2);
-    expect(p.points[0].x).toBe(AUTO_MIN_X);
+    expect(p.points[0].x).toBe(-3); // manual nuevo (7-nov): AUTO sin límite de línea central
     expect(p.points[0].z).toBeLessThan(3.5);
     expect(p.points[0].speed).toBe(1);
     expect(p.points[0].wait).toBe(5);

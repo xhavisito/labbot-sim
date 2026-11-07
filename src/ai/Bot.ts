@@ -397,7 +397,6 @@ export class Bot {
       if (Math.abs(p.x) > F.HALF_L - 0.38 || Math.abs(p.z) > F.HALF_W - 0.38) return Infinity;
       const nearStart = Math.hypot(p.x - pos.x, p.z - pos.z) < 0.3;
       if (!nearStart && ((Math.abs(p.x) < px && Math.abs(p.z) < pz) || nearCamara(p, 0.38) || nearBarrier(p, 0.38))) return Infinity;
-      if (!nearStart && phase === 'AUTO' && this.side * p.x < 0.5 && !F.inAutoCrossLane(this.robot.alliance, p.z)) return Infinity;
       let c = 1;
       for (const o of robots) {
         const d = Math.hypot(p.x - o.x, p.z - o.z);
@@ -846,8 +845,7 @@ export class Bot {
     const atCampana = Math.abs(t.x) > F.HALF_L - F.CAMPANA_LENGTH + 0.3 && Math.abs(t.x) < F.HALF_L - 0.35 && Math.sign(t.x) * t.z < 0;
     if (Math.abs(t.x) > F.HALF_L - 0.35 || Math.abs(t.z) > F.HALF_W - (atCampana ? 0.27 : 0.5)) return false;
     if (Math.abs(t.x) < F.PLATFORM_LENGTH / 2 + 0.1 && Math.abs(t.z) < F.PLATFORM_WIDTH / 2 + 0.1) return false;
-    // AUTO: solo de su mitad (§4.2)
-    if (phase === 'AUTO' && s * t.x < 0.5) return false;
+    // AUTO: el manual nuevo (7-nov) ya no limita las Muestras a su mitad (§4.2)
     // Las que mete su Human Player quedan frente a su Campana (lado −Z del rojo, |x| > 2)
     const nearHp = s * t.x > 2.0 && s * t.z < -1.5;
     if (labOnly && nearHp) return false;
@@ -1412,7 +1410,6 @@ export class Bot {
       if (!allowPlatform) g = this.avoidPlatform(pos, g);
       g = this.avoidBarrier(pos, g);
     }
-    if (phase === 'AUTO' && !F.inAutoCrossLane(r.alliance, g.z)) g = { x: this.side > 0 ? Math.max(0.5, g.x) : Math.min(-0.5, g.x), z: g.z };
     g = { x: clamp(g.x, F.HALF_L - edge), z: clamp(g.z, F.HALF_W - edge) };
     let dx = g.x - pos.x;
     let dz = g.z - pos.z;

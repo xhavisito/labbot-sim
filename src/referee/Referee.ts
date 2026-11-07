@@ -130,7 +130,6 @@ export class Referee {
     const t = m.t;
 
     for (const r of this.robots) {
-      const corners = r.phys.footprint();
       // §4.6: el robot sale de los límites de la cancha. Solo cuando TODO el robot (chasis y garra)
       // queda fuera (Xhavi, 29-oct; el manual no aclara si basta una parte: SUPUESTO, D33)
       const out = F.fullyOutOfField(r.phys.outline(r.mech.angle));
@@ -162,11 +161,7 @@ export class Referee {
         }
       }
       this.obstruct.set(r.index, ob);
-      // §4.2: no cruzar la línea central en AUTO (D7: el manual no da la falta; SUPUESTO Foul)
-      if (phase === 'AUTO') {
-        const s = r.alliance === 'red' ? 1 : -1;
-        this.once(`center:${r.index}`, corners.every((c) => s * c.x < F.CENTER_LINE_X) && !corners.some((c) => F.inAutoCrossLane(r.alliance, c.z)), r, 'AUTO_CENTER');
-      }
+      // §4.2 (manual 7-nov): ya no se prohíbe cruzar la línea central en AUTO; no se cobra nada.
     }
 
     // §4.6: tomar la Muestra Crítica antes del endgame

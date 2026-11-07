@@ -20,7 +20,6 @@ import * as F from '../config/field';
 import { GAME } from '../config/game';
 import type { ElevatorPos } from '../config/robot';
 import { CENTER_SPOT, sanitizeSpot, spotPose, type StartSpot } from '../config/startSpot';
-import { AUTO_MIN_X } from './plan';
 
 export interface PathPoint {
   x: number;
@@ -79,10 +78,10 @@ export function newPoint(x: number, z: number): PathPoint {
 
 /** Punto dentro de la cancha y de tu lado de la línea central (§4.2), salvo el carril de la Cámara. */
 export function cleanXZ(x: number, z: number): { x: number; z: number } {
-  const cz = round(Math.max(-F.HALF_W + WALL_MARGIN, Math.min(F.HALF_W - WALL_MARGIN, z)));
-  // Marco rojo: por el carril de la pared de su Cámara (−Z) se puede pasar al otro lado en AUTO (`inAutoCrossLane`)
-  const minX = F.inAutoCrossLane('red', cz) ? -F.HALF_L + WALL_MARGIN : AUTO_MIN_X;
-  return { x: round(Math.max(minX, Math.min(F.HALF_L - WALL_MARGIN, x))), z: cz };
+  return {
+    x: round(Math.max(-F.HALF_L + WALL_MARGIN, Math.min(F.HALF_L - WALL_MARGIN, x))),
+    z: round(Math.max(-F.HALF_W + WALL_MARGIN, Math.min(F.HALF_W - WALL_MARGIN, z))),
+  };
 }
 
 function point(v: unknown): PathPoint | null {

@@ -215,13 +215,6 @@ export function rectFor(a: Alliance, r: Rect): Rect {
 export const camaraOwnerFrame = (a: Alliance): Alliance => (a === 'red' ? 'blue' : 'red');
 export const forCamara = (a: Alliance, p: { x: number; z: number }): { x: number; z: number } => forAlliance(camaraOwnerFrame(a), p);
 export const rectForCamara = (a: Alliance, r: Rect): Rect => rectFor(camaraOwnerFrame(a), r);
-/**
- * Pasillo de AUTO hacia la Cámara propia (Xhavi, 7-nov): como la Cámara está en la mitad rival, en AUTO
- * se permite cruzar la línea central (§4.2) solo por el carril de la pared de su Cámara (−Z el rojo,
- * +Z el azul, a más de 1.2 m del eje). SUPUESTO que contradice §4.2 para poder anotar en AUTO (§4.4).
- */
-export const AUTO_CROSS_LANE_Z = 1.2;
-export const inAutoCrossLane = (a: Alliance, z: number): boolean => (a === 'red' ? -z : z) > AUTO_CROSS_LANE_Z;
 /** Rumbo del robot de frente a la pared de su Cámara (adelante = (cos h, −sin h)). */
 export const camaraHeading = (a: Alliance): number => (a === 'red' ? Math.PI / 2 : -Math.PI / 2);
 /** Huella completa de la Cámara de Seguridad de una alianza en el piso (§3.2.3). */
