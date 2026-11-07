@@ -416,7 +416,8 @@ export class GameSession {
         if (o.releaseCritical) r.mech.release('critical', this.stepMechEvents);
       } else if (enabled && this.inputs.has(r.index) && this.playerEnabled()) {
         const inp = this.inputs.get(r.index)!;
-        forward = inp.forward;
+        // El frente es el lado del intake: en el Pivote 180° (recoge atrás) avanzar va hacia la garra
+        forward = r.spec.arm.pickBack ? -inp.forward : inp.forward;
         turn = inp.turn;
         slow = inp.slow;
         if (r === this.player) {
