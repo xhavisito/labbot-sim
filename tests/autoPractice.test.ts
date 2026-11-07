@@ -55,11 +55,12 @@ describe('práctica de AUTO', () => {
   });
 
   it('marca la línea central (§4.2) y la salida fuera de la zona (§4.1)', () => {
-    const rec = record(0, 1, 3);
-    // Desde su zona choca con la rampa de la Plataforma; 65 cm a la derecha pasa junto a ella
-    const base = runRoutine(0, DEFAULT_ROBOT, routeRoutine(rec.route));
+    // Estación 1 (zona de +Z). Desde su zona choca con la rampa de la Plataforma; 65 cm hacia +Z pasa junto
+    // a ella y cruza por el lado que NO es el carril de su Cámara (el de −Z se permite en AUTO, `inAutoCrossLane`)
+    const rec = record(1, 1, 3);
+    const base = runRoutine(1, DEFAULT_ROBOT, routeRoutine(rec.route));
     expect(base.center).toBe(false);
-    const off = runRoutine(0, DEFAULT_ROBOT, routeRoutine(rec.route), { forward: 0, right: 0.65, turn: 0 });
+    const off = runRoutine(1, DEFAULT_ROBOT, routeRoutine(rec.route), { forward: 0, right: -0.65, turn: 0 });
     expect(off.startOk).toBe(false);
     expect(off.center).toBe(true);
   });

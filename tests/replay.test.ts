@@ -147,7 +147,8 @@ describe('repeticiones', () => {
       p.speed = 4;
       for (let i = 0; i < 2000 && p.playing; i++) {
         p.update(1 / 30);
-        if (p.playing) expect(pts.some((m) => p.t >= m.t - 3 - 1e-6 && p.t <= m.t + 2 + 1e-6)).toBe(true);
+        // (el Resumen une ventanas separadas por menos de 0.5 s: `highlightWindows`)
+        if (p.playing) expect(pts.some((m) => p.t >= m.t - 3 - 0.5 && p.t <= m.t + 2 + 0.5)).toBe(true);
       }
       expect(p.playing).toBe(false);
       p.stepFrame(-1);

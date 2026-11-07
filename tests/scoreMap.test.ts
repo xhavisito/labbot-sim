@@ -55,8 +55,10 @@ describe('mapa de tiro (lógica pura)', () => {
   const cam = F.camaraRect('red');
 
   it('la Cámara roja es la del layout (§3.2.3) y la azul su rotación de 180°', () => {
-    expect(cam).toEqual({ x0: F.CAMARA_X_END_RED - F.CAMARA_LENGTH, x1: F.CAMARA_X_END_RED, z0: F.CAMARA_Z_RED[0], z1: F.CAMARA_Z_RED[1] });
-    expect(F.camaraRect('blue')).toEqual({ x0: -cam.x1, x1: -cam.x0, z0: -cam.z1, z1: -cam.z0 });
+    // La Cámara en la que anota el rojo es la del extremo azul (−X, −Z); la del azul, la del extremo rojo
+    const base = { x0: F.CAMARA_X_END_RED - F.CAMARA_LENGTH, x1: F.CAMARA_X_END_RED, z0: F.CAMARA_Z_RED[0], z1: F.CAMARA_Z_RED[1] };
+    expect(F.camaraRect('blue')).toEqual(base);
+    expect(cam).toEqual({ x0: -base.x1, x1: -base.x0, z0: -base.z1, z1: -base.z0 });
   });
 
   it('distancia a la orilla de la Cámara y zonas', () => {

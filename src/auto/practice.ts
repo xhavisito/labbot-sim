@@ -93,7 +93,7 @@ export class AutoScorer implements SessionTap {
     }
     if (this.lineAt === null && s.sensors.outOfStartZone(r)) this.lineAt = this.steps / PHYSICS_HZ;
     const k = r.alliance === 'red' ? 1 : -1;
-    if (!this.center && r.phys.footprint().every((c) => k * c.x < F.CENTER_LINE_X)) this.center = true;
+    if (!this.center && r.phys.footprint().every((c) => k * c.x < F.CENTER_LINE_X) && !r.phys.footprint().some((c) => F.inAutoCrossLane(r.alliance, c.z))) this.center = true;
   }
 
   result(s: GameSession): AutoResult {

@@ -77,12 +77,12 @@ export function newPoint(x: number, z: number): PathPoint {
   return { ...cleanXZ(x, z), reverse: false, speed: 0.7, face: null, arm: null, armEarly: true, intake: null, release: false, wait: 0 };
 }
 
-/** Punto dentro de la cancha y de tu lado de la línea central (§4.2). */
+/** Punto dentro de la cancha y de tu lado de la línea central (§4.2), salvo el carril de la Cámara. */
 export function cleanXZ(x: number, z: number): { x: number; z: number } {
-  return {
-    x: round(Math.max(AUTO_MIN_X, Math.min(F.HALF_L - WALL_MARGIN, x))),
-    z: round(Math.max(-F.HALF_W + WALL_MARGIN, Math.min(F.HALF_W - WALL_MARGIN, z))),
-  };
+  const cz = round(Math.max(-F.HALF_W + WALL_MARGIN, Math.min(F.HALF_W - WALL_MARGIN, z)));
+  // Marco rojo: por el carril de la pared de su Cámara (−Z) se puede pasar al otro lado en AUTO (`inAutoCrossLane`)
+  const minX = F.inAutoCrossLane('red', cz) ? -F.HALF_L + WALL_MARGIN : AUTO_MIN_X;
+  return { x: round(Math.max(minX, Math.min(F.HALF_L - WALL_MARGIN, x))), z: cz };
 }
 
 function point(v: unknown): PathPoint | null {
@@ -209,7 +209,7 @@ export interface PathIssue {
 }
 
 const PLATFORM: F.Rect = { x0: -F.PLATFORM_LENGTH / 2, x1: F.PLATFORM_LENGTH / 2, z0: -F.PLATFORM_WIDTH / 2, z1: F.PLATFORM_WIDTH / 2 };
-const CAMARA: F.Rect = { x0: F.CAMARA_X_END_RED - F.CAMARA_LENGTH, x1: F.CAMARA_X_END_RED, z0: F.CAMARA_Z_RED[0], z1: F.CAMARA_Z_RED[1] };
+const CAMARA: F.Rect = F.camaraRect('red');
 const CAMPANA: F.Rect = { x0: F.CAMPANA_X_RED[0], x1: F.CAMPANA_X_RED[1], z0: -F.HALF_W, z1: -F.HALF_W + F.CAMPANA_DEPTH };
 
 /** ¿El tramo a→b (centro del robot, con un margen `m`) pasa por el rectángulo? Muestreo cada 5 cm. */
@@ -246,8 +246,8 @@ export function pathIssues(p: AutoPath, spec: PathRobotSpec, halfLength = 0.3): 
 
 // ------------------------------------------------------------------ ayudas del editor
 
-/** Rumbo (marco rojo) para ver de frente la pared de la Cámara propia (+Z); de reversa si anota atrás. */
-export const FACE_CAMARA = -Math.PI / 2;
+/** Rumbo (marco rojo) para ver de frente la pared de la Cámara propia (−Z, en la mitad rival); de reversa si anota atrás. */
+export const FACE_CAMARA = F.camaraHeading('red');
 
 /**
  * Punto de anotación en el nivel `level` (como la IA, `Bot.scoringPose`): frente a la pared de la
@@ -256,7 +256,8 @@ export const FACE_CAMARA = -Math.PI / 2;
 export function scoringPoint(level: 1 | 2 | 3, tip: number, halfLength: number, scoreBack = false): PathPoint {
   const w = F.camaraWells()[level];
   const z = Math.min((w.z0 + w.z1) / 2 - tip, F.CAMARA_Z_RED[0] - halfLength - 0.03);
-  const p = newPoint((w.x0 + w.x1) / 2, z);
+  const c = F.forCamara('red', { x: (w.x0 + w.x1) / 2, z });
+  const p = newPoint(c.x, c.z);
   p.reverse = scoreBack;
   p.speed = 0.6;
   p.face = wrap(FACE_CAMARA + (scoreBack ? Math.PI : 0));
@@ -273,7 +274,7 @@ export function scoringPoint(level: 1 | 2 | 3, tip: number, halfLength: number, 
  */
 export function backOffPoint(from: PathPoint, dist = 0.45): PathPoint {
   const back = from.face !== null && Math.abs(wrap(from.face - FACE_CAMARA)) > Math.PI / 2;
-  const p = newPoint(from.x, from.z - dist);
+  const p = newPoint(from.x, from.z + dist); // la pared está en −Z: alejarse es hacia +Z
   p.reverse = !back;
   p.speed = 0.5;
   return p;

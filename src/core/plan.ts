@@ -86,7 +86,9 @@ const round = (v: number) => Math.round(v * 100) / 100;
 /** Punto dentro de la cancha (en AUTO, de tu lado de la línea central, §4.2). */
 export function cleanPoint(p: PlanPoint, phase: PlanPhase): PlanPoint {
   const x = clampX(p.x);
-  return { x: round(phase === 'AUTO' ? Math.max(AUTO_MIN_X, x) : x), z: round(clampZ(p.z)) };
+  const z = round(clampZ(p.z));
+  // En AUTO se puede pasar al otro lado solo por el carril de la pared de la Cámara propia (marco rojo: −Z)
+  return { x: round(phase === 'AUTO' && !F.inAutoCrossLane('red', z) ? Math.max(AUTO_MIN_X, x) : x), z };
 }
 
 function route(v: unknown, phase: PlanPhase): PlanPoint[] {

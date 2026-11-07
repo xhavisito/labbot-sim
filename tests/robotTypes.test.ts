@@ -1,4 +1,5 @@
 import { beforeAll, describe, expect, it } from 'vitest';
+import { camPose } from './camPose';
 import { STRATEGY_OPTIONS } from '../src/ai/strategy';
 import { COLLECT_HOME, LEAVE_ZONE } from '../src/auto/AutoRoutine';
 import * as F from '../src/config/field';
@@ -95,8 +96,9 @@ describe('tipos de robot: pivotes, brazo largo, elevador y doble intake', () => 
     // subir (hitbox literal, D34), con una Muestra en el piso detrás
     const z = F.CAMARA_Z_RED[0] - S180.length / 2 - 0.12;
     const x = (w.x0 + w.x1) / 2;
-    g.player.phys.teleport(x, z, -Math.PI / 2);
-    g.pieces.place(g.pieces.list.find((p) => p.kind === 'sample' && p.state.at === 'field')!, x, F.SAMPLE_SIZE / 2, z + posTip(S180, 0).x, 0);
+    g.player.phys.teleport(...camPose('red', x, z));
+    const back = F.forCamara('red', { x, z: z + posTip(S180, 0).x });
+    g.pieces.place(g.pieces.list.find((p) => p.kind === 'sample' && p.state.at === 'field')!, back.x, F.SAMPLE_SIZE / 2, back.z, 0);
     const h0 = g.player.phys.heading();
     run(g, 1.5, { intake: true });
     expect(m.inClaw).toBe(true);
@@ -117,7 +119,7 @@ describe('tipos de robot: pivotes, brazo largo, elevador y doble intake', () => 
     const w = F.camaraWells()[3];
     // 1 m antes de la Cámara, viéndola: avanza despacio con la garra arriba hasta que la viga toca el
     // borde de la pared de 80 cm (hitbox literal, D34; empujando más fuerte el robot se encarama en ella)
-    g.player.phys.teleport((w.x0 + w.x1) / 2, F.CAMARA_Z_RED[0] - S180.length / 2 - 1.0, -Math.PI / 2);
+    g.player.phys.teleport(...camPose('red', (w.x0 + w.x1) / 2, F.CAMARA_Z_RED[0] - S180.length / 2 - 1.0));
     run(g, 4.0, { elevator: 3, forward: 0.25 });
     expect(m.atTarget).toBe(true);
     run(g, 0.4, { releaseSample: true });
@@ -138,7 +140,7 @@ describe('tipos de robot: pivotes, brazo largo, elevador y doble intake', () => 
       // Con el brazo arriba antes de arrimarse: la garra choca con la madera de la Cámara (D34)
       run(g, 2.0, { elevator: 3 });
       const w = F.camaraWells()[3];
-      g.player.phys.teleport((w.x0 + w.x1) / 2, F.CAMARA_Z_RED[0] - spec.length / 2 - 0.02, -Math.PI / 2);
+      g.player.phys.teleport(...camPose('red', (w.x0 + w.x1) / 2, F.CAMARA_Z_RED[0] - spec.length / 2 - 0.02));
       run(g, 1.0);
       run(g, 0.4, { releaseSample: true });
       run(g, 1.5);

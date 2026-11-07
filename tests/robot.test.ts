@@ -1,4 +1,5 @@
 import { beforeAll, describe, expect, it } from 'vitest';
+import { camPose } from './camPose';
 import * as F from '../src/config/field';
 import { armAngle, armTip, DEFAULT_ROBOT, validateRobot } from '../src/config/robot';
 
@@ -84,13 +85,13 @@ describe('robot (§7.2)', () => {
     const w = F.camaraWells()[3];
     const x = (w.x0 + w.x1) / 2;
     // Robot de frente a la pared de la Cámara (viendo hacia +Z)
-    put(g, x, F.CAMARA_Z_RED[0] - DEFAULT_ROBOT.length / 2 - 0.02, -Math.PI / 2);
+    put(g, ...camPose('red', x, F.CAMARA_Z_RED[0] - DEFAULT_ROBOT.length / 2 - 0.02));
     run(g, 1.0, { elevator: 3 });
     const piece = g.player.mech.stored[0];
     run(g, 2.0, { releaseSample: true });
     const t = piece.body.translation();
     expect(piece.state.at).toBe('field');
-    expect(F.inRect(w, t.x, t.z)).toBe(true);
+    expect(F.inRect(F.rectForCamara('red', w), t.x, t.z)).toBe(true);
     expect(t.y).toBeLessThan(w.rim);
   });
 

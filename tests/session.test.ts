@@ -65,10 +65,10 @@ describe('match completo en la física', () => {
   it('una Muestra que cae al Nivel 3 rojo vale 18 en AUTO y 15 en TELEOP (§4.4)', () => {
     const g = session();
     g.startMatch();
-    const w = F.camaraWells()[3];
+    const w = F.rectForCamara('red', F.camaraWells()[3]);
     const drop = () => {
       const p = g.pieces.hpStock('blue')[0];
-      g.pieces.place(p, (w.x0 + w.x1) / 2, w.rim + 0.2, (w.z0 + w.z1) / 2);
+      g.pieces.place(p, (w.x0 + w.x1) / 2, F.camaraWells()[3].rim + 0.2, (w.z0 + w.z1) / 2);
       steps(g, 1.5);
     };
     drop();
@@ -190,7 +190,7 @@ describe('match completo en la física', () => {
     const g = session();
     g.startMatch();
     skipTo(g, 20);
-    // Azul 2 pegado a la Cámara roja; rojo 0 empujándolo hacia +Z
+    // Azul 2 pegado a SU Cámara (la de +X/+Z); rojo 0 empujándolo hacia +Z
     const w = F.camaraWells()[2];
     const x = (w.x0 + w.x1) / 2;
     g.robots[2].phys.teleport(x, F.CAMARA_Z_RED[0] - 0.34, Math.PI / 2);
@@ -250,7 +250,7 @@ describe('práctica libre en solitario', () => {
 
 describe('práctica libre: Muestras sin límite y Cámaras con vacío', () => {
   const dropInWell = (g: GameSession, level: 1 | 2 | 3) => {
-    const w = F.rectFor(g.player.alliance, F.camaraWells()[level]);
+    const w = F.rectForCamara(g.player.alliance, F.camaraWells()[level]);
     const p = g.pieces.list.find((x) => x.kind === 'sample' && x.state.at === 'hp')!;
     g.pieces.place(p, (w.x0 + w.x1) / 2, F.SAMPLE_SIZE / 2 + 0.02, (w.z0 + w.z1) / 2);
     return p;

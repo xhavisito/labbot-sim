@@ -31,7 +31,7 @@ export const KNOCK_WINDOW = 1;
 
 /** Frente de la Cámara de cada alianza (D17, SUPUESTO): el largo de la Cámara y 1 m hacia la cancha. */
 export function camaraFront(a: Alliance): F.Rect {
-  return F.rectFor(a, { x0: F.CAMARA_X_END_RED - F.CAMARA_LENGTH, x1: F.CAMARA_X_END_RED, z0: F.CAMARA_Z_RED[0] - 1.0, z1: F.CAMARA_Z_RED[0] });
+  return F.rectForCamara(a, { x0: F.CAMARA_X_END_RED - F.CAMARA_LENGTH, x1: F.CAMARA_X_END_RED, z0: F.CAMARA_Z_RED[0] - 1.0, z1: F.CAMARA_Z_RED[0] });
 }
 
 /**
@@ -165,7 +165,7 @@ export class Referee {
       // §4.2: no cruzar la línea central en AUTO (D7: el manual no da la falta; SUPUESTO Foul)
       if (phase === 'AUTO') {
         const s = r.alliance === 'red' ? 1 : -1;
-        this.once(`center:${r.index}`, corners.every((c) => s * c.x < F.CENTER_LINE_X), r, 'AUTO_CENTER');
+        this.once(`center:${r.index}`, corners.every((c) => s * c.x < F.CENTER_LINE_X) && !corners.some((c) => F.inAutoCrossLane(r.alliance, c.z)), r, 'AUTO_CENTER');
       }
     }
 

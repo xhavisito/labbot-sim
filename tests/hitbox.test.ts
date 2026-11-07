@@ -1,4 +1,5 @@
 import { beforeAll, describe, expect, it } from 'vitest';
+import { camPose } from './camPose';
 import * as F from '../src/config/field';
 import { PIVOT_180_ROBOT, PIVOT_ROBOT, posAngle } from '../src/config/robot';
 import { GameSession } from '../src/game/GameSession';
@@ -24,7 +25,7 @@ describe('hitbox de la garra contra la madera (D34, 30-oct)', () => {
     const g = new GameSession({ player: 0, preload: false, specs: [PIVOT_ROBOT] });
     const w = F.camaraWells()[3];
     const flush = F.CAMARA_Z_RED[0] - PIVOT_ROBOT.length / 2;
-    g.player.phys.teleport((w.x0 + w.x1) / 2, flush - 1.0, -Math.PI / 2);
+    g.player.phys.teleport(...camPose('red', (w.x0 + w.x1) / 2, flush - 1.0));
     // N1 (26 cm): la garra queda abajo de la pared de 80 cm del Nivel 3 y sale del chasis
     run(g, 1.5, { elevator: 1 });
     run(g, 3, { forward: 0.4 });
@@ -65,7 +66,7 @@ describe('hitbox literal del brazo y el chasis (D34, segundo pedido del 30-oct)'
     it(`${spec.name}: pegado a la pared de 80 cm del Nivel 3 sube la garra sin que la viga la atraviese`, () => {
       const g = new GameSession({ player: 0, preload: true, solo: true, specs: [spec], hp: { enabled: false, interval: 3 } });
       const w = F.camaraWells()[3];
-      g.player.phys.teleport((w.x0 + w.x1) / 2, F.CAMARA_Z_RED[0] - spec.length / 2 - 0.01, -Math.PI / 2);
+      g.player.phys.teleport(...camPose('red', (w.x0 + w.x1) / 2, F.CAMARA_Z_RED[0] - spec.length / 2 - 0.01));
       run(g, 2.0, { elevator: 3 });
       const m = g.player.mech;
       // Donde quedó no está metido en la madera (con la tolerancia del contacto)
@@ -109,7 +110,7 @@ describe('obstruir zonas de anotación rivales (§4.6, D17)', () => {
     expect(inAny('blue', 1.2, 0.2)).toBe(false); // rampa roja
     expect(inAny('blue', 0, 0)).toBe(false); // Repisa compartida
     expect(inAny('blue', -3.5, 3.1)).toBe(true); // frente de la Campana azul
-    expect(inAny('blue', -2.6, -2.5)).toBe(true); // frente de la Cámara azul
+    expect(inAny('blue', 2.6, 2.5)).toBe(true); // frente de la Cámara azul (la del extremo rojo)
   });
 
   it('quedarse frente a la Campana rival en el TELEOP es Tech Foul', () => {
@@ -130,9 +131,9 @@ describe('holgura al anotar en la Cámara (D41, Xhavi 30-oct)', () => {
     const w = F.camaraWells()[level];
     const face = F.CAMARA_Z_RED[0] - spec.length / 2;
     // Sube la garra lejos de la pared y luego se coloca a esa distancia
-    g.player.phys.teleport((w.x0 + w.x1) / 2, face - 1.2, -Math.PI / 2);
+    g.player.phys.teleport(...camPose('red', (w.x0 + w.x1) / 2, face - 1.2));
     run(g, 2, { elevator: level });
-    g.player.phys.teleport((w.x0 + w.x1) / 2, face - gap, -Math.PI / 2);
+    g.player.phys.teleport(...camPose('red', (w.x0 + w.x1) / 2, face - gap));
     run(g, 0.2);
     run(g, 0.1, { releaseSample: true });
     for (let i = 0; i < 180; i++) {

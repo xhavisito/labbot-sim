@@ -161,8 +161,9 @@ describe('retos en la física', () => {
     const p = g.player.phys.position();
     expect(p.x).toBeCloseTo(s.x, 2);
     expect(p.z).toBeCloseTo(s.z, 2);
-    goTo(g, tr, 2.75, 0, 0.2);
-    goTo(g, tr, 1, 0, 0.2);
+    // Su Cámara está en el extremo azul: sube por la rampa azul (−X)
+    goTo(g, tr, -2.75, 0, 0.2);
+    goTo(g, tr, -1, 0, 0.2);
     while (!tr.ended) step(g);
     const o = tr.outcome();
     expect(o.completed).toBe(true);
@@ -199,7 +200,7 @@ describe('retos en la física', () => {
   it('solo cuentan las Muestras que entran a tu Cámara, con el valor de TELEOP', () => {
     const { g, tr } = drill('cycles');
     const drop = (a: 'red' | 'blue', level: 1 | 2 | 3) => {
-      const w = F.rectFor(a, F.camaraWells()[level]);
+      const w = F.rectForCamara(a, F.camaraWells()[level]);
       const p = g.pieces.list.find((x) => x.kind === 'sample' && x.state.at === 'hp')!;
       g.pieces.place(p, (w.x0 + w.x1) / 2, F.camaraWells()[level].rim + 0.2, (w.z0 + w.z1) / 2);
       for (let i = 0; i < 180; i++) step(g);
