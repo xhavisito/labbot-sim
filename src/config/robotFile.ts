@@ -30,6 +30,7 @@ export function specFromRobotFile(f: RobotFileLike): RobotSpec {
     ...base,
     ...s,
     name: f.name ?? base.name,
+    label: f.name ?? base.label,
     mechanism: mech,
     intake: s.intake ? { ...DEFAULT_INTAKE, ...base.intake, ...s.intake } : base.intake,
     arm: { ...base.arm, ...s.arm },

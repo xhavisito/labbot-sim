@@ -119,3 +119,20 @@ describe('pivote por flecha', () => {
     expect(r.spec.baseHeight).toBeCloseTo(0.8, 4); // la torre cuenta como estructura fija
   });
 });
+
+describe('selector de robots', () => {
+  it('psycho es elegible desde el menú y conserva su configuración', async () => {
+    const { allRobotIds, robotSpec, isCadId } = await import('../src/config/robotIds');
+    expect(allRobotIds()).toContain('cad:psycho');
+    expect(isCadId('cad:psycho')).toBe(true);
+    expect(isCadId('cad:nada')).toBe(false);
+    const s = robotSpec('cad:psycho');
+    expect(s.label).toBe('Psycho');
+    expect(s.length).toBeCloseTo(0.64, 3);
+    expect(validateRobot(s)).toEqual([]);
+  });
+  it('los ajustes guardados con psycho no se pierden al cargar', async () => {
+    const { sanitizeSettings } = await import('../src/config/settings');
+    expect(sanitizeSettings({ robotType: 'cad:psycho' }, []).robotType).toBe('cad:psycho');
+  });
+});
