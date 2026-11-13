@@ -21,11 +21,55 @@ export const HALF_W = FIELD_WIDTH / 2;
 /** Ancho de la cinta de las marcas. SUPUESTO (no se da): 2 in. */
 export const TAPE_WIDTH = mm(50.8);
 /**
- * El manual habla de "límites definidos" pero no de paredes. SUPUESTO: la cancha no tiene pared
- * perimetral; el sim pone una barrera invisible a este margen para que nada se pierda, y salir
- * del límite es Tech Foul (§4.6).
+ * Pared perimetral (pedido de Xhavi, 29-oct: "van a poner paredes para que no nos salgamos").
+ * El manual solo habla de "límites definidos" (§3.1) y no da medidas de pared: SUPUESTO tomado del
+ * guardrail de los campos FRC (policarbonato con perfil de aluminio arriba y abajo, ≈20 in de alto).
+ * Va por fuera de la alfombra de 9 × 7 m (la cancha queda completa) y se interrumpe donde está la
+ * pared de cada Campana (§3.2.4), que ya cierra ese tramo. Tiene colisión para robots y piezas.
+ */
+export const WALL_HEIGHT = mm(508); // 20 in (guardrail FRC, SUPUESTO)
+/** Grosor de la pared (policarbonato + perfil). SUPUESTO: 2 in. */
+export const WALL_THICKNESS = mm(50.8);
+/**
+ * Detrás de la pared perimetral queda una barrera invisible a este margen (para que una pieza que
+ * salte la pared no se pierda). Salir del límite es Tech Foul (§4.6): ver `fullyOutOfField`.
  */
 export const OUT_OF_BOUNDS_MARGIN = 0.6;
+
+/**
+ * ¿Un robot está COMPLETAMENTE fuera de la cancha? (Xhavi, 29-oct; §4.6 y §6.1 solo dicen "sale de
+ * los límites", sin aclarar si basta una parte: SUPUESTO, D33). Recibe el contorno del robot en el
+ * piso (chasis y mecanismos, en orden alrededor del robot) y revisa con ejes separadores que ese
+ * polígono convexo no toque el rectángulo de 9 × 7 m: con cualquier parte encima de la cancha, no
+ * está fuera.
+ */
+export function fullyOutOfField(poly: ReadonlyArray<{ x: number; z: number }>, halfL = HALF_L, halfW = HALF_W): boolean {
+  if (poly.length === 0) return false;
+  const xs = poly.map((p) => p.x);
+  const zs = poly.map((p) => p.z);
+  // Ejes de la cancha
+  if (Math.min(...xs) > halfL || Math.max(...xs) < -halfL || Math.min(...zs) > halfW || Math.max(...zs) < -halfW) return true;
+  // Ejes de las aristas del robot
+  const corners = [
+    [halfL, halfW],
+    [halfL, -halfW],
+    [-halfL, halfW],
+    [-halfL, -halfW],
+  ];
+  for (let i = 0; i < poly.length; i++) {
+    const a = poly[i];
+    const b = poly[(i + 1) % poly.length];
+    const nx = -(b.z - a.z);
+    const nz = b.x - a.x;
+    if (nx === 0 && nz === 0) continue;
+    const proj = poly.map((p) => p.x * nx + p.z * nz);
+    const lo = Math.min(...proj);
+    const hi = Math.max(...proj);
+    const f = corners.map(([x, z]) => x * nx + z * nz);
+    if (Math.min(...f) > hi || Math.max(...f) < lo) return true;
+  }
+  return false;
+}
 
 // ---------------------------------------------------------------- Zonas de Inicio (§3.2.1)
 export interface Rect {
@@ -114,6 +158,11 @@ export const BARRIER_HEIGHT = mm(200);
  * X ≈ 3.92, sobresale ≈0.16 m hacia la cancha. SUPUESTO: apoyada a la altura de la pared (610 mm).
  */
 export const CRITICAL_HOLDER_RED = { x: 3.92, z: -HALF_W + 0.1, y: CAMPANA_HEIGHT };
+/**
+ * Hasta dónde puede deslizar el Human Player la Muestra Crítica a lo largo de la rendija (X del rojo).
+ * SUPUESTO (D39): la rendija es "deslizable" (§3.2.4) y corre a lo largo de la pared de la Campana.
+ */
+export const CRITICAL_SLIDE_RED: readonly [number, number] = [CAMPANA_X_RED[0] + 0.25, HALF_L - 0.25];
 
 // ---------------------------------------------------------------- Plataforma de Contención (§3.2.5)
 export const RAMP_ANGLE = 15 * DEG; // 15°
@@ -154,4 +203,23 @@ export function forAlliance(a: Alliance, p: { x: number; z: number }): { x: numb
 export function rectFor(a: Alliance, r: Rect): Rect {
   return a === 'red' ? { ...r } : { x0: -r.x1, x1: -r.x0, z0: -r.z1, z1: -r.z0 };
 }
+
+/**
+ * DÓNDE ANOTA CADA ALIANZA (Xhavi, captura con círculos): la Cámara en la que anota el ROJO es la
+ * que está en el extremo azul (−X, pared −Z) y la del AZUL la del extremo rojo (+X, pared +Z). La
+ * cancha y las estructuras no se mueven: solo cambia de quién es cada Cámara. Las medidas
+ * `CAMARA_*_RED` siguen siendo las de la huella en +X/+Z; para la Cámara de la alianza `a` se usan
+ * estos ayudantes (rotación de 180° respecto a `forAlliance`/`rectFor`). SUPUESTO: §3.2.3 dice
+ * "en el área lateral de su respectiva mitad", la captura la pone en la mitad contraria (D51).
+ */
+export const camaraOwnerFrame = (a: Alliance): Alliance => (a === 'red' ? 'blue' : 'red');
+export const forCamara = (a: Alliance, p: { x: number; z: number }): { x: number; z: number } => forAlliance(camaraOwnerFrame(a), p);
+export const rectForCamara = (a: Alliance, r: Rect): Rect => rectFor(camaraOwnerFrame(a), r);
+/** Rumbo del robot de frente a la pared de su Cámara (adelante = (cos h, −sin h)). */
+export const camaraHeading = (a: Alliance): number => (a === 'red' ? Math.PI / 2 : -Math.PI / 2);
+/** Huella completa de la Cámara de Seguridad de una alianza en el piso (§3.2.3). */
+export const camaraRect = (a: Alliance): Rect => rectForCamara(a, { x0: CAMARA_X_END_RED - CAMARA_LENGTH, x1: CAMARA_X_END_RED, z0: CAMARA_Z_RED[0], z1: CAMARA_Z_RED[1] });
 export const inRect = (r: Rect, x: number, z: number): boolean => x >= r.x0 && x <= r.x1 && z >= r.z0 && z <= r.z1;
+/** ¿El punto está dentro de alguna Cámara de Seguridad (las dos alianzas)? */
+export const inCamara = (x: number, z: number): boolean =>
+  (['red', 'blue'] as const).some((a) => inRect(rectFor(a, { x0: CAMARA_X_END_RED - CAMARA_LENGTH, x1: CAMARA_X_END_RED, z0: CAMARA_Z_RED[0], z1: CAMARA_Z_RED[1] }), x, z));

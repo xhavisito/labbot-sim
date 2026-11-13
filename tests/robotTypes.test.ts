@@ -1,7 +1,9 @@
 import { beforeAll, describe, expect, it } from 'vitest';
-import { SCORE_PRELOAD } from '../src/auto/AutoRoutine';
+import { camPose } from './camPose';
+import { STRATEGY_OPTIONS } from '../src/ai/strategy';
+import { COLLECT_HOME, LEAVE_ZONE } from '../src/auto/AutoRoutine';
 import * as F from '../src/config/field';
-import { armAngle, armTip, ELEVATOR_ROBOT, PIVOT_ROBOT, ROBOT_PRESETS, validateRobot, type RobotSpec } from '../src/config/robot';
+import { armTip, knownSpec, posTip, DUAL_INTAKE_ROBOT, ELEVATOR_ROBOT, LONG_ARM_ROBOT, MECHANISM_KINDS, PIVOT_180_ROBOT, PIVOT_ROBOT, ROBOT_PRESETS, validateRobot, type RobotSpec } from '../src/config/robot';
 import { GameSession } from '../src/game/GameSession';
 import { emptyInput, type PlayerInput } from '../src/input/InputManager';
 import { initRapier } from '../src/physics/PhysicsWorld';
@@ -10,77 +12,202 @@ beforeAll(async () => {
   await initRapier();
 });
 
+const S180 = PIVOT_180_ROBOT;
 const session = (spec: RobotSpec, preload = true) => new GameSession({ player: 0, preload, specs: [spec] });
 
 function run(g: GameSession, s: number, inp: Partial<PlayerInput> = {}): void {
   g.setInput({ ...emptyInput(), ...inp });
-  const hold = { ...emptyInput(), forward: inp.forward ?? 0, turn: inp.turn ?? 0 };
+  const hold = { ...emptyInput(), forward: inp.forward ?? 0, turn: inp.turn ?? 0, intake: inp.intake ?? false };
   for (let i = 0; i < s * 120; i++) {
     if (i === 1) g.setInput(hold);
     g.step();
   }
 }
 
-describe('tipos de robot (§7.2)', () => {
-  it('los tres cumplen los límites del manual', () => {
+describe('tipos de robot: pivotes, brazo largo, elevador y doble intake', () => {
+  it('hay cinco tipos y todos cumplen §7.2 y §4.1', () => {
+    expect([...MECHANISM_KINDS]).toEqual(['pivot', 'pivot180', 'longarm', 'elevator', 'dual']);
     for (const s of Object.values(ROBOT_PRESETS)) expect(validateRobot(s)).toEqual([]);
-    // Un brazo más largo saca la garra más de 40 cm
-    expect(validateRobot({ ...PIVOT_ROBOT, arm: { ...PIVOT_ROBOT.arm!, length: 0.85 } })).toContain('la garra sale más de 40 cm (§7.2)');
+    // Una pieza a la vez, salvo el doble intake (garra + hopper de una)
+    for (const [k, s] of Object.entries(ROBOT_PRESETS)) expect(s.capacity).toBe(k === 'dual' ? 2 : 1);
   });
 
-  it('la garra del pivote llega al piso y al Nivel 3 a la altura pedida', () => {
-    const a = PIVOT_ROBOT.arm!;
-    for (const h of PIVOT_ROBOT.elevatorHeights) expect(armTip(a, armAngle(a, h)).y).toBeCloseTo(h, 6);
-  });
-
-  it('Elevador: anota en el Nivel 3 de reversa, empujando por atrás', () => {
-    const g = session(ELEVATOR_ROBOT);
-    const w = F.camaraWells()[3];
-    // De espaldas a la pared de la Cámara (viendo hacia −Z)
-    g.player.phys.teleport((w.x0 + w.x1) / 2, F.CAMARA_Z_RED[0] - ELEVATOR_ROBOT.length / 2 - 0.02, Math.PI / 2);
-    run(g, 1.0, { elevator: 3 });
-    const piece = g.player.mech.stored[0];
-    run(g, 2.0, { releaseSample: true });
-    const t = piece.body.translation();
-    expect(F.inRect(w, t.x, t.z)).toBe(true);
-    expect(g.practiceCount.red).toBe(1);
-  });
-
-  it('Pivote: agarra una sola Muestra del piso y la anota en el Nivel 3', () => {
-    const g = session(PIVOT_ROBOT, false);
-    const spot = F.labSpots()[0];
-    g.player.phys.teleport(spot.x + 1.0, spot.z, Math.PI);
-    run(g, 2.0, { toggleIntake: true, forward: 0.25 });
-    expect(g.player.mech.stored).toHaveLength(1);
-    const piece = g.player.mech.stored[0];
-    const w = F.camaraWells()[3];
-    g.player.phys.teleport((w.x0 + w.x1) / 2, F.CAMARA_Z_RED[0] - PIVOT_ROBOT.length / 2 - 0.02, -Math.PI / 2);
-    run(g, 1.0, { elevator: 3 });
-    run(g, 2.0, { releaseSample: true });
-    const t = piece.body.translation();
-    expect(F.inRect(w, t.x, t.z)).toBe(true);
-    expect(g.practiceCount.red).toBe(1);
-  });
-
-  it('Pivote: con una Muestra en la garra no puede tomar la Crítica', () => {
-    const g = session(PIVOT_ROBOT, true);
-    const c = F.CRITICAL_HOLDER_RED;
-    g.player.phys.teleport(c.x, -F.HALF_W + PIVOT_ROBOT.length / 2 + 0.05, Math.PI / 2);
-    run(g, 1.0, { elevator: 4 });
-    run(g, 0.2, { grabCritical: true });
-    expect(g.player.mech.critical).toBeNull();
-  });
-
-  it('IA con elevadores y pivotes: anota y no pisa la Plataforma ni sale de la cancha', () => {
-    const specs = [ELEVATOR_ROBOT, PIVOT_ROBOT, PIVOT_ROBOT, ELEVATOR_ROBOT];
-    const g = new GameSession({ player: 0, preload: true, ai: true, specs, autos: [SCORE_PRELOAD, SCORE_PRELOAD, SCORE_PRELOAD, SCORE_PRELOAD] });
-    g.startMatch();
-    for (let i = 0; i < 151 * 120 && !g.match!.finished; i++) {
-      g.setInput(emptyInput());
-      g.step();
+  it('elevador: sube recto (la punta no se mueve en x) del piso a 100 cm y se recoge dentro del perímetro', () => {
+    const s = ELEVATOR_ROBOT;
+    for (const pos of [0, 1, 2, 3, 4] as const) {
+      expect(posTip(s, pos).x).toBeCloseTo(0.58, 6);
+      expect(posTip(s, pos).y).toBeCloseTo(s.elevatorHeights[pos], 6);
     }
+    // Al frente del chasis para anotar y a no más de 40 cm fuera de él (§7.2)
+    expect(posTip(s, 3).x - 0.075).toBeGreaterThan(s.length / 2);
+    expect(posTip(s, 3).x + 0.1 - s.length / 2).toBeLessThanOrEqual(0.4);
+    // Recogido al inicio con la precarga: dentro del perímetro y bajo 100 cm (§4.1)
+    const st = armTip(s.arm, s.arm.stowAngle!);
+    expect(Math.abs(st.x) + 0.075).toBeLessThanOrEqual(s.length / 2);
+    expect(st.y + 0.15).toBeLessThanOrEqual(1.0 + 1e-9);
+    // Del recogido a la posición de trabajo la punta pasa de forma continua
+    const mid = armTip(s.arm, (3 * Math.PI) / 4);
+    expect(mid.x).toBeGreaterThan(st.x);
+    expect(mid.x).toBeLessThan(0.58);
+  });
+
+  it('brazo largo: alcanza más lejos que el pivote en N3 sin pasar de 40 cm (§7.2) y es más pesado', () => {
+    const s = LONG_ARM_ROBOT;
+    expect(posTip(s, 3).x).toBeGreaterThan(posTip(PIVOT_ROBOT, 3).x);
+    for (const pos of [0, 1, 2, 3, 4] as const) expect(posTip(s, pos).x + 0.1 - s.length / 2).toBeLessThanOrEqual(0.4 + 1e-9);
+    // En el piso la garra queda tan afuera del chasis como la del pivote
+    expect(posTip(s, 0).x).toBeGreaterThanOrEqual(posTip(PIVOT_ROBOT, 0).x);
+    expect(s.arm.length).toBeGreaterThan(PIVOT_ROBOT.arm.length);
+    expect(s.massKg).toBeGreaterThan(PIVOT_ROBOT.massKg);
+  });
+
+  it('doble intake: capacidad 2 (garra + hopper) y el brazo con la Muestra no pasa de 100 cm', () => {
+    const s = DUAL_INTAKE_ROBOT;
+    expect(s.capacity).toBe(2);
+    expect(s.arm.pivotY + s.arm.length + 0.15).toBeLessThanOrEqual(1.0 + 1e-9);
+  });
+
+  it('180° (volteado el 29-oct): recoge atrás y voltea el brazo para anotar al frente; todo dentro de §7.2', () => {
+    const half = S180.length / 2;
+    // Piso atrás, la Muestra fuera del chasis
+    expect(-posTip(S180, 0).x - 0.075).toBeGreaterThan(half);
+    // N1–N3 al frente: la Muestra delante del chasis, con el fondo arriba de la apertura (§3.2.3)
+    for (const l of [1, 2, 3] as const) {
+      const t = posTip(S180, l);
+      expect(t.x - 0.075).toBeGreaterThan(half);
+      expect(t.y).toBeCloseTo(S180.elevatorHeights[l], 6);
+    }
+    expect(S180.elevatorHeights[3]).toBeGreaterThan(0.8);
+    // La Crítica (posición 4) atrás, del lado donde recoge
+    expect(-posTip(S180, 4).x - 0.1).toBeGreaterThan(half);
+    // Guardado con la precarga dentro del perímetro y bajo 100 cm (§4.1)
+    const st = armTip(S180.arm, S180.arm.stowAngle!);
+    expect(Math.abs(st.x) + 0.075).toBeLessThanOrEqual(half);
+    expect(st.y + 0.15).toBeLessThanOrEqual(1.0 + 1e-9);
+    // Al voltear con una Muestra pasa poco de 100 cm (SUPUESTO D24): se documenta, no se esconde
+    expect(S180.arm.pivotY + S180.arm.length + 0.15).toBeCloseTo(1.03, 6);
+  });
+
+  it('180°: agarra atrás y anota en N3 de frente a la Cámara, sin girar el chasis', () => {
+    const g = session(S180, false);
+    const m = g.player.mech;
+    const w = F.camaraWells()[3];
+    // De frente a la Cámara (viendo hacia +Z), a 12 cm para que la viga libre la pared de 80 cm al
+    // subir (hitbox literal, D34), con una Muestra en el piso detrás
+    const z = F.CAMARA_Z_RED[0] - S180.length / 2 - 0.12;
+    const x = (w.x0 + w.x1) / 2;
+    g.player.phys.teleport(...camPose('red', x, z));
+    const back = F.forCamara('red', { x, z: z + posTip(S180, 0).x });
+    g.pieces.place(g.pieces.list.find((p) => p.kind === 'sample' && p.state.at === 'field')!, back.x, F.SAMPLE_SIZE / 2, back.z, 0);
+    const h0 = g.player.phys.heading();
+    run(g, 1.5, { intake: true });
+    expect(m.inClaw).toBe(true);
+    run(g, 2.0, { elevator: 3 });
+    expect(m.atTarget).toBe(true);
+    // Se arrima despacio hasta que la viga toca el borde: la garra queda sobre el pozo
+    // (el frente es el lado del intake: la garra del 180° está atrás, así que hacia la Cámara es retroceder)
+    run(g, 1.0, { forward: -0.2 });
+    run(g, 0.4, { releaseSample: true });
+    run(g, 1.5);
+    expect(m.stored).toHaveLength(0);
+    expect(g.practiceCount.red).toBe(1);
+    expect(Math.abs(g.player.phys.heading() - h0)).toBeLessThan(0.05);
+  });
+
+  it('180°: de espaldas (el frente es el intake) llega a la Cámara con la precarga y la anota en N3', () => {
+    const g = session(S180, true);
+    const m = g.player.mech;
+    const w = F.camaraWells()[3];
+    // 1 m antes de la Cámara, viéndola: avanza despacio con la garra arriba hasta que la viga toca el
+    // borde de la pared de 80 cm (hitbox literal, D34; empujando más fuerte el robot se encarama en ella)
+    g.player.phys.teleport(...camPose('red', (w.x0 + w.x1) / 2, F.CAMARA_Z_RED[0] - S180.length / 2 - 1.0));
+    run(g, 4.0, { elevator: 3, forward: -0.25 });
+    expect(m.atTarget).toBe(true);
+    run(g, 0.4, { releaseSample: true });
+    run(g, 1.5);
+    expect(g.practiceCount.red).toBe(1);
+  });
+
+  for (const spec of [PIVOT_ROBOT, LONG_ARM_ROBOT, ELEVATOR_ROBOT, DUAL_INTAKE_ROBOT]) {
+    it(`${spec.name}: agarra una Muestra del piso y la anota en el Nivel 3 de frente`, () => {
+      const g = session(spec, false);
+      const m = g.player.mech;
+      const spot = F.labSpots()[0];
+      g.player.phys.teleport(spot.x + 1.0, spot.z, Math.PI);
+      run(g, 3.0, { intake: true, forward: 0.2 });
+      expect(m.stored).toHaveLength(1);
+      // Con hopper la garra pasa la Muestra a la boca del hopper en cuanto la toma
+      if (spec.capacity === 1) expect(m.inClaw).toBe(true);
+      // Con el brazo arriba antes de arrimarse: la garra choca con la madera de la Cámara (D34)
+      run(g, 2.0, { elevator: 3 });
+      const w = F.camaraWells()[3];
+      g.player.phys.teleport(...camPose('red', (w.x0 + w.x1) / 2, F.CAMARA_Z_RED[0] - spec.length / 2 - 0.02));
+      run(g, 1.0);
+      run(g, 0.4, { releaseSample: true });
+      run(g, 1.5);
+      expect(m.stored).toHaveLength(0);
+      expect(g.practiceCount.red).toBe(1);
+    });
+  }
+
+  it('una repetición vieja con un robot quitado (también el pivote con hopper) se dibuja como pivote', () => {
+    for (const mechanism of ['tower', 'pivotHopper']) {
+      const old = { ...PIVOT_ROBOT, name: 'Viejo', mechanism, arm: mechanism === 'tower' ? undefined : PIVOT_ROBOT.arm } as unknown as RobotSpec;
+      const s = knownSpec(old);
+      expect(s.mechanism).toBe('pivot');
+      expect(s.label).toBe('Viejo');
+    }
+    expect(knownSpec(S180)).toBe(S180);
+  });
+});
+
+describe('estrategias por robot', () => {
+  it('"Solo línea y Plataforma": cruzan la línea en AUTO y suben los dos a la Plataforma (§4.4)', () => {
+    const specs = [PIVOT_ROBOT, S180, PIVOT_ROBOT, S180];
+    const park = STRATEGY_OPTIONS.park;
+    const g = new GameSession({ player: -1, preload: true, ai: true, specs, bots: [park, park, {}, {}], autos: [LEAVE_ZONE, LEAVE_ZONE, COLLECT_HOME, COLLECT_HOME] });
+    g.startMatch();
+    for (let i = 0; i < 151 * 120 && !g.match!.finished; i++) g.step();
     const m = g.match!;
-    for (const a of ['red', 'blue'] as const) expect(m.breakdown(a).samplesAuto + m.breakdown(a).samplesTeleop).toBeGreaterThan(18);
+    const red = m.breakdown('red');
+    expect(red.autoLine).toBe(10);
+    expect(red.platform).toBe(20);
+    expect(red.samplesAuto + red.samplesTeleop).toBe(0);
+    // La otra alianza sí anota
+    expect(m.breakdown('blue').samplesAuto + m.breakdown('blue').samplesTeleop).toBeGreaterThan(5);
     expect(m.fouls.filter((f) => f.rule === 'PLATFORM_EARLY' || f.rule === 'OUT_OF_BOUNDS' || f.rule === 'AUTO_CENTER')).toEqual([]);
   }, 120_000);
+
+  it('"N3 + Muestra Crítica" la deja en la Repisa (§4.3.1) y la dificultad se elige por robot', () => {
+    const specs = [PIVOT_ROBOT, S180, S180, PIVOT_ROBOT];
+    const bots = [
+      { ...STRATEGY_OPTIONS.critical, ai: 'hard' as const },
+      { ...STRATEGY_OPTIONS.n3, ai: 'hard' as const },
+      { ...STRATEGY_OPTIONS.n3, ai: 'easy' as const },
+      { ...STRATEGY_OPTIONS.n3, ai: 'easy' as const },
+    ];
+    const g = new GameSession({ player: -1, preload: true, ai: true, specs, bots, autos: specs.map(() => COLLECT_HOME) });
+    g.startMatch();
+    expect(g.bots.map((b) => (b as unknown as { opts: { ai: string } }).opts.ai)).toEqual(['hard', 'hard', 'easy', 'easy']);
+    for (let i = 0; i < 151 * 120 && !g.match!.finished; i++) g.step();
+    const m = g.match!;
+    expect(m.breakdown('red').critical).toBe(15);
+    // La IA difícil le gana a la fácil
+    expect(m.score('red')).toBeGreaterThan(m.score('blue'));
+  }, 120_000);
+});
+
+describe('el frente es el lado del intake', () => {
+  it('avanzar (+) mueve al Pivote 180° hacia su garra (atrás del chasis) y al Pivote hacia el frente', () => {
+    for (const [spec, sign] of [[S180, -1], [PIVOT_ROBOT, 1]] as const) {
+      const g = session(spec, false);
+      g.player.phys.teleport(0, 2.0, 0);
+      const h = g.player.phys.heading();
+      const p0 = g.player.phys.position();
+      run(g, 0.5, { forward: 0.5 });
+      const p1 = g.player.phys.position();
+      const dx = (p1.x - p0.x) * Math.cos(h) - (p1.z - p0.z) * Math.sin(h);
+      expect(Math.sign(dx)).toBe(sign);
+    }
+  });
 });

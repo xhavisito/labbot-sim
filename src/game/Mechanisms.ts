@@ -1,12 +1,29 @@
 /**
- * Mecanismos del robot según su tipo (`RobotSpec.mechanism`):
- * - generic: intake al piso, almacenamiento, elevador y depósito al frente, pinza para la Crítica.
- * - elevator: igual, pero la plataforma del elevador está atrás y empuja las piezas hacia atrás.
- * - pivot: brazo con garra; agarra una pieza del piso con el brazo abajo y la suelta en la punta.
+ * Mecanismos del pivote (`RobotSpec.arm`; los dos tipos del simulador, `config/robot.ts`): brazo con
+ * garra. Agarra una pieza del piso con el brazo abajo y la suelta en la punta (si el brazo voltea,
+ * `ArmSpec.pickBack`, recoge y toma la Crítica atrás y anota al frente en N1–N3). Empieza guardado
+ * (`ArmSpec.stowAngle`) y sale de ahí al primer mando. Lleva una pieza a la vez (capacidad 1); con
+ * capacidad > 1 (un hopper, ya sin tipo que lo use) la garra pasa cada Muestra a la boca del hopper
+ * (`ArmSpec.hopperAngle`) y la saca de ahí para anotar.
  * Las piezas guardadas son lógicas (cuerpo deshabilitado); al soltarlas vuelven a la física en la
  * punta del mecanismo, así que anotar depende de dónde caen (lo detecta la sesión).
+ *
+ * Agarre (Xhavi, 29-oct: "se me hace extremadamente fácil recoger las muestras"): la garra ya no
+ * "absorbe" lo que está cerca. Tiene dedos con colisión (`RobotPhysics.setArmPose`). Tres modos:
+ * - `compliant` (por defecto; Xhavi, 30-oct: "nuestro robot va a tener compliants"): ruedas flexibles
+ *   en la boca de los dedos jalan la Muestra en cuanto la tocan, con la garra a la altura del piso.
+ *   Agarra de cualquier ángulo y aunque llegue de lado o pegada a la punta de un dedo (no tiene que
+ *   llegar hasta la placa: una Cámara o la pared ya no estorban); solo se resbala si llega muy rápido.
+ * - `precise`: la Muestra tiene que entrar de verdad entre los dedos (`CLAW_GAP`) hasta la placa, y
+ *   casi derecha (≲18°). Ahí la garra tarda `GRIP.closeTime` en cerrar (si la Muestra se sale en ese
+ *   tiempo, no la toma) y puede resbalarse: la probabilidad crece con la velocidad y el giro.
+ * - `easy`: el de antes (toma lo que quede a 12 cm de la punta, sin alinear ni fallar).
+ * Todos esos números son SUPUESTOS de diseño (el manual no habla de mecanismos, §7.2).
  */
-import { armAngle, armTip, type ElevatorPos } from '../config/robot';
+import { inCamara } from '../config/field';
+import { CLAW_GAP, armTip, clawOf, intakeOf, posAngle, posDir, type ElevatorPos, type GripMode } from '../config/robot';
+import { SAMPLE_SIZE } from '../config/field';
+import { clawDir } from '../physics/RobotPhysics';
 import type { Alliance } from '../core/types';
 import type { Piece, Pieces } from '../physics/Pieces';
 import type { RobotPhysics } from '../physics/RobotPhysics';
@@ -14,10 +31,96 @@ import type { RobotPhysics } from '../physics/RobotPhysics';
 export type MechEvent =
   | { type: 'intake'; robot: number; piece: number }
   | { type: 'grabCritical'; robot: number; piece: number }
-  | { type: 'release'; robot: number; piece: number };
+  | { type: 'release'; robot: number; piece: number }
+  /** La garra cerró pero la Muestra se le resbaló (agarre con compliants o preciso). */
+  | { type: 'grabMiss'; robot: number; piece: number };
 
-/** Velocidad con la que sale la pieza del depósito, hacia adelante (m/s). SUPUESTO. */
-const EJECT_SPEED = 0.6;
+/** Agarre preciso (SUPUESTOS de diseño). */
+export const GRIP = {
+  /** Holgura del centro de la Muestra respecto a su lugar en la garra (m). */
+  pocketX: 0.055,
+  pocketZ: Math.min(0.045, (CLAW_GAP - SAMPLE_SIZE) / 2),
+  /** Giro máximo de la Muestra respecto a la garra (rad): lo que cabe entre los dedos. */
+  maxYaw: (18 * Math.PI) / 180,
+  /** Inclinación máxima (rad): una Muestra volteada sobre una arista no se deja agarrar. */
+  maxTilt: (20 * Math.PI) / 180,
+  /** Segundos que tarda en cerrar con la Muestra adentro. */
+  closeTime: 0.18,
+  /** Probabilidad de resbalarse con la Muestra quieta y derecha. */
+  baseMiss: 0.06,
+  /** Más probabilidad por cada m/s de velocidad relativa arriba de `safeSpeed`. */
+  missPerSpeed: 0.25,
+  safeSpeed: 0.6,
+  /** Más probabilidad con el giro máximo (proporcional al giro). */
+  missPerYaw: 0.15,
+  /** Segundos antes de volver a intentarlo tras resbalarse. */
+  retry: 0.45,
+} as const;
+
+/**
+ * Agarre con compliants (SUPUESTOS de diseño): dos ruedas flexibles en la boca de la garra, una en
+ * la punta de cada dedo, que jalan la Muestra hacia adentro.
+ */
+export const COMPLIANT = {
+  /** Qué tan adelante de la punta de los dedos alcanza a jalarla (m, del borde de la Muestra). */
+  reachFront: 0.03,
+  /** Segundos que tarda en meterla y cerrar. */
+  closeTime: 0.06,
+  /** Arriba de esta velocidad de llegada (m/s) puede rebotar en las ruedas… */
+  safeSpeed: 2.2,
+  /** …con esta probabilidad por cada m/s de más. */
+  missPerSpeed: 0.2,
+  /** Segundos antes de volver a intentarlo tras rebotar. */
+  retry: 0.2,
+} as const;
+
+/**
+ * Al soltar una Muestra, las ruedas de los compliants giran al revés y la empujan hacia donde abre la
+ * garra (Xhavi, 30-oct: "es muy justo el espacio [para anotar]"). Así cae más al fondo del pozo y el
+ * robot puede soltar más lejos de la pared: en N3 la distancia a la pared desde la que entra pasa de 11–12 a 22–26 cm. No en el
+ * agarre preciso (garra sin ruedas), ni con la Crítica (rebotaba y se pasaba de la Repisa), ni cuando
+ * un golpe la tira. SUPUESTO de diseño (el manual no habla de mecanismos, §7.2).
+ */
+export const OUTTAKE = {
+  /** Velocidad (m/s) con la que sale la Muestra, sumada a la del robot. */
+  speed: 1.0,
+} as const;
+
+export type { GripMode };
+
+/**
+ * Pose de un cubo apoyado: rumbo (rad) de una de sus caras laterales (las 4 son equivalentes, cada
+ * π/2) e inclinación (rad) de la cara de abajo respecto al piso. Puro.
+ */
+export function cubePose(q: { x: number; y: number; z: number; w: number }): { faceYaw: number; tilt: number } {
+  // Ejes del cubo en el mundo (columnas de la matriz de rotación)
+  const axes = [
+    [1 - 2 * (q.y * q.y + q.z * q.z), 2 * (q.x * q.y + q.w * q.z), 2 * (q.x * q.z - q.w * q.y)],
+    [2 * (q.x * q.y - q.w * q.z), 1 - 2 * (q.x * q.x + q.z * q.z), 2 * (q.y * q.z + q.w * q.x)],
+    [2 * (q.x * q.z + q.w * q.y), 2 * (q.y * q.z - q.w * q.x), 1 - 2 * (q.x * q.x + q.y * q.y)],
+  ];
+  let up = 0;
+  for (let i = 1; i < 3; i++) if (Math.abs(axes[i][1]) > Math.abs(axes[up][1])) up = i;
+  const side = axes[(up + 1) % 3];
+  return { faceYaw: Math.atan2(-side[2], side[0]), tilt: Math.acos(Math.min(1, Math.abs(axes[up][1]))) };
+}
+
+/** Giro (rad, 0–π/4) de un cubo respecto a un rumbo, e inclinación de su cara de abajo. Puro. */
+export function cubeAlignment(q: { x: number; y: number; z: number; w: number }, heading: number): { yaw: number; tilt: number } {
+  const { faceYaw, tilt } = cubePose(q);
+  let d = (((faceYaw - heading) % (Math.PI / 2)) + Math.PI / 2) % (Math.PI / 2);
+  if (d > Math.PI / 4) d = Math.PI / 2 - d;
+  return { yaw: d, tilt };
+}
+
+/** Probabilidad de que la Muestra se resbale al cerrar la garra (agarre preciso o con compliants). Pura. */
+export function missChance(relSpeed: number, yaw: number, mode: GripMode = 'precise'): number {
+  if (mode === 'easy') return 0;
+  if (mode === 'compliant') return Math.min(0.5, COMPLIANT.missPerSpeed * Math.max(0, relSpeed - COMPLIANT.safeSpeed));
+  const p = GRIP.baseMiss + GRIP.missPerSpeed * Math.max(0, relSpeed - GRIP.safeSpeed) + GRIP.missPerYaw * Math.min(1, yaw / GRIP.maxYaw);
+  return Math.max(0, Math.min(0.95, p));
+}
+
 /** Tiempo mínimo entre dos piezas soltadas (s). SUPUESTO. */
 const EJECT_COOLDOWN = 0.35;
 
@@ -26,11 +129,29 @@ export class Mechanisms {
   readonly stored: Piece[] = [];
   critical: Piece | null = null;
   target: ElevatorPos = 0;
-  /** Altura actual del elevador (fondo de la pieza, m sobre la base del robot). */
+  /** Altura actual de la punta de la garra (fondo de la pieza, m sobre la base del robot). */
   height: number;
-  /** Ángulo del brazo (solo pivote; rad, 0 = horizontal). */
+  /** Ángulo del brazo (rad, 0 = horizontal hacia adelante). */
   angle = 0;
+  /** Brazo en su posición de guardado del inicio. */
+  stowed = false;
+  /** El brazo topó con una estructura de la cancha y se quedó ahí (hitbox literal, D34). */
+  armBlocked = false;
+  /** La garra lleva una Muestra (la última de `stored`); las demás van en el hopper. */
+  inClaw = false;
+  /** Segundos con la garra en la boca del hopper (pasando una Muestra). */
+  private transferT = 0;
   private cooldown = 0;
+  /** Muestra entre los dedos mientras la garra cierra, y cuánto lleva cerrando. */
+  private closing: { piece: number; t: number } | null = null;
+  /** Agarre: con compliants, preciso o fácil (el de antes). */
+  grip: GripMode = 'compliant';
+  /** Azar del agarre (la sesión le da uno con semilla). */
+  rand: () => number = Math.random;
+  /** Fallas (`game/Damage.ts`): la garra atascada no cierra. */
+  jammed = false;
+  /** Fallas: fracción de la velocidad del brazo (1 = sano). */
+  armScale = 1;
 
   constructor(
     private phys: RobotPhysics,
@@ -45,138 +166,228 @@ export class Mechanisms {
     return this.phys.spec.capacity;
   }
 
-  /** +1 si las piezas salen por el frente, −1 si salen por atrás (elevador que empuja por atrás). */
-  get side(): 1 | -1 {
-    return this.phys.spec.mechanism === 'elevator' ? -1 : 1;
-  }
-
-  /** ¿Llegó el elevador (o el brazo) a su posición objetivo? */
+  /** ¿Puede soltar una Muestra ya? (brazo en su posición, comparado por ángulo: de camino al hopper pasa por las mismas alturas) */
   get atTarget(): boolean {
-    return Math.abs(this.height - this.phys.spec.elevatorHeights[this.target]) < 0.01;
-  }
-
-  /** Posición local (adelante) del centro de una pieza de lado `size` en la punta del mecanismo. */
-  tipX(size: number): number {
     const s = this.phys.spec;
-    if (s.mechanism === 'pivot' && s.arm) return armTip(s.arm, this.angle).x;
-    return this.side * (this.phys.halfL + s.reach - size / 2);
+    return !this.stowed && this.hopperTask() === null && Math.abs(this.angle - posAngle(s, this.target)) < 0.01;
   }
 
-  /** Avanza el elevador (o el brazo) y la intake un paso. */
+  /** Muestras en el hopper (las guardadas que no van en la garra). */
+  get inHopper(): number {
+    return this.stored.length - (this.inClaw ? 1 : 0);
+  }
+
+  /**
+   * ¿El brazo tiene que ir a la boca del hopper? 'store' si trae una Muestra en la garra, la garra
+   * está encendida y cabe; 'fetch' si la garra está apagada y vacía (sin la Crítica) y hay Muestras
+   * en el hopper, salvo en la posición 4 (ahí se espera la Crítica con la garra vacía).
+   */
+  hopperTask(): 'store' | 'fetch' | null {
+    if (this.stowed) return null;
+    if (this.inClaw && this.intakeOn && this.inHopper < this.capacity - 1) return 'store';
+    if (!this.inClaw && !this.critical && !this.intakeOn && this.inHopper > 0 && this.target !== 4) return 'fetch';
+    return null;
+  }
+
+  /** Posición local (adelante) del centro de la pieza en la punta de la garra. */
+  tipX(): number {
+    return armTip(this.phys.spec.arm, this.angle).x;
+  }
+
+  /** Avanza el brazo y la garra un paso. */
   step(dt: number, events: MechEvent[]): void {
     const s = this.phys.spec;
     const goal = s.elevatorHeights[this.target];
-    if (s.mechanism === 'pivot' && s.arm) {
-      const g = armAngle(s.arm, goal);
+    if (this.stowed && (this.target !== 0 || this.intakeOn)) this.stowed = false;
+    if (!this.stowed) {
+      const task = this.hopperTask();
+      const g = task ? (s.arm.hopperAngle ?? Math.PI) : posAngle(s, this.target);
       const d = g - this.angle;
-      const stepA = s.arm.speed * dt;
-      this.angle = Math.abs(d) <= stepA ? g : this.angle + Math.sign(d) * stepA;
-      this.height = Math.abs(d) <= stepA ? goal : armTip(s.arm, this.angle).y;
-    } else {
-      const d = goal - this.height;
-      const stepLen = s.elevatorSpeed * dt;
-      this.height = Math.abs(d) <= stepLen ? goal : this.height + Math.sign(d) * stepLen;
+      const stepA = s.arm.speed * this.armScale * dt;
+      const next = Math.abs(d) <= stepA ? g : this.angle + Math.sign(d) * stepA;
+      // Si en la nueva pose el brazo o la garra se meterían en la madera, el brazo topa y se queda
+      // (si ya estaba metido, p. ej. por un empujón, lo deja moverse para que se zafe)
+      const held = this.critical ? 'critical' : this.inClaw ? 'sample' : null;
+      this.armBlocked = next !== this.angle && this.phys.armHitsField(next, held) && !this.phys.armHitsField(this.angle, held);
+      if (!this.armBlocked) this.angle = next;
+      this.height = this.angle === g && !task ? goal : armTip(s.arm, this.angle).y;
+      // En la boca del hopper: pasa la Muestra después de `transferTime`
+      if (task && this.angle === g) {
+        this.transferT += dt;
+        if (this.transferT >= (s.arm.transferTime ?? 0.25)) {
+          this.transferT = 0;
+          this.inClaw = task === 'fetch';
+        }
+      } else this.transferT = 0;
     }
     this.cooldown = Math.max(0, this.cooldown - dt);
-    if (this.intakeOn && this.stored.length < this.capacity) {
-      if (s.mechanism === 'pivot') this.runClaw(events);
-      else this.runIntake(events);
-    }
+    if (this.intakeOn && this.stored.length < this.capacity && !this.jammed) this.runClaw(events, dt);
+    else this.closing = null;
+    this.syncHitbox();
+  }
+
+  /** Pone los colisionadores del brazo y la garra donde está el brazo (con la pieza que lleva). */
+  syncHitbox(): void {
+    this.phys.setArmPose(this.angle, this.critical ? 'critical' : this.inClaw ? 'sample' : null);
   }
 
   private resetArm(): void {
     const s = this.phys.spec;
-    if (s.arm) this.angle = armAngle(s.arm, s.elevatorHeights[0]);
+    this.stowed = s.arm.stowAngle !== undefined;
+    this.transferT = 0;
+    this.armBlocked = false;
+    this.angle = s.arm.stowAngle ?? posAngle(s, 0);
+    this.height = armTip(s.arm, this.angle).y;
   }
 
-  /** Garra del pivote: con el brazo abajo y vacía, agarra la Muestra que queda entre sus dedos. */
-  private runClaw(events: MechEvent[]): void {
-    if (this.critical || this.height > 0.06 || this.cooldown > 0) return;
+  /** Garra: con el brazo abajo y vacía, agarra la Muestra que queda entre sus dedos. */
+  private runClaw(events: MechEvent[], dt: number): void {
+    if (this.critical || this.inClaw || this.height > 0.06 || this.cooldown > 0 || this.hopperTask()) {
+      this.closing = null;
+      return;
+    }
     const p = this.phys;
     const base = p.position().y;
-    const cx = this.tipX(0.15);
+    // Pinza (sin ruedas): agarre preciso con su tiempo de cierre; compliants: según `grip` (Ajustes)
+    const intake = intakeOf(p.spec);
+    const CLAW = clawOf(p.spec);
+    const mode: GripMode = intake.kind === 'pinza' ? 'precise' : this.grip;
+    // Lugar de la Muestra en la garra (agarre preciso): recargada en la placa (del lado del brazo)
+    const dir = clawDir(this.angle, this.phys.spec.arm);
+    const tip = this.tipX();
+    let cx = tip - dir * (CLAW.fingerLength / 2 - SAMPLE_SIZE / 2);
+    // Si la placa queda dentro del chasis, la Muestra se recarga en el chasis
+    const stop = p.halfL + SAMPLE_SIZE / 2;
+    cx = dir > 0 ? Math.max(cx, stop) : Math.min(cx, -stop);
+    // Compliants: de la placa (o el chasis) a la punta de los dedos, más lo que alcanzan las ruedas
+    const back = Math.abs(cx) - SAMPLE_SIZE / 2;
+    const front = Math.abs(tip) + CLAW.fingerLength / 2 + SAMPLE_SIZE / 2 + COMPLIANT.reachFront;
+    // De lado basta con que la Muestra toque la rueda (su borde llega al centro del dedo)
+    const side = CLAW.fingerZ + SAMPLE_SIZE / 2;
+    const h = p.heading();
+    let found: { piece: Piece; yaw: number } | null = null;
     for (const piece of this.pieces.list) {
       if (piece.kind !== 'sample' || piece.state.at !== 'field') continue;
       const t = piece.body.translation();
       if (t.y - base > 0.2) continue;
+      // Las anotadas quedan en el piso del pozo, tras paredes de 200–800 mm (§3.2.3): la garra no las saca
+      if (inCamara(t.x, t.z)) continue;
       const { lx, lz } = p.worldToLocalFlat(t.x, t.z);
-      if (Math.abs(lx - cx) > 0.12 || Math.abs(lz) > 0.12) continue;
-      this.pieces.stash(piece, { at: 'robot', robot: p.index });
-      this.stored.push(piece);
-      events.push({ type: 'intake', robot: p.index, piece: piece.index });
+      if (mode === 'easy') {
+        if (Math.abs(lx - tip) > 0.12 || Math.abs(lz) > 0.12) continue;
+        found = { piece, yaw: 0 };
+        break;
+      }
+      if (mode === 'compliant') {
+        // Cualquier giro o inclinación: las ruedas la acomodan
+        const ax = lx * dir;
+        if (ax < back || ax > front || Math.abs(lz) > side) continue;
+        found = { piece, yaw: 0 };
+        break;
+      }
+      if (Math.abs(lx - cx) > GRIP.pocketX || Math.abs(lz) > Math.min(GRIP.pocketZ, Math.max(0.01, (intake.gap - SAMPLE_SIZE) / 2))) continue;
+      const al = cubeAlignment(piece.body.rotation(), h);
+      if (al.yaw > GRIP.maxYaw || al.tilt > GRIP.maxTilt) continue;
+      found = { piece, yaw: al.yaw };
+      break;
+    }
+    if (!found) {
+      this.closing = null;
       return;
     }
+    const piece = found.piece;
+    if (mode !== 'easy') {
+      // La garra tarda en cerrar; si la Muestra se sale (o es otra), empieza de nuevo
+      if (!this.closing || this.closing.piece !== piece.index) this.closing = { piece: piece.index, t: 0 };
+      this.closing.t += dt;
+      if (this.closing.t < (mode === 'compliant' ? COMPLIANT.closeTime / Math.max(0.3, intake.rollerSpeed) : intake.kind === 'pinza' ? intake.closeTime : GRIP.closeTime)) return;
+      this.closing = null;
+      const v = p.body.linvel();
+      const pv = piece.body.linvel();
+      const rel = Math.hypot(v.x - pv.x, v.z - pv.z);
+      if (this.rand() < missChance(Math.max(rel, Math.hypot(v.x, v.z)), found.yaw, mode)) {
+        // Se resbala: la garra la empuja un poco y vuelve a abrir
+        const fwd = { x: Math.cos(h) * dir, z: -Math.sin(h) * dir };
+        piece.body.applyImpulse({ x: fwd.x * 0.08, y: 0.02, z: fwd.z * 0.08 }, true);
+        this.cooldown = mode === 'compliant' ? COMPLIANT.retry : GRIP.retry;
+        events.push({ type: 'grabMiss', robot: p.index, piece: piece.index });
+        return;
+      }
+    }
+    this.pieces.stash(piece, { at: 'robot', robot: p.index });
+    this.stored.push(piece);
+    this.inClaw = true;
+    events.push({ type: 'intake', robot: p.index, piece: piece.index });
   }
 
-  /** Captura las Muestras en la cancha que toca el rodillo de la intake desplegada. */
-  private runIntake(events: MechEvent[]): void {
-    const p = this.phys;
-    const base = p.position().y;
-    const x0 = p.halfL - 0.02;
-    const x1 = p.halfL + p.spec.intake.extension;
-    const hw = p.spec.intake.width / 2;
-    for (const piece of this.pieces.list) {
-      if (piece.kind !== 'sample' || piece.state.at !== 'field') continue;
-      const t = piece.body.translation();
-      if (t.y - base > 0.25) continue;
-      const { lx, lz } = p.worldToLocalFlat(t.x, t.z);
-      if (lx < x0 || lx > x1 || Math.abs(lz) > hw) continue;
-      this.pieces.stash(piece, { at: 'robot', robot: p.index });
-      this.stored.push(piece);
-      events.push({ type: 'intake', robot: p.index, piece: piece.index });
-      if (this.stored.length >= this.capacity) return;
-    }
+  /** Segundos que lleva cerrando la garra sobre una Muestra (0 si no). Para la UI. */
+  get closingFor(): number {
+    return this.closing?.t ?? 0;
   }
 
   /** Recibe una pieza directamente (precarga, §4.1). */
   load(piece: Piece): void {
     this.pieces.stash(piece, { at: 'robot', robot: this.phys.index });
     if (piece.kind === 'critical') this.critical = piece;
-    else this.stored.push(piece);
+    else {
+      // La lleva en la garra (si la garra ya trae una, va al hopper)
+      if (!this.inClaw) {
+        this.stored.push(piece);
+        this.inClaw = true;
+      } else this.stored.unshift(piece);
+    }
+    this.syncHitbox();
   }
 
   /**
-   * Pinza: toma la Muestra Crítica de su alianza si está al alcance del depósito y a la altura
-   * del elevador (en la rendija de la Campana, en el piso o en la Repisa).
+   * Garra: toma la Muestra Crítica de su alianza si está al alcance de la garra y a su altura (en la
+   * rendija de la Campana, en el piso o en la Repisa). Las del hopper no estorban; la garra, sí.
    */
   grabCritical(events: MechEvent[]): boolean {
-    if (this.critical) return false;
-    // La garra del pivote lleva una sola pieza
-    if (this.phys.spec.mechanism === 'pivot' && this.stored.length > 0) return false;
+    // La garra tiene que estar del lado donde toma la Crítica (no guardada ni volteada al otro)
+    if (this.critical || this.inClaw || clawDir(this.angle, this.phys.spec.arm) !== posDir(this.phys.spec, 4)) return false;
     const p = this.phys;
     const c = this.pieces.critical(this.alliance);
     if (c.state.at !== 'field') return false;
     const t = c.body.translation();
     const { lx, lz } = p.worldToLocalFlat(t.x, t.z);
     const carriage = p.position().y + this.height;
-    const reachOk =
-      p.spec.mechanism === 'pivot'
-        ? Math.abs(lx - this.tipX(0.2)) < 0.2
-        : this.side * lx > p.halfL - 0.1 && this.side * lx < p.halfL + p.spec.reach + 0.15;
-    const ok = reachOk && Math.abs(lz) < 0.3 && t.y > carriage - 0.2 && t.y < carriage + 0.35;
+    const ok = Math.abs(lx - this.tipX()) < 0.2 && Math.abs(lz) < 0.3 && t.y > carriage - 0.2 && t.y < carriage + 0.35;
     if (!ok) return false;
     this.pieces.stash(c, { at: 'robot', robot: p.index });
     this.critical = c;
     events.push({ type: 'grabCritical', robot: p.index, piece: c.index });
+    this.syncHitbox();
     return true;
   }
 
-  /** Suelta una pieza (Muestra o Crítica) en la punta del mecanismo, a su altura, hacia afuera. */
-  release(kind: 'sample' | 'critical', events: MechEvent[]): boolean {
-    if (this.cooldown > 0) return false;
+  /**
+   * Suelta una pieza (Muestra o Crítica) en la punta de la garra, a su altura. La Crítica sale sin
+   * empujón (con empujón rebotaba y se pasaba de la Repisa); la Muestra, con el de las ruedas
+   * (`OUTTAKE`). Suelta lo que trae en la garra (no lo del hopper).
+   */
+  release(kind: 'sample' | 'critical', events: MechEvent[], force = false): boolean {
+    if (this.cooldown > 0 && !force) return false;
+    if (kind === 'sample' && !this.inClaw) return false;
     const piece = kind === 'critical' ? this.critical : this.stored[this.stored.length - 1];
     if (!piece) return false;
     if (kind === 'critical') this.critical = null;
-    else this.stored.pop();
+    else {
+      this.stored.pop();
+      this.inClaw = false;
+    }
     const p = this.phys;
     const size = this.pieces.size(piece);
-    const at = p.localToWorld(this.tipX(size), this.height + size / 2, 0);
+    const at = p.localToWorld(this.tipX(), this.height + size / 2, 0);
     const h = p.heading();
     const v = p.body.linvel();
-    const e = this.side * EJECT_SPEED;
-    this.pieces.place(piece, at.x, at.y, at.z, h, { x: v.x + Math.cos(h) * e, y: 0, z: v.z - Math.sin(h) * e });
+    const intake = intakeOf(p.spec);
+    const out = kind === 'sample' && !force && intake.kind === 'compliant' && this.grip !== 'precise' ? intake.rollerSpeed * clawDir(this.angle, this.phys.spec.arm) : 0;
+    this.pieces.place(piece, at.x, at.y, at.z, h, { x: v.x + Math.cos(h) * out, y: 0, z: v.z - Math.sin(h) * out });
+    piece.lastRobot = p.index;
     this.cooldown = EJECT_COOLDOWN;
     events.push({ type: 'release', robot: p.index, piece: piece.index });
+    this.syncHitbox();
     return true;
   }
 
@@ -184,9 +395,15 @@ export class Mechanisms {
   clear(): void {
     this.stored.length = 0;
     this.critical = null;
+    this.inClaw = false;
     this.intakeOn = false;
     this.target = 0;
     this.height = this.phys.spec.elevatorHeights[0];
+    this.closing = null;
+    this.cooldown = 0;
+    this.jammed = false;
+    this.armScale = 1;
     this.resetArm();
+    this.syncHitbox();
   }
 }

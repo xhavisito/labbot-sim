@@ -5,6 +5,7 @@
  */
 import type { ElevatorPos } from '../config/robot';
 import { ACTIONS, loadBindings, type Action, type Bindings } from './bindings';
+import type { VersusDevice } from '../config/settings';
 
 export interface PlayerInput {
   /** −1…1 adelante/atrás. */
@@ -13,23 +14,21 @@ export interface PlayerInput {
   turn: number;
   /** Modo fino (mitad de velocidad). */
   slow: boolean;
+  /** Garra encendida mientras se mantiene presionado el botón (Xhavi, 30-oct). */
+  intake: boolean;
   // Acciones de un solo disparo (se consumen en el cuadro)
-  toggleIntake: boolean;
   elevator: ElevatorPos | null;
+  /** Suelta lo que trae en la garra (Muestra o Crítica). */
   releaseSample: boolean;
-  grabCritical: boolean;
-  releaseCritical: boolean;
 }
 
 export const emptyInput = (): PlayerInput => ({
   forward: 0,
   turn: 0,
   slow: false,
-  toggleIntake: false,
+  intake: false,
   elevator: null,
   releaseSample: false,
-  grabCritical: false,
-  releaseCritical: false,
 });
 
 /** Estado de los controles touch (lo escribe `ui/TouchControls`). */
@@ -38,10 +37,12 @@ export interface TouchState {
   turn: number;
   /** Acciones tocadas desde el último cuadro. */
   pressed: Set<Action>;
+  /** Acciones con el dedo encima ahora (las que se mantienen, como la garra). */
+  held: Set<Action>;
 }
 
-const DEADZONE = 0.15;
-const dz = (v: number): number => (Math.abs(v) < DEADZONE ? 0 : (v - Math.sign(v) * DEADZONE) / (1 - DEADZONE));
+/** Zona muerta del stick: debajo no cuenta; lo demás se reescala a 0–1. */
+export const dz = (v: number, zone = 0.15): number => (Math.abs(v) < zone ? 0 : (v - Math.sign(v) * zone) / (1 - zone));
 const ELEVATOR_ACTIONS: Array<[Action, ElevatorPos]> = [
   ['elevator0', 0],
   ['elevator1', 1],
@@ -49,6 +50,28 @@ const ELEVATOR_ACTIONS: Array<[Action, ElevatorPos]> = [
   ['elevator3', 3],
   ['elevator4', 4],
 ];
+
+/**
+ * Teclado del jugador 2 en el multijugador local (SUPUESTO de diseño: el manual no define controles).
+ * Va a la derecha del teclado; el jugador 1 conserva WASD y esas teclas dejan de contar para él.
+ */
+export const P2_KEYS: Partial<Record<Action, string[]>> = {
+  forward: ['ArrowUp'],
+  back: ['ArrowDown'],
+  left: ['ArrowLeft'],
+  right: ['ArrowRight'],
+  slow: ['ShiftRight'],
+  intake: ['Enter', 'NumpadEnter'],
+  releaseSample: ['Period', 'NumpadDecimal'],
+  elevatorUp: ['PageUp'],
+  elevatorDown: ['PageDown'],
+  elevator0: ['Numpad0'],
+  elevator1: ['Numpad1'],
+  elevator2: ['Numpad2'],
+  elevator3: ['Numpad3'],
+  elevator4: ['Numpad4'],
+};
+const P2_CODES = new Set(Object.values(P2_KEYS).flat());
 
 /** Lo que se capturó al reasignar: una tecla o un botón del control. */
 export type Captured = { device: 'keys'; code: string } | { device: 'pad'; button: number } | null;
@@ -62,7 +85,16 @@ export class InputManager {
   pause = false;
   /** Posición del elevador elegida con subir/bajar (paso a paso). */
   private elevatorPos = 0;
-  readonly touch: TouchState = { forward: 0, turn: 0, pressed: new Set() };
+  private elevatorPos2 = 0;
+  /** Multijugador local: el jugador 2 usa `P2_KEYS` y el segundo control; el jugador 1, el primero. */
+  versus = false;
+  /** Con qué controla cada jugador en 2 jugadores (`ui/VersusSetup.ts`). */
+  layout: { p1: VersusDevice; p2: VersusDevice } = { p1: 'keys1', p2: 'keys2' };
+  private padPrev2: boolean[] = [];
+  private input2 = emptyInput();
+  readonly touch: TouchState = { forward: 0, turn: 0, pressed: new Set(), held: new Set() };
+  /** Controles touch del jugador 2 (2 jugadores con `touch`: cada quien en su mitad de la pantalla). */
+  readonly touch2: TouchState = { forward: 0, turn: 0, pressed: new Set(), held: new Set() };
   /** Esperando una tecla o botón para reasignar (lo maneja el menú de Controles). */
   private capture: ((c: Captured) => void) | null = null;
 
@@ -105,11 +137,40 @@ export class InputManager {
   }
 
   private held(a: Action): boolean {
-    return this.bindings.keys[a].some((c) => this.down.has(c));
+    return this.p1Keys(a).some((c) => this.down.has(c));
+  }
+
+  /** Teclas del jugador 1 (en versus, según su dispositivo; sin teclado si usa un control). */
+  private p1Keys(a: Action): string[] {
+    return this.keyMap(this.versus ? this.layout.p1 : null)[a] ?? [];
+  }
+
+  /**
+   * Teclas de una persona: fuera de versus, las de los ajustes. En versus, el teclado WASD (`keys1`,
+   * las de los ajustes sin las de flechas), el de flechas (`keys2`) o ninguno (un control).
+   */
+  private keyMap(dev: VersusDevice | null): Partial<Record<Action, string[]>> {
+    if (!dev) return this.bindings.keys;
+    if (dev === 'keys2') return P2_KEYS;
+    if (dev === 'keys1') return Object.fromEntries(ACTIONS.map((a) => [a, this.bindings.keys[a].filter((c) => !P2_CODES.has(c))]));
+    return {};
+  }
+
+  /** Teclas de un dispositivo de 2 jugadores (para la ayuda de cada quien; vacío si es un control o touch). */
+  deviceKeys(dev: VersusDevice): Partial<Record<Action, string[]>> {
+    return this.keyMap(dev);
+  }
+
+  /** El control de una persona en versus (`pad1` = el primero, `pad2` = el segundo). */
+  private padDev(dev: VersusDevice | null): Gamepad | null {
+    if (!dev) return this.pad();
+    if (dev === 'pad1') return this.pads()[0] ?? null;
+    if (dev === 'pad2') return this.pads()[1] ?? null;
+    return null;
   }
 
   private hit(a: Action): boolean {
-    return this.bindings.keys[a].some((c) => this.pressed.has(c));
+    return this.p1Keys(a).some((c) => this.pressed.has(c));
   }
 
   private padButtons(): boolean[] {
@@ -117,9 +178,60 @@ export class InputManager {
     return pad ? pad.buttons.map((b) => b.pressed) : [];
   }
 
-  private pad(): Gamepad | null {
+  /** El primer control conectado (también lo usan los menús, `ui/padNav.ts`). */
+  pad(): Gamepad | null {
+    return this.pads()[0] ?? null;
+  }
+
+  /** Controles conectados, en orden (el segundo es del jugador 2 en versus). */
+  pads(): Gamepad[] {
     const pads = typeof navigator !== 'undefined' && navigator.getGamepads ? navigator.getGamepads() : [];
-    return [...pads].find((p): p is Gamepad => !!p && p.connected) ?? null;
+    return [...pads].filter((p): p is Gamepad => !!p && p.connected);
+  }
+
+  /** Mandos del jugador 2 leídos en el último `poll` (vacíos si no es versus). */
+  poll2(): PlayerInput {
+    return this.input2;
+  }
+
+  /** Teclado (`P2_KEYS`) y segundo control del jugador 2. */
+  private readP2(hitKeys: Set<string>): PlayerInput {
+    const inp = emptyInput();
+    const map = this.keyMap(this.layout.p2);
+    const held = (a: Action) => (map[a] ?? []).some((c) => this.down.has(c));
+    const hit = (a: Action) => (map[a] ?? []).some((c) => hitKeys.has(c));
+    inp.forward = (held('forward') ? 1 : 0) - (held('back') ? 1 : 0);
+    inp.turn = (held('left') ? 1 : 0) - (held('right') ? 1 : 0);
+    inp.slow = held('slow');
+    inp.intake = held('intake');
+    const acts = new Set<Action>();
+    for (const a of ACTIONS) if (hit(a)) acts.add(a);
+    const pad = this.padDev(this.layout.p2);
+    if (pad) {
+      const b = this.bindings;
+      const fwd = -dz(pad.axes[1] ?? 0) * (b.invertForward ? -1 : 1);
+      const turn = -dz(b.padDrive === 'split' ? (pad.axes[2] ?? 0) : (pad.axes[0] ?? 0));
+      if (Math.abs(fwd) > Math.abs(inp.forward)) inp.forward = fwd;
+      if (Math.abs(turn) > Math.abs(inp.turn)) inp.turn = turn;
+      const now = pad.buttons.map((x) => x.pressed);
+      if (b.pad.slow.some((i) => now[i])) inp.slow = true;
+      if (b.pad.intake.some((i) => now[i])) inp.intake = true;
+      for (const a of ACTIONS) if (b.pad[a].some((i) => !!now[i] && !this.padPrev2[i])) acts.add(a);
+      this.padPrev2 = now;
+    }
+    if (this.layout.p2 === 'touch') {
+      const tc = this.touch2;
+      if (Math.abs(tc.forward) > Math.abs(inp.forward)) inp.forward = tc.forward;
+      if (Math.abs(tc.turn) > Math.abs(inp.turn)) inp.turn = tc.turn;
+      if (tc.held.has('intake')) inp.intake = true;
+      for (const a of tc.pressed) acts.add(a);
+    }
+    this.touch2.pressed.clear();
+    inp.releaseSample = acts.has('releaseSample');
+    for (const [a, pos] of ELEVATOR_ACTIONS) if (acts.has(a)) inp.elevator = this.elevatorPos2 = pos;
+    if (acts.has('elevatorUp')) inp.elevator = this.elevatorPos2 = Math.min(4, this.elevatorPos2 + 1) as ElevatorPos;
+    if (acts.has('elevatorDown')) inp.elevator = this.elevatorPos2 = Math.max(0, this.elevatorPos2 - 1) as ElevatorPos;
+    return inp;
   }
 
   /** Lee el estado del cuadro y limpia las acciones de un disparo. */
@@ -130,13 +242,16 @@ export class InputManager {
       this.pollCapture();
       this.pressed.clear();
       this.touch.pressed.clear();
+      this.touch2.pressed.clear();
       this.camera = this.pause = false;
       return inp;
     }
     inp.forward = (this.held('forward') ? 1 : 0) - (this.held('back') ? 1 : 0);
     inp.turn = (this.held('left') ? 1 : 0) - (this.held('right') ? 1 : 0);
     inp.slow = this.held('slow');
+    inp.intake = this.held('intake') || this.touch.held.has('intake');
     for (const a of ACTIONS) if (this.hit(a)) hit.add(a);
+    this.input2 = this.versus ? this.readP2(this.pressed) : emptyInput();
     this.pressed.clear();
     this.pollPad(inp, hit);
     // Touch
@@ -145,10 +260,7 @@ export class InputManager {
     for (const a of this.touch.pressed) hit.add(a);
     this.touch.pressed.clear();
 
-    inp.toggleIntake = hit.has('toggleIntake');
     inp.releaseSample = hit.has('releaseSample');
-    inp.grabCritical = hit.has('grabCritical');
-    inp.releaseCritical = hit.has('releaseCritical');
     for (const [a, pos] of ELEVATOR_ACTIONS) if (hit.has(a)) inp.elevator = this.elevatorPos = pos;
     if (hit.has('elevatorUp')) inp.elevator = this.elevatorPos = Math.min(4, this.elevatorPos + 1) as ElevatorPos;
     if (hit.has('elevatorDown')) inp.elevator = this.elevatorPos = Math.max(0, this.elevatorPos - 1) as ElevatorPos;
@@ -170,12 +282,13 @@ export class InputManager {
 
   /** Suma el primer gamepad conectado: ejes según `padDrive` y botones según la asignación. */
   private pollPad(inp: PlayerInput, hit: Set<Action>): void {
-    const pad = this.pad();
+    const pad = this.padDev(this.versus ? this.layout.p1 : null);
     if (!pad) return;
     const b = this.bindings;
     const ax = pad.axes;
-    const fwd = -dz(ax[1] ?? 0) * (b.invertForward ? -1 : 1);
-    const turn = -dz(b.padDrive === 'split' ? (ax[2] ?? 0) : (ax[0] ?? 0));
+    const zone = b.padDeadzone;
+    const fwd = -dz(ax[1] ?? 0, zone) * (b.invertForward ? -1 : 1);
+    const turn = -dz(b.padDrive === 'split' ? (ax[2] ?? 0) : (ax[0] ?? 0), zone);
     if (Math.abs(fwd) > Math.abs(inp.forward)) inp.forward = fwd;
     if (Math.abs(turn) > Math.abs(inp.turn)) inp.turn = turn;
     const now = pad.buttons.map((x) => x.pressed);
@@ -187,6 +300,7 @@ export class InputManager {
     if (dpadF && !inp.forward) inp.forward = dpadF;
     if (dpadT && !inp.turn) inp.turn = dpadT;
     if (hold('slow')) inp.slow = true;
+    if (hold('intake')) inp.intake = true;
     for (const a of ACTIONS) if (btn(a)) hit.add(a);
     this.padPrev = now;
   }

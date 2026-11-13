@@ -1,25 +1,49 @@
 /**
  * Vista 3D de la cancha: alfombra, cintas (Zonas de Inicio, línea central, límite), estructuras
- * de `fieldSolids()` y mesas de las Driver Stations (decorativas).
+ * de `fieldSolids()` y mesas de las Driver Stations.
  */
 import * as THREE from 'three';
 import { ConvexGeometry } from 'three/examples/jsm/geometries/ConvexGeometry.js';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import * as F from '../config/field';
 import { fieldSolids, startTape, type FieldMaterial } from '../config/fieldLayout';
 import { ALLIANCES, type Alliance } from '../core/types';
+import { PALETTES } from '../config/palette';
+import { boxUV, carpetTexture, mdfTexture, textTexture } from './textures';
 
-export const ALLIANCE_COLOR: Record<Alliance, number> = { red: 0xc0262d, blue: 0x1d4fd6 };
+/** Color de cada alianza; `ui/a11y.ts` lo cambia en el lugar (modo daltónico) antes de armar la escena. */
+export const ALLIANCE_COLOR: Record<Alliance, number> = { ...PALETTES.normal.alliance };
 
-const MATERIALS: Record<Exclude<FieldMaterial, 'invisible'>, THREE.MeshStandardMaterial> = {
-  mdf: new THREE.MeshStandardMaterial({ color: 0xc8b49a, roughness: 0.85 }),
-  mdfDark: new THREE.MeshStandardMaterial({ color: 0xa8957c, roughness: 0.85 }),
-  gray: new THREE.MeshStandardMaterial({ color: 0x9aa0a8, roughness: 0.6 }),
-};
+type Mats = Record<Exclude<FieldMaterial, 'invisible'>, THREE.MeshStandardMaterial> & { carpet: THREE.MeshStandardMaterial };
+let mats: Mats | null = null;
+
+/** Materiales de la cancha (se crean una vez; las texturas de canvas solo existen con DOM). */
+function materials(): Mats {
+  if (mats) return mats;
+  const mdf = mdfTexture(3);
+  const mdf2 = mdfTexture(9);
+  const carpet = carpetTexture();
+  const tint = (t: unknown, c: number) => (t ? 0xffffff : c);
+  mats = {
+    mdf: new THREE.MeshStandardMaterial({ color: tint(mdf, 0xc8b49a), map: mdf?.map ?? null, bumpMap: mdf?.bump ?? null, bumpScale: 0.5, roughness: 0.78 }),
+    mdfDark: new THREE.MeshStandardMaterial({ color: mdf2 ? 0xd9cbb6 : 0xa8957c, map: mdf2?.map ?? null, bumpMap: mdf2?.bump ?? null, bumpScale: 0.5, roughness: 0.8 }),
+    // Aluminio anodizado de los marcos y la Plataforma
+    gray: new THREE.MeshStandardMaterial({ color: 0xa4abb4, roughness: 0.38, metalness: 0.7 }),
+    // Pared perimetral: policarbonato transparente (el perfil de aluminio de arriba se dibuja aparte)
+    wall: new THREE.MeshStandardMaterial({ color: 0xcfe3f2, roughness: 0.1, metalness: 0.0, transparent: true, opacity: 0.28, depthWrite: false }),
+    carpet: new THREE.MeshStandardMaterial({ color: tint(carpet, 0x2b2d31), map: carpet?.map ?? null, bumpMap: carpet?.bump ?? null, bumpScale: 0.8, roughness: 0.97 }),
+  };
+  return mats;
+}
+
+/** Un material por color de cinta (así las cintas se fusionan en pocas mallas). */
+const tapeMats = new Map<number, THREE.MeshStandardMaterial>();
+const tapeMat = (color: number) => tapeMats.get(color) ?? tapeMats.set(color, new THREE.MeshStandardMaterial({ color, roughness: 0.7 })).get(color)!;
 
 /** Segmento de cinta en el piso. */
 function tape(x0: number, z0: number, x1: number, z1: number, color: number, w = F.TAPE_WIDTH): THREE.Mesh {
   const len = Math.hypot(x1 - x0, z1 - z0) + w;
-  const m = new THREE.Mesh(new THREE.PlaneGeometry(len, w), new THREE.MeshStandardMaterial({ color, roughness: 0.7 }));
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(len, w), tapeMat(color));
   m.rotation.x = -Math.PI / 2;
   m.rotation.z = -Math.atan2(z1 - z0, x1 - x0);
   m.position.set((x0 + x1) / 2, 0.002, (z0 + z1) / 2);
@@ -31,13 +55,14 @@ export function buildFieldView(): THREE.Group {
   const g = new THREE.Group();
   g.name = 'field';
 
-  // Piso alrededor y alfombra de 9 × 7 m (§3.1)
-  const around = new THREE.Mesh(new THREE.PlaneGeometry(14, 12), new THREE.MeshStandardMaterial({ color: 0x5a5f66, roughness: 1 }));
+  const MATERIALS = materials();
+  // Alfombra de 9 × 7 m (§3.1) sobre una base gris un poco más grande (la duela es del gimnasio, Arena)
+  const around = new THREE.Mesh(new THREE.PlaneGeometry(F.FIELD_LENGTH + 2 * F.OUT_OF_BOUNDS_MARGIN, F.FIELD_WIDTH + 1.2), new THREE.MeshStandardMaterial({ color: 0x3d4148, roughness: 0.95 }));
   around.rotation.x = -Math.PI / 2;
   around.position.y = -0.002;
   around.receiveShadow = true;
   g.add(around);
-  const carpet = new THREE.Mesh(new THREE.PlaneGeometry(F.FIELD_LENGTH, F.FIELD_WIDTH), new THREE.MeshStandardMaterial({ color: 0x2b2d31, roughness: 0.95 }));
+  const carpet = new THREE.Mesh(new THREE.PlaneGeometry(F.FIELD_LENGTH, F.FIELD_WIDTH), MATERIALS.carpet);
   carpet.rotation.x = -Math.PI / 2;
   carpet.receiveShadow = true;
   g.add(carpet);
@@ -74,10 +99,25 @@ export function buildFieldView(): THREE.Group {
   for (const s of fieldSolids()) {
     if (s.material === 'invisible') continue;
     const geo = new ConvexGeometry(s.points.map(([x, y, z]) => new THREE.Vector3(x, y, z)));
+    boxUV(geo);
     const mesh = new THREE.Mesh(geo, MATERIALS[s.material]);
     mesh.castShadow = true;
     mesh.receiveShadow = true;
     mesh.name = `${s.part}${s.alliance ? `-${s.alliance}` : ''}`;
+    if (s.part === 'wall') {
+      // Transparente: no tapa la sombra; con perfil de aluminio arriba y abajo (como el guardrail FRC)
+      mesh.castShadow = false;
+      const xs = s.points.map((p) => p[0]);
+      const zs = s.points.map((p) => p[2]);
+      const [x0, x1, z0, z1] = [Math.min(...xs), Math.max(...xs), Math.min(...zs), Math.max(...zs)];
+      for (const y of [0.02, F.WALL_HEIGHT - 0.02]) {
+        const rail = new THREE.Mesh(new THREE.BoxGeometry(x1 - x0 + 0.004, 0.04, z1 - z0 + 0.004), MATERIALS.gray);
+        rail.position.set((x0 + x1) / 2, y, (z0 + z1) / 2);
+        rail.castShadow = true;
+        rail.receiveShadow = true;
+        g.add(rail);
+      }
+    }
     g.add(mesh);
   }
   // Franja del color de la alianza en la pared trasera de cada Campana, para ubicarlas
@@ -86,10 +126,16 @@ export function buildFieldView(): THREE.Group {
     const stripe = new THREE.Mesh(new THREE.BoxGeometry(F.CAMPANA_LENGTH, 0.02, 0.06), new THREE.MeshStandardMaterial({ color: ALLIANCE_COLOR[a] }));
     stripe.position.set(p.x, F.CAMPANA_HEIGHT + 0.01, p.z);
     g.add(stripe);
+    // Franja LED sobre la Campana (brilla con el bloom)
+    const led = new THREE.Mesh(new THREE.BoxGeometry(F.CAMPANA_LENGTH, 0.012, 0.02), new THREE.MeshStandardMaterial({ color: 0x000000, emissive: ALLIANCE_COLOR[a], emissiveIntensity: 2.4 }));
+    led.position.set(p.x, F.CAMPANA_HEIGHT + 0.03, p.z);
+    g.add(led);
   }
 
   // Mesas de las Driver Stations (§3.2.6), decorativas
-  const tableMat = new THREE.MeshStandardMaterial({ color: 0xb9bcc2, roughness: 0.5 });
+  const tableMat = new THREE.MeshStandardMaterial({ color: 0xb9bcc2, roughness: 0.4, metalness: 0.5 });
+  const laptopMat = new THREE.MeshStandardMaterial({ color: 0x22252b, roughness: 0.5, metalness: 0.4 });
+  const screenMat = new THREE.MeshStandardMaterial({ color: 0x111111, emissive: 0x3a6fd8, emissiveIntensity: 0.9 });
   for (const a of ALLIANCES) {
     const x = (a === 'red' ? 1 : -1) * (L + F.OUT_OF_BOUNDS_MARGIN + F.DRIVER_STATION_DEPTH / 2 + 0.2);
     const top = new THREE.Mesh(new THREE.BoxGeometry(F.DRIVER_STATION_DEPTH, 0.03, F.DRIVER_STATION_WIDTH), tableMat);
@@ -102,6 +148,58 @@ export function buildFieldView(): THREE.Group {
         leg.position.set(x + dx * (F.DRIVER_STATION_DEPTH / 2 - 0.05), 0.375, dz * (F.DRIVER_STATION_WIDTH / 2 - 0.05));
         g.add(leg);
       }
+    // Faldón con el color de la alianza, laptop y control en cada mesa
+    const skirt = new THREE.Mesh(new THREE.BoxGeometry(0.01, 0.55, F.DRIVER_STATION_WIDTH), new THREE.MeshStandardMaterial({ color: ALLIANCE_COLOR[a], roughness: 0.8 }));
+    skirt.position.set(x - Math.sign(x) * (F.DRIVER_STATION_DEPTH / 2), 0.45, 0);
+    g.add(skirt);
+    const label = textTexture(a === 'red' ? 'RED' : 'BLUE', { w: 256, h: 64, bg: '#00000000', fg: '#ffffff' });
+    if (label) {
+      const sign = new THREE.Mesh(new THREE.PlaneGeometry(0.6, 0.15), new THREE.MeshBasicMaterial({ map: label, transparent: true }));
+      sign.position.set(x - Math.sign(x) * (F.DRIVER_STATION_DEPTH / 2 + 0.006), 0.55, 0);
+      sign.rotation.y = -Math.sign(x) * Math.PI / 2;
+      g.add(sign);
+    }
+    for (const dz of [-0.3, 0.3]) {
+      const base = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.015, 0.3), laptopMat);
+      base.position.set(x, 0.775, dz);
+      const screen = new THREE.Mesh(new THREE.BoxGeometry(0.01, 0.2, 0.3), screenMat);
+      screen.position.set(x - Math.sign(x) * 0.11, 0.88, dz);
+      screen.rotation.z = -Math.sign(x) * 0.25;
+      g.add(base, screen);
+    }
   }
+
+  mergeStatic(g);
   return g;
+}
+
+/**
+ * Fusiona las mallas fijas del grupo que comparten material y sombras: la cancha pasa de ~100 draw
+ * calls a ~15 (en celulares lentos cada draw call cuesta). Nada de la cancha se mueve.
+ */
+function mergeStatic(g: THREE.Group): void {
+  g.updateMatrixWorld(true);
+  const groups = new Map<string, THREE.Mesh[]>();
+  for (const o of g.children) {
+    const m = o as THREE.Mesh;
+    if (!m.isMesh || Array.isArray(m.material)) continue;
+    const k = `${m.material.uuid}|${m.castShadow}|${m.receiveShadow}`;
+    groups.set(k, [...(groups.get(k) ?? []), m]);
+  }
+  for (const list of groups.values()) {
+    if (list.length < 2) continue;
+    const geos = list.map((m) => {
+      const geo = m.geometry.index ? m.geometry.toNonIndexed() : m.geometry.clone();
+      return geo.applyMatrix4(m.matrix);
+    });
+    const merged = mergeGeometries(geos);
+    if (!merged) continue;
+    const first = list[0];
+    const out = new THREE.Mesh(merged, first.material);
+    out.castShadow = first.castShadow;
+    out.receiveShadow = first.receiveShadow;
+    for (const m of list) g.remove(m);
+    for (const geo of new Set([...list.map((m) => m.geometry), ...geos])) geo.dispose();
+    g.add(out);
+  }
 }

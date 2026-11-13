@@ -1,0 +1,95 @@
+/**
+ * Piezas comunes de las pantallas : barra de la marca,
+ * íconos de línea propios (24×24, en lugar de emojis que se ven distinto en cada sistema) y la
+ * silueta de cada tipo de robot para el menú.
+ */
+import type { MechanismKind } from '../config/robot';
+import { getLang, t } from './i18n';
+
+/** Orden en pantalla: azul antes que rojo (pedido del equipo). Los índices de robot no cambian (0–1 rojo, 2–3 azul). */
+export const UI_ALLIANCES = ['blue', 'red'] as const;
+export const UI_SLOTS = [2, 3, 0, 1] as const;
+
+const svg = (d: string, cls = 'ic') =>
+  `<svg class="${cls}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
+
+export const ic = {
+  back: svg('<path d="M19 12H5M11 6l-6 6 6 6"/>'),
+  go: svg('<path d="M5 12h14M13 6l6 6-6 6"/>'),
+  play: svg('<path d="M7 4.5v15l12-7.5z" fill="currentColor"/>'),
+  skip: svg('<path d="M5 5.5v13l9-6.5zM18 5.5v13"/>'),
+  prevMark: svg('<path d="M19 5.5v13l-9-6.5zM6 5.5v13"/>'),
+  list: svg('<path d="M9 6h11M9 12h11M9 18h11M4 6h.01M4 12h.01M4 18h.01"/>'),
+  bolt: svg('<path d="M13 3 5 14h6l-1 7 8-11h-6z"/>'),
+  skipAll: svg('<path d="M3 5.5v13l8-6.5zM12 5.5v13l8-6.5zM21 5.5v13"/>'),
+  trophy: svg('<path d="M8 4h8v5a4 4 0 0 1-8 0z"/><path d="M8 6H5a3 3 0 0 0 3 4M16 6h3a3 3 0 0 1-3 4M12 13v4M8.5 20h7M10 17h4"/>'),
+  tv: svg('<rect x="2.5" y="5.5" width="19" height="13" rx="1.5"/><path d="M8 21.5h8M9 2.5l3 3 3-3"/>'),
+  pause: svg('<path d="M8 5v14M16 5v14" stroke-width="3"/>'),
+  reset: svg('<path d="M3.5 12a8.5 8.5 0 1 0 2.6-6.1"/><path d="M3.5 4v5h5"/>'),
+  home: svg('<path d="M3.5 11 12 4l8.5 7"/><path d="M6 9.5V20h12V9.5"/>'),
+  download: svg('<path d="M12 3.5v12M7 11l5 5 5-5M4.5 20.5h15"/>'),
+  camera: svg('<path d="M3 7.5h3l2-2.5h8l2 2.5h3v11.5H3z"/><circle cx="12" cy="13" r="3.5"/>'),
+  gamepad: svg('<path d="M7 7h10a5 5 0 0 1 4.9 6l-.8 3.6a2.3 2.3 0 0 1-4 1L15 16H9l-2.1 1.6a2.3 2.3 0 0 1-4-1L2.1 13A5 5 0 0 1 7 7z"/><path d="M7.5 10.5v3M6 12h3M15.5 11h.01M17.5 13h.01"/>'),
+  keyboard: svg('<rect x="2.5" y="6" width="19" height="12" rx="1.5"/><path d="M6 9.5h.01M9.5 9.5h.01M13 9.5h.01M16.5 9.5h.01M7.5 14.5h9"/>'),
+  touch: svg('<path d="M9 11V5.5a1.5 1.5 0 0 1 3 0V11M12 10.5V9a1.5 1.5 0 0 1 3 0v2M15 10.5a1.5 1.5 0 0 1 3 0V15a6 6 0 0 1-6 6h-.5a6 6 0 0 1-4.9-2.5L4.3 15a1.5 1.5 0 0 1 2.4-1.8L9 15.5"/>'),
+  sliders: svg('<path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/>'),
+  book: svg('<path d="M4 4.5h6a2 2 0 0 1 2 2V20a1.5 1.5 0 0 0-1.5-1.5H4z"/><path d="M20 4.5h-6a2 2 0 0 0-2 2V20a1.5 1.5 0 0 1 1.5-1.5H20z"/>'),
+  field: svg('<rect x="2.5" y="5" width="19" height="14" rx="1"/><path d="M12 5v14M2.5 9.5h3v5h-3M21.5 9.5h-3v5h3"/>'),
+  cube: svg('<path d="M12 3 20 7.5v9L12 21l-8-4.5v-9z"/><path d="M4 7.5 12 12l8-4.5M12 12v9"/>'),
+  expand: svg('<path d="M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5"/>'),
+  x: svg('<path d="M6 6l12 12M18 6 6 18"/>'),
+  check: svg('<path d="m4.5 12.5 5 5 10-11"/>'),
+  chart: svg('<path d="M4 20V10M10 20V4M16 20v-7M21.5 20.5h-19"/>'),
+  film: svg('<rect x="3" y="5" width="18" height="14" rx="1.5"/><path d="M3 9h3M3 15h3M18 9h3M18 15h3M10 9.5v5l4-2.5z"/>'),
+  clipboard: svg('<rect x="5" y="4.5" width="14" height="16.5" rx="1.5"/><path d="M9 3h6v3H9zM8.5 11h7M8.5 14.5h7M8.5 18h4"/>'),
+  phone: svg('<rect x="6.5" y="2.5" width="11" height="19" rx="2"/><path d="M12 7v7M9 11l3 3 3-3"/>'),
+  offline: svg('<path d="M7 18.5h10a4.5 4.5 0 0 0 .6-9 6 6 0 0 0-11.5 1.5A3.8 3.8 0 0 0 7 18.5z"/><path d="m9.5 13.5 2 2 3.5-4"/>'),
+  route: svg('<circle cx="5.5" cy="18.5" r="2"/><circle cx="18.5" cy="5.5" r="2"/><path d="M7.5 18.5h7a3.5 3.5 0 0 0 0-7h-5a3.5 3.5 0 0 1 0-7h7"/>'),
+  lock: svg('<rect x="5" y="10.5" width="14" height="10" rx="1.5"/><path d="M8 10.5V7.5a4 4 0 0 1 8 0v3"/>'),
+  rec: svg('<circle cx="12" cy="12" r="6.5" fill="currentColor"/>'),
+  users: svg('<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><circle cx="17" cy="9" r="2.8"/><path d="M16.5 14.2A5.5 5.5 0 0 1 21.5 20"/>'),
+  swap: svg('<path d="M7 4 3 8l4 4M3 8h14M17 20l4-4-4-4M21 16H7"/>'),
+  medal: svg('<path d="M8 3h3l1.5 5M16 3h-3l-1.5 5"/><circle cx="12" cy="15" r="5.5"/><path d="m12 12.3.9 1.8 2 .3-1.4 1.4.3 2-1.8-1-1.8 1 .3-2-1.4-1.4 2-.3z"/>'),
+};
+
+/** Barra superior con la marca; `right` = botones a la derecha. */
+export function brandbar(ctx = '', right = ''): string {
+  return `<div class="brandbar"><div class="brand"><i class="logo" aria-hidden="true"></i>LabBot<span>Rescue</span></div>${ctx ? `<div class="ctx">${ctx}</div>` : ''}<div class="grow"></div>${right}</div>`;
+}
+
+/** Selector de idioma (ES/EN) para la barra de la marca. */
+export function langChips(): string {
+  return `<button class="chipbtn ${getLang() === 'es' ? 'on' : ''}" data-lang="es">ES</button><button class="chipbtn ${getLang() === 'en' ? 'on' : ''}" data-lang="en">EN</button>`;
+}
+
+/** Botón "Volver" de la barra de acciones. */
+export function backBtn(attrs = 'data-back'): string {
+  return `<button class="btn" ${attrs}>${ic.back}<span>${t('back')}</span></button>`;
+}
+
+/** `<kbd>` por cada tecla/botón. */
+export const kbds = (labels: string[]): string => labels.map((l) => `<kbd>${l}</kbd>`).join('') || '<span class="none">–</span>';
+
+/**
+ * Silueta lateral (frente a la derecha) de cada tipo de robot, como plano: chasis 65 cm, ruedas
+ * y su mecanismo (`config/robot.ts`). Solo ilustra; no es a escala exacta.
+ */
+export function robotSilhouette(kind: MechanismKind): string {
+  const base = `<rect x="40" y="96" width="130" height="26" rx="3"/><circle cx="62" cy="126" r="11"/><circle cx="148" cy="126" r="11"/>`;
+  // Torre del eje y brazo con garra al frente
+  const post = `<path d="M110 96V70"/><circle cx="110" cy="66" r="6"/>`;
+  const mech: Record<MechanismKind, string> = {
+    pivot: `${post}<path class="hot" d="M110 66 182 34"/><path class="hot" d="M182 34l10 2M182 34l4 10"/>`,
+    // Pivote 180° (Jack in the Bot): eje bajo delante del centro; recoge atrás (gris) y voltea
+    // por arriba para soltar al frente en N1–N3
+    pivot180: `<circle cx="132" cy="92" r="6"/><path class="soft" d="M132 92 34 126M34 126l-8-6"/><path class="soft" d="M34 120A100 100 0 0 1 184 18"/><path class="hot" d="M132 92 180 20"/><path class="hot" d="M180 20l9 1M180 20l1 10"/>`,
+    // Brazo largo: eje atrás y bajo, brazo largo con garra al frente
+    longarm: `<circle cx="90" cy="70" r="6"/><path d="M90 96V70"/><path class="hot" d="M90 70 190 46"/><path class="hot" d="M190 46l10 3M190 46l5 9"/>`,
+    // Elevador: torre vertical y carro con la garra al frente
+    elevator: `<path d="M150 96V28M162 96V28"/><path class="hot" d="M150 52h40"/><path class="hot" d="M190 52l-4-7M190 52l-4 7"/>`,
+    // Doble intake: brazo corto y un hopper atrás
+    dual: `${post}<path class="hot" d="M110 66 170 40"/><path class="hot" d="M170 40l10 1M170 40l4 9"/><rect class="soft" x="46" y="70" width="30" height="26" rx="2"/>`,
+  };
+  return `<svg class="silhouette" viewBox="0 0 220 150" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+    <path class="floor" d="M10 137h200"/>${base}${mech[kind]}</svg>`;
+}
