@@ -4,6 +4,7 @@
  * brazo), botones de cámara / reacomodar / pausa, ayuda de teclas y avisos del match.
  * En práctica libre el marcador se cambia por una píldora con las Muestras anotadas.
  */
+import { canHoldCritical } from '../config/robot';
 import type { Settings } from '../config/settings';
 import { GAME } from '../config/game';
 import { bounds, formatTimer, timerSeconds } from '../core/clock';
@@ -388,7 +389,7 @@ export class Hud {
       <div class="p-hopper"><div class="p-fuel"><b>${mech.stored.length}</b><small>/${mech.capacity}</small><span>${t('stored')}</span></div>
         <div class="hbar">${Array.from({ length: mech.capacity }, (_, i) => `<i class="${i < mech.stored.length ? 'on' : ''}"></i>`).join('')}</div></div>
       <div class="chips"><span class="${mech.intakeOn ? 'on' : 'off'}">${t('intake')} ${mech.intakeOn ? t('on') : t('off')}</span>
-        <span class="${mech.critical ? 'on' : 'off'}">${t('critical')} ${mech.critical ? '■' : '–'}</span>
+        ${canHoldCritical(me.spec) ? `<span class="${mech.critical ? 'on' : 'off'}">${t('critical')} ${mech.critical ? '■' : '–'}</span>` : ''}
         <span class="${mech.inClaw ? 'on' : 'off'}">${t('claw')} ${mech.inClaw ? '■' : '–'}</span>
         <span>${t('arm')}: ${elev}</span></div>${faults.length ? `<div class="faults">${faults.map(([k, left]) => faultChip(k, left)).join('')}</div>` : ''}`;
     box.classList.toggle('damaged', faults.length > 0);

@@ -126,10 +126,11 @@ export interface CadModel {
   /** Expresión regular: piezas que toman el color de la alianza. */
   tint?: string;
   /**
-   * Expresión regular: piezas del CAD que van pegadas al brazo aunque el archivo las tenga fijas en el
-   * chasis (en Psycho, el Kraken X44 del gripper: Xhavi, 13-nov "va pegado en el gripper").
+   * Expresión regular: piezas del CAD que van con la garra (no con el brazo): llegan niveladas y la muñeca
+   * las voltea al soltar. En Psycho, la caja de la garra y el Kraken X44 del gripper (Xhavi, 13-nov: "va
+   * pegado en el gripper"; "que llegue nivelada y se voltee al soltar").
    */
-  armParts?: string;
+  clawParts?: string;
 }
 
 /**
@@ -162,6 +163,11 @@ export interface IntakeSpec {
    * la segunda detrás de ella (`seatX`).
    */
   rollers?: boolean;
+  /**
+   * Sin mecanismo para la Muestra Crítica (Psycho todavía no lo tiene, Xhavi 13-nov): no la toma, no la
+   * cuenta como suya y la IA y el HUD lo tratan así. Quitar la bandera (o ponerla en false) la vuelve a activar.
+   */
+  noCritical?: boolean;
 }
 
 /** Intake de los dos pivotes: garra con compliants, abierta 23 cm, dedos de 20 cm (D36, D37, D41). */
@@ -178,7 +184,7 @@ export const INTAKE_RANGE = {
 export const intakeOf = (s: { intake?: IntakeSpec }): IntakeSpec => s.intake ?? DEFAULT_INTAKE;
 
 /** ¿Le cabe la Muestra Crítica (200 mm, §4.1.1) entre los dedos? Si no, la IA no la intenta. */
-export const canHoldCritical = (s: { intake?: IntakeSpec }): boolean => intakeOf(s).gap >= mm(200) - 1e-9;
+export const canHoldCritical = (s: { intake?: IntakeSpec }): boolean => intakeOf(s).noCritical !== true && intakeOf(s).gap >= mm(200) - 1e-9;
 
 /**
  * Garra (la misma medida en la física y en el dibujo). SUPUESTO de diseño: dos dedos de 20 × 16 cm

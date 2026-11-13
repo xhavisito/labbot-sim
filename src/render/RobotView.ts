@@ -23,6 +23,8 @@ const wheelMat = new THREE.MeshStandardMaterial({ color: 0x141414, roughness: 0.
 const hubMat = new THREE.MeshStandardMaterial({ color: 0xe0a419, roughness: 0.35, metalness: 0.6 });
 const sampleMat = sampleMaterial();
 /** Radio de las ruedas de los rodillos de la garra (dibujo). SUPUESTO: la foto no da medida; así aprietan ~1 cm. */
+/** Cuánto voltea la muñeca la caja al soltar arriba (rad, la boca hacia abajo). */
+const WRIST_FLIP = 1.3;
 const ROLLER_R = 0.041;
 /**
  * Flechas de los rodillos de Psycho, de los valeros del CAD (`Garra-Inferior` y `Garra-Superior`, hoyos
@@ -51,7 +53,11 @@ export class RobotView {
   /** Segunda Muestra en la garra (garra con rodillos: en fila detrás de la primera, `seatX`). */
   private clawSample2: THREE.Mesh;
   /** Con el modelo del CAD la garra va rígida al brazo: su giro respecto al brazo (rad). */
-  private rigidClaw: number | null = null;
+  /** Muñeca de la garra del CAD: la caja llega nivelada y se voltea al soltar. */
+  private wrist = false;
+  private wristYaw = 0;
+  private wristPitch = 0;
+  private wristT = 0;
   /** Dibujo genérico del robot: se oculta cuando el modelo del CAD termina de cargar. */
   private generic: THREE.Object3D[] = [];
   private numPlates: THREE.Mesh[] = [];
@@ -209,25 +215,34 @@ export class RobotView {
       return; // se queda el dibujo genérico
     }
     const arm = scene.getObjectByName('brazo');
+    const claw = this.arm.getObjectByName('claw');
+    this.group.add(scene); // en la jerarquía antes de mover piezas (attach usa las matrices del mundo)
     if (arm) {
-      // Piezas que se mueven con el brazo aunque el CAD las tenga en el chasis (attach conserva su pose)
-      if (m.armParts) {
-        const re = new RegExp(m.armParts, 'i');
-        const move: THREE.Object3D[] = [];
-        scene.traverse((o) => {
-          if (o !== arm && re.test(o.name) && !move.some((x) => x.getObjectById(o.id))) {
-            for (let q = o.parent; q; q = q.parent) if (q === arm) return;
-            move.push(o);
-          }
-        });
-        scene.updateMatrixWorld(true);
-        for (const o of move) arm.attach(o);
-      }
       arm.removeFromParent();
       arm.position.set(0, 0, 0); // this.arm ya está en el pivote
       arm.rotation.z = -(m.stowAngle ?? 0); // el CAD está en la pose de guardado
-      this.rigidClaw = -(m.stowAngle ?? 0); // la garra del CAD va fija al brazo (no se nivela)
       this.arm.add(arm);
+    }
+    // La garra del CAD (y lo que lleva pegado, como su motor) va en el grupo de la garra: llega nivelada
+    // al nivel, no gira con el brazo, y una muñeca la voltea al soltar (`sync`). Se pasan con el robot en la
+    // pose de piso, donde la garra del CAD está como se modeló, para que no cambie su lugar.
+    if (m.clawParts && claw) {
+      const re = new RegExp(m.clawParts, 'i');
+      const a0 = posAngle(this.robot.spec, 0);
+      this.arm.rotation.z = a0;
+      claw.rotation.set(0, 0, -a0);
+      this.group.updateMatrixWorld(true);
+      const move: THREE.Object3D[] = [];
+      // (el brazo ya salió de `scene`: se recorren los dos)
+      for (const root of arm ? [scene, arm] : [scene])
+        root.traverse((o) => {
+          if (!re.test(o.name) || o === arm) return;
+          for (let q = o.parent; q; q = q.parent) if (move.includes(q)) return;
+          move.push(o);
+        });
+      for (const o of move) claw.attach(o);
+      claw.rotation.order = 'ZYX'; // primero la cabeceada (en z) del mundo y encima el giro de lado
+      this.wrist = true;
     }
     const tint = m.tint ? new RegExp(m.tint, 'i') : null;
     const tinted = new THREE.MeshStandardMaterial({ color, roughness: 0.4, metalness: 0.2 });
@@ -244,7 +259,6 @@ export class RobotView {
         o.receiveShadow = false;
       }
     });
-    this.group.add(scene);
     for (const g of this.generic) g.visible = false;
     // Placas con la estación: pegadas a los costados del chasis real
     for (const p of this.numPlates) p.position.z = Math.sign(p.position.z) * (width / 2 + 0.002);
@@ -301,7 +315,22 @@ export class RobotView {
       this.arm.scale.x = 1;
       if (claw) {
         claw.scale.x = 1;
-        claw.rotation.z = this.rigidClaw ?? -m.angle;
+        // Muñeca (garra del CAD): gira de lado (180°) cuando la boca cambia de lado y se voltea al soltar
+        // arriba. Sin ella, la garra solo se nivela.
+        const nowW = performance.now() / 1000;
+        const dtW = Math.min(0.1, nowW - (this.wristT || nowW));
+        this.wristT = nowW;
+        let pitch = 0;
+        if (this.wrist) {
+          const to = (cur: number, goal: number, rate: number) => cur + Math.max(-rate * dtW, Math.min(rate * dtW, goal - cur));
+          const dirNow = clawDir(m.angle, sa);
+          // La caja del CAD se modeló con la boca hacia −x
+          this.wristYaw = to(this.wristYaw, dirNow > 0 ? Math.PI : 0, 14);
+          this.wristPitch = to(this.wristPitch, m.flipT > 0 ? WRIST_FLIP : 0, 9);
+          pitch = -dirNow * this.wristPitch;
+          claw.rotation.y = this.wristYaw;
+        }
+        claw.rotation.z = -m.angle + pitch;
       }
     }
     this.palm.position.x = -clawDir(m.angle, sa) * (this.claw.fingerLength / 2 + this.claw.palmThickness / 2);
@@ -311,8 +340,8 @@ export class RobotView {
     // fotos del robot real, que muestran la caja volteada). Sin rodillos, la segunda va encima.
     const n = m.inClaw ? (sa.holdsTwo ? Math.min(2, m.stored.length) : 1) : 0;
     const rollers = intakeOf(this.robot.spec).rollers === true;
-    // Hacia dónde abre la caja en su propio sistema: el de la pose de piso si la garra va fija al brazo
-    const boxDir = this.rigidClaw !== null ? clawDir(posAngle(this.robot.spec, 0), sa) : clawDir(m.angle, sa);
+    // Hacia dónde abre la caja en su propio sistema: la del CAD se modeló con la boca hacia donde abre en el piso
+    const boxDir = this.wrist ? clawDir(posAngle(this.robot.spec, 0), sa) : clawDir(m.angle, sa);
     const seat = (k: number) => (rollers ? seatX(this.robot.spec, 0, boxDir, k) : 0);
     this.clawSample.visible = n >= 1;
     this.clawSample.position.set(seat(0), SAMPLE_SIZE * 0.475, 0);
