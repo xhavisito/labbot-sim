@@ -12,6 +12,8 @@ export interface RobotFileLike {
     intake?: Partial<NonNullable<RobotSpec['intake']>>;
     arm?: Partial<NonNullable<RobotSpec['arm']>>;
     elevatorHeights?: number[];
+    /** Altura de la pieza en el piso (CAD): reemplaza la posición 0 de `elevatorHeights`. */
+    floorHeight?: number;
   };
   supuestos?: string[];
   model?: RobotSpec['model'];
@@ -31,16 +33,19 @@ export function specFromRobotFile(f: RobotFileLike, strict = true): RobotSpec {
   if (!base) throw new Error(`archivo de robot: mecanismo desconocido "${f.mechanism}"`);
   const s = f.spec ?? {};
   for (const k of ['length', 'width', 'baseHeight'] as const) if (!finite(s[k]) || s[k]! <= 0) throw new Error(`archivo de robot: "${k}" inválido`);
+  const { floorHeight, ...rest } = s;
+  const heights = (s.elevatorHeights as RobotSpec['elevatorHeights'] | undefined) ?? [...base.elevatorHeights];
+  if (finite(floorHeight)) heights[0] = floorHeight;
   const spec: RobotSpec = {
     ...base,
-    ...s,
+    ...rest,
     name: f.name ?? base.name,
     label: f.name ?? base.label,
     model: f.model,
     mechanism: mech,
     intake: s.intake ? { ...DEFAULT_INTAKE, ...base.intake, ...s.intake } : base.intake,
     arm: { ...base.arm, ...s.arm },
-    elevatorHeights: (s.elevatorHeights as RobotSpec['elevatorHeights'] | undefined) ?? base.elevatorHeights,
+    elevatorHeights: heights as RobotSpec['elevatorHeights'],
   };
   if (spec.elevatorHeights.length !== 5 || !spec.elevatorHeights.every(finite)) throw new Error('archivo de robot: elevatorHeights debe tener 5 números');
   const problems = strict ? validateRobot(spec) : [];

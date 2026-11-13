@@ -29,7 +29,12 @@ export interface RobotFileSpec {
   capacity?: number;
   elevatorSpeed?: number;
   elevatorHeights?: number[];
-  arm?: { pivotX: number; pivotY: number; length: number; speed?: number; stowAngle?: number };
+  arm?: { pivotX: number; pivotY: number; length: number; speed?: number; stowAngle?: number; pickBack?: boolean; holdsTwo?: boolean };
+  /** Altura (m) de la pieza al recogerla del piso: la de la garra sobre el piso en la pose del CAD. */
+  floorHeight?: number;
+  intake?: { gap?: number; fingerLength?: number };
+  /** Huella del chasis en el piso (cajas [x0, x1, z0, z1] del robot, m): lo hueco deja pasar Muestras. */
+  footprint?: [number, number, number, number][];
   maxSpeed?: number;
   maxAccel?: number;
   maxOmega?: number;
@@ -104,6 +109,8 @@ export function analyzeStep(model: StepModel, opts: AnalyzeOptions = {}, file?: 
   const u = IDX[up];
   const horiz = [0, 1, 2].filter((i) => i !== u);
 
+  const mech0 = opts.mechanism ?? (elev.length && !arm.length ? 'elevator' : 'pivot');
+
   // Frente
   let f: number;
   let fSign: 1 | -1;
@@ -116,8 +123,11 @@ export function analyzeStep(model: StepModel, opts: AnalyzeOptions = {}, file?: 
     f = ext(chassis, horiz[0]) >= ext(chassis, horiz[1]) ? horiz[0] : horiz[1];
     const ref = union(claw.length ? claw : arm);
     const cc = (chassis.min[f] + chassis.max[f]) / 2;
-    fSign = ref && (ref.min[f] + ref.max[f]) / 2 < cc ? -1 : 1;
-    supuestos.push(`frente detectado como ${fSign < 0 ? '-' : '+'}${'xyz'[f]}; usa --forward para fijarlo`);
+    const toRef = ref && (ref.min[f] + ref.max[f]) / 2 < cc ? -1 : 1; // hacia dónde queda la garra
+    // Con garra y brazo, el robot anota del lado opuesto a donde recoge (el frente es el de anotar; la garra
+    // recoge atrás: `pickBack`, el mismo caso del Pivote 180°)
+    fSign = (claw.length && mech0 !== 'elevator' ? -toRef : toRef) as 1 | -1;
+    supuestos.push(`frente detectado como ${fSign < 0 ? '-' : '+'}${'xyz'[f]} (lado donde anota, opuesto a la garra); usa --forward para fijarlo`);
   }
   const l = horiz.find((i) => i !== f) as number;
 
@@ -134,6 +144,16 @@ export function analyzeStep(model: StepModel, opts: AnalyzeOptions = {}, file?: 
     return [b.min[i] - floor, b.max[i] - floor];
   };
 
+  // Sistema del robot: p' = ((p − origin)·ex, ·ey, ·ez)
+  const unit = (i: number, sg = 1): Vec3 => [0, 1, 2].map((k) => (k === i ? sg : 0)) as Vec3;
+  const ex = unit(f, fSign);
+  const ey = unit(u);
+  const ez: Vec3 = [ex[1] * ey[2] - ex[2] * ey[1], ex[2] * ey[0] - ex[0] * ey[2], ex[0] * ey[1] - ex[1] * ey[0]];
+  const origin: Vec3 = [0, 0, 0];
+  origin[f] = cF;
+  origin[l] = (chassis.min[l] + chassis.max[l]) / 2;
+  origin[u] = floor;
+
   const length = ext(chassis, f);
   const width = ext(chassis, l);
   // Estructura fija: todo menos la garra y el brazo móvil ("Brazo-…"); incluye la torre del pivote
@@ -145,24 +165,91 @@ export function analyzeStep(model: StepModel, opts: AnalyzeOptions = {}, file?: 
 
   const spec: RobotFileSpec = { length: r4(length), width: r4(width), baseHeight: r4(baseHeight) };
 
+
+  // Huella del chasis: cajas (en una rejilla de 2 cm) que cubren las piezas del chasis; lo hueco (el canal
+  // entre los rieles de la garra) queda libre para que pasen las Muestras
+  {
+    const CELL = 0.02;
+    const nx = Math.ceil(length / CELL);
+    const nz = Math.ceil(width / CELL);
+    const rects: [number, number, number, number][] = [];
+    for (const p of chassisParts) {
+      const xs: number[] = [];
+      const zs: number[] = [];
+      for (const cx of [p.box.min[0], p.box.max[0]])
+        for (const cy of [p.box.min[1], p.box.max[1]])
+          for (const cz of [p.box.min[2], p.box.max[2]]) {
+            const d: Vec3 = [cx - origin[0], cy - origin[1], cz - origin[2]];
+            xs.push(d[0] * ex[0] + d[1] * ex[1] + d[2] * ex[2]);
+            zs.push(d[0] * ez[0] + d[1] * ez[1] + d[2] * ez[2]);
+          }
+      rects.push([Math.min(...xs), Math.max(...xs), Math.min(...zs), Math.max(...zs)]);
+    }
+    const occ = (i: number, j: number): boolean => {
+      const x0 = -length / 2 + i * CELL;
+      const z0 = -width / 2 + j * CELL;
+      return rects.some((r) => r[0] < x0 + CELL - 1e-6 && r[1] > x0 + 1e-6 && r[2] < z0 + CELL - 1e-6 && r[3] > z0 + 1e-6);
+    };
+    // Corridas por fila y unión de filas iguales
+    type Run = { j0: number; j1: number };
+    const open: Map<string, { i0: number; run: Run }> = new Map();
+    const out: [number, number, number, number][] = [];
+    const flush = (key: string, i1: number): void => {
+      const o = open.get(key)!;
+      out.push([r4(-length / 2 + o.i0 * CELL), r4(Math.min(length / 2, -length / 2 + i1 * CELL)), r4(-width / 2 + o.run.j0 * CELL), r4(Math.min(width / 2, -width / 2 + (o.run.j1 + 1) * CELL))]);
+      open.delete(key);
+    };
+    for (let i = 0; i <= nx; i++) {
+      const runs: Run[] = [];
+      if (i < nx) for (let j = 0; j < nz; j++) if (occ(i, j)) {
+        const last = runs[runs.length - 1];
+        if (last && last.j1 === j - 1) last.j1 = j;
+        else runs.push({ j0: j, j1: j });
+      }
+      const keys = new Set(runs.map((r) => `${r.j0}-${r.j1}`));
+      for (const k of [...open.keys()]) if (!keys.has(k)) flush(k, i);
+      for (const r of runs) {
+        const k = `${r.j0}-${r.j1}`;
+        if (!open.has(k)) open.set(k, { i0: i, run: r });
+      }
+    }
+    if (out.length) spec.footprint = out;
+  }
+
   const clawBox = union(claw);
 
   if (mech !== 'elevator') {
     const armBox = union(arm);
     const shaft = union(shafts);
     if (shaft && clawBox) {
-      // Pivote = centro de la flecha; el largo llega al centro de la garra (donde queda la pieza)
+      // Pivote = centro de la flecha. La pieza descansa sobre la placa baja de la garra ("Garra-Inferior"):
+      // la punta del brazo es el centro de esa placa, a la altura de su cara de arriba
+      const floorPlate = claw.filter((p) => /^garra-inferior/i.test(p.name));
+      const tipBox = union(floorPlate.length ? floorPlate : claw) as Box;
       const [s0, s1] = range(shaft, f);
       const [t0, t1] = range(shaft, u);
-      const [c0, c1] = range(clawBox, f);
-      const [d0, d1] = range(clawBox, u);
+      const [c0, c1] = range(tipBox, f);
+      const [, d1] = range(tipBox, u);
       const px = (s0 + s1) / 2;
       const py = (t0 + t1) / 2;
-      const len = Math.hypot((c0 + c1) / 2 - px, (d0 + d1) / 2 - py);
-      // El CAD está en la pose guardada: el ángulo del brazo ahí es el de guardado (§4.1)
-      const stow = Math.atan2((d0 + d1) / 2 - py, (c0 + c1) / 2 - px);
+      const tipF = (c0 + c1) / 2;
+      const tipH = floorPlate.length ? d1 : ((range(clawBox, u)[0] + range(clawBox, u)[1]) / 2);
+      const len = Math.hypot(tipF - px, tipH - py);
+      // El CAD está en la pose de piso (la garra apoyada): ese ángulo es el de guardado (§4.1) y el del piso
+      const stow = Math.atan2(tipH - py, tipF - px);
       spec.arm = { pivotX: r4(px), pivotY: r4(py), length: r4(len), speed: 4, stowAngle: r4(stow) };
-      supuestos.push('pivote = centro de la flecha; largo del brazo = del pivote al centro de la garra; ángulo de guardado = el del CAD; velocidad angular 4 rad/s (SUPUESTO)');
+      spec.floorHeight = r4(tipH);
+      if (Math.cos(stow) < 0) spec.arm.pickBack = true;
+      supuestos.push('pivote = centro de la flecha; la punta es el centro de la placa baja de la garra; ángulo de guardado y de piso = el del CAD; velocidad angular 4 rad/s (SUPUESTO)');
+      if (spec.arm.pickBack) supuestos.push('la garra queda atrás del frente (pickBack): recoge de reversa y el brazo voltea para anotar al frente');
+      // Caja de la garra: si entran dos Muestras (150 mm, §4.1.1) lado a lado, lleva dos a la vez
+      const inner = ext(clawBox, l) - 0.012;
+      spec.intake = { gap: r4(inner), fingerLength: r4(ext(tipBox, f)) };
+      if (inner >= 2 * 0.15) {
+        spec.capacity = 2;
+        spec.arm.holdsTwo = true;
+        supuestos.push(`la garra mide ${r4(inner)} m por dentro: caben dos Muestras lado a lado (capacidad 2)`);
+      }
     } else if (armBox) {
       const [a0, a1] = range(armBox, f);
       const [h0, h1] = range(armBox, u);
@@ -191,14 +278,6 @@ export function analyzeStep(model: StepModel, opts: AnalyzeOptions = {}, file?: 
   for (const [k, v] of Object.entries(opts.overrides ?? {})) setPath(spec as unknown as Record<string, unknown>, k, v);
   if (opts.overrides && Object.keys(opts.overrides).length) supuestos.push(`valores fijados a mano: ${Object.keys(opts.overrides).join(', ')}`);
 
-  const unit = (i: number, sg = 1): Vec3 => [0, 1, 2].map((k) => (k === i ? sg : 0)) as Vec3;
-  const ex = unit(f, fSign);
-  const ey = unit(u);
-  const ez: Vec3 = [ex[1] * ey[2] - ex[2] * ey[1], ex[2] * ey[0] - ex[0] * ey[2], ex[0] * ey[1] - ex[1] * ey[0]];
-  const origin: Vec3 = [0, 0, 0];
-  origin[f] = cF;
-  origin[l] = (chassis.min[l] + chassis.max[l]) / 2;
-  origin[u] = floor;
   return {
     schema: 'labbot-robot/1',
     name: opts.name ?? file?.replace(/^.*[\\/]/, '').replace(/\.(step|stp)$/i, '') ?? 'Robot CAD',

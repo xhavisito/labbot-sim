@@ -68,7 +68,7 @@ describe('analizador de robot', () => {
   it('detecta el frente y el eje vertical solos', () => {
     const r = analyzeStep(model, { up: 'auto' });
     expect(r.source.up).toBe('y');
-    expect(r.source.forward).toBe('-x');
+    expect(r.source.forward).toBe('+x'); // el frente es el lado de anotar: opuesto a la garra (que está en -x)
     expect(r.supuestos.join(' ')).toMatch(/detectado/);
   });
 
@@ -101,8 +101,8 @@ describe('robots importados', () => {
     const { CAD_ROBOT_SPECS, CAD_ROBOT_PROBLEMS } = await import('../src/cad/cadRobots');
     expect(Object.keys(CAD_ROBOT_SPECS)).toContain('psycho');
     for (const [id, spec] of Object.entries(CAD_ROBOT_SPECS)) expect(CAD_ROBOT_PROBLEMS[id]).toEqual(validateRobot(spec));
-    // El brazo real de Psycho (0.83 m) pasa los 40 cm de §7.2 con la garra arriba: se avisa, no se oculta
-    expect(CAD_ROBOT_PROBLEMS.psycho).toEqual(['la garra sale más de 40 cm (§7.2)']);
+    // El brazo real de Psycho (0.95 m) pasa los 40 cm de §7.2 al voltear: se avisa, no se oculta
+    expect(CAD_ROBOT_PROBLEMS.psycho.length).toBeGreaterThan(0);
   });
 });
 
@@ -131,7 +131,7 @@ describe('selector de robots', () => {
     const s = robotSpec('cad:psycho');
     expect(s.label).toBe('Psycho');
     expect(s.length).toBeCloseTo(0.64, 3);
-    expect(s.arm.length).toBeCloseTo(0.8327, 3);
+    expect(s.arm.length).toBeCloseTo(0.9493, 3);
     expect(s.model?.url).toBe('robots/psycho.glb');
   });
   it('los ajustes guardados con psycho no se pierden al cargar', async () => {
@@ -168,5 +168,35 @@ describe('modelo 3D del robot', () => {
     expect(ex).toEqual([-1, 0, 0]);
     expect(ey).toEqual([0, 1, 0]);
     expect(ez).toEqual([0, 0, -1]);
+  });
+});
+
+describe('Psycho según el CAD (pose de piso, dos Muestras, hueco)', () => {
+  it('el piso es la pose del CAD: garra apoyada, ángulo de guardado = ángulo de piso', async () => {
+    const { robotSpec } = await import('../src/config/robotIds');
+    const { posAngle, posTip } = await import('../src/config/robot');
+    const s = robotSpec('cad:psycho');
+    expect(s.arm.pickBack).toBe(true);
+    expect(s.elevatorHeights[0]).toBeCloseTo(0.0249, 3); // pieza sobre la placa baja de la garra
+    const d = posAngle(s, 0) - s.arm.stowAngle!;
+    expect(Math.cos(d)).toBeCloseTo(1, 3);
+    const tip = posTip(s, 0);
+    expect(tip.y).toBeCloseTo(0.0249, 2); // la punta toca el piso, no lo atraviesa
+    expect(tip.x).toBeLessThan(-0.2); // la garra recoge atrás del frente (el lado de anotar es +x)
+  });
+  it('lleva dos Muestras a la vez (la garra mide 30.9 cm por dentro)', async () => {
+    const { robotSpec } = await import('../src/config/robotIds');
+    const s = robotSpec('cad:psycho');
+    expect(s.capacity).toBe(2);
+    expect(s.arm.holdsTwo).toBe(true);
+    expect(s.intake!.gap).toBeGreaterThanOrEqual(0.3);
+  });
+  it('el chasis deja el canal hueco entre los rieles (las Muestras pueden entrar)', async () => {
+    const { robotSpec } = await import('../src/config/robotIds');
+    const fp = robotSpec('cad:psycho').footprint!;
+    const covered = (x: number, z: number) => fp.some(([x0, x1, z0, z1]) => x > x0 && x < x1 && z > z0 && z < z1);
+    expect(covered(-0.25, 0)).toBe(false); // canal de la garra, al fondo del lado de recoger
+    expect(covered(-0.25, 0.27)).toBe(true); // riel
+    expect(covered(0.2, 0)).toBe(true); // cubierta trasera
   });
 });

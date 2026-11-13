@@ -6,20 +6,72 @@
     "length": 0.64,
     "width": 0.64,
     "baseHeight": 0.975,
+    "footprint": [
+      [
+        -0.32,
+        -0.18,
+        -0.32,
+        -0.22
+      ],
+      [
+        -0.32,
+        -0.18,
+        0.22,
+        0.32
+      ],
+      [
+        -0.18,
+        -0.04,
+        -0.32,
+        -0.3
+      ],
+      [
+        -0.18,
+        -0.04,
+        -0.26,
+        -0.22
+      ],
+      [
+        -0.18,
+        -0.04,
+        0.22,
+        0.26
+      ],
+      [
+        -0.18,
+        -0.04,
+        0.3,
+        0.32
+      ],
+      [
+        -0.04,
+        0.32,
+        -0.32,
+        0.32
+      ]
+    ],
     "arm": {
-      "pivotX": -0.1511,
+      "pivotX": 0.1511,
       "pivotY": 0.9,
-      "length": 0.8327,
+      "length": 0.9493,
       "speed": 4,
-      "stowAngle": -1.1567
+      "stowAngle": -1.9687,
+      "pickBack": true,
+      "holdsTwo": true
     },
+    "floorHeight": 0.0249,
+    "intake": {
+      "gap": 0.309,
+      "fingerLength": 0.2551
+    },
+    "capacity": 2,
     "massKg": 40
   },
   "source": {
     "file": "EnsambleGeneral.STEP",
     "parts": 114,
     "up": "y",
-    "forward": "-x",
+    "forward": "+x",
     "unitScale": 0.001,
     "bboxM": [
       0.6642,
@@ -29,14 +81,16 @@
   },
   "supuestos": [
     "eje vertical y (convención de SolidWorks); usa --up para cambiarlo",
-    "frente detectado como -x; usa --forward para fijarlo",
+    "frente detectado como +x (lado donde anota, opuesto a la garra); usa --forward para fijarlo",
     "mecanismo \"pivot\" deducido de los nombres de las piezas",
-    "pivote = centro de la flecha; largo del brazo = del pivote al centro de la garra; ángulo de guardado = el del CAD; velocidad angular 4 rad/s (SUPUESTO)",
+    "pivote = centro de la flecha; la punta es el centro de la placa baja de la garra; ángulo de guardado y de piso = el del CAD; velocidad angular 4 rad/s (SUPUESTO)",
+    "la garra queda atrás del frente (pickBack): recoge de reversa y el brazo voltea para anotar al frente",
+    "la garra mide 0.309 m por dentro: caben dos Muestras lado a lado (capacidad 2)",
     "velocidades y tracción del preset (el manual no las fija, §7.2)"
   ],
   "model": {
     "url": "robots/psycho.glb",
-    "stowAngle": -1.1567,
+    "stowAngle": -1.9687,
     "tint": "^Chasis-(Frontal|Trasero)"
   }
 }

@@ -53,6 +53,11 @@ export interface ArmSpec {
   /** Segundos con la garra en la boca del hopper para pasar una Muestra. */
   transferTime?: number;
   /**
+   * La garra misma lleva hasta `capacity` Muestras a la vez (una caja ancha que las recibe lado a lado):
+   * no hay hopper ni paso; sigue agarrando mientras quepa otra y suelta de una en una.
+   */
+  holdsTwo?: boolean;
+  /**
    * Recoge atrás: el piso (0) y la posición 4 (Crítica y Repisa) quedan detrás del robot y en N1–N3
    * el brazo voltea por arriba para soltar al frente.
    */
@@ -104,6 +109,11 @@ export interface RobotSpec {
   intake?: IntakeSpec;
   /** Modelo 3D del CAD (`npm run robot:import`): se dibuja en lugar del robot genérico. */
   model?: CadModel;
+  /**
+   * Huella del chasis en el piso: cajas `[x0, x1, z0, z1]` (m, sistema del robot). Sin ella, una caja
+   * `length × width`. Con ella lo hueco (un canal entre rieles) deja pasar Muestras.
+   */
+  footprint?: ReadonlyArray<readonly [number, number, number, number]>;
 }
 
 /**
@@ -373,7 +383,7 @@ export function validateRobot(s: RobotSpec, pieceSize = mm(200)): string[] {
   if (st.x + half > s.length / 2 + 1e-9 || st.x - half < -s.length / 2 - 1e-9 || st.y + mm(150) > ROBOT_LIMITS.maxHeight + 1e-9)
     out.push('el brazo guardado no cabe en el perímetro al inicio (§4.1)');
   // Con hopper (capacidad > 1) el brazo pasa por arriba con una Muestra cada vez que la guarda (D24)
-  if (s.capacity > 1) {
+  if (s.capacity > 1 && !s.arm.holdsTwo) {
     if (s.arm.pivotY + s.arm.length + mm(150) > ROBOT_LIMITS.maxHeight + 1e-9) out.push('el brazo con la Muestra pasa de 100 cm al pasar por arriba (§7.2)');
     const ht = armTip(s.arm, s.arm.hopperAngle ?? Math.PI);
     if (-ht.x + half - s.length / 2 > ROBOT_LIMITS.maxExtension + 1e-9) out.push('la boca del hopper deja la garra más de 40 cm atrás (§7.2)');
