@@ -2,14 +2,14 @@
  * Robots generados desde CAD (`npm run robot:import`): archivos `robots/*.robot.json` que se mezclan
  * sobre el preset de su mecanismo y se validan con los límites del manual (§7.2).
  */
-import { ROBOT_PRESETS, validateRobot, type MechanismKind, type RobotSpec } from './robot';
+import { DEFAULT_INTAKE, ROBOT_PRESETS, validateRobot, type MechanismKind, type RobotSpec } from './robot';
 
 export interface RobotFileLike {
   schema?: string;
   name?: string;
   mechanism?: string;
   spec?: Partial<Omit<RobotSpec, 'intake' | 'arm' | 'elevatorHeights'>> & {
-    intake?: Partial<RobotSpec['intake']>;
+    intake?: Partial<NonNullable<RobotSpec['intake']>>;
     arm?: Partial<NonNullable<RobotSpec['arm']>>;
     elevatorHeights?: number[];
   };
@@ -31,8 +31,8 @@ export function specFromRobotFile(f: RobotFileLike): RobotSpec {
     ...s,
     name: f.name ?? base.name,
     mechanism: mech,
-    intake: { ...base.intake, ...s.intake },
-    arm: base.arm || s.arm ? ({ ...base.arm, ...s.arm } as NonNullable<RobotSpec['arm']>) : undefined,
+    intake: s.intake ? { ...DEFAULT_INTAKE, ...base.intake, ...s.intake } : base.intake,
+    arm: { ...base.arm, ...s.arm },
     elevatorHeights: (s.elevatorHeights as RobotSpec['elevatorHeights'] | undefined) ?? base.elevatorHeights,
   };
   if (spec.elevatorHeights.length !== 5 || !spec.elevatorHeights.every(finite)) throw new Error('archivo de robot: elevatorHeights debe tener 5 números');

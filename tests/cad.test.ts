@@ -11,7 +11,7 @@ describe('lector STEP', () => {
 
   it('encuentra las piezas del ensamble y la unidad (mm → m)', () => {
     expect(model.unitScale).toBe(1e-3);
-    expect(model.parts.map((p) => p.name).sort()).toEqual(['Chasis', 'Garra', 'Pivote-Brazo']);
+    expect(model.parts.map((p) => p.name).sort()).toEqual(['Chasis', 'Flecha 25cm', 'Garra', 'Pivote-Brazo']);
     expect(model.parts[0].path.startsWith('EnsambleGeneral/')).toBe(true);
   });
 
@@ -21,7 +21,7 @@ describe('lector STEP', () => {
     expect(arm.max[0]).toBeCloseTo(0.55, 6);
     expect(arm.min[1]).toBeCloseTo(0.45, 6);
     const claw = byName('Garra').box;
-    expect(claw.max[0]).toBeCloseTo(0.65, 6);
+    expect(claw.max[0]).toBeCloseTo(-0.15, 6);
   });
 
   it('incluye el radio de los círculos (ruedas con un solo vértice)', () => {
@@ -50,11 +50,11 @@ describe('analizador de robot', () => {
     expect(r.mechanism).toBe('pivot');
     expect(r.spec.length).toBeCloseTo(0.6, 4);
     expect(r.spec.width).toBeCloseTo(0.6, 4);
-    expect(r.spec.baseHeight).toBeCloseTo(0.15, 4);
+    expect(r.spec.baseHeight).toBeCloseTo(0.46, 4); // chasis + flecha (el brazo y la garra se mueven)
     expect(r.spec.massKg).toBe(38);
-    expect(r.spec.intake?.extension).toBeCloseTo(0.35, 4); // garra sale hasta x=0.65, chasis hasta 0.30
-    expect(r.spec.intake?.width).toBeCloseTo(0.15, 4);
-    expect(r.spec.arm).toMatchObject({ pivotX: -0.05, pivotY: 0.45, length: 0.6 });
+    expect(r.spec.arm).toMatchObject({ pivotX: -0.05, pivotY: 0.45 });
+    expect(r.spec.arm?.length).toBeCloseTo(Math.hypot(0.15, 0.32), 3);
+    expect(r.spec.arm?.stowAngle).toBeCloseTo(Math.atan2(-0.32, -0.15), 3);;
     expect(r.supuestos.some((s) => /masa/.test(s))).toBe(false);
   });
 
@@ -62,19 +62,19 @@ describe('analizador de robot', () => {
     const spec = specFromRobotFile(analyzeStep(model, { name: 'Psycho', forward: '+x' }));
     expect(validateRobot(spec)).toEqual([]);
     expect(spec.mechanism).toBe('pivot');
-    expect(spec.capacity).toBe(1);
+    expect(spec.arm.stowAngle).toBeDefined();
   });
 
   it('detecta el frente y el eje vertical solos', () => {
     const r = analyzeStep(model, { up: 'auto' });
     expect(r.source.up).toBe('y');
-    expect(r.source.forward).toBe('+x');
+    expect(r.source.forward).toBe('-x');
     expect(r.supuestos.join(' ')).toMatch(/detectado/);
   });
 
   it('si el frente es el contrario, se refleja', () => {
     const r = analyzeStep(model, { forward: '-x' });
-    expect(r.spec.arm?.pivotX).toBeCloseTo(-0.55, 4); // el extremo "trasero" del brazo ahora es el de x=+0.55... del lado opuesto
+    expect(r.spec.arm?.pivotX).toBeCloseTo(0.05, 4); // el frente es -x: el pivote queda 5 cm "delante" del centro
   });
 
   it('los overrides se aplican y quedan anotados', () => {
@@ -87,7 +87,7 @@ describe('analizador de robot', () => {
 
 describe('archivo de robot', () => {
   it('rechaza robots que se pasan del manual', () => {
-    const f = { schema: 'labbot-robot/1', mechanism: 'generic', name: 'Gigante', spec: { length: 0.9, width: 0.6, baseHeight: 0.4 } };
+    const f = { schema: 'labbot-robot/1', mechanism: 'pivot', name: 'Gigante', spec: { length: 0.9, width: 0.6, baseHeight: 0.4 } };
     expect(() => specFromRobotFile(f)).toThrow(/65/);
   });
   it('rechaza esquema o mecanismo desconocidos', () => {

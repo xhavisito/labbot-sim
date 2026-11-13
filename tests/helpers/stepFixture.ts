@@ -90,7 +90,7 @@ export function buildStep(root: string, parts: FixturePart[], unit: 'MM' | 'IN' 
 
 /**
  * Robot de ejemplo (mm, Y arriba, frente +X): chasis 600×600×100 sobre ruedas de r=50 (piso en y=0,
- * ruedas centradas en el eje Z a ±250), un brazo pivote y una garra al frente.
+ * ruedas centradas en el eje Z a ±250), un brazo, la flecha del pivote y la garra guardada abajo, dentro del perímetro.
  * Eje del archivo: x = adelante, y = arriba, z = lateral. La caja del chasis va de z=-300 a 300.
  */
 export function sampleRobotStep(unit: 'MM' | 'IN' = 'MM'): string {
@@ -99,7 +99,8 @@ export function sampleRobotStep(unit: 'MM' | 'IN' = 'MM'): string {
     [
       { name: 'Chasis', boxes: [[-300, 50, -300, 300, 150, 300]], at: [0, 0, 0], wheels: [{ c: [-200, 50, 280], r: 50 }, { c: [200, 50, 280], r: 50 }] },
       { name: 'Pivote-Brazo', boxes: [[0, 0, -20, 600, 40, 20]], at: [-50, 450, 0] },
-      { name: 'Garra', boxes: [[0, 0, -75, 100, 60, 75]], at: [550, 410, 0] },
+      { name: 'Flecha 25cm', boxes: [[0, 0, -125, 20, 20, 125]], at: [-60, 440, 0] },
+      { name: 'Garra', boxes: [[0, 0, -75, 100, 60, 75]], at: [-250, 100, 0] },
     ],
     unit,
   );

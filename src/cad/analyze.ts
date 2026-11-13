@@ -5,6 +5,8 @@
  */
 import type { Box, StepModel, StepPart, Vec3 } from './step.ts';
 
+/** Mismos nombres que `MechanismKind` (src/config/robot.ts); aquí no se importa para correr en Node. */
+export type MechanismName = 'pivot' | 'pivot180' | 'longarm' | 'elevator' | 'dual';
 export type Axis = 'x' | 'y' | 'z';
 export interface AnalyzeOptions {
   name?: string;
@@ -12,7 +14,7 @@ export interface AnalyzeOptions {
   up?: Axis | 'auto';
   /** Eje hacia el frente del robot, con signo ('+x', '-z'…) o 'auto' (hacia donde sale la garra). */
   forward?: `${'+' | '-'}${Axis}` | 'auto';
-  mechanism?: 'generic' | 'elevator' | 'pivot';
+  mechanism?: MechanismName;
   massKg?: number;
   /** Se mezclan al final sobre la especificación (rutas con punto: "arm.pivotY"). */
   overrides?: Record<string, number>;
@@ -24,12 +26,10 @@ export interface RobotFileSpec {
   width: number;
   baseHeight: number;
   massKg?: number;
-  intake?: { extension?: number; width?: number };
-  reach?: number;
   capacity?: number;
   elevatorSpeed?: number;
   elevatorHeights?: number[];
-  arm?: { pivotX: number; pivotY: number; length: number; speed?: number };
+  arm?: { pivotX: number; pivotY: number; length: number; speed?: number; stowAngle?: number };
   maxSpeed?: number;
   maxAccel?: number;
   maxOmega?: number;
@@ -39,7 +39,7 @@ export interface RobotFileSpec {
 export interface RobotFile {
   schema: 'labbot-robot/1';
   name: string;
-  mechanism: 'generic' | 'elevator' | 'pivot';
+  mechanism: MechanismName;
   spec: RobotFileSpec;
   source: { file?: string; parts: number; up: Axis; forward: string; unitScale: number; bboxM: [number, number, number] };
   supuestos: string[];
@@ -135,20 +135,15 @@ export function analyzeStep(model: StepModel, opts: AnalyzeOptions = {}, file?: 
   // Estructura fija: todo menos la garra y el brazo móvil ("Brazo-…"); incluye la torre del pivote
   const fixedBox = union(parts.filter((p) => !claw.includes(p) && !/brazo|^arm/i.test(p.name))) ?? chassis;
   const baseHeight = fixedBox.max[u] - floor;
-  const [, chassisFront] = range(chassis, f);
 
-  const mech = opts.mechanism ?? (arm.length ? 'pivot' : elev.length ? 'elevator' : 'generic');
+  const mech: MechanismName = opts.mechanism ?? (elev.length && !arm.length ? 'elevator' : 'pivot');
   if (!opts.mechanism) supuestos.push(`mecanismo "${mech}" deducido de los nombres de las piezas`);
 
   const spec: RobotFileSpec = { length: r4(length), width: r4(width), baseHeight: r4(baseHeight) };
 
   const clawBox = union(claw);
-  if (clawBox) {
-    const [, front] = range(clawBox, f);
-    spec.intake = { extension: r4(Math.max(0, front - chassisFront)), width: r4(ext(clawBox, l)) };
-  }
 
-  if (mech === 'pivot') {
+  if (mech !== 'elevator') {
     const armBox = union(arm);
     const shaft = union(shafts);
     if (shaft && clawBox) {
@@ -160,10 +155,10 @@ export function analyzeStep(model: StepModel, opts: AnalyzeOptions = {}, file?: 
       const px = (s0 + s1) / 2;
       const py = (t0 + t1) / 2;
       const len = Math.hypot((c0 + c1) / 2 - px, (d0 + d1) / 2 - py);
-      spec.arm = { pivotX: r4(px), pivotY: r4(py), length: r4(len), speed: 4 };
-      spec.capacity = 1;
-      spec.reach = 0;
-      supuestos.push('pivote = centro de la flecha; largo del brazo = del pivote al centro de la garra; velocidad angular 4 rad/s (SUPUESTO)');
+      // El CAD está en la pose guardada: el ángulo del brazo ahí es el de guardado (§4.1)
+      const stow = Math.atan2((d0 + d1) / 2 - py, (c0 + c1) / 2 - px);
+      spec.arm = { pivotX: r4(px), pivotY: r4(py), length: r4(len), speed: 4, stowAngle: r4(stow) };
+      supuestos.push('pivote = centro de la flecha; largo del brazo = del pivote al centro de la garra; ángulo de guardado = el del CAD; velocidad angular 4 rad/s (SUPUESTO)');
     } else if (armBox) {
       const [a0, a1] = range(armBox, f);
       const [h0, h1] = range(armBox, u);
@@ -172,8 +167,6 @@ export function analyzeStep(model: StepModel, opts: AnalyzeOptions = {}, file?: 
       // Sin flecha: el brazo guardado suele quedar horizontal o inclinado; su largo es la dimensión mayor
       const len = ef >= eh * 3 || eh >= ef * 3 ? Math.max(ef, eh) : Math.hypot(ef, eh);
       spec.arm = { pivotX: r4(a0), pivotY: r4(Math.max(h0, 0.05)), length: r4(len), speed: 4 };
-      spec.capacity = 1;
-      spec.reach = 0;
       supuestos.push('sin flecha: pivote = extremo trasero del brazo; velocidad angular 4 rad/s (SUPUESTO)');
     } else {
       supuestos.push('mecanismo pivot pero sin piezas de brazo: se usará el brazo del preset');
