@@ -1,0 +1,42 @@
+{
+  "schema": "labbot-robot/1",
+  "name": "Psycho",
+  "mechanism": "pivot",
+  "spec": {
+    "length": 0.64,
+    "width": 0.64,
+    "baseHeight": 0.975,
+    "intake": {
+      "extension": 0.0242,
+      "width": 0.321
+    },
+    "arm": {
+      "pivotX": -0.1511,
+      "pivotY": 0.9,
+      "length": 0.5702,
+      "speed": 4
+    },
+    "capacity": 1,
+    "reach": 0,
+    "massKg": 40
+  },
+  "source": {
+    "file": "EnsambleGeneral.STEP",
+    "parts": 114,
+    "up": "y",
+    "forward": "-x",
+    "unitScale": 0.001,
+    "bboxM": [
+      0.6642,
+      0.9928,
+      0.66
+    ]
+  },
+  "supuestos": [
+    "eje vertical y (convención de SolidWorks); usa --up para cambiarlo",
+    "frente detectado como -x; usa --forward para fijarlo",
+    "mecanismo \"pivot\" deducido de los nombres de las piezas",
+    "pivote = centro de la flecha; largo del brazo = del pivote al centro de la garra; velocidad angular 4 rad/s (SUPUESTO)",
+    "velocidades y tracción del preset (el manual no las fija, §7.2)"
+  ]
+}
