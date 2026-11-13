@@ -379,13 +379,12 @@ export class Hud {
   /** Tarjeta de un robot manejado por una persona: Muestras, garra, brazo y fallas. */
   private card(box: HTMLElement, s: GameSession, me: GameSession['player'], tag: string): void {
     const mech = me.mech;
-    const kind = me.spec.mechanism;
     const elev = mech.stowed ? t('stowed') : t('elevatorNames').split('|')[mech.target];
     const faults = [...s.damage.faults(me.index)];
     const full = mech.stored.length >= mech.capacity;
     box.className = `player ${box.classList.contains('p2') ? 'p2 ' : ''}${me.alliance} ${full ? 'full' : ''}`;
     box.innerHTML = `
-      <div class="p-head"><span class="p-num">${t(me.alliance).slice(0, 1)}${me.station + 1}</span><span class="p-name">${t(`type_${kind}` as Key)}</span><span class="p-tag">${tag}</span></div>
+      <div class="p-head"><span class="p-num">${t(me.alliance).slice(0, 1)}${me.station + 1}</span><span class="p-name">${me.spec.label ?? t(`type_${me.spec.mechanism}` as Key)}</span><span class="p-tag">${tag}</span></div>
       <div class="p-hopper"><div class="p-fuel"><b>${mech.stored.length}</b><small>/${mech.capacity}</small><span>${t('stored')}</span></div>
         <div class="hbar">${Array.from({ length: mech.capacity }, (_, i) => `<i class="${i < mech.stored.length ? 'on' : ''}"></i>`).join('')}</div></div>
       <div class="chips"><span class="${mech.intakeOn ? 'on' : 'off'}">${t('intake')} ${mech.intakeOn ? t('on') : t('off')}</span>

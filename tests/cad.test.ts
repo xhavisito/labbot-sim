@@ -98,9 +98,11 @@ describe('archivo de robot', () => {
 
 describe('robots importados', () => {
   it('el registro carga y valida todos los robots/*.robot.json', async () => {
-    const { CAD_ROBOT_SPECS } = await import('../src/cad/cadRobots');
+    const { CAD_ROBOT_SPECS, CAD_ROBOT_PROBLEMS } = await import('../src/cad/cadRobots');
     expect(Object.keys(CAD_ROBOT_SPECS)).toContain('psycho');
-    for (const spec of Object.values(CAD_ROBOT_SPECS)) expect(validateRobot(spec)).toEqual([]);
+    for (const [id, spec] of Object.entries(CAD_ROBOT_SPECS)) expect(CAD_ROBOT_PROBLEMS[id]).toEqual(validateRobot(spec));
+    // El brazo real de Psycho (0.83 m) pasa los 40 cm de §7.2 con la garra arriba: se avisa, no se oculta
+    expect(CAD_ROBOT_PROBLEMS.psycho).toEqual(['la garra sale más de 40 cm (§7.2)']);
   });
 });
 
@@ -129,10 +131,42 @@ describe('selector de robots', () => {
     const s = robotSpec('cad:psycho');
     expect(s.label).toBe('Psycho');
     expect(s.length).toBeCloseTo(0.64, 3);
-    expect(validateRobot(s)).toEqual([]);
+    expect(s.arm.length).toBeCloseTo(0.8327, 3);
+    expect(s.model?.url).toBe('robots/psycho.glb');
   });
   it('los ajustes guardados con psycho no se pierden al cargar', async () => {
     const { sanitizeSettings } = await import('../src/config/settings');
     expect(sanitizeSettings({ robotType: 'cad:psycho' }, []).robotType).toBe('cad:psycho');
+  });
+});
+
+describe('modelo 3D del robot', () => {
+  it('el GLB de Psycho es válido, con el brazo aparte y centrado en el pivote', async () => {
+    const { readFileSync } = await import('node:fs');
+    const buf = readFileSync('public/robots/psycho.glb');
+    expect(buf.toString('latin1', 0, 4)).toBe('glTF');
+    const jsonLen = buf.readUInt32LE(12);
+    const json = JSON.parse(buf.toString('utf8', 20, 20 + jsonLen));
+    const nodes = json.nodes as { name: string; translation?: number[]; children?: number[] }[];
+    const arm = nodes.find((n) => n.name === 'brazo')!;
+    const fixed = nodes.find((n) => n.name === 'estatico')!;
+    expect(fixed.children!.length).toBeGreaterThan(30);
+    expect(arm.children!.length).toBeGreaterThanOrEqual(8); // placas, garra, sprockets, flecha
+    const { CAD_ROBOT_SPECS } = await import('../src/cad/cadRobots');
+    const a = CAD_ROBOT_SPECS.psycho.arm;
+    expect(arm.translation![0]).toBeCloseTo(a.pivotX, 3);
+    expect(arm.translation![1]).toBeCloseTo(a.pivotY, 3);
+    // Garra y placas del brazo están en el brazo; el chasis y la torre, no
+    const nameOf = (i: number) => nodes[i].name;
+    expect(arm.children!.map(nameOf).some((n) => /^Garra/.test(n))).toBe(true);
+    expect(arm.children!.map(nameOf).some((n) => /^Garrita/.test(n))).toBe(false); // el gancho trasero no gira
+    expect(fixed.children!.map(nameOf).some((n) => /^Chasis/.test(n))).toBe(true);
+  });
+  it('el marco del robot lleva el frente a +x, arriba a +y y es una rotación (no un espejo)', () => {
+    const r = analyzeStep(parseStep(sampleRobotStep()), { forward: '-x' });
+    const { ex, ey, ez } = r.frame;
+    expect(ex).toEqual([-1, 0, 0]);
+    expect(ey).toEqual([0, 1, 0]);
+    expect(ez).toEqual([0, 0, -1]);
   });
 });

@@ -14,12 +14,17 @@ export interface RobotFileLike {
     elevatorHeights?: number[];
   };
   supuestos?: string[];
+  model?: RobotSpec['model'];
 }
 
 const finite = (n: unknown): n is number => typeof n === 'number' && Number.isFinite(n);
 
-/** Convierte el JSON a `RobotSpec`. Lanza Error con la lista de problemas si no es válido. */
-export function specFromRobotFile(f: RobotFileLike): RobotSpec {
+/**
+ * Convierte el JSON a `RobotSpec`. Lanza Error si el archivo está mal formado; con `strict` (por defecto)
+ * también si el robot no cumple §7.2. El simulador lo carga sin `strict` para poder jugar con un robot
+ * real aunque se pase de un límite, avisando cuáles (`validateRobot`).
+ */
+export function specFromRobotFile(f: RobotFileLike, strict = true): RobotSpec {
   if (f.schema !== 'labbot-robot/1') throw new Error('archivo de robot: schema desconocido');
   const mech = f.mechanism as MechanismKind;
   const base = ROBOT_PRESETS[mech];
@@ -31,13 +36,14 @@ export function specFromRobotFile(f: RobotFileLike): RobotSpec {
     ...s,
     name: f.name ?? base.name,
     label: f.name ?? base.label,
+    model: f.model,
     mechanism: mech,
     intake: s.intake ? { ...DEFAULT_INTAKE, ...base.intake, ...s.intake } : base.intake,
     arm: { ...base.arm, ...s.arm },
     elevatorHeights: (s.elevatorHeights as RobotSpec['elevatorHeights'] | undefined) ?? base.elevatorHeights,
   };
   if (spec.elevatorHeights.length !== 5 || !spec.elevatorHeights.every(finite)) throw new Error('archivo de robot: elevatorHeights debe tener 5 números');
-  const problems = validateRobot(spec);
+  const problems = strict ? validateRobot(spec) : [];
   if (problems.length) throw new Error(`robot "${spec.name}" no cumple el manual: ${problems.join('; ')}`);
   return spec;
 }
