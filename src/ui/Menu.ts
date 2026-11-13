@@ -7,7 +7,7 @@ import { AUTO_ROUTINES } from '../auto/AutoRoutine';
 import { routeRoutine, savedRoutes } from '../auto/recorded';
 import { loadPaths, pathRoutine } from '../game/autoPathStore';
 import { customById } from '../config/customRobots';
-import { allRobotIds, robotSpec, type RobotId } from '../config/robotIds';
+import { allRobotIds, isCadId, robotSpec, type RobotId } from '../config/robotIds';
 import { GRIP_MODES, MECHANISM_KINDS } from '../config/robot';
 import { GAME } from '../config/game';
 import { VERSUS_CAMERAS, type VersusCamera } from '../config/settings';
@@ -102,6 +102,10 @@ const chassisSize = (id: RobotId): string => `${Math.round(robotSpec(id).length 
 /** Nombre y descripción de un robot elegible (tipo de LabBot o robot propio). */
 const robotName = (id: RobotId): string => robotSpec(id).label ?? t(`type_${id}` as Key);
 function robotDesc(id: RobotId): string {
+  if (isCadId(id)) {
+    const s = robotSpec(id);
+    return t('cadRobotDesc', { type: t(`type_${s.mechanism}` as Key), mass: s.massKg.toFixed(1), speed: s.maxSpeed.toFixed(2) });
+  }
   const c = customById(id);
   if (c) {
     const s = robotSpec(id);
@@ -111,7 +115,12 @@ function robotDesc(id: RobotId): string {
 }
 /** Lista de robots para elegir: el pivote, su variante de 180° y los robots propios del editor. */
 const robotOptions = (sel: RobotId): string =>
-  `<optgroup label="${t('grp_labbot')}">${MECHANISM_KINDS.map((m) => `<option value="${m}" ${m === sel ? 'selected' : ''}>${robotName(m)}</option>`).join('')}</optgroup>${mineOptions(sel)}`;
+  `<optgroup label="${t('grp_labbot')}">${MECHANISM_KINDS.map((m) => `<option value="${m}" ${m === sel ? 'selected' : ''}>${robotName(m)}</option>`).join('')}</optgroup>${cadOptions(sel)}${mineOptions(sel)}`;
+/** Robots importados desde CAD (si hay). */
+function cadOptions(sel: RobotId): string {
+  const ids = allRobotIds().filter(isCadId);
+  return ids.length ? `<optgroup label="${t('grp_cad')}">${ids.map((id) => `<option value="${id}" ${id === sel ? 'selected' : ''}>${robotName(id)}</option>`).join('')}</optgroup>` : '';
+}
 /** Robots propios del editor (si hay). */
 function mineOptions(sel: RobotId): string {
   const ids = allRobotIds().filter((id) => customById(id));
