@@ -32,7 +32,7 @@ export interface RobotFileSpec {
   arm?: { pivotX: number; pivotY: number; length: number; speed?: number; stowAngle?: number; pickBack?: boolean; holdsTwo?: boolean };
   /** Altura (m) de la pieza al recogerla del piso: la de la garra sobre el piso en la pose del CAD. */
   floorHeight?: number;
-  intake?: { gap?: number; fingerLength?: number };
+  intake?: { gap?: number; fingerLength?: number; rollers?: boolean };
   /** Huella del chasis en el piso (cajas [x0, x1, z0, z1] del robot, m): lo hueco deja pasar Muestras. */
   footprint?: [number, number, number, number][];
   maxSpeed?: number;
@@ -248,7 +248,8 @@ export function analyzeStep(model: StepModel, opts: AnalyzeOptions = {}, file?: 
       if (inner >= 2 * 0.15) {
         spec.capacity = 2;
         spec.arm.holdsTwo = true;
-        supuestos.push(`la garra mide ${r4(inner)} m por dentro: caben dos Muestras lado a lado (capacidad 2)`);
+        spec.intake.rollers = true;
+        supuestos.push(`la garra mide ${r4(inner)} m por dentro: garra-caja con rodillos; las Muestras quedan en fila sobre el eje de la boca (capacidad 2)`);
       }
     } else if (armBox) {
       const [a0, a1] = range(armBox, f);

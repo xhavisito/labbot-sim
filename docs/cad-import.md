@@ -36,7 +36,7 @@ La garra va rígida al brazo, como en el CAD (se inclina con él). `--arm-parts 
 ## Brazo de Psycho (pivote que da vuelta)
 - Frente = lado contrario a la garra: `forward` es donde suelta (L1–L3); `pickBack` hace que recoja atrás (piso) y suelte
   adelante, girando el brazo por abajo. Pose de piso = pose del CAD (`stowAngle`, `floorHeight`).
-- `holdsTwo`/`capacity 2`: la garra (0.309 m de ancho) lleva dos Muestras a la vez.
+- `holdsTwo`/`capacity 2` + `intake.rollers`: garra-caja con rodillos que jalan la Muestra por fricción (`ROLLERS` en `game/Mechanisms.ts`); lleva dos en fila sobre el eje de la boca (la segunda asoma 4.5 cm). Al subir el brazo la caja queda boca abajo y la fila se ve vertical, como en las fotos del robot real.
 - `footprint`: el chasis es un compuesto de cajas (rieles + travesaño trasero) para que las Muestras entren al canal vacío.
 
 ## Lo que el STEP no dice (SUPUESTO)

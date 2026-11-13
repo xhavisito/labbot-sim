@@ -19,11 +19,18 @@
  *   tiempo, no la toma) y puede resbalarse: la probabilidad crece con la velocidad y el giro.
  * - `easy`: el de antes (toma lo que quede a 12 cm de la punta, sin alinear ni fallar).
  * Todos esos números son SUPUESTOS de diseño (el manual no habla de mecanismos, §7.2).
+ *
+ * Garra-caja con rodillos (`IntakeSpec.rollers`, Psycho; Xhavi, 13-nov: "los rollers son para que pueda
+ * agarrar fácilmente las [Muestras]"): no hay zona que "absorba". Las ruedas tocan la Muestra en
+ * cuanto su cara llega a la boca (aunque llegue de lado o chueca) y la jalan por fricción, con fuerza
+ * limitada (`ROLLERS`): la centran, la enderezan y la meten hasta que choca con la placa del fondo (o
+ * con la primera Muestra). Ahí queda agarrada; la segunda entra igual y se queda en fila detrás de la
+ * primera (`seatX`). Si algo la detiene (otro robot, la pared) el robot no "la teletransporta".
  */
 import { inCamara } from '../config/field';
-import { CLAW_GAP, armTip, clawOf, intakeOf, posAngle, posDir, type ElevatorPos, type GripMode } from '../config/robot';
+import { CLAW_GAP, armTip, clawOf, intakeOf, posAngle, posDir, seatX, type ElevatorPos, type GripMode } from '../config/robot';
 import { SAMPLE_SIZE } from '../config/field';
-import { clawDir } from '../physics/RobotPhysics';
+import { FLOOR_POSE, clawDir } from '../physics/RobotPhysics';
 import type { Alliance } from '../core/types';
 import type { Piece, Pieces } from '../physics/Pieces';
 import type { RobotPhysics } from '../physics/RobotPhysics';
@@ -72,6 +79,34 @@ export const COMPLIANT = {
   missPerSpeed: 0.2,
   /** Segundos antes de volver a intentarlo tras rebotar. */
   retry: 0.2,
+} as const;
+
+/**
+ * Rodillos de la garra-caja (Psycho). SUPUESTOS de diseño (el manual no habla de mecanismos, §7.2; Xhavi
+ * no dio medidas de ruedas, motores ni presión): ruedas de TPU/hule contra espuma, apretando la Muestra
+ * entre la fila de arriba y la de abajo. La velocidad de la superficie es `IntakeSpec.rollerSpeed`.
+ */
+export const ROLLERS = {
+  /** Fuerza con la que las dos filas aprietan la Muestra (N). */
+  squeeze: 20,
+  /** Fricción rueda–espuma. */
+  mu: 0.9,
+  /** Cuánto salen las ruedas de la boca de la caja (m): tocan la Muestra un poco antes de que entre. */
+  reach: 0.035,
+  /** Traslape mínimo (m) de la Muestra con la boca para que una rueda la toque. */
+  minOverlap: 0.025,
+  /** Centrado: velocidad lateral (1/s por m de desvío) y su máximo (m/s). Las ruedas y los bordes la encauzan. */
+  centerGain: 9,
+  centerMax: 0.7,
+  /** Enderezado: giro (1/s por rad de desvío); el par lo limita la misma fricción con este brazo de palanca (m). */
+  alignGain: 12,
+  alignLever: 0.05,
+  /** Holgura (m) para darla por asentada en la placa (o contra la primera). */
+  seatTol: 0.02,
+  /** Desvío lateral (m) máximo para darla por asentada (al apretarla, los rodillos la acaban de centrar). */
+  seatLat: 0.05,
+  /** Segundos que giran hacia afuera al soltar (sacan de la caja la Muestra que sale). */
+  ejectTime: 0.4,
 } as const;
 
 /**
@@ -152,6 +187,10 @@ export class Mechanisms {
   jammed = false;
   /** Fallas: fracción de la velocidad del brazo (1 = sano). */
   armScale = 1;
+  /** Segundos que les quedan a los rodillos girando hacia afuera tras soltar (para el dibujo). */
+  ejectT = 0;
+  /** Muestras que los rodillos están tocando ahora (para el dibujo y las pruebas). */
+  rollerContacts = 0;
 
   constructor(
     private phys: RobotPhysics,
@@ -208,7 +247,8 @@ export class Mechanisms {
       // Si en la nueva pose el brazo o la garra se meterían en la madera, el brazo topa y se queda
       // (si ya estaba metido, p. ej. por un empujón, lo deja moverse para que se zafe)
       const held = this.critical ? 'critical' : this.inClaw ? 'sample' : null;
-      this.armBlocked = next !== this.angle && this.phys.armHitsField(next, held) && !this.phys.armHitsField(this.angle, held);
+      const n = this.inClawCount;
+      this.armBlocked = next !== this.angle && this.phys.armHitsField(next, held, n) && !this.phys.armHitsField(this.angle, held, n);
       if (!this.armBlocked) this.angle = next;
       this.height = this.angle === g && !task ? goal : armTip(s.arm, this.angle).y;
       // En la boca del hopper: pasa la Muestra después de `transferTime`
@@ -221,7 +261,11 @@ export class Mechanisms {
       } else this.transferT = 0;
     }
     this.cooldown = Math.max(0, this.cooldown - dt);
-    if (this.intakeOn && this.stored.length < this.capacity && !this.jammed) this.runClaw(events, dt);
+    this.ejectT = Math.max(0, this.ejectT - dt);
+    this.rollerContacts = 0;
+    // Al soltar en el piso, los rodillos giran al revés y la sacan de la caja
+    if (this.ejectT > 0 && intakeOf(s).rollers && this.height < FLOOR_POSE) this.runRollers(events, dt, -1);
+    else if (this.intakeOn && this.stored.length < this.capacity && !this.jammed) this.runClaw(events, dt);
     else this.closing = null;
     this.syncHitbox();
   }
@@ -229,7 +273,13 @@ export class Mechanisms {
   /** Pone los colisionadores del brazo y la garra donde está el brazo (con la pieza que lleva). */
   syncHitbox(): void {
     // Las Muestras de la garra (hasta dos apiladas con `holdsTwo`) chocan con todo
-    this.phys.setArmPose(this.angle, this.critical ? 'critical' : this.inClaw ? 'sample' : null, this.phys.spec.arm.holdsTwo ? this.stored.length : 1);
+    this.phys.setArmPose(this.angle, this.critical ? 'critical' : this.inClaw ? 'sample' : null, this.inClawCount);
+  }
+
+  /** Muestras en la garra (con `holdsTwo` todas las guardadas; si no, 0 o 1). */
+  get inClawCount(): number {
+    if (!this.inClaw) return 0;
+    return this.phys.spec.arm.holdsTwo ? this.stored.length : 1;
   }
 
   private resetArm(): void {
@@ -246,7 +296,7 @@ export class Mechanisms {
 
   /** Garra: con el brazo abajo y vacía, agarra la Muestra que queda entre sus dedos. */
   private runClaw(events: MechEvent[], dt: number): void {
-    if (this.critical || (this.inClaw && !this.phys.spec.arm.holdsTwo) || this.height > 0.06 || this.cooldown > 0 || this.hopperTask()) {
+    if (this.critical || (this.inClaw && !this.phys.spec.arm.holdsTwo) || this.height > FLOOR_POSE || this.cooldown > 0 || this.hopperTask()) {
       this.closing = null;
       return;
     }
@@ -256,6 +306,7 @@ export class Mechanisms {
     const intake = intakeOf(p.spec);
     const CLAW = clawOf(p.spec);
     const mode: GripMode = intake.kind === 'pinza' ? 'precise' : this.grip;
+    if (intake.rollers && intake.kind !== 'pinza' && mode !== 'easy') return this.runRollers(events, dt);
     // Lugar de la Muestra en la garra (agarre preciso): recargada en la placa (del lado del brazo)
     const dir = clawDir(this.angle, this.phys.spec.arm);
     const tip = this.tipX();
@@ -327,6 +378,99 @@ export class Mechanisms {
     events.push({ type: 'intake', robot: p.index, piece: piece.index });
   }
 
+  /**
+   * Garra-caja con rodillos: jala por fricción cada Muestra que toca la boca (fuerza limitada por
+   * `ROLLERS.mu · squeeze`) hacia adentro, centrándola y enderezándola; la da por agarrada cuando llega
+   * a su lugar (la placa del fondo o, si ya trae una, detrás de esa). Todo en el plano del piso.
+   * Con `sense = −1` (al soltar) giran al revés y empujan hacia afuera la que sigue en la caja.
+   */
+  private runRollers(events: MechEvent[], dt: number, sense: 1 | -1 = 1): void {
+    const p = this.phys;
+    const s = p.spec;
+    const intake = intakeOf(s);
+    const CLAW = clawOf(s);
+    const S = SAMPLE_SIZE;
+    const dir = clawDir(this.angle, s.arm);
+    const tip = this.tipX();
+    const mouth = tip + dir * (CLAW.fingerLength / 2);
+    const held = this.inClawCount;
+    // Profundidad (desde la boca hacia adentro) a la que queda el centro de la siguiente Muestra
+    const seat = (mouth - seatX(s, tip, dir, held)) * dir;
+    const free = Math.max(0, (intake.gap - S) / 2);
+    const latMax = intake.gap / 2 + S / 2 - ROLLERS.minOverlap;
+    const base = p.position().y;
+    const h = p.heading();
+    const ch = Math.cos(h);
+    const sh = Math.sin(h);
+    // Ejes en el mundo (x, z): `lx` (adelante del robot) y `lz` (ver `worldToLocalFlat`)
+    const ex = { x: ch, z: -sh };
+    const ez = { x: sh, z: ch };
+    const rp = p.position();
+    const rv = p.body.linvel();
+    const wy = p.body.angvel().y;
+    let best: { piece: Piece; t: number } | null = null;
+    for (const piece of this.pieces.list) {
+      if (piece.kind !== 'sample' || piece.state.at !== 'field') continue;
+      const t = piece.body.translation();
+      if (Math.abs(t.y - (base + this.height + S / 2)) > 0.12 || inCamara(t.x, t.z)) continue;
+      const { lx, lz } = p.worldToLocalFlat(t.x, t.z);
+      const d = (mouth - lx) * dir;
+      if (d < -(S / 2 + ROLLERS.reach) || d > seat + 0.06 || Math.abs(lz) > latMax) continue;
+      this.rollerContacts++;
+      // Contacto: crece mientras la Muestra entra (con la orilla apenas la rozan)
+      const contact = Math.min(1, (d + S / 2 + ROLLERS.reach) / 0.05);
+      // Velocidad del robot en ese punto (v + ω × r)
+      const vpx = rv.x + wy * (t.z - rp.z);
+      const vpz = rv.z - wy * (t.x - rp.x);
+      // Lo que quieren las ruedas: adentro a la velocidad de su superficie (más lento si aún no cabe
+      // entre los costados, mientras la centran), hacia el centro y sin pasarse de su lugar
+      const lat = Math.abs(lz);
+      const inward =
+        sense < 0
+          ? -intake.rollerSpeed
+          : (lat <= free + 0.01 ? intake.rollerSpeed : 0.25 * intake.rollerSpeed) * Math.min(1, Math.max(0, (seat - d) * 10 + 0.15));
+      const side = sense < 0 ? 0 : -Math.sign(lz) * Math.min(ROLLERS.centerMax, ROLLERS.centerGain * lat);
+      // "Adentro" = hacia la placa = −dir en x local
+      const tx = vpx + ex.x * (-dir * inward) + ez.x * side;
+      const tz = vpz + ex.z * (-dir * inward) + ez.z * side;
+      const v = piece.body.linvel();
+      let jx = tx - v.x;
+      let jz = tz - v.z;
+      const m = piece.body.mass();
+      const jMax = (ROLLERS.mu * ROLLERS.squeeze * contact * dt) / Math.max(1e-6, m);
+      const jl = Math.hypot(jx, jz);
+      if (jl > jMax) {
+        jx *= jMax / jl;
+        jz *= jMax / jl;
+      }
+      piece.body.applyImpulse({ x: jx * m, y: 0, z: jz * m }, true);
+      // Enderezar: gira hacia la cara más cercana al eje de la garra
+      const { faceYaw } = cubePose(piece.body.rotation());
+      let err = (((faceYaw - h) % (Math.PI / 2)) + Math.PI / 2) % (Math.PI / 2);
+      if (err > Math.PI / 4) err -= Math.PI / 2;
+      const w = piece.body.angvel();
+      const wt = wy - ROLLERS.alignGain * err;
+      // Par máximo de las ruedas = fricción · palanca; inercia de un cubo m·S²/6
+      const aMax = (ROLLERS.mu * ROLLERS.squeeze * contact * ROLLERS.alignLever) / Math.max(1e-6, (m * S * S) / 6);
+      const dw = Math.max(-aMax * dt, Math.min(aMax * dt, wt - w.y));
+      piece.body.setAngvel({ x: w.x * 0.9, y: w.y + dw, z: w.z * 0.9 }, true);
+      // ¿Ya llegó a su lugar? Su cara del fondo (girada ocupa más) toca la placa o la primera Muestra:
+      // ahí los rodillos la aprietan y la emparejan
+      const reachIn = d + (S / 2) * (Math.abs(Math.cos(err)) + Math.abs(Math.sin(err)));
+      if (sense > 0 && reachIn >= seat + S / 2 - ROLLERS.seatTol && lat <= ROLLERS.seatLat && (!best || d > best.t)) best = { piece, t: d };
+    }
+    if (!best) {
+      this.closing = null;
+      return;
+    }
+    const piece = best.piece;
+    this.closing = null;
+    this.pieces.stash(piece, { at: 'robot', robot: p.index });
+    this.stored.push(piece);
+    this.inClaw = true;
+    events.push({ type: 'intake', robot: p.index, piece: piece.index });
+  }
+
   /** Segundos que lleva cerrando la garra sobre una Muestra (0 si no). Para la UI. */
   get closingFor(): number {
     return this.closing?.t ?? 0;
@@ -378,8 +522,10 @@ export class Mechanisms {
     if (kind === 'sample' && !this.inClaw) return false;
     const piece = kind === 'critical' ? this.critical : this.stored[this.stored.length - 1];
     if (!piece) return false;
-    // Con dos en la garra (lado a lado) la que sale va a un lado
-    const side = kind === 'sample' && this.phys.spec.arm.holdsTwo && this.stored.length >= 2 ? 0.08 : 0;
+    // Garra con rodillos: sale de su lugar en la fila (la de afuera primero)
+    // (en el piso; arriba sale de la punta, como siempre: así se calibraron N1–N3)
+    const rollers = kind === 'sample' && intakeOf(this.phys.spec).rollers === true && this.height < FLOOR_POSE;
+    const slot = Math.max(0, this.inClawCount - 1);
     if (kind === 'critical') this.critical = null;
     else {
       this.stored.pop();
@@ -387,7 +533,8 @@ export class Mechanisms {
     }
     const p = this.phys;
     const size = this.pieces.size(piece);
-    const at = p.localToWorld(this.tipX(), this.height + size / 2, side);
+    const lx = rollers ? seatX(p.spec, this.tipX(), clawDir(this.angle, p.spec.arm), slot) : this.tipX();
+    const at = p.localToWorld(lx, this.height + size / 2, 0);
     const h = p.heading();
     const v = p.body.linvel();
     const intake = intakeOf(p.spec);
@@ -395,6 +542,7 @@ export class Mechanisms {
     this.pieces.place(piece, at.x, at.y, at.z, h, { x: v.x + Math.cos(h) * out, y: 0, z: v.z - Math.sin(h) * out });
     piece.lastRobot = p.index;
     this.cooldown = EJECT_COOLDOWN;
+    if (out) this.ejectT = ROLLERS.ejectTime;
     events.push({ type: 'release', robot: p.index, piece: piece.index });
     this.syncHitbox();
     return true;
@@ -410,6 +558,7 @@ export class Mechanisms {
     this.height = this.phys.spec.elevatorHeights[0];
     this.closing = null;
     this.cooldown = 0;
+    this.ejectT = 0;
     this.jammed = false;
     this.armScale = 1;
     this.resetArm();
