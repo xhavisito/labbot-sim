@@ -228,8 +228,8 @@ export class Mechanisms {
 
   /** Pone los colisionadores del brazo y la garra donde está el brazo (con la pieza que lleva). */
   syncHitbox(): void {
-    // Con dos Muestras en la garra (`holdsTwo`) no hay colisionador de la pieza: la segunda tiene que poder entrar
-    this.phys.setArmPose(this.angle, this.critical ? 'critical' : this.inClaw && !this.phys.spec.arm.holdsTwo ? 'sample' : null);
+    // Las Muestras de la garra (hasta dos apiladas con `holdsTwo`) chocan con todo
+    this.phys.setArmPose(this.angle, this.critical ? 'critical' : this.inClaw ? 'sample' : null, this.phys.spec.arm.holdsTwo ? this.stored.length : 1);
   }
 
   private resetArm(): void {
@@ -237,7 +237,10 @@ export class Mechanisms {
     this.stowed = s.arm.stowAngle !== undefined;
     this.transferT = 0;
     this.armBlocked = false;
-    this.angle = s.arm.stowAngle ?? posAngle(s, 0);
+    // Pose plegada = pose de piso: mismo ángulo (módulo 2π) que `posAngle(s, 0)`; se usa esa rama para que el
+    // brazo no dé una vuelta completa al salir de la pose guardada
+    const floor = posAngle(s, 0);
+    this.angle = s.arm.stowAngle === undefined || Math.cos(s.arm.stowAngle - floor) > 0.9999 ? floor : s.arm.stowAngle;
     this.height = armTip(s.arm, this.angle).y;
   }
 

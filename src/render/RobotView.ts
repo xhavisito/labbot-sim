@@ -246,12 +246,12 @@ export class RobotView {
       }
     }
     this.palm.position.x = -clawDir(m.angle, sa) * (this.claw.fingerLength / 2 + this.claw.palmThickness / 2);
-    // Una o dos Muestras en la garra (dos van lado a lado)
+    // Una o dos Muestras en la garra (dos van apiladas, una sobre otra)
     const two = m.inClaw && m.stored.length >= 2 && sa.holdsTwo === true;
     this.clawSample.visible = m.inClaw;
-    this.clawSample.position.z = two ? -0.08 : 0;
+    this.clawSample.position.z = 0;
     this.clawSample2.visible = two;
-    this.clawSample2.position.z = 0.08;
+    this.clawSample2.position.set(0, SAMPLE_SIZE * 1.45, 0);
     // Con falla: LEDs en ámbar parpadeando
     const f = this.faults();
     const now = performance.now() / 1000;
