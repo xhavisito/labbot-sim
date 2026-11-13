@@ -90,7 +90,8 @@ describe('garra con rodillos (Psycho)', () => {
       if (!Number.isFinite(t)) misses.push(`lado ${side} giro ${yaw}° v ${v}`);
     }
     expect(misses).toEqual([]);
-  });
+    // 42 simulaciones: 2 s aquí, pero más de 5 s en el CI con las demás pruebas corriendo a la vez
+  }, 60_000);
 
   it('la jala hasta el fondo: la agarra cuando llega a la placa, no antes', () => {
     const { g, free } = setup();
