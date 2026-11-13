@@ -2,12 +2,14 @@
 //   npm run robot:import                       → procesa todo lo que haya en robots/inbox/
 //   npm run robot:import -- ruta/Robot.step    → un archivo
 // Opciones: --name N --up x|y|z|auto --forward +x|-z|auto --mechanism generic|elevator|pivot
+//           --no-model (sin GLB), --arm-parts REGEX (piezas que giran con el brazo)
 //           --mass 38 --set arm.pivotY=0.45 (repetible) --dry (solo imprime)
 // Requiere Node ≥ 22.18 (lee los .ts directamente).
 import { readdirSync, readFileSync, writeFileSync, mkdirSync, existsSync, statSync } from 'node:fs';
 import { basename, join, resolve } from 'node:path';
 import { parseStep } from '../../src/cad/step.ts';
 import { analyzeStep } from '../../src/cad/analyze.ts';
+import { stepToGlb } from './glb.mjs';
 
 const root = resolve(import.meta.dirname, '../..');
 const args = process.argv.slice(2);
@@ -15,9 +17,11 @@ const opts = {};
 const overrides = {};
 const files = [];
 let dry = false;
+let noModel = false;
 for (let i = 0; i < args.length; i++) {
   const a = args[i];
   if (a === '--dry') dry = true;
+  else if (a === '--no-model') noModel = true;
   else if (a === '--set') {
     const [k, v] = (args[++i] ?? '').split('=');
     if (!k || Number.isNaN(Number(v))) throw new Error('--set espera ruta=numero');
@@ -42,8 +46,16 @@ for (const f of files) {
   const model = parseStep(readFileSync(f, 'utf8'));
   const robot = analyzeStep(model, { ...opts, overrides }, basename(f));
   const id = robot.name.toLowerCase().normalize('NFD').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'robot';
+  const { frame, ...out0 } = robot;
+  if (!noModel && robot.spec.arm) {
+    const armPattern = new RegExp(opts['arm-parts'] ?? '^(Brazo|Garra|Soporte-BrazoGarra|Sprocket|Flecha)', 'i');
+    const { glb } = await stepToGlb(f, { frame, pivot: [robot.spec.arm.pivotX, robot.spec.arm.pivotY], armPattern, log: (m) => console.log('  ' + m) });
+    mkdirSync(join(root, 'public/robots'), { recursive: true });
+    if (!dry) writeFileSync(join(root, `public/robots/${id}.glb`), glb);
+    out0.model = { url: `robots/${id}.glb`, stowAngle: robot.spec.arm.stowAngle, tint: '^Chasis-(Frontal|Trasero)' };
+  }
   const out = join(root, 'robots', `${id}.robot.json`);
-  const json = JSON.stringify(robot, null, 2) + '\n';
+  const json = JSON.stringify(out0, null, 2) + '\n';
   if (dry) console.log(json);
   else writeFileSync(out, json);
   console.log(`${dry ? '[dry] ' : ''}${f} → robots/${id}.robot.json (${robot.mechanism}, ${model.parts.length} piezas)`);

@@ -102,6 +102,19 @@ export interface RobotSpec {
   maxLevel?: Level;
   /** Intake de la garra (constructor de robots); sin él, la garra de siempre (`DEFAULT_INTAKE`). */
   intake?: IntakeSpec;
+  /** Modelo 3D del CAD (`npm run robot:import`): se dibuja en lugar del robot genérico. */
+  model?: CadModel;
+}
+
+/**
+ * GLB del robot en su sistema (m, x al frente, y arriba desde el piso): nodo `estatico` y nodo `brazo`
+ * (origen en el eje del pivote; en el CAD está en la pose de guardado, `stowAngle`).
+ */
+export interface CadModel {
+  url: string;
+  stowAngle?: number;
+  /** Expresión regular: piezas que toman el color de la alianza. */
+  tint?: string;
 }
 
 /**

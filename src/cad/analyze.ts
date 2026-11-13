@@ -43,6 +43,8 @@ export interface RobotFile {
   spec: RobotFileSpec;
   source: { file?: string; parts: number; up: Axis; forward: string; unitScale: number; bboxM: [number, number, number] };
   supuestos: string[];
+  /** Cómo pasar un punto del CAD (m) al sistema del robot: p' = ((p−origin)·ex, ·ey, ·ez). Lo usa el GLB. */
+  frame: { ex: Vec3; ey: Vec3; ez: Vec3; origin: Vec3 };
 }
 
 const IDX: Record<Axis, number> = { x: 0, y: 1, z: 2 };
@@ -53,7 +55,9 @@ const r4 = (n: number): number => Math.round(n * 1e4) / 1e4;
 // la ruta no sirve: los tornillos de una caja de engranes también pueden llamarse "…Base".
 const RE_CHASSIS = /^(chasis|chassis|frame|marco)/i;
 const RE_ARM = /^(pivote|pivot|brazo|arm)/i;
-const RE_CLAW = /garr|claw|gripper|intake|pinza/i;
+// La garra es lo que empieza con "Garra": "Garrita-Suelo" (un gancho trasero) y "Soporte-BrazoGarra" no
+// cuentan, o el centro de la garra (de donde sale el largo del brazo) se corre.
+const RE_CLAW = /^(garra|claw|gripper|intake|pinza)/i;
 const RE_ELEV = /^(elevador|elevator|lift)/i;
 /** Eje sobre el que gira el brazo. */
 const RE_SHAFT = /^(flecha|shaft|eje|axle)/i;
@@ -187,6 +191,14 @@ export function analyzeStep(model: StepModel, opts: AnalyzeOptions = {}, file?: 
   for (const [k, v] of Object.entries(opts.overrides ?? {})) setPath(spec as unknown as Record<string, unknown>, k, v);
   if (opts.overrides && Object.keys(opts.overrides).length) supuestos.push(`valores fijados a mano: ${Object.keys(opts.overrides).join(', ')}`);
 
+  const unit = (i: number, sg = 1): Vec3 => [0, 1, 2].map((k) => (k === i ? sg : 0)) as Vec3;
+  const ex = unit(f, fSign);
+  const ey = unit(u);
+  const ez: Vec3 = [ex[1] * ey[2] - ex[2] * ey[1], ex[2] * ey[0] - ex[0] * ey[2], ex[0] * ey[1] - ex[1] * ey[0]];
+  const origin: Vec3 = [0, 0, 0];
+  origin[f] = cF;
+  origin[l] = (chassis.min[l] + chassis.max[l]) / 2;
+  origin[u] = floor;
   return {
     schema: 'labbot-robot/1',
     name: opts.name ?? file?.replace(/^.*[\\/]/, '').replace(/\.(step|stp)$/i, '') ?? 'Robot CAD',
@@ -201,6 +213,7 @@ export function analyzeStep(model: StepModel, opts: AnalyzeOptions = {}, file?: 
       bboxM: [r4(ext(model.box, 0)), r4(ext(model.box, 1)), r4(ext(model.box, 2))],
     },
     supuestos,
+    frame: { ex, ey, ez, origin: origin.map(r4) as Vec3 },
   };
 }
 

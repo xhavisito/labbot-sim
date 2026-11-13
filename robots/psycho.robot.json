@@ -9,9 +9,9 @@
     "arm": {
       "pivotX": -0.1511,
       "pivotY": 0.9,
-      "length": 0.5702,
+      "length": 0.8327,
       "speed": 4,
-      "stowAngle": -1.2805
+      "stowAngle": -1.1567
     },
     "massKg": 40
   },
@@ -33,5 +33,10 @@
     "mecanismo \"pivot\" deducido de los nombres de las piezas",
     "pivote = centro de la flecha; largo del brazo = del pivote al centro de la garra; ángulo de guardado = el del CAD; velocidad angular 4 rad/s (SUPUESTO)",
     "velocidades y tracción del preset (el manual no las fija, §7.2)"
-  ]
+  ],
+  "model": {
+    "url": "robots/psycho.glb",
+    "stowAngle": -1.1567,
+    "tint": "^Chasis-(Frontal|Trasero)"
+  }
 }

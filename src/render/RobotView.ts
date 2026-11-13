@@ -6,8 +6,9 @@
  */
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { CRITICAL_SIZE, SAMPLE_SIZE } from '../config/field';
-import { armTip, clawOf, type ClawDims } from '../config/robot';
+import { armTip, clawOf, type CadModel, type ClawDims } from '../config/robot';
 import { PALETTES } from '../config/palette';
 import { clawDir } from '../physics/RobotPhysics';
 import type { Robot } from '../game/Robot';
@@ -22,6 +23,16 @@ const wheelMat = new THREE.MeshStandardMaterial({ color: 0x141414, roughness: 0.
 const hubMat = new THREE.MeshStandardMaterial({ color: 0xe0a419, roughness: 0.35, metalness: 0.6 });
 const sampleMat = sampleMaterial();
 const WHEEL_R = 0.05;
+/** GLB de robots del CAD, una sola descarga por archivo. */
+const modelCache = new Map<string, Promise<THREE.Group>>();
+function loadModel(url: string): Promise<THREE.Group> {
+  let p = modelCache.get(url);
+  if (!p) {
+    p = new GLTFLoader().loadAsync(url).then((g) => g.scene);
+    modelCache.set(url, p);
+  }
+  return p;
+}
 /** Color de la placa y los LEDs del robot propio, en cualquier alianza. */
 export const ROBOT_STYLE = { own: PALETTES.normal.own, fault: PALETTES.normal.fault, plate: { ...PALETTES.normal.plate } };
 
@@ -29,6 +40,9 @@ export class RobotView {
   readonly group = new THREE.Group();
   private arm = new THREE.Group();
   private criticalMesh: THREE.Mesh;
+  /** Dibujo genérico del robot: se oculta cuando el modelo del CAD termina de cargar. */
+  private generic: THREE.Object3D[] = [];
+  private numPlates: THREE.Mesh[] = [];
   /** Muestra en la garra. */
   private clawSample: THREE.Mesh;
   /** LEDs bajo el chasis: parpadean en ámbar con una falla. */
@@ -64,7 +78,7 @@ export class RobotView {
     };
     const color = own ? ROBOT_STYLE.own : ALLIANCE_COLOR[robot.alliance];
     // Chasis redondeado y tanque: tres ruedas por lado con cubo dorado (giran al avanzar) y oruga
-    add(new RoundedBoxGeometry(L, 0.16, W - 0.12, 3, 0.025), dark, 0, 0.13, 0);
+    this.generic.push(add(new RoundedBoxGeometry(L, 0.16, W - 0.12, 3, 0.025), dark, 0, 0.13, 0));
     this.halfW = W / 2 - 0.03;
     const wheelGeo = new THREE.CylinderGeometry(WHEEL_R, WHEEL_R, 0.045, 18).rotateX(Math.PI / 2);
     const hubGeo = new THREE.CylinderGeometry(WHEEL_R * 0.45, WHEEL_R * 0.45, 0.05, 6).rotateX(Math.PI / 2);
@@ -75,12 +89,13 @@ export class RobotView {
         add(wheelGeo, wheelMat, 0, 0, 0, w);
         add(hubGeo, hubMat, 0, 0, 0, w);
         this.group.add(w);
+        this.generic.push(w);
         this.wheels.push({ mesh: w, side: z > 0 ? 1 : 0 });
       }
-      add(new THREE.BoxGeometry(L - 0.04, 0.012, 0.05), wheelMat, 0, WHEEL_R * 2 + 0.004, z * this.halfW);
+      this.generic.push(add(new THREE.BoxGeometry(L - 0.04, 0.012, 0.05), wheelMat, 0, WHEEL_R * 2 + 0.004, z * this.halfW));
     }
     const plate = new THREE.MeshStandardMaterial({ color, roughness: 0.35, metalness: 0.2 });
-    add(new RoundedBoxGeometry(L * 0.98, 0.025, W * 0.98, 2, 0.01), plate, 0, 0.22, 0);
+    this.generic.push(add(new RoundedBoxGeometry(L * 0.98, 0.025, W * 0.98, 2, 0.01), plate, 0, 0.22, 0));
     // Tira de LEDs bajo el chasis (el bloom la hace brillar) y placa con la estación en los costados
     const led = new THREE.MeshStandardMaterial({ color: 0x000000, emissive: color, emissiveIntensity: 2.6 });
     this.led = led;
@@ -93,6 +108,7 @@ export class RobotView {
         const m = add(new THREE.PlaneGeometry(0.16, 0.08), numMat, -L * 0.18, 0.14, z * ((W - 0.12) / 2 + 0.002));
         m.rotation.y = z > 0 ? 0 : Math.PI;
         m.castShadow = false;
+        this.numPlates.push(m);
       }
     }
     const sz = SAMPLE_SIZE * 0.95;
@@ -100,15 +116,15 @@ export class RobotView {
     const critMat = criticalMaterial(robot.alliance);
     // Torre del pivote, brazo y garra; la pieza agarrada va en la punta
     const a = s.arm;
-    if (a.linear) add(new THREE.BoxGeometry(0.08, a.pivotY + a.length - 0.23, 0.3), dark, a.pivotX - a.length, (a.pivotY + a.length + 0.23) / 2, 0);
-    else if (a.pivotY > 0.29) add(new THREE.BoxGeometry(0.12, a.pivotY - 0.23, 0.3), dark, a.pivotX, (a.pivotY + 0.23) / 2, 0);
+    if (a.linear) this.generic.push(add(new THREE.BoxGeometry(0.08, a.pivotY + a.length - 0.23, 0.3), dark, a.pivotX - a.length, (a.pivotY + a.length + 0.23) / 2, 0));
+    else if (a.pivotY > 0.29) this.generic.push(add(new THREE.BoxGeometry(0.12, a.pivotY - 0.23, 0.3), dark, a.pivotX, (a.pivotY + 0.23) / 2, 0));
     // Eje bajo (el brazo que voltea): soportes a los lados del canal por donde pasa el brazo
-    else for (const z of [-1, 1]) add(new THREE.BoxGeometry(0.14, 0.16, 0.03), dark, a.pivotX, 0.25, z * 0.13);
+    else for (const z of [-1, 1]) this.generic.push(add(new THREE.BoxGeometry(0.14, 0.16, 0.03), dark, a.pivotX, 0.25, z * 0.13));
     this.group.add(this.arm);
     this.arm.position.set(a.pivotX, a.pivotY, 0);
     // Elevador: dos rieles verticales detrás del carro; los demás, dos barras del brazo
-    if (a.linear) for (const z of [-0.09, 0.09]) add(new THREE.BoxGeometry(0.04, 2 * a.length + 0.1, 0.03), alu, -a.length, 0, z, this.arm);
-    else for (const z of [-0.09, 0.09]) add(new THREE.BoxGeometry(a.length, 0.04, 0.03), alu, a.length / 2, 0, z, this.arm);
+    if (a.linear) for (const z of [-0.09, 0.09]) this.generic.push(add(new THREE.BoxGeometry(0.04, 2 * a.length + 0.1, 0.03), alu, -a.length, 0, z, this.arm));
+    else for (const z of [-0.09, 0.09]) this.generic.push(add(new THREE.BoxGeometry(a.length, 0.04, 0.03), alu, a.length / 2, 0, z, this.arm));
     // Garra: dedos a los lados de la pieza (el sistema local del brazo gira con él)
     const claw = new THREE.Group();
     claw.position.set(a.linear ? 0 : a.length, 0, 0);
@@ -116,10 +132,11 @@ export class RobotView {
     const CLAW = clawOf(s);
     this.claw = CLAW;
     // Elevador: viga horizontal del carro, de los rieles a la garra
-    if (a.linear) for (const z of [-0.09, 0.09]) add(new THREE.BoxGeometry(a.length - 0.1, 0.04, 0.03), alu, -(a.length - 0.1) / 2 - CLAW.fingerLength / 2, 0, z, claw);
+    if (a.linear) for (const z of [-0.09, 0.09]) this.generic.push(add(new THREE.BoxGeometry(a.length - 0.1, 0.04, 0.03), alu, -(a.length - 0.1) / 2 - CLAW.fingerLength / 2, 0, z, claw));
     // Mismas medidas que la hitbox (`CLAW`, `RobotPhysics.setArmPose`): dos dedos y la placa
-    for (const z of [-1, 1]) add(new THREE.BoxGeometry(CLAW.fingerLength, CLAW.fingerHeight, CLAW.fingerThickness), alu, 0, CLAW.fingerHeight / 2, z * CLAW.fingerZ, claw);
+    for (const z of [-1, 1]) this.generic.push(add(new THREE.BoxGeometry(CLAW.fingerLength, CLAW.fingerHeight, CLAW.fingerThickness), alu, 0, CLAW.fingerHeight / 2, z * CLAW.fingerZ, claw));
     this.palm = add(new THREE.BoxGeometry(CLAW.palmThickness, CLAW.fingerHeight * 0.75, 2 * CLAW.fingerZ + CLAW.fingerThickness), dark, -(CLAW.fingerLength / 2 + CLAW.palmThickness / 2), CLAW.fingerHeight / 2, 0, claw);
+    this.generic.push(this.palm);
     this.clawSample = add(new THREE.BoxGeometry(sz, sz, sz), sampleMat, 0, sz / 2, 0, claw);
     this.criticalMesh = add(new THREE.BoxGeometry(c, c, c), critMat, 0, c / 2, 0, claw);
     // La garra queda nivelada aunque el brazo gire (se corrige en sync)
@@ -127,6 +144,44 @@ export class RobotView {
     this.criticalMesh.visible = false;
     this.capture();
     this.capture();
+    if (s.model && !a.linear && !a.stowTip) void this.useModel(s.model, color, W);
+  }
+
+  /** Dibuja el robot del CAD: el chasis y la torre quietos, el brazo con la garra girando en el pivote. */
+  private async useModel(m: CadModel, color: number, width: number): Promise<void> {
+    let scene: THREE.Group;
+    try {
+      scene = (await loadModel(import.meta.env.BASE_URL + m.url)).clone(true);
+    } catch (e) {
+      console.warn('[cad] no se pudo cargar el modelo', m.url, e);
+      return; // se queda el dibujo genérico
+    }
+    const arm = scene.getObjectByName('brazo');
+    if (arm) {
+      arm.removeFromParent();
+      arm.position.set(0, 0, 0); // this.arm ya está en el pivote
+      arm.rotation.z = -(m.stowAngle ?? 0); // el CAD está en la pose de guardado
+      this.arm.add(arm);
+    }
+    const tint = m.tint ? new RegExp(m.tint, 'i') : null;
+    const tinted = new THREE.MeshStandardMaterial({ color, roughness: 0.4, metalness: 0.2 });
+    scene.traverse((o) => {
+      if (!(o instanceof THREE.Mesh)) return;
+      o.castShadow = true;
+      // Placas de 5 mm: con receiveShadow se llenan de acné de sombra
+      o.receiveShadow = false;
+      for (let p: THREE.Object3D | null = o; p; p = p.parent) if (tint?.test(p.name)) { o.material = tinted; break; }
+    });
+    arm?.traverse((o) => {
+      if (o instanceof THREE.Mesh) {
+        o.castShadow = true;
+        o.receiveShadow = false;
+      }
+    });
+    this.group.add(scene);
+    for (const g of this.generic) g.visible = false;
+    // Placas con la estación: pegadas a los costados del chasis real
+    for (const p of this.numPlates) p.position.z = Math.sign(p.position.z) * (width / 2 + 0.002);
   }
 
   /** Guarda la pose después de cada paso de física (para interpolar). */
