@@ -3,7 +3,7 @@
  * velocidad, masa ni mecanismos: esos números son SUPUESTOS configurables.
  */
 import type { Level } from '../core/types';
-import { mm } from './field';
+import { SAMPLE_SIZE, mm } from './field';
 
 /** Límites del manual. */
 export const ROBOT_LIMITS = {
@@ -53,7 +53,7 @@ export interface ArmSpec {
   /** Segundos con la garra en la boca del hopper para pasar una Muestra. */
   transferTime?: number;
   /**
-   * La garra misma lleva hasta `capacity` Muestras a la vez (una caja ancha que las recibe lado a lado):
+   * La garra misma lleva hasta `capacity` Muestras a la vez (la caja con rodillos de Psycho: en fila sobre el eje de la boca, `seatX`):
    * no hay hopper ni paso; sigue agarrando mientras quepa otra y suelta de una en una.
    */
   holdsTwo?: boolean;
@@ -150,6 +150,13 @@ export interface IntakeSpec {
   rollerSpeed: number;
   /** Pinza: segundos que tarda en cerrar con la Muestra adentro. */
   closeTime: number;
+  /**
+   * Garra-caja con rodillos (Psycho, robot real de Xhavi): ejes de lado a lado con ruedas arriba y
+   * abajo de la Muestra que la jalan por fricción hasta el fondo (`ROLLERS` en `game/Mechanisms.ts`).
+   * Las Muestras quedan en fila sobre el eje de la boca: la primera recargada en la placa del fondo y
+   * la segunda detrás de ella (`seatX`).
+   */
+  rollers?: boolean;
 }
 
 /** Intake de los dos pivotes: garra con compliants, abierta 23 cm, dedos de 20 cm (D36, D37, D41). */
@@ -193,6 +200,17 @@ export type ClawDims = { fingerLength: number; fingerHeight: number; fingerThick
 export function clawOf(s: { intake?: IntakeSpec }): ClawDims {
   const i = intakeOf(s);
   return { ...CLAW, fingerLength: i.fingerLength, fingerZ: i.gap / 2 + CLAW.fingerThickness / 2 };
+}
+
+/**
+ * Garra con rodillos: posición local x (sistema del robot, nivelado) del centro de la Muestra `k`
+ * (0 = la del fondo, recargada en la placa; 1 = la segunda, en fila detrás de la primera, hacia la
+ * boca). `dir` = hacia dónde abre la garra (`clawDir`). Con la caja de Psycho (25.5 cm de fondo) la
+ * segunda sobresale 4.5 cm de la boca, como en la foto del robot real con dos Muestras.
+ */
+export function seatX(s: { intake?: IntakeSpec }, tipX: number, dir: number, k: number): number {
+  const fl = clawOf(s).fingerLength;
+  return tipX - dir * (fl / 2 - SAMPLE_SIZE / 2) + dir * k * SAMPLE_SIZE;
 }
 
 /** Agarre de la garra (`game/Mechanisms.ts`): con compliants (por defecto), preciso o fácil. */

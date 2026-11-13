@@ -8,7 +8,7 @@ import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { CRITICAL_SIZE, SAMPLE_SIZE } from '../config/field';
-import { armTip, clawOf, type CadModel, type ClawDims } from '../config/robot';
+import { armTip, clawOf, intakeOf, posAngle, seatX, type CadModel, type ClawDims } from '../config/robot';
 import { PALETTES } from '../config/palette';
 import { clawDir } from '../physics/RobotPhysics';
 import type { Robot } from '../game/Robot';
@@ -22,6 +22,8 @@ const alu = new THREE.MeshStandardMaterial({ color: brushed ? 0xd2d7de : 0xb8bec
 const wheelMat = new THREE.MeshStandardMaterial({ color: 0x141414, roughness: 0.85 });
 const hubMat = new THREE.MeshStandardMaterial({ color: 0xe0a419, roughness: 0.35, metalness: 0.6 });
 const sampleMat = sampleMaterial();
+/** Radio de las ruedas de los rodillos de la garra (dibujo). SUPUESTO: la foto no da medida. */
+const ROLLER_R = 0.028;
 const WHEEL_R = 0.05;
 /** GLB de robots del CAD, una sola descarga por archivo. */
 const modelCache = new Map<string, Promise<THREE.Group>>();
@@ -40,7 +42,7 @@ export class RobotView {
   readonly group = new THREE.Group();
   private arm = new THREE.Group();
   private criticalMesh: THREE.Mesh;
-  /** Segunda Muestra en la garra (robots que llevan dos lado a lado). */
+  /** Segunda Muestra en la garra (garra con rodillos: en fila detrás de la primera, `seatX`). */
   private clawSample2: THREE.Mesh;
   /** Con el modelo del CAD la garra va rígida al brazo: su giro respecto al brazo (rad). */
   private rigidClaw: number | null = null;
@@ -144,24 +146,31 @@ export class RobotView {
     for (const z of [-1, 1]) this.generic.push(add(new THREE.BoxGeometry(CLAW.fingerLength, CLAW.fingerHeight, CLAW.fingerThickness), alu, 0, CLAW.fingerHeight / 2, z * CLAW.fingerZ, claw));
     this.palm = add(new THREE.BoxGeometry(CLAW.palmThickness, CLAW.fingerHeight * 0.75, 2 * CLAW.fingerZ + CLAW.fingerThickness), dark, -(CLAW.fingerLength / 2 + CLAW.palmThickness / 2), CLAW.fingerHeight / 2, 0, claw);
     this.generic.push(this.palm);
-    // Rodillos verdes dentro de la garra (como el gripper real: ejes de lado a lado con ruedas): una fila
-    // abajo y otra arriba de la Muestra. Solo en los robots del CAD; no cambian la hitbox.
-    if (s.model) {
+    // Rodillos verdes de la garra-caja (foto del robot real de Xhavi): 4 ejes de lado a lado (z), dos
+    // cerca de la boca y dos al fondo, una fila abajo y otra arriba de la Muestra; dos ruedas por eje.
+    // Asoman por la ranura de la placa de abajo y por los huecos de la de arriba (CAD) y aprietan la
+    // espuma ~1.5 cm. Solo dibujo: la física de los rodillos está en `Mechanisms.runRollers`.
+    if (s.model || intakeOf(s).rollers) {
       const rollerMat = new THREE.MeshStandardMaterial({ color: 0x4fd13c, roughness: 0.55 });
+      const hubMat = new THREE.MeshStandardMaterial({ color: 0x2f8f25, roughness: 0.6 });
       const axleMat = new THREE.MeshStandardMaterial({ color: 0x222222, roughness: 0.4, metalness: 0.6 });
-      const R = 0.028;
+      const R = ROLLER_R;
       const span = CLAW.fingerZ * 2 - CLAW.fingerThickness;
       for (const row of [1, -1]) {
         for (const fx of [-0.3, 0.3]) {
           const axis = new THREE.Group();
-          axis.position.set(fx * CLAW.fingerLength, row > 0 ? R : sz - R * 0.4, 0);
+          axis.position.set(fx * CLAW.fingerLength, row > 0 ? R - 0.014 : sz + 0.014 - R, 0);
           claw.add(axis);
           axis.add(new THREE.Mesh(new THREE.CylinderGeometry(0.006, 0.006, span, 8).rotateX(Math.PI / 2), axleMat));
-          for (const z of [-0.36, 0, 0.36]) {
-            const wheel = new THREE.Mesh(new THREE.CylinderGeometry(R, R, 0.034, 20).rotateX(Math.PI / 2), rollerMat);
+          for (const z of [-0.25, 0.25]) {
+            const wheel = new THREE.Mesh(new THREE.CylinderGeometry(R, R, 0.03, 20).rotateX(Math.PI / 2), rollerMat);
             wheel.position.z = z * span;
             wheel.castShadow = true;
             axis.add(wheel);
+            // Rayos del rin (se nota el giro)
+            const spoke = new THREE.Mesh(new THREE.BoxGeometry(R * 1.6, 0.006, 0.032), hubMat);
+            spoke.position.z = z * span;
+            axis.add(spoke);
           }
           this.clawRollers.push({ mesh: axis, row });
         }
@@ -272,20 +281,28 @@ export class RobotView {
       }
     }
     this.palm.position.x = -clawDir(m.angle, sa) * (this.claw.fingerLength / 2 + this.claw.palmThickness / 2);
-    // Una o dos Muestras en la garra (dos van apiladas, una sobre otra)
-    const two = m.inClaw && m.stored.length >= 2 && sa.holdsTwo === true;
-    this.clawSample.visible = m.inClaw;
-    this.clawSample.position.z = 0;
-    this.clawSample2.visible = two;
-    this.clawSample2.position.set(0, SAMPLE_SIZE * 1.45, 0);
-    // Rodillos: con la garra prendida giran jalando hacia adentro (hacia la placa, lado contrario a `clawDir`)
+    // Una o dos Muestras en la garra. Con rodillos van en fila sobre el eje de la boca (la primera en la
+    // placa del fondo, la segunda detrás, `seatX`), en el sistema de la caja: con la garra del CAD (fija
+    // al brazo) la fila gira con ella y al anotar queda vertical, con la boca hacia abajo (como en las
+    // fotos del robot real, que muestran la caja volteada). Sin rodillos, la segunda va encima.
+    const n = m.inClaw ? (sa.holdsTwo ? Math.min(2, m.stored.length) : 1) : 0;
+    const rollers = intakeOf(this.robot.spec).rollers === true;
+    // Hacia dónde abre la caja en su propio sistema: el de la pose de piso si la garra va fija al brazo
+    const boxDir = this.rigidClaw !== null ? clawDir(posAngle(this.robot.spec, 0), sa) : clawDir(m.angle, sa);
+    const seat = (k: number) => (rollers ? seatX(this.robot.spec, 0, boxDir, k) : 0);
+    this.clawSample.visible = n >= 1;
+    this.clawSample.position.set(seat(0), SAMPLE_SIZE * 0.475, 0);
+    this.clawSample2.visible = n >= 2;
+    this.clawSample2.position.set(seat(1), rollers ? SAMPLE_SIZE * 0.475 : SAMPLE_SIZE * 1.45, 0);
+    // Rodillos: con la garra prendida giran jalando hacia adentro (hacia la placa); al soltar, hacia afuera
     if (this.clawRollers.length) {
       const nowR = performance.now() / 1000;
       const dtR = Math.min(0.1, nowR - (this.rollerT || nowR));
       this.rollerT = nowR;
-      if (m.intakeOn) {
-        const dirR = clawDir(m.angle, sa);
-        for (const r of this.clawRollers) r.mesh.rotation.z += r.row * dirR * 30 * dtR;
+      const spin = m.ejectT > 0 ? -1 : m.intakeOn ? 1 : 0;
+      if (spin) {
+        const w = (intakeOf(this.robot.spec).rollerSpeed / ROLLER_R) * spin;
+        for (const r of this.clawRollers) r.mesh.rotation.z += r.row * boxDir * w * dtR;
       }
     }
     // Con falla: LEDs en ámbar parpadeando

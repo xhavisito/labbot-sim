@@ -18,7 +18,7 @@
  * y no chocan con la alfombra: la garra pasa rozándola al recoger.
  * CCD en el cuerpo: a toda velocidad o girando no atraviesa las paredes de 8 mm de la Cámara.
  */
-import { armTip, clawOf, type ClawDims, type RobotSpec } from '../config/robot';
+import { armTip, clawOf, intakeOf, seatX, type ClawDims, type RobotSpec } from '../config/robot';
 import { CRITICAL_SIZE, SAMPLE_SIZE } from '../config/field';
 import { G, GROUPS, RAPIER, groups, type PhysicsWorld } from './PhysicsWorld';
 
@@ -41,6 +41,9 @@ const FIELD_QUERY = groups(G.ARM, G.FIELD);
  */
 const QUERY_SHRINK = 0.008;
 const shrunk = (hx: number, hy: number, hz: number) => new RAPIER.Cuboid(Math.max(0.004, hx - QUERY_SHRINK), Math.max(0.004, hy - QUERY_SHRINK), Math.max(0.004, hz - QUERY_SHRINK));
+
+/** Altura (m) de la punta bajo la que la garra está en la pose de piso (recoger). */
+export const FLOOR_POSE = 0.06;
 
 type Pose = { t: { x: number; y: number; z: number }; r: { x: number; y: number; z: number; w: number } };
 const NO_ROT = { x: 0, y: 0, z: 0, w: 1 };
@@ -212,7 +215,7 @@ export class RobotPhysics {
   }
 
   /** Pose local (respecto al cuerpo) de cada colisionador del brazo con el brazo en el ángulo `a`. */
-  private armPoses(a: number): Record<'beam' | 'finger0' | 'finger1' | 'palm' | 'sample' | 'critical', Pose> {
+  private armPoses(a: number): Record<'beam' | 'finger0' | 'finger1' | 'palm' | 'sample' | 'sample2' | 'critical', Pose> {
     const arm = this.spec.arm;
     const beamLen = Math.max(0.05, arm.length - beamShort(this.claw));
     const ca = Math.cos(a);
@@ -229,12 +232,21 @@ export class RobotPhysics {
       const b = Math.atan2(tip.y - arm.pivotY, tip.x - arm.pivotX);
       beam = { t: { x: arm.pivotX + (Math.cos(b) * beamLen) / 2, y: arm.pivotY + (Math.sin(b) * beamLen) / 2, z: 0 }, r: { x: 0, y: 0, z: Math.sin(b / 2), w: Math.cos(b / 2) } };
     }
+    // Muestras agarradas: con rodillos y la garra en el piso van en fila sobre el eje de la boca (la
+    // primera en la placa del fondo, la segunda detrás). Arriba (al anotar) y sin rodillos, en el centro
+    // de la garra y una segunda encima: así se calibraron las alturas y distancias de N1–N3
+    const rollers = intakeOf(this.spec).rollers === true && tip.y < FLOOR_POSE;
+    const dir = clawDir(a, arm);
+    const sy = tip.y + SAMPLE_SIZE / 2;
+    const sample: Pose = { t: { x: rollers ? seatX(this.spec, tip.x, dir, 0) : tip.x, y: sy, z: 0 }, r: NO_ROT };
+    const sample2: Pose = rollers ? { t: { x: seatX(this.spec, tip.x, dir, 1), y: sy, z: 0 }, r: NO_ROT } : { t: { x: tip.x, y: sy + SAMPLE_SIZE, z: 0 }, r: NO_ROT };
     return {
       beam,
       finger0: { t: { x: tip.x, y: fy, z: this.claw.fingerZ }, r: NO_ROT },
       finger1: { t: { x: tip.x, y: fy, z: -this.claw.fingerZ }, r: NO_ROT },
       palm: { t: { x: tip.x - clawDir(a, arm) * (this.claw.fingerLength / 2 + this.claw.palmThickness / 2), y: fy, z: 0 }, r: NO_ROT },
-      sample: { t: { x: tip.x, y: tip.y + SAMPLE_SIZE / 2, z: 0 }, r: NO_ROT },
+      sample,
+      sample2,
       critical: { t: { x: tip.x, y: tip.y + CRITICAL_SIZE / 2, z: 0 }, r: NO_ROT },
     };
   }
@@ -255,8 +267,8 @@ export class RobotPhysics {
     put(c.fingers[1], p.finger1);
     put(c.palm, p.palm);
     put(c.sample, p.sample);
-    // Segunda Muestra (garra que lleva dos): apilada encima de la primera
-    put(c.sample2, { t: { x: p.sample.t.x, y: p.sample.t.y + SAMPLE_SIZE, z: p.sample.t.z }, r: NO_ROT });
+    // Segunda Muestra (garra que lleva dos)
+    put(c.sample2, p.sample2);
     c.sample2.setEnabled(held === 'sample' && count >= 2);
     put(c.critical, p.critical);
     c.sample.setEnabled(held === 'sample');
@@ -267,7 +279,7 @@ export class RobotPhysics {
    * ¿La viga, la garra o la pieza que lleva se meterían en una estructura de la cancha (madera o
    * pared) con el brazo en el ángulo `a`? Para detener el brazo donde topa (`Mechanisms.step`).
    */
-  armHitsField(a: number, held: 'sample' | 'critical' | null): boolean {
+  armHitsField(a: number, held: 'sample' | 'critical' | null, count = 1): boolean {
     const q = this.armQuery;
     const p = this.armPoses(a);
     const br = this.body.rotation();
@@ -278,6 +290,7 @@ export class RobotPhysics {
       [q.palm, p.palm],
     ];
     if (held) parts.push([q[held], p[held]]);
+    if (held === 'sample' && count >= 2) parts.push([q.sample, p.sample2]);
     for (const [shape, pose] of parts) {
       const w = this.localToWorld(pose.t.x, pose.t.y, pose.t.z);
       if (this.pw.world.intersectionWithShape(w, qmul(br, pose.r), shape, RAPIER.QueryFilterFlags.EXCLUDE_DYNAMIC, FIELD_QUERY)) return true;
