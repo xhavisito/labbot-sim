@@ -84,7 +84,7 @@ export class RobotPhysics {
   /** Formas (un poco más chicas) para preguntar si el brazo se metería en la madera. */
   private claw: ClawDims;
   private armQuery: Record<'beam' | 'finger' | 'palm' | 'sample' | 'critical', RAPIER.Shape>;
-  readonly armColliders: { beam: RAPIER.Collider; fingers: [RAPIER.Collider, RAPIER.Collider]; palm: RAPIER.Collider; sample: RAPIER.Collider; critical: RAPIER.Collider };
+  readonly armColliders: { beam: RAPIER.Collider; fingers: [RAPIER.Collider, RAPIER.Collider]; palm: RAPIER.Collider; sample: RAPIER.Collider; sample2: RAPIER.Collider; critical: RAPIER.Collider };
   private wheelLocal: Array<[number, number]> = [];
   private ray = new RAPIER.Ray({ x: 0, y: 0, z: 0 }, { x: 0, y: -1, z: 0 });
 
@@ -205,6 +205,7 @@ export class RobotPhysics {
       ],
       palm: mech(RAPIER.ColliderDesc.cuboid(claw.palmThickness / 2, fh * 0.75, claw.fingerZ + claw.fingerThickness / 2)),
       sample: mech(RAPIER.ColliderDesc.cuboid(SAMPLE_SIZE / 2, SAMPLE_SIZE / 2, SAMPLE_SIZE / 2)),
+      sample2: mech(RAPIER.ColliderDesc.cuboid(SAMPLE_SIZE / 2, SAMPLE_SIZE / 2, SAMPLE_SIZE / 2)),
       critical: mech(RAPIER.ColliderDesc.cuboid(CRITICAL_SIZE / 2, CRITICAL_SIZE / 2, CRITICAL_SIZE / 2)),
     };
     this.setArmPose(spec.arm.stowAngle ?? 0, null);
@@ -242,7 +243,7 @@ export class RobotPhysics {
    * Coloca los colisionadores del brazo y la garra con el brazo en el ángulo `a` (rad, 0 = horizontal
    * al frente) y prende el de la pieza que lleva en la garra. Llamar en cada paso, antes de la física.
    */
-  setArmPose(a: number, held: 'sample' | 'critical' | null): void {
+  setArmPose(a: number, held: 'sample' | 'critical' | null, count = 1): void {
     const c = this.armColliders;
     const p = this.armPoses(a);
     const put = (col: RAPIER.Collider, pose: Pose) => {
@@ -254,6 +255,9 @@ export class RobotPhysics {
     put(c.fingers[1], p.finger1);
     put(c.palm, p.palm);
     put(c.sample, p.sample);
+    // Segunda Muestra (garra que lleva dos): apilada encima de la primera
+    put(c.sample2, { t: { x: p.sample.t.x, y: p.sample.t.y + SAMPLE_SIZE, z: p.sample.t.z }, r: NO_ROT });
+    c.sample2.setEnabled(held === 'sample' && count >= 2);
     put(c.critical, p.critical);
     c.sample.setEnabled(held === 'sample');
     c.critical.setEnabled(held === 'critical');
