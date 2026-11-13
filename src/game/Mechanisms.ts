@@ -258,10 +258,13 @@ export class Mechanisms {
     const tip = this.tipX();
     let cx = tip - dir * (CLAW.fingerLength / 2 - SAMPLE_SIZE / 2);
     // Si la placa queda dentro del chasis, la Muestra se recarga en el chasis
-    const stop = p.halfL + SAMPLE_SIZE / 2;
-    cx = dir > 0 ? Math.max(cx, stop) : Math.min(cx, -stop);
+    // (robots del CAD con `footprint`: la garra trabaja dentro del canal abierto del chasis, sin recargar)
+    if (!p.spec.footprint?.length) {
+      const stop = p.halfL + SAMPLE_SIZE / 2;
+      cx = dir > 0 ? Math.max(cx, stop) : Math.min(cx, -stop);
+    }
     // Compliants: de la placa (o el chasis) a la punta de los dedos, más lo que alcanzan las ruedas
-    const back = Math.abs(cx) - SAMPLE_SIZE / 2;
+    const back = Math.max(0, Math.abs(cx) - SAMPLE_SIZE / 2);
     const front = Math.abs(tip) + CLAW.fingerLength / 2 + SAMPLE_SIZE / 2 + COMPLIANT.reachFront;
     // De lado basta con que la Muestra toque la rueda (su borde llega al centro del dedo)
     const side = CLAW.fingerZ + SAMPLE_SIZE / 2;
