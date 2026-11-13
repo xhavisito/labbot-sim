@@ -62,6 +62,9 @@ export class RobotView {
   private lastP = new THREE.Vector3();
   private lastYaw = 0;
   private spin = [0, 0];
+  /** Rodillos de la garra (robots del CAD): `row` = abajo (+1) o arriba (−1) de la Muestra; giran hacia adentro. */
+  private clawRollers: Array<{ mesh: THREE.Object3D; row: number }> = [];
+  private rollerT = 0;
   private halfW = 0;
   private prevP = new THREE.Vector3();
   private curP = new THREE.Vector3();
@@ -141,6 +144,29 @@ export class RobotView {
     for (const z of [-1, 1]) this.generic.push(add(new THREE.BoxGeometry(CLAW.fingerLength, CLAW.fingerHeight, CLAW.fingerThickness), alu, 0, CLAW.fingerHeight / 2, z * CLAW.fingerZ, claw));
     this.palm = add(new THREE.BoxGeometry(CLAW.palmThickness, CLAW.fingerHeight * 0.75, 2 * CLAW.fingerZ + CLAW.fingerThickness), dark, -(CLAW.fingerLength / 2 + CLAW.palmThickness / 2), CLAW.fingerHeight / 2, 0, claw);
     this.generic.push(this.palm);
+    // Rodillos verdes dentro de la garra (como el gripper real: ejes de lado a lado con ruedas): una fila
+    // abajo y otra arriba de la Muestra. Solo en los robots del CAD; no cambian la hitbox.
+    if (s.model) {
+      const rollerMat = new THREE.MeshStandardMaterial({ color: 0x4fd13c, roughness: 0.55 });
+      const axleMat = new THREE.MeshStandardMaterial({ color: 0x222222, roughness: 0.4, metalness: 0.6 });
+      const R = 0.028;
+      const span = CLAW.fingerZ * 2 - CLAW.fingerThickness;
+      for (const row of [1, -1]) {
+        for (const fx of [-0.3, 0.3]) {
+          const axis = new THREE.Group();
+          axis.position.set(fx * CLAW.fingerLength, row > 0 ? R : sz - R * 0.4, 0);
+          claw.add(axis);
+          axis.add(new THREE.Mesh(new THREE.CylinderGeometry(0.006, 0.006, span, 8).rotateX(Math.PI / 2), axleMat));
+          for (const z of [-0.36, 0, 0.36]) {
+            const wheel = new THREE.Mesh(new THREE.CylinderGeometry(R, R, 0.034, 20).rotateX(Math.PI / 2), rollerMat);
+            wheel.position.z = z * span;
+            wheel.castShadow = true;
+            axis.add(wheel);
+          }
+          this.clawRollers.push({ mesh: axis, row });
+        }
+      }
+    }
     this.clawSample = add(new THREE.BoxGeometry(sz, sz, sz), sampleMat, 0, sz / 2, 0, claw);
     this.clawSample2 = add(new THREE.BoxGeometry(sz, sz, sz), sampleMat, 0, sz / 2, 0, claw);
     this.clawSample2.visible = false;
@@ -252,6 +278,16 @@ export class RobotView {
     this.clawSample.position.z = 0;
     this.clawSample2.visible = two;
     this.clawSample2.position.set(0, SAMPLE_SIZE * 1.45, 0);
+    // Rodillos: con la garra prendida giran jalando hacia adentro (hacia la placa, lado contrario a `clawDir`)
+    if (this.clawRollers.length) {
+      const nowR = performance.now() / 1000;
+      const dtR = Math.min(0.1, nowR - (this.rollerT || nowR));
+      this.rollerT = nowR;
+      if (m.intakeOn) {
+        const dirR = clawDir(m.angle, sa);
+        for (const r of this.clawRollers) r.mesh.rotation.z += r.row * dirR * 30 * dtR;
+      }
+    }
     // Con falla: LEDs en ámbar parpadeando
     const f = this.faults();
     const now = performance.now() / 1000;
