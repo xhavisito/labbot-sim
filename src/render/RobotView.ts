@@ -22,8 +22,14 @@ const alu = new THREE.MeshStandardMaterial({ color: brushed ? 0xd2d7de : 0xb8bec
 const wheelMat = new THREE.MeshStandardMaterial({ color: 0x141414, roughness: 0.85 });
 const hubMat = new THREE.MeshStandardMaterial({ color: 0xe0a419, roughness: 0.35, metalness: 0.6 });
 const sampleMat = sampleMaterial();
-/** Radio de las ruedas de los rodillos de la garra (dibujo). SUPUESTO: la foto no da medida. */
-const ROLLER_R = 0.028;
+/** Radio de las ruedas de los rodillos de la garra (dibujo). SUPUESTO: la foto no da medida; así aprietan ~1 cm. */
+const ROLLER_R = 0.041;
+/**
+ * Flechas de los rodillos de Psycho, de los valeros del CAD (`Garra-Inferior` y `Garra-Superior`, hoyos
+ * de 28 mm): distancia a la boca (m), distancia al centro de la caja (m) y de dónde a dónde van (m, sobre
+ * la punta del brazo: de la placa de abajo a la de arriba).
+ */
+const ROLLER_SHAFTS = { fromMouth: [0.0295, 0.1695], z: 0.106, y: [-0.016, 0.164] } as const;
 const WHEEL_R = 0.05;
 /** GLB de robots del CAD, una sola descarga por archivo. */
 const modelCache = new Map<string, Promise<THREE.Group>>();
@@ -64,7 +70,7 @@ export class RobotView {
   private lastP = new THREE.Vector3();
   private lastYaw = 0;
   private spin = [0, 0];
-  /** Rodillos de la garra (robots del CAD): `row` = abajo (+1) o arriba (−1) de la Muestra; giran hacia adentro. */
+  /** Rodillos de la garra (robots del CAD): `row` = costado (+1 = +z, −1 = −z) de la flecha vertical; giran hacia adentro. */
   private clawRollers: Array<{ mesh: THREE.Object3D; row: number }> = [];
   private rollerT = 0;
   private halfW = 0;
@@ -146,33 +152,38 @@ export class RobotView {
     for (const z of [-1, 1]) this.generic.push(add(new THREE.BoxGeometry(CLAW.fingerLength, CLAW.fingerHeight, CLAW.fingerThickness), alu, 0, CLAW.fingerHeight / 2, z * CLAW.fingerZ, claw));
     this.palm = add(new THREE.BoxGeometry(CLAW.palmThickness, CLAW.fingerHeight * 0.75, 2 * CLAW.fingerZ + CLAW.fingerThickness), dark, -(CLAW.fingerLength / 2 + CLAW.palmThickness / 2), CLAW.fingerHeight / 2, 0, claw);
     this.generic.push(this.palm);
-    // Rodillos verdes de la garra-caja (foto del robot real de Xhavi): 4 ejes de lado a lado (z), dos
-    // cerca de la boca y dos al fondo, una fila abajo y otra arriba de la Muestra; dos ruedas por eje.
-    // Asoman por la ranura de la placa de abajo y por los huecos de la de arriba (CAD) y aprietan la
-    // espuma ~1.5 cm. Solo dibujo: la física de los rodillos está en `Mechanisms.runRollers`.
+    // Rodillos verdes de la garra-caja: 4 flechas verticales en los valeros del CAD de Psycho (hoyos de
+    // 28 mm en la placa de abajo y la de arriba, Xhavi 13-nov), dos por costado: a 3 y a 17 cm de la boca
+    // y a 10.6 cm del centro. Cada flecha lleva dos ruedas (abajo y arriba) que aprietan la Muestra ~1 cm
+    // por los costados. Solo dibujo: la física de los rodillos está en `Mechanisms.runRollers`.
     if (s.model || intakeOf(s).rollers) {
       const rollerMat = new THREE.MeshStandardMaterial({ color: 0x4fd13c, roughness: 0.55 });
       const hubMat = new THREE.MeshStandardMaterial({ color: 0x2f8f25, roughness: 0.6 });
       const axleMat = new THREE.MeshStandardMaterial({ color: 0x222222, roughness: 0.4, metalness: 0.6 });
+      const bearingMat = new THREE.MeshStandardMaterial({ color: 0xb8bcc2, roughness: 0.3, metalness: 0.8 });
       const R = ROLLER_R;
-      const span = CLAW.fingerZ * 2 - CLAW.fingerThickness;
-      for (const row of [1, -1]) {
-        for (const fx of [-0.3, 0.3]) {
+      // Hacia dónde abre la caja en su sistema (el de la pose de piso del CAD)
+      const dir0 = clawDir(posAngle(s, 0), s.arm);
+      for (const side of [1, -1]) {
+        for (const fromMouth of ROLLER_SHAFTS.fromMouth) {
           const axis = new THREE.Group();
-          axis.position.set(fx * CLAW.fingerLength, row > 0 ? R - 0.014 : sz + 0.014 - R, 0);
+          axis.position.set(dir0 * (CLAW.fingerLength / 2 - fromMouth), 0, side * ROLLER_SHAFTS.z);
           claw.add(axis);
-          axis.add(new THREE.Mesh(new THREE.CylinderGeometry(0.006, 0.006, span, 8).rotateX(Math.PI / 2), axleMat));
-          for (const z of [-0.25, 0.25]) {
-            const wheel = new THREE.Mesh(new THREE.CylinderGeometry(R, R, 0.03, 20).rotateX(Math.PI / 2), rollerMat);
-            wheel.position.z = z * span;
+          const [y0, y1] = ROLLER_SHAFTS.y;
+          add(new THREE.CylinderGeometry(0.004, 0.004, y1 - y0, 8), axleMat, 0, (y0 + y1) / 2, 0, axis);
+          // Valeros en las placas de abajo y de arriba
+          for (const y of [y0 + 0.008, y1 - 0.008]) add(new THREE.CylinderGeometry(0.014, 0.014, 0.012, 16), bearingMat, 0, y, 0, axis);
+          for (const y of [0.3, 0.72]) {
+            const wheel = new THREE.Mesh(new THREE.CylinderGeometry(R, R, 0.03, 24), rollerMat);
+            wheel.position.y = y * sz;
             wheel.castShadow = true;
             axis.add(wheel);
-            // Rayos del rin (se nota el giro)
-            const spoke = new THREE.Mesh(new THREE.BoxGeometry(R * 1.6, 0.006, 0.032), hubMat);
-            spoke.position.z = z * span;
+            // Rayo del rin (se nota el giro)
+            const spoke = new THREE.Mesh(new THREE.BoxGeometry(R * 1.6, 0.032, 0.006), hubMat);
+            spoke.position.y = y * sz;
             axis.add(spoke);
           }
-          this.clawRollers.push({ mesh: axis, row });
+          this.clawRollers.push({ mesh: axis, row: side });
         }
       }
     }
@@ -199,6 +210,19 @@ export class RobotView {
     }
     const arm = scene.getObjectByName('brazo');
     if (arm) {
+      // Piezas que se mueven con el brazo aunque el CAD las tenga en el chasis (attach conserva su pose)
+      if (m.armParts) {
+        const re = new RegExp(m.armParts, 'i');
+        const move: THREE.Object3D[] = [];
+        scene.traverse((o) => {
+          if (o !== arm && re.test(o.name) && !move.some((x) => x.getObjectById(o.id))) {
+            for (let q = o.parent; q; q = q.parent) if (q === arm) return;
+            move.push(o);
+          }
+        });
+        scene.updateMatrixWorld(true);
+        for (const o of move) arm.attach(o);
+      }
       arm.removeFromParent();
       arm.position.set(0, 0, 0); // this.arm ya está en el pivote
       arm.rotation.z = -(m.stowAngle ?? 0); // el CAD está en la pose de guardado
@@ -302,7 +326,8 @@ export class RobotView {
       const spin = m.ejectT > 0 ? -1 : m.intakeOn ? 1 : 0;
       if (spin) {
         const w = (intakeOf(this.robot.spec).rollerSpeed / ROLLER_R) * spin;
-        for (const r of this.clawRollers) r.mesh.rotation.z += r.row * boxDir * w * dtR;
+        // Flechas verticales: la del costado +z gira con +ω (vista desde arriba) para jalar hacia la placa
+        for (const r of this.clawRollers) r.mesh.rotation.y += r.row * boxDir * w * dtR;
       }
     }
     // Con falla: LEDs en ámbar parpadeando

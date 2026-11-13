@@ -71,3 +71,40 @@ describe('IA Experto', () => {
     }
   }, 60_000);
 });
+
+describe('Human Player destraba la ranura (§3.2.4)', () => {
+  /** Práctica libre (sin match): su HP corre con la física. Robots lejos de la Campana. */
+  function practice() {
+    const g = new GameSession({ player: 0, preload: false, solo: true, hp: { enabled: true, interval: 3, smart: true } });
+    g.robots.forEach((r, i) => r.phys.teleport(-2 + i * 0.3, 2, 0));
+    const hp = g.hps[g.player.alliance];
+    const slot = hp.slot();
+    // Sin reserva: solo cuenta lo que empuja
+    for (const p of g.pieces.hpStock(g.player.alliance)) g.pieces.stash(p, { at: 'robot', robot: 9 });
+    return { g, hp, slot };
+  }
+
+  it('empuja a la cancha una Muestra atorada sobre la repisa de la ranura', () => {
+    const { g, hp, slot } = practice();
+    const p = g.pieces.list.find((q) => q.kind === 'sample' && q.state.at === 'field')!;
+    // Adentro de la Campana, sobre la repisa interior (a 20 cm de la cara de la pared)
+    const S = 0.15;
+    g.pieces.place(p, slot.x + 0.4, 0.2 + S / 2 + 0.002, slot.z - slot.dz * (S / 2 + 0.01 + 0.2), 0.3);
+    expect(hp.inSlot(p.body.translation().x, p.body.translation().y, p.body.translation().z)).toBe(true);
+    for (let i = 0; i < 120 * 3; i++) g.step();
+    expect(hp.unstuck).toBeGreaterThan(0);
+    const t = p.body.translation();
+    expect(hp.inSlot(t.x, t.y, t.z)).toBe(false);
+    // Quedó en el piso de la cancha, frente a la ranura
+    expect((t.z - (slot.z - slot.dz * (S / 2 + 0.01))) * slot.dz).toBeGreaterThan(0.05);
+    expect(t.y).toBeLessThan(S / 2 + 0.02);
+  });
+
+  it('no toca las que acaba de meter (van saliendo) ni las del piso', () => {
+    const { g, hp, slot } = practice();
+    const p = g.pieces.list.find((q) => q.kind === 'sample' && q.state.at === 'field')!;
+    g.pieces.place(p, slot.x, 0.075, slot.z + slot.dz * 0.3, 0);
+    for (let i = 0; i < 120 * 2; i++) g.step();
+    expect(hp.unstuck).toBe(0);
+  });
+});

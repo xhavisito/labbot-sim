@@ -125,6 +125,11 @@ export interface CadModel {
   stowAngle?: number;
   /** Expresión regular: piezas que toman el color de la alianza. */
   tint?: string;
+  /**
+   * Expresión regular: piezas del CAD que van pegadas al brazo aunque el archivo las tenga fijas en el
+   * chasis (en Psycho, el Kraken X44 del gripper: Xhavi, 13-nov "va pegado en el gripper").
+   */
+  armParts?: string;
 }
 
 /**

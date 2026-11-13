@@ -86,12 +86,13 @@
     "mecanismo \"pivot\" deducido de los nombres de las piezas",
     "pivote = centro de la flecha; la punta es el centro de la placa baja de la garra; ángulo de guardado y de piso = el del CAD; velocidad angular 4 rad/s (SUPUESTO)",
     "la garra queda atrás del frente (pickBack): recoge de reversa y el brazo voltea para anotar al frente",
-    "garra-caja con rodillos (foto del robot real): las Muestras entran por la boca y quedan en fila, una tras otra sobre el eje de la boca (capacidad 2; la segunda sobresale de la caja)",
+    "garra-caja con rodillos (fotos del robot real, flechas verticales a los costados): las Muestras entran por la boca y quedan en fila, una tras otra sobre el eje de la boca (capacidad 2; la segunda sobresale de la caja)",
     "velocidades y tracción del preset (el manual no las fija, §7.2)"
   ],
   "model": {
     "url": "robots/psycho.glb",
     "stowAngle": -1.9687,
-    "tint": "^Chasis-(Frontal|Trasero)"
+    "tint": "^Chasis-(Frontal|Trasero)",
+    "armParts": "^Kraken[ _]X44"
   }
 }
