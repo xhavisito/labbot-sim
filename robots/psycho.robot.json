@@ -92,6 +92,7 @@
   "model": {
     "url": "robots/psycho.glb",
     "stowAngle": -1.9687,
-    "tint": "^Chasis-(Frontal|Trasero)"
+    "tint": "^Chasis-(Frontal|Trasero)",
+    "armParts": "^Kraken[ _]X44"
   }
 }

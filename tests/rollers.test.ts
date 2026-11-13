@@ -62,8 +62,8 @@ describe('garra con rodillos (Psycho)', () => {
     const { g, free } = setup();
     const s = PSYCHO();
     const mouth = posTip(s, 0).x - clawOf(s).fingerLength / 2;
-    // Su cara a 2 cm de la boca: las ruedas (asoman 3.5 cm) la alcanzan
-    behind(g, free[0], -mouth + SAMPLE_SIZE / 2 + 0.02);
+    // Su cara a 1 cm de la boca: las ruedas de enfrente (asoman ~1.6 cm) la alcanzan
+    behind(g, free[0], -mouth + SAMPLE_SIZE / 2 + 0.01);
     const t = run(g, 2, 0, true, () => g.player.mech.stored.length > 0);
     expect(t).toBeLessThan(1);
     expect(g.player.mech.inClaw).toBe(true);
@@ -73,7 +73,7 @@ describe('garra con rodillos (Psycho)', () => {
     const { g, free } = setup();
     const s = PSYCHO();
     const mouth = posTip(s, 0).x - clawOf(s).fingerLength / 2;
-    behind(g, free[0], -mouth + SAMPLE_SIZE / 2 + 0.02);
+    behind(g, free[0], -mouth + SAMPLE_SIZE / 2 + 0.01);
     run(g, 1, 0, false);
     expect(g.player.mech.stored).toHaveLength(0);
     expect(free[0].state.at).toBe('field');
@@ -169,5 +169,34 @@ describe('garra con rodillos (Psycho)', () => {
       expect(p.state.at).toBe('field');
       expect(ph.worldToLocalFlat(p.body.translation().x, p.body.translation().z).lx).toBeLessThan(-0.3);
     }
+  });
+  it('la escupe despacio: sale derecha, sin brincar, y queda junto a la boca', () => {
+    const { g, free } = setup();
+    const m = g.player.mech;
+    const ph = g.player.phys;
+    behind(g, free[0], 0.8);
+    run(g, 4, 0.3, true, () => m.stored.length >= 1);
+    expect(m.stored).toHaveLength(1);
+    run(g, 0.5, 0, false);
+    g.setInput({ ...emptyInput(), releaseSample: true });
+    g.step();
+    let vMax = 0;
+    let yMax = 0;
+    for (let i = 0; i < 240; i++) {
+      g.setInput(emptyInput());
+      g.step();
+      const v = free[0].body.linvel();
+      vMax = Math.max(vMax, Math.hypot(v.x, v.z));
+      yMax = Math.max(yMax, free[0].body.translation().y);
+    }
+    // Escupida, no disparo: lenta, pegada al piso y a menos de 35 cm detrás de la boca
+    expect(vMax).toBeLessThan(0.7);
+    expect(yMax).toBeLessThan(SAMPLE_SIZE / 2 + 0.03);
+    const t = free[0].body.translation();
+    const lx = ph.worldToLocalFlat(t.x, t.z).lx;
+    const mouth = posTip(PSYCHO(), 0).x - clawOf(PSYCHO()).fingerLength / 2;
+    expect(lx).toBeLessThan(mouth - SAMPLE_SIZE / 2);
+    expect(lx).toBeGreaterThan(mouth - 0.35);
+    expect(Math.abs(free[0].body.linvel().x)).toBeLessThan(0.05);
   });
 });

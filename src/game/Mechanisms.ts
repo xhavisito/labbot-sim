@@ -91,8 +91,11 @@ export const ROLLERS = {
   squeeze: 20,
   /** Fricción rueda–espuma. */
   mu: 0.9,
-  /** Cuánto salen las ruedas de la boca de la caja (m): tocan la Muestra un poco antes de que entre. */
-  reach: 0.035,
+  /**
+   * Cuánto salen las ruedas de la boca de la caja (m): la flecha de enfrente está a 3 cm de la boca (valeros
+   * del CAD) y la rueda mide ~4.1 cm de radio, más ~0.5 cm de lo que cede la espuma.
+   */
+  reach: 0.016,
   /** Traslape mínimo (m) de la Muestra con la boca para que una rueda la toque. */
   minOverlap: 0.025,
   /** Centrado: velocidad lateral (1/s por m de desvío) y su máximo (m/s). Las ruedas y los bordes la encauzan. */
@@ -119,6 +122,11 @@ export const ROLLERS = {
 export const OUTTAKE = {
   /** Velocidad (m/s) con la que sale la Muestra, sumada a la del robot. */
   speed: 1.0,
+  /**
+   * Garra con rodillos en el piso (Psycho): la escupe despacio (m/s, respecto al robot) en vez de dispararla
+   * (Xhavi, 13-nov: "simplemente haz que las escupa"). Las ruedas giran hacia afuera lo justo para sacarla.
+   */
+  spit: 0.45,
 } as const;
 
 export type { GripMode };
@@ -415,10 +423,15 @@ export class Mechanisms {
       if (Math.abs(t.y - (base + this.height + S / 2)) > 0.12 || inCamara(t.x, t.z)) continue;
       const { lx, lz } = p.worldToLocalFlat(t.x, t.z);
       const d = (mouth - lx) * dir;
-      if (d < -(S / 2 + ROLLERS.reach) || d > seat + 0.06 || Math.abs(lz) > latMax) continue;
+      // Giro respecto a la garra (a la cara más cercana) y lo que mide girada a lo largo de la garra
+      const { faceYaw } = cubePose(piece.body.rotation());
+      let err = (((faceYaw - h) % (Math.PI / 2)) + Math.PI / 2) % (Math.PI / 2);
+      if (err > Math.PI / 4) err -= Math.PI / 2;
+      const half = (S / 2) * (Math.abs(Math.cos(err)) + Math.abs(Math.sin(err)));
+      if (d < -(half + ROLLERS.reach) || d > seat + 0.06 || Math.abs(lz) > latMax) continue;
       this.rollerContacts++;
       // Contacto: crece mientras la Muestra entra (con la orilla apenas la rozan)
-      const contact = Math.min(1, (d + S / 2 + ROLLERS.reach) / 0.05);
+      const contact = Math.min(1, (d + half + ROLLERS.reach) / ROLLERS.reach);
       // Velocidad del robot en ese punto (v + ω × r)
       const vpx = rv.x + wy * (t.z - rp.z);
       const vpz = rv.z - wy * (t.x - rp.x);
@@ -427,7 +440,7 @@ export class Mechanisms {
       const lat = Math.abs(lz);
       const inward =
         sense < 0
-          ? -intake.rollerSpeed
+          ? -OUTTAKE.spit
           : (lat <= free + 0.01 ? intake.rollerSpeed : 0.25 * intake.rollerSpeed) * Math.min(1, Math.max(0, (seat - d) * 10 + 0.15));
       const side = sense < 0 ? 0 : -Math.sign(lz) * Math.min(ROLLERS.centerMax, ROLLERS.centerGain * lat);
       // "Adentro" = hacia la placa = −dir en x local
@@ -445,9 +458,6 @@ export class Mechanisms {
       }
       piece.body.applyImpulse({ x: jx * m, y: 0, z: jz * m }, true);
       // Enderezar: gira hacia la cara más cercana al eje de la garra
-      const { faceYaw } = cubePose(piece.body.rotation());
-      let err = (((faceYaw - h) % (Math.PI / 2)) + Math.PI / 2) % (Math.PI / 2);
-      if (err > Math.PI / 4) err -= Math.PI / 2;
       const w = piece.body.angvel();
       const wt = wy - ROLLERS.alignGain * err;
       // Par máximo de las ruedas = fricción · palanca; inercia de un cubo m·S²/6
@@ -456,7 +466,7 @@ export class Mechanisms {
       piece.body.setAngvel({ x: w.x * 0.9, y: w.y + dw, z: w.z * 0.9 }, true);
       // ¿Ya llegó a su lugar? Su cara del fondo (girada ocupa más) toca la placa o la primera Muestra:
       // ahí los rodillos la aprietan y la emparejan
-      const reachIn = d + (S / 2) * (Math.abs(Math.cos(err)) + Math.abs(Math.sin(err)));
+      const reachIn = d + half;
       if (sense > 0 && reachIn >= seat + S / 2 - ROLLERS.seatTol && lat <= ROLLERS.seatLat && (!best || d > best.t)) best = { piece, t: d };
     }
     if (!best) {
@@ -538,11 +548,19 @@ export class Mechanisms {
     const h = p.heading();
     const v = p.body.linvel();
     const intake = intakeOf(p.spec);
-    const out = kind === 'sample' && !force && intake.kind === 'compliant' && this.grip !== 'precise' ? intake.rollerSpeed * clawDir(this.angle, this.phys.spec.arm) : 0;
+    const push = kind === 'sample' && !force && intake.kind === 'compliant' && this.grip !== 'precise';
+    const dir = clawDir(this.angle, this.phys.spec.arm);
+    const out = push ? (rollers ? OUTTAKE.spit : intake.rollerSpeed) * dir : 0;
+    // Escupida: sale derecha, a la velocidad del robot más la de las ruedas (sin vertical)
     this.pieces.place(piece, at.x, at.y, at.z, h, { x: v.x + Math.cos(h) * out, y: 0, z: v.z - Math.sin(h) * out });
     piece.lastRobot = p.index;
     this.cooldown = EJECT_COOLDOWN;
-    if (out) this.ejectT = ROLLERS.ejectTime;
+    if (out && rollers) {
+      // Las ruedas giran hacia afuera hasta que sale toda de la caja (desde su lugar en la fila)
+      const mouth = this.tipX() + dir * (clawOf(p.spec).fingerLength / 2);
+      const toExit = (mouth - lx) * dir + size / 2 + 0.02;
+      this.ejectT = Math.max(ROLLERS.ejectTime, toExit / OUTTAKE.spit + 0.1);
+    }
     events.push({ type: 'release', robot: p.index, piece: piece.index });
     this.syncHitbox();
     return true;
