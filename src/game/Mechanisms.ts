@@ -183,7 +183,7 @@ export class Mechanisms {
    * en el hopper, salvo en la posición 4 (ahí se espera la Crítica con la garra vacía).
    */
   hopperTask(): 'store' | 'fetch' | null {
-    if (this.stowed) return null;
+    if (this.stowed || this.phys.spec.arm.holdsTwo) return null;
     if (this.inClaw && this.intakeOn && this.inHopper < this.capacity - 1) return 'store';
     if (!this.inClaw && !this.critical && !this.intakeOn && this.inHopper > 0 && this.target !== 4) return 'fetch';
     return null;
@@ -228,7 +228,8 @@ export class Mechanisms {
 
   /** Pone los colisionadores del brazo y la garra donde está el brazo (con la pieza que lleva). */
   syncHitbox(): void {
-    this.phys.setArmPose(this.angle, this.critical ? 'critical' : this.inClaw ? 'sample' : null);
+    // Con dos Muestras en la garra (`holdsTwo`) no hay colisionador de la pieza: la segunda tiene que poder entrar
+    this.phys.setArmPose(this.angle, this.critical ? 'critical' : this.inClaw && !this.phys.spec.arm.holdsTwo ? 'sample' : null);
   }
 
   private resetArm(): void {
@@ -242,7 +243,7 @@ export class Mechanisms {
 
   /** Garra: con el brazo abajo y vacía, agarra la Muestra que queda entre sus dedos. */
   private runClaw(events: MechEvent[], dt: number): void {
-    if (this.critical || this.inClaw || this.height > 0.06 || this.cooldown > 0 || this.hopperTask()) {
+    if (this.critical || (this.inClaw && !this.phys.spec.arm.holdsTwo) || this.height > 0.06 || this.cooldown > 0 || this.hopperTask()) {
       this.closing = null;
       return;
     }
@@ -331,7 +332,7 @@ export class Mechanisms {
     if (piece.kind === 'critical') this.critical = piece;
     else {
       // La lleva en la garra (si la garra ya trae una, va al hopper)
-      if (!this.inClaw) {
+      if (!this.inClaw || this.phys.spec.arm.holdsTwo) {
         this.stored.push(piece);
         this.inClaw = true;
       } else this.stored.unshift(piece);
@@ -371,14 +372,16 @@ export class Mechanisms {
     if (kind === 'sample' && !this.inClaw) return false;
     const piece = kind === 'critical' ? this.critical : this.stored[this.stored.length - 1];
     if (!piece) return false;
+    // Con dos en la garra (lado a lado) la que sale va a un lado
+    const side = kind === 'sample' && this.phys.spec.arm.holdsTwo && this.stored.length >= 2 ? 0.08 : 0;
     if (kind === 'critical') this.critical = null;
     else {
       this.stored.pop();
-      this.inClaw = false;
+      this.inClaw = this.phys.spec.arm.holdsTwo === true && this.stored.length > 0;
     }
     const p = this.phys;
     const size = this.pieces.size(piece);
-    const at = p.localToWorld(this.tipX(), this.height + size / 2, 0);
+    const at = p.localToWorld(this.tipX(), this.height + size / 2, side);
     const h = p.heading();
     const v = p.body.linvel();
     const intake = intakeOf(p.spec);

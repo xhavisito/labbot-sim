@@ -31,7 +31,13 @@ La garra va rígida al brazo, como en el CAD (se inclina con él). `--arm-parts 
 
 ## Límites de §7.2
 `robots/*.robot.json` se registra aunque pase un límite; el menú avisa con ⚠ cuál. Psycho: con el brazo real
-(0.83 m) la garra sale ~46 cm del chasis en N3 (§7.2 pide ≤40 cm).
+(0.95 m) la garra sale más de 40 cm del chasis en algunas posiciones (§7.2 pide ≤40 cm).
+
+## Brazo de Psycho (pivote que da vuelta)
+- Frente = lado contrario a la garra: `forward` es donde suelta (L1–L3); `pickBack` hace que recoja atrás (piso) y suelte
+  adelante, girando el brazo por abajo. Pose de piso = pose del CAD (`stowAngle`, `floorHeight`).
+- `holdsTwo`/`capacity 2`: la garra (0.309 m de ancho) lleva dos Muestras a la vez.
+- `footprint`: el chasis es un compuesto de cajas (rieles + travesaño trasero) para que las Muestras entren al canal vacío.
 
 ## Lo que el STEP no dice (SUPUESTO)
 Masa, velocidades, tracción, alturas de los niveles del elevador y velocidad angular salen del preset. Cada archivo

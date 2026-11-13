@@ -40,6 +40,10 @@ export class RobotView {
   readonly group = new THREE.Group();
   private arm = new THREE.Group();
   private criticalMesh: THREE.Mesh;
+  /** Segunda Muestra en la garra (robots que llevan dos lado a lado). */
+  private clawSample2: THREE.Mesh;
+  /** Con el modelo del CAD la garra va rígida al brazo: su giro respecto al brazo (rad). */
+  private rigidClaw: number | null = null;
   /** Dibujo genérico del robot: se oculta cuando el modelo del CAD termina de cargar. */
   private generic: THREE.Object3D[] = [];
   private numPlates: THREE.Mesh[] = [];
@@ -138,6 +142,8 @@ export class RobotView {
     this.palm = add(new THREE.BoxGeometry(CLAW.palmThickness, CLAW.fingerHeight * 0.75, 2 * CLAW.fingerZ + CLAW.fingerThickness), dark, -(CLAW.fingerLength / 2 + CLAW.palmThickness / 2), CLAW.fingerHeight / 2, 0, claw);
     this.generic.push(this.palm);
     this.clawSample = add(new THREE.BoxGeometry(sz, sz, sz), sampleMat, 0, sz / 2, 0, claw);
+    this.clawSample2 = add(new THREE.BoxGeometry(sz, sz, sz), sampleMat, 0, sz / 2, 0, claw);
+    this.clawSample2.visible = false;
     this.criticalMesh = add(new THREE.BoxGeometry(c, c, c), critMat, 0, c / 2, 0, claw);
     // La garra queda nivelada aunque el brazo gire (se corrige en sync)
     claw.name = 'claw';
@@ -161,6 +167,7 @@ export class RobotView {
       arm.removeFromParent();
       arm.position.set(0, 0, 0); // this.arm ya está en el pivote
       arm.rotation.z = -(m.stowAngle ?? 0); // el CAD está en la pose de guardado
+      this.rigidClaw = -(m.stowAngle ?? 0); // la garra del CAD va fija al brazo (no se nivela)
       this.arm.add(arm);
     }
     const tint = m.tint ? new RegExp(m.tint, 'i') : null;
@@ -235,11 +242,16 @@ export class RobotView {
       this.arm.scale.x = 1;
       if (claw) {
         claw.scale.x = 1;
-        claw.rotation.z = -m.angle;
+        claw.rotation.z = this.rigidClaw ?? -m.angle;
       }
     }
     this.palm.position.x = -clawDir(m.angle, sa) * (this.claw.fingerLength / 2 + this.claw.palmThickness / 2);
+    // Una o dos Muestras en la garra (dos van lado a lado)
+    const two = m.inClaw && m.stored.length >= 2 && sa.holdsTwo === true;
     this.clawSample.visible = m.inClaw;
+    this.clawSample.position.z = two ? -0.08 : 0;
+    this.clawSample2.visible = two;
+    this.clawSample2.position.z = 0.08;
     // Con falla: LEDs en ámbar parpadeando
     const f = this.faults();
     const now = performance.now() / 1000;

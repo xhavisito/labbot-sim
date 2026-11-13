@@ -116,14 +116,22 @@ export class RobotPhysics {
       pw.tag(c, { kind: 'robot', robot: index });
       return c;
     };
-    // Chasis: centro de masa bajo (batería y motores)
-    this.chassis = add(
-      RAPIER.ColliderDesc.cuboid(this.halfL, (CHASSIS_TOP - CHASSIS_Y0) / 2, this.halfW)
-        .setTranslation(0, (CHASSIS_Y0 + CHASSIS_TOP) / 2, 0)
-        .setMass(chassisMass)
-        .setFriction(0.3)
-        .setRestitution(0.05),
-    );
+    // Chasis: centro de masa bajo (batería y motores). Con `footprint` (robots del CAD) son varias cajas y
+    // el canal hueco entre rieles deja pasar las Muestras; la masa se reparte por área.
+    const boxes = spec.footprint?.length ? spec.footprint : [[-this.halfL, this.halfL, -this.halfW, this.halfW] as const];
+    const areaSum = boxes.reduce((n, b) => n + (b[1] - b[0]) * (b[3] - b[2]), 0);
+    let first: RAPIER.Collider | null = null;
+    for (const [x0, x1, z0, z1] of boxes) {
+      const c = add(
+        RAPIER.ColliderDesc.cuboid((x1 - x0) / 2, (CHASSIS_TOP - CHASSIS_Y0) / 2, (z1 - z0) / 2)
+          .setTranslation((x0 + x1) / 2, (CHASSIS_Y0 + CHASSIS_TOP) / 2, (z0 + z1) / 2)
+          .setMass((chassisMass * ((x1 - x0) * (z1 - z0))) / areaSum)
+          .setFriction(0.3)
+          .setRestitution(0.05),
+      );
+      first ??= c;
+    }
+    this.chassis = first!;
     // Torre del pivote (o los soportes del eje bajo), con las medidas del dibujo (`RobotView`); antes
     // era una caja invisible del 90 % del chasis hasta `baseHeight`
     const a = spec.arm;
