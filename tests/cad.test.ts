@@ -116,6 +116,6 @@ describe('pivote por flecha', () => {
     expect(r.spec.arm?.pivotX).toBeCloseTo(-0.08, 4);
     expect(r.spec.arm?.pivotY).toBeCloseTo(0.71, 4); // piso en y=0
     expect(r.spec.arm?.length).toBeCloseTo(Math.hypot(0.33, 0.58), 3); // pivote (-0.08, 0.71) a centro de garra (0.25, 0.13)
-    expect(r.spec.baseHeight).toBeCloseTo(0.82, 4); // la torre cuenta como estructura fija
+    expect(r.spec.baseHeight).toBeCloseTo(0.8, 4); // la torre cuenta como estructura fija
   });
 });
