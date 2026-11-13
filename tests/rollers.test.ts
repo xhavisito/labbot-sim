@@ -199,7 +199,7 @@ describe('garra con rodillos (Psycho)', () => {
     expect(lx).toBeGreaterThan(mouth - 0.35);
     expect(Math.abs(free[0].body.linvel().x)).toBeLessThan(0.05);
   });
-  it('suelta desde la boca real de la caja y con la velocidad del brazo si se está moviendo', () => {
+  it('suelta desde donde está la garra y con la velocidad del brazo si se está moviendo', () => {
     const { g, free } = setup();
     const m = g.player.mech;
     const ph = g.player.phys;
@@ -213,15 +213,14 @@ describe('garra con rodillos (Psycho)', () => {
     }
     expect(m.angle).toBeLessThan(posAngle(PSYCHO(), 0) - 0.3);
     expect(Math.abs(m.armW)).toBeGreaterThan(1);
-    const s = PSYCHO();
-    const slotLocal = ph.boxToLocal(m.angle, seatX(s, 0, -1, 0), SAMPLE_SIZE / 2);
+    const slotLocal = { x: m.tipX(), y: m.height + SAMPLE_SIZE / 2 };
     g.setInput({ ...emptyInput(), elevator: 3, releaseSample: true });
     g.step();
-    // Salió de donde está la boca de la caja ahora (no de un punto fijo)...
+    // Salió de donde está la garra ahora (no de un punto fijo)...
     const t = free[0].body.translation();
     const want = ph.localToWorld(slotLocal.x, slotLocal.y, 0);
     expect(Math.hypot(t.x - want.x, t.z - want.z, t.y - want.y)).toBeLessThan(0.08);
-    // ...y lleva la velocidad de la boca: el brazo gira, así que no sale quieta
+    // ...y lleva la velocidad de la garra: el brazo gira, así que no sale quieta
     const v = free[0].body.linvel();
     expect(Math.hypot(v.x, v.y, v.z)).toBeGreaterThan(0.5);
   });

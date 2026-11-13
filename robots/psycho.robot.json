@@ -63,7 +63,8 @@
     "intake": {
       "gap": 0.309,
       "fingerLength": 0.2551,
-      "rollers": true
+      "rollers": true,
+      "noCritical": true
     },
     "capacity": 2,
     "massKg": 40
@@ -93,6 +94,6 @@
     "url": "robots/psycho.glb",
     "stowAngle": -1.9687,
     "tint": "^Chasis-(Frontal|Trasero)",
-    "armParts": "^Kraken[ _]X44"
+    "clawParts": "^(Garra-|Kraken[ _]X44)"
   }
 }
