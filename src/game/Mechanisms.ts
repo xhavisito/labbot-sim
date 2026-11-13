@@ -197,6 +197,8 @@ export class Mechanisms {
   armScale = 1;
   /** Segundos que les quedan a los rodillos girando hacia afuera tras soltar (para el dibujo). */
   ejectT = 0;
+  /** Velocidad angular del brazo (rad/s) en el último paso: la Muestra que se suelta hereda la velocidad de la boca. */
+  armW = 0;
   /** Muestras que los rodillos están tocando ahora (para el dibujo y las pruebas). */
   rollerContacts = 0;
 
@@ -257,7 +259,9 @@ export class Mechanisms {
       const held = this.critical ? 'critical' : this.inClaw ? 'sample' : null;
       const n = this.inClawCount;
       this.armBlocked = next !== this.angle && this.phys.armHitsField(next, held, n) && !this.phys.armHitsField(this.angle, held, n);
+      const prevAngle = this.angle;
       if (!this.armBlocked) this.angle = next;
+      this.armW = (this.angle - prevAngle) / dt;
       this.height = this.angle === g && !task ? goal : armTip(s.arm, this.angle).y;
       // En la boca del hopper: pasa la Muestra después de `transferTime`
       if (task && this.angle === g) {
@@ -533,8 +537,7 @@ export class Mechanisms {
     const piece = kind === 'critical' ? this.critical : this.stored[this.stored.length - 1];
     if (!piece) return false;
     // Garra con rodillos: sale de su lugar en la fila (la de afuera primero)
-    // (en el piso; arriba sale de la punta, como siempre: así se calibraron N1–N3)
-    const rollers = kind === 'sample' && intakeOf(this.phys.spec).rollers === true && this.height < FLOOR_POSE;
+    const rollers = kind === 'sample' && intakeOf(this.phys.spec).rollers === true;
     const slot = Math.max(0, this.inClawCount - 1);
     if (kind === 'critical') this.critical = null;
     else {
@@ -543,22 +546,47 @@ export class Mechanisms {
     }
     const p = this.phys;
     const size = this.pieces.size(piece);
-    const lx = rollers ? seatX(p.spec, this.tipX(), clawDir(this.angle, p.spec.arm), slot) : this.tipX();
-    const at = p.localToWorld(lx, this.height + size / 2, 0);
-    const h = p.heading();
-    const v = p.body.linvel();
     const intake = intakeOf(p.spec);
+    const spec = p.spec;
+    const h = p.heading();
     const push = kind === 'sample' && !force && intake.kind === 'compliant' && this.grip !== 'precise';
-    const dir = clawDir(this.angle, this.phys.spec.arm);
-    const out = push ? (rollers ? OUTTAKE.spit : intake.rollerSpeed) * dir : 0;
-    // Escupida: sale derecha, a la velocidad del robot más la de las ruedas (sin vertical)
-    this.pieces.place(piece, at.x, at.y, at.z, h, { x: v.x + Math.cos(h) * out, y: 0, z: v.z - Math.sin(h) * out });
+    const spit = rollers ? OUTTAKE.spit : intake.rollerSpeed;
+    // Garra-caja fija al brazo (Psycho): la Muestra sale de la boca REAL de la caja, donde esté en ese
+    // instante, y lleva la velocidad de la boca (robot + giro del chasis + giro del brazo) más la escupida
+    // a lo largo de la boca (Xhavi, 13-nov: "que las escupa desde la posición que se encuentre el gripper").
+    // Lo demás: de la punta con el empujón horizontal de siempre.
+    let loc: { x: number; y: number };
+    let vl: { x: number; y: number };
+    if (rollers && p.rigidFloorAngle !== null) {
+      const d0 = clawDir(p.rigidFloorAngle, spec.arm);
+      loc = p.boxToLocal(this.angle, seatX(spec, 0, d0, slot), size / 2);
+      const m = p.boxMouthDir(this.angle);
+      const piv = { x: spec.arm.pivotX, y: spec.arm.pivotY };
+      // Velocidad de ese punto por el giro del brazo: ω × (r − pivote)
+      const rx = loc.x - piv.x;
+      const ry = loc.y - piv.y;
+      vl = { x: -this.armW * ry + (push ? spit * m.x : 0), y: this.armW * rx + (push ? spit * m.y : 0) };
+    } else {
+      const dir = clawDir(this.angle, spec.arm);
+      const lx = rollers && this.height < FLOOR_POSE ? seatX(spec, this.tipX(), dir, slot) : this.tipX();
+      loc = { x: lx, y: this.height + size / 2 };
+      vl = { x: push ? spit * dir : 0, y: 0 };
+    }
+    const at = p.localToWorld(loc.x, loc.y, 0);
+    const v = p.body.linvel();
+    const wy = p.body.angvel().y;
+    const rp = p.position();
+    // v del punto = v + ω_chasis × r (sin la parte vertical del giro del chasis, que no se da)
+    const vx = v.x + wy * (at.z - rp.z) + Math.cos(h) * vl.x;
+    const vz = v.z - wy * (at.x - rp.x) - Math.sin(h) * vl.x;
+    this.pieces.place(piece, at.x, at.y, at.z, h, { x: vx, y: vl.y, z: vz });
     piece.lastRobot = p.index;
     this.cooldown = EJECT_COOLDOWN;
-    if (out && rollers) {
-      // Las ruedas giran hacia afuera hasta que sale toda de la caja (desde su lugar en la fila)
-      const mouth = this.tipX() + dir * (clawOf(p.spec).fingerLength / 2);
-      const toExit = (mouth - lx) * dir + size / 2 + 0.02;
+    if (push && rollers && this.height < FLOOR_POSE) {
+      // En el piso las ruedas giran hacia afuera hasta que sale toda de la caja (desde su lugar en la fila)
+      const dir = clawDir(this.angle, spec.arm);
+      const mouth = this.tipX() + dir * (clawOf(spec).fingerLength / 2);
+      const toExit = (mouth - loc.x) * dir + size / 2 + 0.02;
       this.ejectT = Math.max(ROLLERS.ejectTime, toExit / OUTTAKE.spit + 0.1);
     }
     events.push({ type: 'release', robot: p.index, piece: piece.index });

@@ -5,7 +5,7 @@
  */
 import { beforeAll, describe, expect, it } from 'vitest';
 import { SAMPLE_SIZE } from '../src/config/field';
-import { clawOf, posTip, seatX } from '../src/config/robot';
+import { clawOf, posAngle, posTip, seatX } from '../src/config/robot';
 import { robotSpec } from '../src/config/robotIds';
 import { GameSession } from '../src/game/GameSession';
 import { emptyInput } from '../src/input/InputManager';
@@ -198,5 +198,31 @@ describe('garra con rodillos (Psycho)', () => {
     expect(lx).toBeLessThan(mouth - SAMPLE_SIZE / 2);
     expect(lx).toBeGreaterThan(mouth - 0.35);
     expect(Math.abs(free[0].body.linvel().x)).toBeLessThan(0.05);
+  });
+  it('suelta desde la boca real de la caja y con la velocidad del brazo si se está moviendo', () => {
+    const { g, free } = setup();
+    const m = g.player.mech;
+    const ph = g.player.phys;
+    behind(g, free[0], 0.8);
+    run(g, 4, 0.3, true, () => m.stored.length >= 1);
+    run(g, 0.4, 0, false);
+    // El brazo sube a N3 y a la mitad del camino se suelta
+    for (let i = 0; i < 120 * 0.45; i++) {
+      g.setInput({ ...emptyInput(), elevator: 3 });
+      g.step();
+    }
+    expect(m.angle).toBeLessThan(posAngle(PSYCHO(), 0) - 0.3);
+    expect(Math.abs(m.armW)).toBeGreaterThan(1);
+    const s = PSYCHO();
+    const slotLocal = ph.boxToLocal(m.angle, seatX(s, 0, -1, 0), SAMPLE_SIZE / 2);
+    g.setInput({ ...emptyInput(), elevator: 3, releaseSample: true });
+    g.step();
+    // Salió de donde está la boca de la caja ahora (no de un punto fijo)...
+    const t = free[0].body.translation();
+    const want = ph.localToWorld(slotLocal.x, slotLocal.y, 0);
+    expect(Math.hypot(t.x - want.x, t.z - want.z, t.y - want.y)).toBeLessThan(0.08);
+    // ...y lleva la velocidad de la boca: el brazo gira, así que no sale quieta
+    const v = free[0].body.linvel();
+    expect(Math.hypot(v.x, v.y, v.z)).toBeGreaterThan(0.5);
   });
 });
