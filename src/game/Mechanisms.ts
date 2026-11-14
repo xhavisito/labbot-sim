@@ -31,6 +31,7 @@ import { inCamara } from '../config/field';
 import { CLAW_GAP, armTip, canHoldCritical, clawOf, intakeOf, posAngle, posDir, seatX, type ElevatorPos, type GripMode } from '../config/robot';
 import { SAMPLE_SIZE } from '../config/field';
 import { FLOOR_POSE, clawDir } from '../physics/RobotPhysics';
+import { GROUPS } from '../physics/PhysicsWorld';
 import type { Alliance } from '../core/types';
 import type { Piece, Pieces } from '../physics/Pieces';
 import type { RobotPhysics } from '../physics/RobotPhysics';
@@ -167,6 +168,10 @@ export function missChance(relSpeed: number, yaw: number, mode: GripMode = 'prec
 /** Tiempo mínimo entre dos piezas soltadas (s). SUPUESTO. */
 const EJECT_COOLDOWN = 0.35;
 
+/** Mientras sale de la caja, la Muestra no choca con el brazo: hasta que se aleja `EXIT_CLEAR` m de la punta o pasan `EXIT_MAX` s. */
+const EXIT_CLEAR = 0.32;
+const EXIT_MAX = 0.9;
+
 export class Mechanisms {
   intakeOn = false;
   readonly stored: Piece[] = [];
@@ -199,6 +204,9 @@ export class Mechanisms {
   ejectT = 0;
   /** Velocidad angular del brazo (rad/s) en el último paso: la Muestra que se suelta hereda la velocidad de la boca. */
   armW = 0;
+  /** Muestra que está saliendo de la caja sin chocar con el brazo (y segundos que le quedan así). */
+  private leaving: Piece | null = null;
+  private leavingT = 0;
   /** Muestras que los rodillos están tocando ahora (para el dibujo y las pruebas). */
   rollerContacts = 0;
 
@@ -274,6 +282,7 @@ export class Mechanisms {
     }
     this.cooldown = Math.max(0, this.cooldown - dt);
     this.ejectT = Math.max(0, this.ejectT - dt);
+    this.updateLeaving(dt);
     this.rollerContacts = 0;
     // Al soltar en el piso, los rodillos giran al revés y la sacan de la caja
     if (this.ejectT > 0 && intakeOf(s).rollers && this.height < FLOOR_POSE) this.runRollers(events, dt, -1);
@@ -559,8 +568,8 @@ export class Mechanisms {
     let vl: { x: number; y: number };
     if (rollers && p.rigidFloorAngle !== null) {
       const d0 = clawDir(p.rigidFloorAngle, spec.arm);
-      loc = p.boxToLocal(this.angle, seatX(spec, 0, d0, slot), size / 2);
       const m = p.boxMouthDir(this.angle);
+      loc = p.boxToLocal(this.angle, seatX(spec, 0, d0, slot), size / 2);
       const piv = { x: spec.arm.pivotX, y: spec.arm.pivotY };
       // Velocidad de ese punto por el giro del brazo: ω × (r − pivote)
       const rx = loc.x - piv.x;
@@ -579,7 +588,15 @@ export class Mechanisms {
     // v del punto = v + ω_chasis × r (sin la parte vertical del giro del chasis, que no se da)
     const vx = v.x + wy * (at.z - rp.z) + Math.cos(h) * vl.x;
     const vz = v.z - wy * (at.x - rp.x) - Math.sin(h) * vl.x;
-    this.pieces.place(piece, at.x, at.y, at.z, h, { x: vx, y: vl.y, z: vz });
+    // Con la caja del CAD, la Muestra sale con la inclinación de la caja (igual que la lleva)
+    const tilt = rollers && p.rigidFloorAngle !== null ? this.angle - p.rigidFloorAngle : 0;
+    this.pieces.place(piece, at.x, at.y, at.z, h, { x: vx, y: vl.y, z: vz }, tilt);
+    if (tilt !== 0) {
+      this.finishLeaving();
+      piece.collider.setCollisionGroups(GROUPS.pieceLeaving);
+      this.leaving = piece;
+      this.leavingT = EXIT_MAX;
+    }
     piece.lastRobot = p.index;
     this.cooldown = EJECT_COOLDOWN;
     if (push && rollers && this.height < FLOOR_POSE) {
@@ -594,8 +611,28 @@ export class Mechanisms {
     return true;
   }
 
+  /** La Muestra recién soltada vuelve a chocar con el brazo cuando ya salió (o si algo la agarró). */
+  private updateLeaving(dt: number): void {
+    const l = this.leaving;
+    if (!l) return;
+    this.leavingT -= dt;
+    let clear = this.leavingT <= 0 || l.state.at !== 'field';
+    if (!clear) {
+      const t = l.body.translation();
+      const p = this.phys.worldToLocalFlat(t.x, t.z);
+      clear = Math.hypot(p.lx - this.tipX(), t.y - this.height) > EXIT_CLEAR;
+    }
+    if (clear) this.finishLeaving();
+  }
+
+  private finishLeaving(): void {
+    if (this.leaving) this.leaving.collider.setCollisionGroups(GROUPS.piece);
+    this.leaving = null;
+  }
+
   /** Vacía el robot (reinicio). */
   clear(): void {
+    this.finishLeaving();
     this.stored.length = 0;
     this.critical = null;
     this.inClaw = false;

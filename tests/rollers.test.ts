@@ -226,4 +226,27 @@ describe('garra con rodillos (Psycho)', () => {
     const v = free[0].body.linvel();
     expect(Math.hypot(v.x, v.y, v.z)).toBeGreaterThan(0.5);
   });
+  it('al soltar en N1, N2 y N3 la Muestra sale limpia de la caja y cae al piso (no se queda atorada en el aire)', () => {
+    for (const lvl of [1, 2, 3] as const) {
+      const { g, free } = setup();
+      const m = g.player.mech;
+      behind(g, free[0], 0.8);
+      run(g, 4, 0.3, true, () => m.stored.length >= 1);
+      run(g, 0.4, 0, false);
+      for (let i = 0; i < 120 * 2.5; i++) {
+        g.setInput({ ...emptyInput(), elevator: lvl });
+        g.step();
+      }
+      g.setInput({ ...emptyInput(), elevator: lvl, releaseSample: true });
+      g.step();
+      for (let i = 0; i < 120 * 3; i++) {
+        g.setInput({ ...emptyInput(), elevator: lvl });
+        g.step();
+      }
+      const t = free[0].body.translation();
+      const v = free[0].body.linvel();
+      expect(t.y, `N${lvl}: quedó en el aire`).toBeLessThan(SAMPLE_SIZE / 2 + 0.03);
+      expect(Math.hypot(v.x, v.y, v.z)).toBeLessThan(0.05);
+    }
+  });
 });
