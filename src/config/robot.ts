@@ -126,11 +126,10 @@ export interface CadModel {
   /** Expresión regular: piezas que toman el color de la alianza. */
   tint?: string;
   /**
-   * Expresión regular: piezas del CAD que van con la garra (no con el brazo): llegan niveladas y la muñeca
-   * las voltea al soltar. En Psycho, la caja de la garra y el Kraken X44 del gripper (Xhavi, 13-nov: "va
-   * pegado en el gripper"; "que llegue nivelada y se voltee al soltar").
+   * Expresión regular: piezas del CAD que van pegadas al brazo aunque el archivo las tenga fijas en el
+   * chasis (en Psycho, el Kraken X44 del gripper: Xhavi, 13-nov "va pegado en el gripper").
    */
-  clawParts?: string;
+  armParts?: string;
 }
 
 /**
@@ -165,7 +164,7 @@ export interface IntakeSpec {
   rollers?: boolean;
   /**
    * Sin mecanismo para la Muestra Crítica (Psycho todavía no lo tiene, Xhavi 13-nov): no la toma, no la
-   * cuenta como suya y la IA y el HUD lo tratan así. Quitar la bandera (o ponerla en false) la vuelve a activar.
+   * cuenta como suya y la IA y el HUD lo tratan así. Quitar la bandera la vuelve a activar.
    */
   noCritical?: boolean;
 }
