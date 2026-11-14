@@ -225,7 +225,7 @@ describe('psycho sin mecanismo para la Crítica (Xhavi, 13-nov)', () => {
 });
 
 describe('psycho con sus ruedas reales (Xhavi, 14-nov)', () => {
-  it('apoya en 6 ruedas de 15 cm, sin hundirse, y avanza', async () => {
+  it('apoya en 4 ruedas de 15 cm, sin hundirse, y avanza', async () => {
     const { robotSpec } = await import('../src/config/robotIds');
     const { GameSession } = await import('../src/game/GameSession');
     const { emptyInput } = await import('../src/input/InputManager');
@@ -233,7 +233,7 @@ describe('psycho con sus ruedas reales (Xhavi, 14-nov)', () => {
     await initRapier();
     const s = robotSpec('cad:psycho');
     expect(s.wheel).toBeDefined();
-    expect(s.wheel!.xs).toHaveLength(3); // 3 por lado = 6
+    expect(s.wheel!.xs).toHaveLength(2); // 2 por lado = 4
     expect(s.wheel!.r * 2).toBeCloseTo(0.1524, 3); // 6 in
     // Las ruedas caben en el hueco entre la pared interior y la exterior del chasis (z 0.24–0.314 en el CAD)
     expect(s.wheel!.z - s.wheel!.width / 2).toBeGreaterThan(0.24);
