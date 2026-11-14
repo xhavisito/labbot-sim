@@ -8,10 +8,11 @@ import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { CRITICAL_SIZE, SAMPLE_SIZE } from '../config/field';
-import { armTip, clawOf, intakeOf, posAngle, seatX, type CadModel, type ClawDims } from '../config/robot';
+import { WHEEL_DROP, armTip, clawOf, intakeOf, posAngle, seatX, type CadModel, type ClawDims } from '../config/robot';
 import { PALETTES } from '../config/palette';
 import { clawDir } from '../physics/RobotPhysics';
 import type { Robot } from '../game/Robot';
+import { buildCadWheel } from './cadWheel';
 import { ALLIANCE_COLOR } from './FieldView';
 import { criticalMaterial, sampleMaterial } from './PieceView';
 import { brushedTexture, textTexture } from './textures';
@@ -66,7 +67,7 @@ export class RobotView {
   /** Placa de la garra (del lado del brazo). */
   private palm: THREE.Mesh;
   private claw: ClawDims;
-  private wheels: Array<{ mesh: THREE.Object3D; side: number }> = [];
+  private wheels: Array<{ mesh: THREE.Object3D; side: number; flip?: boolean }> = [];
   private lastP = new THREE.Vector3();
   private lastYaw = 0;
   private spin = [0, 0];
@@ -196,6 +197,19 @@ export class RobotView {
     this.criticalMesh.visible = false;
     this.capture();
     this.capture();
+    // Ruedas de tracción del CAD (no son del dibujo genérico: se quedan al cargar el modelo)
+    if (s.wheel) {
+      for (const side of [1, -1])
+        for (const x of s.wheel.xs) {
+          const pivot = new THREE.Group();
+          pivot.position.set(x, s.wheel.r - WHEEL_DROP, side * s.wheel.z);
+          if (side < 0) pivot.rotation.y = Math.PI;
+          const spin = buildCadWheel(s.wheel);
+          pivot.add(spin);
+          this.group.add(pivot);
+          this.wheels.push({ mesh: spin, side: side > 0 ? 1 : 0, flip: side < 0 });
+        }
+    }
     if (s.model && !a.linear && !a.stowTip) void this.useModel(s.model, color, W);
   }
 
@@ -274,7 +288,7 @@ export class RobotView {
     this.spin[1] += (ds + dy * this.halfW) / WHEEL_R;
     this.lastP.copy(this.group.position);
     this.lastYaw = yaw;
-    for (const w of this.wheels) w.mesh.rotation.z = -this.spin[w.side];
+    for (const w of this.wheels) w.mesh.rotation.z = (w.flip ? 1 : -1) * this.spin[w.side];
     const m = this.robot.mech;
     this.criticalMesh.visible = m.critical !== null;
     const claw = this.arm.getObjectByName('claw');

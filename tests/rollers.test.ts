@@ -5,7 +5,7 @@
  */
 import { beforeAll, describe, expect, it } from 'vitest';
 import { SAMPLE_SIZE } from '../src/config/field';
-import { clawOf, posAngle, posTip, seatX } from '../src/config/robot';
+import { WHEEL_DROP, clawOf, posAngle, posTip, seatX } from '../src/config/robot';
 import { robotSpec } from '../src/config/robotIds';
 import { GameSession } from '../src/game/GameSession';
 import { emptyInput } from '../src/input/InputManager';
@@ -190,9 +190,9 @@ describe('garra con rodillos (Psycho)', () => {
       vMax = Math.max(vMax, Math.hypot(v.x, v.z));
       yMax = Math.max(yMax, free[0].body.translation().y);
     }
-    // Escupida, no disparo: lenta, pegada al piso y a menos de 35 cm detrás de la boca
+    // Escupida, no disparo: lenta, pegada al piso y a menos de 35 cm detrás de la boca (el chasis va 2 cm más alto por las llantas)
     expect(vMax).toBeLessThan(0.7);
-    expect(yMax).toBeLessThan(SAMPLE_SIZE / 2 + 0.03);
+    expect(yMax).toBeLessThan(SAMPLE_SIZE / 2 + 0.03 + WHEEL_DROP);
     const t = free[0].body.translation();
     const lx = ph.worldToLocalFlat(t.x, t.z).lx;
     const mouth = posTip(PSYCHO(), 0).x - clawOf(PSYCHO()).fingerLength / 2;

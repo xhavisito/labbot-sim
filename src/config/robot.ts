@@ -114,6 +114,23 @@ export interface RobotSpec {
    * `length × width`. Con ella lo hueco (un canal entre rieles) deja pasar Muestras.
    */
   footprint?: ReadonlyArray<readonly [number, number, number, number]>;
+  /**
+   * Ruedas de tracción del CAD (Psycho, fotos de Xhavi 14-nov: ruedas blancas de hule con dibujo de bloques,
+   * disco negro, buje de aluminio con eje hexagonal y polea dentada del lado de adentro). Sin esto, el robot
+   * usa 4 esferas genéricas de 5 cm de radio. Medidas de las fotos aproximadas: SUPUESTO hasta que Xhavi las confirme.
+   */
+  wheel?: WheelSpec;
+}
+
+/** Ruedas de tracción del CAD: radio, posiciones a lo largo del robot (por lado), distancia del centro a cada rueda y ancho (m). */
+/** Cuánto sobresale la llanta por debajo del chasis (m): el robot apoya en ellas, no en el chasis. SUPUESTO (2 cm). */
+export const WHEEL_DROP = 0.02;
+
+export interface WheelSpec {
+  r: number;
+  xs: number[];
+  z: number;
+  width: number;
 }
 
 /**
