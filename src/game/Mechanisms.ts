@@ -199,8 +199,6 @@ export class Mechanisms {
   ejectT = 0;
   /** Velocidad angular del brazo (rad/s) en el último paso: la Muestra que se suelta hereda la velocidad de la boca. */
   armW = 0;
-  /** Segundos que le quedan a la muñeca volteada de la caja al soltar arriba (dibujo). */
-  flipT = 0;
   /** Muestras que los rodillos están tocando ahora (para el dibujo y las pruebas). */
   rollerContacts = 0;
 
@@ -275,7 +273,6 @@ export class Mechanisms {
       } else this.transferT = 0;
     }
     this.cooldown = Math.max(0, this.cooldown - dt);
-    this.flipT = Math.max(0, this.flipT - dt);
     this.ejectT = Math.max(0, this.ejectT - dt);
     this.rollerContacts = 0;
     // Al soltar en el piso, los rodillos giran al revés y la sacan de la caja
@@ -553,18 +550,28 @@ export class Mechanisms {
     const spec = p.spec;
     const h = p.heading();
     const push = kind === 'sample' && !force && intake.kind === 'compliant' && this.grip !== 'precise';
-    // En el piso se escupe suave; arriba, al anotar, sale como se calibró (`OUTTAKE.speed`, D41: llega al fondo del pozo)
-    const spit = rollers && this.height < FLOOR_POSE ? OUTTAKE.spit : intake.rollerSpeed;
-    // La Muestra sale de la garra donde esté en ese instante y lleva la velocidad de ese punto (robot, giro
-    // del chasis y giro del brazo, ω × r desde el eje) más la escupida a lo largo de la boca (Xhavi, 13-nov:
-    // "que las escupa desde la posición que se encuentre el gripper"; si el pivote se mueve, también la
-    // velocidad del brazo). La caja llega nivelada, así que la boca da hacia `clawDir`.
-    const dir = clawDir(this.angle, spec.arm);
-    const lx = rollers && this.height < FLOOR_POSE ? seatX(spec, this.tipX(), dir, slot) : this.tipX();
-    const loc = { x: lx, y: this.height + size / 2 };
-    const rx = loc.x - spec.arm.pivotX;
-    const ry = loc.y - spec.arm.pivotY;
-    const vl = { x: -this.armW * ry + (push ? spit * dir : 0), y: this.armW * rx };
+    const spit = rollers ? OUTTAKE.spit : intake.rollerSpeed;
+    // Garra-caja fija al brazo (Psycho): la Muestra sale de la boca REAL de la caja, donde esté en ese
+    // instante, y lleva la velocidad de la boca (robot + giro del chasis + giro del brazo) más la escupida
+    // a lo largo de la boca (Xhavi, 13-nov: "que las escupa desde la posición que se encuentre el gripper").
+    // Lo demás: de la punta con el empujón horizontal de siempre.
+    let loc: { x: number; y: number };
+    let vl: { x: number; y: number };
+    if (rollers && p.rigidFloorAngle !== null) {
+      const d0 = clawDir(p.rigidFloorAngle, spec.arm);
+      loc = p.boxToLocal(this.angle, seatX(spec, 0, d0, slot), size / 2);
+      const m = p.boxMouthDir(this.angle);
+      const piv = { x: spec.arm.pivotX, y: spec.arm.pivotY };
+      // Velocidad de ese punto por el giro del brazo: ω × (r − pivote)
+      const rx = loc.x - piv.x;
+      const ry = loc.y - piv.y;
+      vl = { x: -this.armW * ry + (push ? spit * m.x : 0), y: this.armW * rx + (push ? spit * m.y : 0) };
+    } else {
+      const dir = clawDir(this.angle, spec.arm);
+      const lx = rollers && this.height < FLOOR_POSE ? seatX(spec, this.tipX(), dir, slot) : this.tipX();
+      loc = { x: lx, y: this.height + size / 2 };
+      vl = { x: push ? spit * dir : 0, y: 0 };
+    }
     const at = p.localToWorld(loc.x, loc.y, 0);
     const v = p.body.linvel();
     const wy = p.body.angvel().y;
@@ -575,8 +582,6 @@ export class Mechanisms {
     this.pieces.place(piece, at.x, at.y, at.z, h, { x: vx, y: vl.y, z: vz });
     piece.lastRobot = p.index;
     this.cooldown = EJECT_COOLDOWN;
-    // Arriba, la muñeca voltea la caja mientras suelta (solo dibujo, `RobotView`)
-    if (push && this.height > FLOOR_POSE) this.flipT = EJECT_COOLDOWN;
     if (push && rollers && this.height < FLOOR_POSE) {
       // En el piso las ruedas giran hacia afuera hasta que sale toda de la caja (desde su lugar en la fila)
       const dir = clawDir(this.angle, spec.arm);
@@ -599,7 +604,6 @@ export class Mechanisms {
     this.height = this.phys.spec.elevatorHeights[0];
     this.closing = null;
     this.cooldown = 0;
-    this.flipT = 0;
     this.ejectT = 0;
     this.jammed = false;
     this.armScale = 1;

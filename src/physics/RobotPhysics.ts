@@ -18,7 +18,7 @@
  * y no chocan con la alfombra: la garra pasa rozándola al recoger.
  * CCD en el cuerpo: a toda velocidad o girando no atraviesa las paredes de 8 mm de la Cámara.
  */
-import { armTip, clawOf, intakeOf, seatX, type ClawDims, type RobotSpec } from '../config/robot';
+import { armTip, clawOf, intakeOf, posAngle, seatX, type ClawDims, type RobotSpec } from '../config/robot';
 import { CRITICAL_SIZE, SAMPLE_SIZE } from '../config/field';
 import { G, GROUPS, RAPIER, groups, type PhysicsWorld } from './PhysicsWorld';
 
@@ -47,6 +47,20 @@ export const FLOOR_POSE = 0.06;
 
 type Pose = { t: { x: number; y: number; z: number }; r: { x: number; y: number; z: number; w: number } };
 const NO_ROT = { x: 0, y: 0, z: 0, w: 1 };
+/**
+ * Garra-caja del CAD (Psycho): alto libre del hitbox entre la placa de abajo y la de arriba y grueso de
+ * cada placa (m). El CAD mide 14.6 cm por dentro, pero la Muestra mide 15 cm (la espuma cede): el hitbox deja
+ * 4 mm de holgura para que no empuje a la Muestra que lleva. Placas: SUPUESTO 12 mm (el CAD no las separa).
+ */
+const BOX_INNER = SAMPLE_SIZE + 0.004;
+const BOX_PLATE = 0.012;
+/**
+ * ¿El hitbox de la garra-caja gira con el brazo como se ve? Con la caja girada (boca hacia abajo en N1–N3)
+ * la parte de abajo topa con la cara de la pared de la Cámara al acercarse con el brazo ya arriba y la IA
+ * no llega a anotar (probado: 1 Muestra por match en vez de 14), así que por ahora el hitbox queda nivelado
+ * como se calibró y solo la salida de la Muestra usa la boca real.
+ */
+const BOX_HITBOX = true;
 
 /** Producto de cuaterniones a·b. */
 function qmul(a: Pose['r'], b: Pose['r']): Pose['r'] {
@@ -86,8 +100,23 @@ export class RobotPhysics {
   /** Colisionadores del brazo, la garra y la pieza agarrada (se mueven con el brazo). */
   /** Formas (un poco más chicas) para preguntar si el brazo se metería en la madera. */
   private claw: ClawDims;
-  private armQuery: Record<'beam' | 'finger' | 'palm' | 'sample' | 'critical', RAPIER.Shape>;
-  readonly armColliders: { beam: RAPIER.Collider; fingers: [RAPIER.Collider, RAPIER.Collider]; palm: RAPIER.Collider; sample: RAPIER.Collider; sample2: RAPIER.Collider; critical: RAPIER.Collider };
+  private armQuery: Record<'beam' | 'finger' | 'palm' | 'plate' | 'sample' | 'critical', RAPIER.Shape>;
+  readonly armColliders: {
+    beam: RAPIER.Collider;
+    fingers: [RAPIER.Collider, RAPIER.Collider];
+    palm: RAPIER.Collider;
+    /** Placas de arriba y de abajo de la garra-caja del CAD (solo con `rigidFloorAngle`). */
+    plates: [RAPIER.Collider, RAPIER.Collider];
+    sample: RAPIER.Collider;
+    sample2: RAPIER.Collider;
+    critical: RAPIER.Collider;
+  };
+  /**
+   * Garra del CAD fija al brazo (como la dibuja `RobotView`): ángulo del brazo en el que la caja queda
+   * nivelada (la pose de piso). En otro ángulo la caja gira con el brazo y su hitbox también
+   * (Xhavi, 13-nov: "ponle hitbox a el gripper... puedo atravesar eso"). null = garra que se nivela.
+   */
+  readonly rigidFloorAngle: number | null;
   private wheelLocal: Array<[number, number]> = [];
   private ray = new RAPIER.Ray({ x: 0, y: 0, z: 0 }, { x: 0, y: -1, z: 0 });
 
@@ -191,12 +220,14 @@ export class RobotPhysics {
     };
     const claw = clawOf(spec);
     this.claw = claw;
+    this.rigidFloorAngle = spec.model && !spec.arm.linear && !spec.arm.stowTip ? posAngle(spec, 0) : null;
     const beamLen = Math.max(0.05, spec.arm.length - beamShort(claw));
     const fh = claw.fingerHeight / 2;
     this.armQuery = {
       beam: shrunk(beamLen / 2, 0.02, claw.fingerZ),
       finger: shrunk(claw.fingerLength / 2, fh, claw.fingerThickness / 2),
       palm: shrunk(claw.palmThickness / 2, fh * 0.75, claw.fingerZ + claw.fingerThickness / 2),
+      plate: shrunk(claw.fingerLength / 2, BOX_PLATE / 2, claw.fingerZ + claw.fingerThickness / 2),
       sample: shrunk(SAMPLE_SIZE / 2, SAMPLE_SIZE / 2, SAMPLE_SIZE / 2),
       critical: shrunk(CRITICAL_SIZE / 2, CRITICAL_SIZE / 2, CRITICAL_SIZE / 2),
     };
@@ -207,6 +238,10 @@ export class RobotPhysics {
         mech(RAPIER.ColliderDesc.cuboid(claw.fingerLength / 2, fh, claw.fingerThickness / 2)),
       ],
       palm: mech(RAPIER.ColliderDesc.cuboid(claw.palmThickness / 2, fh * 0.75, claw.fingerZ + claw.fingerThickness / 2)),
+      plates: [
+        mech(RAPIER.ColliderDesc.cuboid(claw.fingerLength / 2, BOX_PLATE / 2, claw.fingerZ + claw.fingerThickness / 2)),
+        mech(RAPIER.ColliderDesc.cuboid(claw.fingerLength / 2, BOX_PLATE / 2, claw.fingerZ + claw.fingerThickness / 2)),
+      ],
       sample: mech(RAPIER.ColliderDesc.cuboid(SAMPLE_SIZE / 2, SAMPLE_SIZE / 2, SAMPLE_SIZE / 2)),
       sample2: mech(RAPIER.ColliderDesc.cuboid(SAMPLE_SIZE / 2, SAMPLE_SIZE / 2, SAMPLE_SIZE / 2)),
       critical: mech(RAPIER.ColliderDesc.cuboid(CRITICAL_SIZE / 2, CRITICAL_SIZE / 2, CRITICAL_SIZE / 2)),
@@ -215,7 +250,7 @@ export class RobotPhysics {
   }
 
   /** Pose local (respecto al cuerpo) de cada colisionador del brazo con el brazo en el ángulo `a`. */
-  private armPoses(a: number): Record<'beam' | 'finger0' | 'finger1' | 'palm' | 'sample' | 'sample2' | 'critical', Pose> {
+  private armPoses(a: number): Record<'beam' | 'finger0' | 'finger1' | 'palm' | 'lid' | 'base' | 'sample' | 'sample2' | 'critical', Pose> {
     const arm = this.spec.arm;
     const beamLen = Math.max(0.05, arm.length - beamShort(this.claw));
     const ca = Math.cos(a);
@@ -235,20 +270,72 @@ export class RobotPhysics {
     // Muestras agarradas: con rodillos y la garra en el piso van en fila sobre el eje de la boca (la
     // primera en la placa del fondo, la segunda detrás). Arriba (al anotar) y sin rodillos, en el centro
     // de la garra y una segunda encima: así se calibraron las alturas y distancias de N1–N3
+    const fl = this.claw.fingerLength;
+    const fh = this.claw.fingerHeight;
+    const S = SAMPLE_SIZE;
+    const a0 = BOX_HITBOX ? this.rigidFloorAngle : null;
+    if (a0 !== null) {
+      // Garra-caja fija al brazo: todo en el sistema de la caja (el de la pose de piso, con origen en la
+      // punta) y girado con el brazo `a − a0` alrededor de la punta. Las Muestras van en fila (`seatX`).
+      const d = a - a0;
+      const c = Math.cos(d);
+      const sn = Math.sin(d);
+      const r = { x: 0, y: 0, z: Math.sin(d / 2), w: Math.cos(d / 2) };
+      const at = (lx: number, ly: number, z = 0): Pose => ({ t: { x: tip.x + lx * c - ly * sn, y: tip.y + lx * sn + ly * c, z }, r });
+      const d0 = clawDir(a0, arm);
+      const rollers0 = intakeOf(this.spec).rollers === true;
+      return {
+        beam,
+        finger0: at(0, fh / 2, this.claw.fingerZ),
+        finger1: at(0, fh / 2, -this.claw.fingerZ),
+        palm: at(-d0 * (fl / 2 + this.claw.palmThickness / 2), fh / 2),
+        lid: at(0, BOX_INNER + BOX_PLATE / 2),
+        base: at(0, -BOX_PLATE / 2),
+        sample: at(rollers0 ? seatX(this.spec, 0, d0, 0) : 0, S / 2),
+        sample2: at(rollers0 ? seatX(this.spec, 0, d0, 1) : 0, rollers0 ? S / 2 : S * 1.5),
+        critical: at(0, CRITICAL_SIZE / 2),
+      };
+    }
     const rollers = intakeOf(this.spec).rollers === true && tip.y < FLOOR_POSE;
     const dir = clawDir(a, arm);
-    const sy = tip.y + SAMPLE_SIZE / 2;
+    const sy = tip.y + S / 2;
     const sample: Pose = { t: { x: rollers ? seatX(this.spec, tip.x, dir, 0) : tip.x, y: sy, z: 0 }, r: NO_ROT };
-    const sample2: Pose = rollers ? { t: { x: seatX(this.spec, tip.x, dir, 1), y: sy, z: 0 }, r: NO_ROT } : { t: { x: tip.x, y: sy + SAMPLE_SIZE, z: 0 }, r: NO_ROT };
+    const sample2: Pose = rollers ? { t: { x: seatX(this.spec, tip.x, dir, 1), y: sy, z: 0 }, r: NO_ROT } : { t: { x: tip.x, y: sy + S, z: 0 }, r: NO_ROT };
+    const off: Pose = { t: { x: tip.x, y: fy, z: 0 }, r: NO_ROT };
     return {
       beam,
       finger0: { t: { x: tip.x, y: fy, z: this.claw.fingerZ }, r: NO_ROT },
       finger1: { t: { x: tip.x, y: fy, z: -this.claw.fingerZ }, r: NO_ROT },
-      palm: { t: { x: tip.x - clawDir(a, arm) * (this.claw.fingerLength / 2 + this.claw.palmThickness / 2), y: fy, z: 0 }, r: NO_ROT },
+      palm: { t: { x: tip.x - clawDir(a, arm) * (fl / 2 + this.claw.palmThickness / 2), y: fy, z: 0 }, r: NO_ROT },
+      lid: off,
+      base: off,
       sample,
       sample2,
       critical: { t: { x: tip.x, y: tip.y + CRITICAL_SIZE / 2, z: 0 }, r: NO_ROT },
     };
+  }
+
+  /**
+   * Punto (x, y locales del robot) de la garra-caja del CAD con el brazo en `a`: `bx`, `by` en el sistema
+   * de la caja (el de la pose de piso, origen en la punta). Para sacar de ahí la Muestra al soltar.
+   * Sin garra fija al brazo, solo suma a la punta.
+   */
+  boxToLocal(a: number, bx: number, by: number): { x: number; y: number } {
+    const tip = armTip(this.spec.arm, a);
+    const d = this.rigidFloorAngle === null ? 0 : a - this.rigidFloorAngle;
+    return { x: tip.x + bx * Math.cos(d) - by * Math.sin(d), y: tip.y + bx * Math.sin(d) + by * Math.cos(d) };
+  }
+
+  /** Hacia dónde abre la caja (vector unitario local x, y) con el brazo en `a`. Su boca da hacia −x en la pose de piso de Psycho. */
+  boxMouthDir(a: number): { x: number; y: number } {
+    const d0 = clawDir(this.rigidFloorAngle ?? a, this.spec.arm);
+    const d = this.rigidFloorAngle === null ? 0 : a - this.rigidFloorAngle;
+    return { x: d0 * Math.cos(d), y: d0 * Math.sin(d) };
+  }
+
+  /** ¿La garra está en la pose de piso (recoger)? */
+  private boxAtFloor(a: number): boolean {
+    return armTip(this.spec.arm, a).y < FLOOR_POSE;
   }
 
   /**
@@ -266,6 +353,12 @@ export class RobotPhysics {
     put(c.fingers[0], p.finger0);
     put(c.fingers[1], p.finger1);
     put(c.palm, p.palm);
+    put(c.plates[0], p.lid);
+    put(c.plates[1], p.base);
+    // Placas de la caja: solo la garra del CAD; la de abajo no en el piso (ahí entra la Muestra)
+    const box = BOX_HITBOX && this.rigidFloorAngle !== null;
+    c.plates[0].setEnabled(box);
+    c.plates[1].setEnabled(box && !this.boxAtFloor(a));
     put(c.sample, p.sample);
     // Segunda Muestra (garra que lleva dos)
     put(c.sample2, p.sample2);
@@ -289,6 +382,10 @@ export class RobotPhysics {
       [q.finger, p.finger1],
       [q.palm, p.palm],
     ];
+    if (BOX_HITBOX && this.rigidFloorAngle !== null) {
+      parts.push([q.plate, p.lid]);
+      if (!this.boxAtFloor(a)) parts.push([q.plate, p.base]);
+    }
     if (held) parts.push([q[held], p[held]]);
     if (held === 'sample' && count >= 2) parts.push([q.sample, p.sample2]);
     for (const [shape, pose] of parts) {

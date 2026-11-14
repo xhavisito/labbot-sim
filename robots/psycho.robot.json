@@ -59,6 +59,7 @@
       "pickBack": true,
       "holdsTwo": true
     },
+    "elevatorHeights": [0, 0.36, 0.74, 1.02, 0.615],
     "floorHeight": 0.0249,
     "intake": {
       "gap": 0.309,
@@ -88,12 +89,13 @@
     "pivote = centro de la flecha; la punta es el centro de la placa baja de la garra; ángulo de guardado y de piso = el del CAD; velocidad angular 4 rad/s (SUPUESTO)",
     "la garra queda atrás del frente (pickBack): recoge de reversa y el brazo voltea para anotar al frente",
     "garra-caja con rodillos (fotos del robot real, flechas verticales a los costados): las Muestras entran por la boca y quedan en fila, una tras otra sobre el eje de la boca (capacidad 2; la segunda sobresale de la caja)",
+    "SUPUESTO (Xhavi, 14-nov, \"subir la punta\"): N1–N3 con la punta 10, 13 y 17 cm más arriba que el preset (26/61/85 → 36/74/102 cm) para que la caja, ya girada con el brazo, pase por encima de la pared de la Cámara; N3 + Muestra pasa de 100 cm (§7.2) y hay que confirmarlo",
     "velocidades y tracción del preset (el manual no las fija, §7.2)"
   ],
   "model": {
     "url": "robots/psycho.glb",
     "stowAngle": -1.9687,
     "tint": "^Chasis-(Frontal|Trasero)",
-    "clawParts": "^(Garra-|Kraken[ _]X44)"
+    "armParts": "^Kraken[ _]X44"
   }
 }
