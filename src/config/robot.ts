@@ -123,8 +123,8 @@ export interface RobotSpec {
 }
 
 /** Ruedas de tracción del CAD: radio, posiciones a lo largo del robot (por lado), distancia del centro a cada rueda y ancho (m). */
-/** Cuánto sobresale la llanta por debajo del chasis (m): el robot apoya en ellas, no en el chasis. SUPUESTO (2 cm). */
-export const WHEEL_DROP = 0.02;
+/** Cuánto sobresale la llanta por debajo del chasis (m): el robot apoya en ellas, no en el chasis. SUPUESTO (6 mm: Xhavi pidió la elevación mínima). */
+export const WHEEL_DROP = 0.006;
 
 export interface WheelSpec {
   r: number;

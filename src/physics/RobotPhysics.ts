@@ -198,7 +198,7 @@ export class RobotPhysics {
             .setFriction(0.3)
             .setRestitution(0.05),
         );
-    // Ruedas: las del CAD (`RobotSpec.wheel`: cilindros del ancho de la llanta, 3 por lado) o 4 esferas genéricas
+    // Ruedas: las del CAD (`RobotSpec.wheel`: cilindros del ancho de la llanta, 2 por lado) o 4 esferas genéricas
     const wr = spec.wheel;
     this.wheelR = wr?.r ?? WHEEL_R;
     this.wheelY = wr ? wr.r - WHEEL_DROP : WHEEL_R;
