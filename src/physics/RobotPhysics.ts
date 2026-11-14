@@ -18,7 +18,7 @@
  * y no chocan con la alfombra: la garra pasa rozándola al recoger.
  * CCD en el cuerpo: a toda velocidad o girando no atraviesa las paredes de 8 mm de la Cámara.
  */
-import { armTip, clawOf, intakeOf, posAngle, seatX, type ClawDims, type RobotSpec } from '../config/robot';
+import { WHEEL_DROP, armTip, clawOf, intakeOf, posAngle, seatX, type ClawDims, type RobotSpec } from '../config/robot';
 import { CRITICAL_SIZE, SAMPLE_SIZE } from '../config/field';
 import { G, GROUPS, RAPIER, groups, type PhysicsWorld } from './PhysicsWorld';
 
@@ -118,6 +118,10 @@ export class RobotPhysics {
    */
   readonly rigidFloorAngle: number | null;
   private wheelLocal: Array<[number, number]> = [];
+  /** Radio de las ruedas (m): el del CAD o 5 cm. */
+  private wheelR = WHEEL_R;
+  /** Altura local del centro de las ruedas (con las del CAD, un poco bajo el chasis: `WHEEL_DROP`). */
+  private wheelY = WHEEL_R;
   private ray = new RAPIER.Ray({ x: 0, y: 0, z: 0 }, { x: 0, y: -1, z: 0 });
 
   constructor(
@@ -142,7 +146,8 @@ export class RobotPhysics {
     );
     const wheelMass = 0.8;
     const superMass = spec.massKg * 0.25;
-    const chassisMass = spec.massKg - 4 * wheelMass - superMass;
+    const wheelN = spec.wheel ? spec.wheel.xs.length * 2 : 4;
+    const chassisMass = spec.massKg - wheelN * wheelMass - superMass;
     const add = (desc: RAPIER.ColliderDesc): RAPIER.Collider => {
       const c = w.createCollider(desc.setCollisionGroups(GROUPS.robot).setActiveEvents(RAPIER.ActiveEvents.COLLISION_EVENTS), this.body);
       pw.tag(c, { kind: 'robot', robot: index });
@@ -193,19 +198,29 @@ export class RobotPhysics {
             .setFriction(0.3)
             .setRestitution(0.05),
         );
-    // Ruedas
-    const ix = this.halfL - 0.08;
-    const iz = this.halfW - 0.06;
-    this.wheelLocal = [
-      [ix, iz],
-      [ix, -iz],
-      [-ix, iz],
-      [-ix, -iz],
-    ];
+    // Ruedas: las del CAD (`RobotSpec.wheel`: cilindros del ancho de la llanta, 3 por lado) o 4 esferas genéricas
+    const wr = spec.wheel;
+    this.wheelR = wr?.r ?? WHEEL_R;
+    this.wheelY = wr ? wr.r - WHEEL_DROP : WHEEL_R;
+    if (wr) this.wheelLocal = wr.xs.flatMap((x): Array<[number, number]> => [[x, wr.z], [x, -wr.z]]);
+    else {
+      const ix = this.halfL - 0.08;
+      const iz = this.halfW - 0.06;
+      this.wheelLocal = [
+        [ix, iz],
+        [ix, -iz],
+        [-ix, iz],
+        [-ix, -iz],
+      ];
+    }
     for (const [lx, lz] of this.wheelLocal)
       add(
-        RAPIER.ColliderDesc.ball(WHEEL_R)
-          .setTranslation(lx, WHEEL_R, lz)
+        (wr
+          ? // Eje a lo largo de z (el cilindro de Rapier va a lo largo de y)
+            RAPIER.ColliderDesc.cylinder(wr.width / 2, wr.r).setRotation({ x: Math.SQRT1_2, y: 0, z: 0, w: Math.SQRT1_2 })
+          : RAPIER.ColliderDesc.ball(WHEEL_R)
+        )
+          .setTranslation(lx, this.wheelY, lz)
           .setMass(wheelMass)
           .setFriction(0)
           .setFrictionCombineRule(RAPIER.CoefficientCombineRule.Min)
@@ -480,16 +495,16 @@ export class RobotPhysics {
     let carpet = 0;
     let platform = 0;
     for (const [lx, lz] of this.wheelLocal) {
-      const o = this.localToWorld(lx, WHEEL_R, lz);
+      const o = this.localToWorld(lx, this.wheelY, lz);
       this.ray.origin = o;
-      const hit = this.pw.world.castRay(this.ray, WHEEL_R + 0.03, true, undefined, GROUPS.robot, undefined, this.body);
+      const hit = this.pw.world.castRay(this.ray, this.wheelR + 0.03, true, undefined, GROUPS.robot, undefined, this.body);
       if (!hit) continue;
       n++;
       const tag = this.pw.tagOf(hit.collider.handle);
       if (tag?.kind === 'floor') carpet++;
       else if (tag?.kind === 'field' && (tag.part === 'ramp' || tag.part === 'platform' || tag.part === 'repisa')) platform++;
     }
-    this.grounded = n / 4;
+    this.grounded = n / this.wheelLocal.length;
     this.wheelsOnCarpet = carpet;
     this.wheelsOnPlatform = platform;
   }

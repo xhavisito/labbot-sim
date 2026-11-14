@@ -223,3 +223,35 @@ describe('psycho sin mecanismo para la Crítica (Xhavi, 13-nov)', () => {
     expect(m.critical).toBeNull();
   });
 });
+
+describe('psycho con sus ruedas reales (Xhavi, 14-nov)', () => {
+  it('apoya en 6 ruedas de 15 cm, sin hundirse, y avanza', async () => {
+    const { robotSpec } = await import('../src/config/robotIds');
+    const { GameSession } = await import('../src/game/GameSession');
+    const { emptyInput } = await import('../src/input/InputManager');
+    const { initRapier } = await import('../src/physics/PhysicsWorld');
+    await initRapier();
+    const s = robotSpec('cad:psycho');
+    expect(s.wheel).toBeDefined();
+    expect(s.wheel!.xs).toHaveLength(3); // 3 por lado = 6
+    expect(s.wheel!.r * 2).toBeCloseTo(0.1524, 3); // 6 in
+    // Las ruedas caben en el hueco entre la pared interior y la exterior del chasis (z 0.24–0.314 en el CAD)
+    expect(s.wheel!.z - s.wheel!.width / 2).toBeGreaterThan(0.24);
+    expect(s.wheel!.z + s.wheel!.width / 2).toBeLessThan(0.314);
+    const g = new GameSession({ player: 0, preload: false, specs: [s] });
+    g.player.phys.teleport(2.6, -1.2, 0);
+    for (let i = 0; i < 120; i++) {
+      g.setInput(emptyInput());
+      g.step();
+    }
+    // Quieto: el cuerpo no se hunde (las ruedas tocan la alfombra y el chasis no)
+    expect(Math.abs(g.player.phys.body.translation().y)).toBeLessThan(0.02);
+    expect(g.player.phys.grounded).toBe(1);
+    const x0 = g.player.phys.position().x;
+    for (let i = 0; i < 180; i++) {
+      g.setInput({ ...emptyInput(), forward: 1 });
+      g.step();
+    }
+    expect(Math.abs(g.player.phys.position().x - x0)).toBeGreaterThan(0.5);
+  });
+});
