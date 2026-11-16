@@ -13,6 +13,7 @@ import { PALETTES } from '../config/palette';
 import { clawDir } from '../physics/RobotPhysics';
 import type { Robot } from '../game/Robot';
 import { buildCadWheel } from './cadWheel';
+import { HitboxDebug, hitboxDebugOn } from './hitboxDebug';
 import { ALLIANCE_COLOR } from './FieldView';
 import { criticalMaterial, sampleMaterial } from './PieceView';
 import { brushedTexture, textTexture } from './textures';
@@ -75,6 +76,8 @@ export class RobotView {
   private wheels: Array<{ mesh: THREE.Object3D; side: number; flip?: boolean }> = [];
   private lastP = new THREE.Vector3();
   private lastYaw = 0;
+  /** `?hitboxes=1`: los colisionadores de la física en alambre. */
+  private hitDebug: HitboxDebug | null = null;
   private spin = [0, 0];
   /** Rodillos de la garra (robots del CAD): `row` = costado (+1 = +z, −1 = −z) de la flecha vertical; giran hacia adentro. */
   private clawRollers: Array<{ mesh: THREE.Object3D; row: number }> = [];
@@ -430,6 +433,11 @@ export class RobotView {
     this.spin[1] += (ds + dy * this.halfW) / WHEEL_R;
     this.lastP.copy(this.group.position);
     this.lastYaw = yaw;
+    if (!this.hitDebug && hitboxDebugOn()) {
+      this.hitDebug = new HitboxDebug(this.robot.phys);
+      this.group.add(this.hitDebug.group);
+    }
+    this.hitDebug?.sync();
     for (const w of this.wheels) w.mesh.rotation.z = (w.flip ? 1 : -1) * this.spin[w.side];
     const m = this.robot.mech;
     this.criticalMesh.visible = m.critical !== null;

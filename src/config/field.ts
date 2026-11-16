@@ -189,7 +189,8 @@ export const SAMPLE_SIZE = mm(150); // cubo 150 mm ±5
 export const CRITICAL_SIZE = mm(200); // cubo 200 mm ±5
 /** Masa: no se da. SUPUESTO espuma ≈30 kg/m³. */
 export const SAMPLE_MASS = 0.1;
-export const CRITICAL_MASS = 0.24;
+/** Xhavi, 16-nov: la Crítica tiene las mismas físicas que las Muestras normales (misma masa, fricción y rebote); solo cambia el tamaño (§4.1.1) y el puntaje. */
+export const CRITICAL_MASS = SAMPLE_MASS;
 export const LAB_SAMPLES = 16; // en el Laboratorio al inicio
 export const HP_SAMPLES_PER_ALLIANCE = 10; // disponibles para el HP por alianza
 export const PRELOAD_PER_ROBOT = 1; // §4.1 (opcional)
