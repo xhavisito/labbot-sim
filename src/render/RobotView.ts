@@ -282,7 +282,7 @@ export class RobotView {
   private findFingers(arm: THREE.Object3D): void {
     const parts: Array<{ mesh: THREE.Object3D; zc: number; zi: number }> = [];
     arm.traverse((o) => {
-      if (o instanceof THREE.Mesh && /^garra$/i.test(o.name)) {
+      if (o instanceof THREE.Mesh && /^garra(_\d+)?$/i.test(o.name)) {
         o.geometry.computeBoundingBox();
         const b = o.geometry.boundingBox!;
         const zc = (b.min.z + b.max.z) / 2 + o.position.z;
