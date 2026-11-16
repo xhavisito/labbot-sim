@@ -112,7 +112,7 @@ for (const name of process.argv.slice(2)) {
     if (Math.hypot(hi[0] - lo[0], hi[1] - lo[1], hi[2] - lo[2]) < SKIP_DIAG) { skipped.small++; continue; }
     // Dentro del chasis bajo (alto 0.235 m, `CHASSIS_TOP` de RobotPhysics, con 4 cm de tolerancia) y de una caja de la huella
     const covered = (x, z) => fp.some(([x0, x1, z0, z1]) => x >= x0 - 1e-3 && x <= x1 + 1e-3 && z >= z0 - 1e-3 && z <= z1 + 1e-3);
-    let all = hi[1] <= 0.235 + 0.04;
+    let all = hi[1] <= 0.235 + (Number(process.env.INSIDE_TOL) || 0.04);
     for (let i = 0; all && i <= 12; i++) for (let k = 0; all && k <= 4; k++) all = covered(lo[0] + ((hi[0] - lo[0]) * i) / 12, lo[2] + ((hi[2] - lo[2]) * k) / 4);
     if (all) { skipped.inside++; continue; }
     hit.push({ name: n.name, pts: hullPoints(pts).flat() });

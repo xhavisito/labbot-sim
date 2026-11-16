@@ -287,7 +287,8 @@ export class RobotPhysics {
     let beam: Pose = { t: { x: arm.pivotX + (ca * beamLen) / 2, y: arm.pivotY + (sa * beamLen) / 2, z: 0 }, r: { x: 0, y: 0, z: Math.sin(a / 2), w: Math.cos(a / 2) } };
     if (arm.linear) {
       // Elevador: el carro sale de la torre con una viga horizontal a la altura de la punta
-      beam = { t: { x: tip.x - clawDir(a, arm) * (this.claw.fingerLength / 2 + beamLen / 2), y: tip.y, z: 0 }, r: NO_ROT };
+      // (con el carro en el piso la viga no baja de la alfombra: 2 cm de media altura)
+      beam = { t: { x: tip.x - clawDir(a, arm) * (this.claw.fingerLength / 2 + beamLen / 2), y: Math.max(tip.y, 0.02), z: 0 }, r: NO_ROT };
     } else if (arm.stowTip && a > Math.PI / 2) {
       const b = Math.atan2(tip.y - arm.pivotY, tip.x - arm.pivotX);
       beam = { t: { x: arm.pivotX + (Math.cos(b) * beamLen) / 2, y: arm.pivotY + (Math.sin(b) * beamLen) / 2, z: 0 }, r: { x: 0, y: 0, z: Math.sin(b / 2), w: Math.cos(b / 2) } };
