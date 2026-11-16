@@ -4,18 +4,20 @@
  * SUPUESTO del simulador: el manual no habla de controles ni de equipos de dos personas.
  */
 import type { Alliance } from '../core/types';
-import type { VersusDevice } from '../config/settings';
+import type { VersusDevice, VersusTeam } from '../config/settings';
 import { ACTIONS, keyLabel, padLabel, type Action, type Bindings } from '../input/bindings';
 import { keyboardHelp, type HelpItem } from './controlsHelp';
 import { t, type Key } from './i18n';
 
-export type VsTeam = 'opp' | 'same';
+export type VsTeam = VersusTeam;
 /** Quién maneja cada robot: jugador 1, jugador 2 o la IA. */
 export type VsRole = 'p1' | 'p2' | 'ai';
+/** En 1 contra 1 las otras dos estaciones no existen. */
+export const isDuel = (team: VsTeam): boolean => team === 'duel';
 
 /** Estación del jugador 2 según el equipo: la contraria (+2) o la compañera de la misma alianza. */
 export function partnerStation(player: number, team: VsTeam): number {
-  return team === 'opp' ? (player + 2) % 4 : player ^ 1;
+  return team === 'same' ? player ^ 1 : (player + 2) % 4;
 }
 
 /** Quién va en cada estación (índices 0–1 rojo, 2–3 azul). */

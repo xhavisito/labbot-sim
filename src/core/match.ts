@@ -83,6 +83,8 @@ export class Match {
     readonly cfg: GameConfig,
     /** Robots por alianza (para el RP de la línea: "ambos robots", §4.4). */
     readonly robotsPerAlliance = 2,
+    /** Robots que deben cruzar la línea para el RP: "ambos" (§4.4); en 1 contra 1 (SUPUESTO) el único de la alianza. */
+    readonly autoLineNeeded = robotsPerAlliance,
   ) {}
 
   get running(): boolean {
@@ -247,7 +249,7 @@ export class Match {
     const mine = this.score(a);
     const other = this.score(opponent(a));
     const win = mine > other ? R.win : mine === other ? R.tie : 0;
-    const autoLine = s.autoLine.size >= this.robotsPerAlliance;
+    const autoLine = s.autoLine.size >= this.autoLineNeeded;
     const critical = s.critical;
     const dominance = this.samplesIn(a) >= R.dominanceSamples;
     const total = this.red.has(a) ? 0 : win + (autoLine ? R.autoLine : 0) + (critical ? R.critical : 0) + (dominance ? R.dominance : 0);

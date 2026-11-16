@@ -3,8 +3,8 @@
  * sin dar pasos de física) y en cada cuadro pone a mano los cuerpos y los mecanismos en la pose
  * grabada, interpolando entre cuadros. Las vistas (`RobotView`, `PieceView`) dibujan igual que en vivo.
  */
-import { GAME } from '../config/game';
-import { knownSpec } from '../config/robot';
+import { GAME, gameWithDuration } from '../config/game';
+import { knownSpec, type RobotSpec } from '../config/robot';
 import { formatTimer, timerSeconds } from '../core/clock';
 import { GameSession } from '../game/GameSession';
 import { frameScore, frameTime, pieceFrame, REPLAY_HZ, replayDuration, robotFrame, type Replay } from './format';
@@ -41,7 +41,7 @@ export class ReplayPlayer {
 
   constructor(readonly replay: Replay) {
     const h = replay.header;
-    this.session = new GameSession({ player: h.player, preload: false, ai: false, specs: h.robots.map((r) => knownSpec(r.spec)), hp: { enabled: false, interval: 3 } });
+    this.session = new GameSession({ player: h.player, preload: false, ai: false, specs: Object.assign([] as RobotSpec[], ...h.robots.map((r) => ({ [r.index]: knownSpec(r.spec) }))), ...(h.robots.length < 4 ? { stations: h.robots.map((r) => r.index) } : {}), hp: { enabled: false, interval: 3 } });
     this.duration = replayDuration(replay);
     this.focus = Math.max(0, h.robots.findIndex((r) => r.index === h.player));
     this.moments = buildMoments(replay);
@@ -190,7 +190,7 @@ export class ReplayPlayer {
   /** Marcador, timer y fase en `this.t`. */
   get scoreboard(): { red: number; blue: number; timer: string; phase: string } {
     const sc = frameScore(this.replay, this.frameAt(this.t));
-    return { red: sc.red, blue: sc.blue, timer: formatTimer(timerSeconds(this.t, GAME)), phase: sc.phase };
+    return { red: sc.red, blue: sc.blue, timer: formatTimer(timerSeconds(this.t, gameWithDuration(Number(this.replay.header.meta.duration), GAME))), phase: sc.phase };
   }
 
   /** Pose del robot enfocado (para la cámara). */

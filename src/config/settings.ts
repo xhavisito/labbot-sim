@@ -7,6 +7,7 @@ import { AI_LEVELS, type AiLevel } from '../ai/difficulty';
 import { isPersona, type AiPersona } from '../ai/persona';
 import { isStrategy, type StrategyId } from '../ai/strategy';
 import { DEFAULT_DAMAGE, sanitizeDamage, type DamageSettings } from '../core/damage';
+import { DEFAULT_DURATION, MATCH_DURATIONS } from './game';
 import { DEFAULT_ROBOT, GRIP_MODES, type GripMode } from './robot';
 import { allRobotIds, type RobotId } from './robotIds';
 import { COLOR_MODES, nearestTextScale, type ColorMode, type TextScale } from './palette';
@@ -140,11 +141,17 @@ export interface VersusSide {
 }
 
 /**
- * 2 jugadores: `opp` = alianzas contrarias (cada quien contra el otro); `same` = la misma alianza
- * (la IA rellena los otros dos robots). SUPUESTO del simulador: el manual no habla de controles.
+ * 2 jugadores: `opp` = alianzas contrarias (cada quien contra el otro; la IA maneja a sus compañeros);
+ * `same` = la misma alianza (la IA rellena los otros dos robots); `duel` = 1 contra 1: solo existen
+ * los dos robots, uno por alianza (la IA no juega). SUPUESTO del simulador: el manual no habla de
+ * controles ni de matches de un robot por alianza (§8.2 pide dos).
  */
+export type VersusTeam = 'opp' | 'same' | 'duel';
+export const VERSUS_TEAMS: readonly VersusTeam[] = ['opp', 'same', 'duel'];
 export interface VersusSettings {
-  team: 'opp' | 'same';
+  team: VersusTeam;
+  /** Duración total del match en segundos (`MATCH_DURATIONS`; 150 = el reglamento, 15 s + 135 s). SUPUESTO del simulador. */
+  duration: number;
   p1: VersusSide;
   p2: VersusSide;
 }
@@ -192,6 +199,7 @@ export const DEFAULT_SETTINGS: Settings = {
   textScale: 1,
   versus: {
     team: 'opp',
+    duration: DEFAULT_DURATION,
     p1: { robot: DEFAULT_ROBOT_ID, auto: 'leave', start: { ...CENTER_SPOT }, device: 'keys1', camera: 'follow' },
     p2: { robot: DEFAULT_ROBOT_ID, auto: 'leave', start: { ...CENTER_SPOT }, device: 'keys2', camera: 'follow' },
   },
@@ -240,7 +248,8 @@ export function sanitizeVersus(raw: unknown, autoIds: readonly string[]): Versus
     };
   };
   return {
-    team: o.team === 'same' ? 'same' : 'opp',
+    team: VERSUS_TEAMS.find((x) => x === o.team) ?? 'opp',
+    duration: MATCH_DURATIONS.find((x) => x === o.duration) ?? DEFAULT_DURATION,
     p1: side(o.p1, 0),
     p2: side(o.p2, 1),
   };

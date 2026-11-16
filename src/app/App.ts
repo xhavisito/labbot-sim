@@ -17,10 +17,10 @@ import { ROBOT_PRESETS, type MechanismKind, type RobotSpec } from '../config/rob
 import { robotStats } from '../replay/stats';
 import { robotSpec, type RobotId } from '../config/robotIds';
 import { loadSettings, saveSettings, type Settings } from '../config/settings';
-import { formatTimer, timerSeconds } from '../core/clock';
+import { bounds, formatTimer, timerSeconds } from '../core/clock';
 import { callForEvent, EndgameWatcher, type RefCall } from '../core/refCalls';
 import { ALLIANCES } from '../core/types';
-import { GAME } from '../config/game';
+import { GAME, gameWithDuration } from '../config/game';
 import { refText, voiceLang } from '../ui/refText';
 import { buildMatchLog } from '../core/matchLog';
 import type { Match } from '../core/match';
@@ -364,7 +364,7 @@ export class App {
     this.hud.setPlan(plan);
     this.applyPlanBoard();
     // Cada match se graba para la repetición y las estadísticas
-    this.recorder = c.mode === 'match' || versus ? new Recorder(this.session, this.session.robots.map((r) => robotLabel(r.spec))) : null;
+    this.recorder = c.mode === 'match' || versus ? new Recorder(this.session, this.session.robots.map((r) => robotLabel(r.spec)), { duration: Math.round(bounds(this.session.game).teleopEnd) }) : null;
     this.session.tap = this.recorder;
     // Práctica 1 contra 1 con otra persona: pantalla dividida y entrada de dos jugadores, como 2 jugadores
     const duo = p1 && this.session.player2 !== null;
@@ -458,7 +458,10 @@ export class App {
       bots[x.i] = undefined;
       starts[x.i] = x.start;
     }
-    return { ...o, player2: p2, specs, autos, bots, starts };
+    // 1 contra 1: solo existen los dos robots; el reloj puede durar lo que se eligió (SUPUESTO, `gameWithDuration`)
+    const game = gameWithDuration(v.duration);
+    this.endgameWatch.cfg = game;
+    return { ...o, player2: p2, specs, autos, bots, starts, game, ...(v.team === 'duel' ? { stations: [player, p2], ai: false } : {}) };
   }
 
   /** Enciende o apaga el modo de 2 jugadores en la entrada y la pantalla dividida. */
@@ -952,7 +955,7 @@ export class App {
   /** Vibración del control (`input/rumble.ts`): al anotar tu alianza y con faltas o tarjetas en tu contra. */
   private rumbleEvents(s: GameSession, calls: readonly RefCall[]): void {
     if (!this.settings.rumble) return;
-    const mine = s.robots[s.opts.player]?.alliance;
+    const mine = s.robots.find((r) => r.index === s.opts.player)?.alliance;
     if (!mine) return;
     if (s.matchEvents.some((e) => e.type === 'sample' && e.alliance === mine)) rumblePad(this.input.pad(), 'score');
     if (calls.some((c) => c.alliance === mine && (c.kind === 'foul' || c.kind === 'tech' || c.kind === 'yellow' || c.kind === 'red'))) rumblePad(this.input.pad(), 'foul');

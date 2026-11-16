@@ -7,10 +7,11 @@
  *    SU Zona de Inicio (§3.2.1, §4.1), con el mapa de `MatchSetup`.
  * SUPUESTO del simulador: el manual no habla de controles ni de equipos de dos personas.
  */
+import { DEFAULT_DURATION, MATCH_DURATIONS } from '../config/game';
 import { ROBOT_IDS, robotSpec, allRobotIds } from '../config/robotIds';
 import { customById } from '../config/customRobots';
 import { CENTER_SPOT, clampSpot, spotValid, type StartSpot } from '../config/startSpot';
-import { VERSUS_CAMERAS, VERSUS_DEVICES, type Settings, type VersusDevice, type VersusSide } from '../config/settings';
+import { VERSUS_CAMERAS, VERSUS_DEVICES, VERSUS_TEAMS, type VersusTeam, type Settings, type VersusDevice, type VersusSide } from '../config/settings';
 import type { Action, Bindings } from '../input/bindings';
 import { backBtn, brandbar, ic, robotSilhouette, UI_ALLIANCES } from './chrome';
 import { autoOptionsHtml, bindStartMap, fieldMap, optionTag } from './MatchSetup';
@@ -39,7 +40,11 @@ const robotName = (id: string): string => {
 };
 
 const DEV_ICON: Record<VersusDevice, string> = { keys1: ic.keyboard, keys2: ic.keyboard, pad1: ic.gamepad, pad2: ic.gamepad, touch: ic.touch };
-const roleTag = (r: VsRole): string => (r === 'ai' ? t('vs_ai') : t(r === 'p1' ? 'vs_p1short' : 'vs_p2short'));
+/** En 1 contra 1 las estaciones que sobran no tienen robot: se marcan con un guion. */
+const roleTag = (r: VsRole, duel = false): string => (r === 'ai' ? (duel ? '–' : t('vs_ai')) : t(r === 'p1' ? 'vs_p1short' : 'vs_p2short'));
+
+/** 150 s = 2:30, el reglamento. */
+const durLabel = (s: number): string => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
 
 const connectedPads = (): Gamepad[] =>
   typeof navigator !== 'undefined' && navigator.getGamepads ? [...navigator.getGamepads()].filter((p): p is Gamepad => !!p && p.connected) : [];
@@ -92,28 +97,30 @@ export class VersusSetup {
     const a2 = allianceOf(s2.slot);
 
     // Paso 1: el modo, con un mini acomodo de quién maneja qué
-    const mini = (team: 'opp' | 'same') => {
+    const mini = (team: VersusTeam) => {
       const r = lineup(this.player, team);
       const side = (a: 'red' | 'blue') =>
-        `<span class="vs-mini-all ${a}">${(a === 'blue' ? [2, 3] : [0, 1]).map((i) => `<i class="${r[i]}">${roleTag(r[i])}</i>`).join('')}</span>`;
+        `<span class="vs-mini-all ${a}">${(a === 'blue' ? [2, 3] : [0, 1]).map((i) => `<i class="${r[i]}">${roleTag(r[i], team === 'duel')}</i>`).join('')}</span>`;
       return `<span class="vs-mini">${side('blue')}<em>${t('vs_versus')}</em>${side('red')}</span>`;
     };
-    const mode = (team: 'opp' | 'same') =>
+    const mode = (team: VersusTeam) =>
       `<button class="vs-mode ${v.team === team ? 'on' : ''}" data-team="${team}" aria-pressed="${v.team === team}">
-        <span class="vs-mode-top"><span class="vs-mode-ic">${team === 'opp' ? ic.bolt : ic.users}</span><span class="vs-mode-txt"><b>${t(team === 'opp' ? 'vs_opp' : 'vs_same')}</b><small>${t(team === 'opp' ? 'vs_oppDesc' : 'vs_sameDesc')}</small></span><span class="vs-check">${ic.check}</span></span>
+        <span class="vs-mode-top"><span class="vs-mode-ic">${team === 'same' ? ic.users : ic.bolt}</span><span class="vs-mode-txt"><b>${t(`vs_${team}` as Key)}</b><small>${t(`vs_${team}Desc` as Key)}</small></span><span class="vs-check">${ic.check}</span></span>
         ${mini(team)}
       </button>`;
 
     // Paso 2: las cuatro estaciones por alianza (azul primero, como en el resto de la UI)
     const slot = (i: number) =>
-      `<button class="vs-slot ${allianceOf(i)} ${roles[i]}" data-slot="${i}" aria-label="${stationName(i)}: ${roleTag(roles[i])}">
+      v.team === 'duel' && roles[i] === 'ai'
+        ? `<span class="vs-slot off ${allianceOf(i)}" aria-hidden="true"><span class="vs-who">–</span><span class="vs-st">${stationName(i)}</span></span>`
+        : `<button class="vs-slot ${allianceOf(i)} ${roles[i]}" data-slot="${i}" aria-label="${stationName(i)}: ${roleTag(roles[i])}">
         <span class="vs-who">${roleTag(roles[i])}</span><span class="vs-st">${stationName(i)}</span>
       </button>`;
     const alliance = (a: 'red' | 'blue') =>
       `<div class="vs-all ${a}"><span class="vs-all-name">${t(a === 'red' ? 'vs_allRed' : 'vs_allBlue')}</span><div class="vs-slots">${(a === 'blue' ? [2, 3] : [0, 1]).map(slot).join('')}</div></div>`;
 
     const summary =
-      v.team === 'opp'
+      v.team !== 'same'
         ? `<span class="vs-sum-p ${a1}"><b>${t('vs_p1short')}</b>${stationName(s1.slot)}</span><em>${t('vs_versus')}</em><span class="vs-sum-p ${a2}"><b>${t('vs_p2short')}</b>${stationName(s2.slot)}</span>`
         : `<span class="vs-sum-p ${a1}"><b>${t('vs_p1short')} + ${t('vs_p2short')}</b>${t(a1 === 'red' ? 'vs_allRed' : 'vs_allBlue')}</span><em>${t('vs_versus')}</em><span class="vs-sum-p ai"><b>${t('vs_ai')}</b>${t(a1 === 'red' ? 'vs_allBlue' : 'vs_allRed')}</span>`;
 
@@ -126,7 +133,9 @@ export class VersusSetup {
       </div>
       <section class="vs-step">
         <div class="vs-step-h"><span class="vs-n">1</span><h2>${t('vs_stepMode')}</h2></div>
-        <div class="vs-modes">${mode('opp')}${mode('same')}</div>
+        <div class="vs-modes">${mode('opp')}${mode('same')}${mode('duel')}</div>
+        <div class="vs-dur"><span class="vs-lbl">${t('vs_duration')}</span><div class="seg">${MATCH_DURATIONS.map((d) => `<button class="${v.duration === d ? 'on' : ''}" data-dur="${d}" aria-pressed="${v.duration === d}">${durLabel(d)}</button>`).join('')}</div></div>
+        <p class="ms-note">${t(v.duration === DEFAULT_DURATION ? 'vs_durRules' : 'vs_durCustom')}</p>
       </section>
       <section class="vs-step">
         <div class="vs-step-h"><span class="vs-n">2</span><h2>${t('vs_stepPlaces')}</h2>
@@ -223,7 +232,11 @@ export class VersusSetup {
     };
     for (const { key, side, slot } of this.sides) this.bindSide(key, side, slot);
     on('[data-team]', (b) => {
-      v.team = b.dataset.team === 'same' ? 'same' : 'opp';
+      v.team = VERSUS_TEAMS.find((x) => x === b.dataset.team) ?? 'opp';
+      change();
+    });
+    on('[data-dur]', (b) => {
+      v.duration = Number(b.dataset.dur);
       change();
     });
     on('[data-slot]', (b) => {
