@@ -1,0 +1,125 @@
+{
+  "schema": "labbot-robot/1",
+  "name": "Axiom",
+  "mechanism": "pivot180",
+  "spec": {
+    "length": 0.561,
+    "width": 0.6511,
+    "baseHeight": 0.6455,
+    "footprint": [
+      [
+        -0.2805,
+        0.0795,
+        -0.3255,
+        0.3255
+      ],
+      [
+        0.0795,
+        0.2395,
+        -0.3255,
+        -0.2255
+      ],
+      [
+        0.0795,
+        0.2395,
+        0.2145,
+        0.3255
+      ],
+      [
+        0.2395,
+        0.2595,
+        -0.3255,
+        -0.3055
+      ],
+      [
+        0.2395,
+        0.2595,
+        -0.2455,
+        -0.2255
+      ],
+      [
+        0.2395,
+        0.2595,
+        0.2145,
+        0.2545
+      ],
+      [
+        0.2395,
+        0.2595,
+        0.2945,
+        0.3255
+      ],
+      [
+        0.2595,
+        0.2805,
+        -0.3255,
+        -0.2255
+      ],
+      [
+        0.2595,
+        0.2805,
+        0.2145,
+        0.3255
+      ]
+    ],
+    "arm": {
+      "pivotX": -0.173,
+      "pivotY": 0.2421,
+      "length": 0.6246,
+      "speed": 4,
+      "stowAngle": 1.0472,
+      "pickBack": false
+    },
+    "intake": {
+      "kind": "pinza",
+      "gap": 0.23,
+      "fingerLength": 0.1221
+    },
+    "capacity": 1,
+    "elevatorHeights": [
+      0,
+      0.26,
+      0.61,
+      0.85,
+      0.615
+    ],
+    "wheel": {
+      "r": 0.0762,
+      "xs": [
+        -0.1725,
+        0.1475
+      ],
+      "z": 0.2755,
+      "width": 0.035
+    }
+  },
+  "source": {
+    "file": "ensamble comp interna.STEP",
+    "parts": 83,
+    "up": "y",
+    "forward": "+z",
+    "unitScale": 0.001,
+    "bboxM": [
+      0.6511,
+      0.7132,
+      0.6585
+    ]
+  },
+  "supuestos": [
+    "DEL CAD (ensamble comp interna.STEP, 83 piezas, AP214): chasis 0.561 × 0.651 m (el largo coincide con los 56 cm de Xhavi); eje vertical y; 4 llantas HiGrip de 6 in (2 por lado, x −0.1725/0.1475 m, a ±0.2755 m del centro); piso = parte baja de las llantas (y 0.1066 m en el CAD); eje del brazo (flecha pivote) a 0.24 m del piso y 0.173 m detrás del centro; garra de pinza al frente (0.12 m de fondo); brazo de 0.6246 m del eje al centro de la garra; la forma 3D es la del CAD (127 mil triángulos, motores y engranes simplificados, tornillos de menos de 1 cm quitados)",
+    "SUPUESTO (Xhavi, 16-nov): mecanismo = garra con pivote 180° (el CAD es una sola pose y no dice cuánto gira ni de dónde a dónde); el frente es el lado de la garra. No se usa pickBack: recoger atrás con el brazo de 0.62 m dejaría la garra a 47 cm del chasis (> 40 cm, §7.2), así que recoge al frente y anota al frente",
+    "SUPUESTO: el brazo del modelo = las piezas con el centro a 20 cm del piso o más (placas del brazo, garra, engranes y coronas del eje); el CAD no nombra el brazo y no se sabe si las coronas giran con él",
+    "SUPUESTO: pose de inicio del brazo a 60°: el CAD está a 38° y ahí la garra sale 7 cm del chasis (63 cm con brazo, 56 sin brazo), fuera del perímetro de inicio (§4.1). El modelo se dibuja a 38° (la del CAD) y gira desde ahí",
+    "SUPUESTO: alturas de la garra N1–N3 y de la rendija iguales a las del preset de pivote (0.26 / 0.61 / 0.85 / 0.615 m); el CAD no las trae",
+    "SUPUESTO: la garra es una pinza (INTAKE 'pinza') de 0.23 m de apertura (preset) y capacidad 1; en la pose del CAD los dedos quedan a 0.124 m (menos que la Muestra, 0.15 m), así que no se puede saber la apertura real; 0.12 m de fondo salen del CAD; tampoco se sabe si toma la Muestra Crítica (apertura de 0.23 m ≥ 0.20 m: la toma)",
+    "SUPUESTO: las placas frontal y posterior del chasis toman el color de la alianza (el resto va con los colores del CAD)",
+    "SUPUESTO: las llantas van estáticas dentro del modelo (no giran en pantalla); el robot mide 0.651 m de ancho (> 65 cm, §7.2: lo dice el CAD, el menú lo marca con ⚠)",
+    "masa, velocidades de manejo, velocidad del brazo (4 rad/s) y tracción del preset (el STEP no los trae); pásala con --mass"
+  ],
+  "model": {
+    "url": "robots/axiom.glb",
+    "stowAngle": 0.669,
+    "tint": "^placa (frontal|posterior)$",
+    "staticWheels": true
+  }
+}

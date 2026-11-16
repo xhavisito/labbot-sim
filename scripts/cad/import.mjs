@@ -1,7 +1,8 @@
 // Importa robots desde CAD: lee STEP (.step/.stp) y escribe robots/<nombre>.robot.json.
 //   npm run robot:import                       → procesa todo lo que haya en robots/inbox/
 //   npm run robot:import -- ruta/Robot.step    → un archivo
-// Opciones: --name N --up x|y|z|auto --forward +x|-z|auto --mechanism generic|elevator|pivot
+// Opciones: --floor m --arm-above m --min-diag m --max-tris n (CAD sin nombres de brazo; modelo con todo el detalle)
+//           --name N --up x|y|z|auto --forward +x|-z|auto --mechanism generic|elevator|pivot
 //           --no-model (sin GLB), --arm-parts REGEX (piezas que giran con el brazo)
 //           --mass 38 --set arm.pivotY=0.45 (repetible) --dry (solo imprime)
 // Requiere Node ≥ 22.18 (lee los .ts directamente).
@@ -30,9 +31,10 @@ for (let i = 0; i < args.length; i++) {
   } else if (a.startsWith('--')) {
     const k = a.slice(2);
     const v = args[++i];
-    opts[k === 'mass' ? 'massKg' : k] = k === 'mass' ? Number(v) : v;
+    opts[k === 'mass' ? 'massKg' : k] = ['mass', 'floor', 'arm-above', 'min-diag', 'max-tris'].includes(k) ? Number(v) : v;
   } else files.push(a);
 }
+if (opts['arm-above'] !== undefined) opts.armAbove = opts['arm-above'];
 if (!files.length) {
   const inbox = join(root, 'robots/inbox');
   if (existsSync(inbox)) for (const f of readdirSync(inbox)) if (/\.(step|stp)$/i.test(f)) files.push(join(inbox, f));
@@ -51,7 +53,9 @@ for (const f of files) {
   // `--static`: robot sin brazo que gira (la forma completa en el nodo `estatico`; lo que se mueve se define a mano en el JSON)
   if (!noModel && (robot.spec.arm || opts.static)) {
     const armPattern = opts.static ? /^$/ : new RegExp(opts['arm-parts'] ?? '^(Brazo|Garra|Soporte-BrazoGarra|Sprocket|Flecha)', 'i');
-    const { glb } = await stepToGlb(f, { frame, pivot: robot.spec.arm ? [robot.spec.arm.pivotX, robot.spec.arm.pivotY] : [0, 0], armPattern, log: (m) => console.log('  ' + m) });
+    // `--arm-above h`: el brazo son las piezas con el centro a h m del piso o más (mismo criterio que el análisis); `--min-diag` / `--max-tris`: detalle del modelo
+    const armAbove = opts['arm-above'];
+    const { glb } = await stepToGlb(f, { armAbove, minDiag: opts['min-diag'], maxTrisPerPart: opts['max-tris'], frame, pivot: robot.spec.arm ? [robot.spec.arm.pivotX, robot.spec.arm.pivotY] : [0, 0], armPattern, log: (m) => console.log('  ' + m) });
     mkdirSync(join(root, 'public/robots'), { recursive: true });
     if (!dry) writeFileSync(join(root, `public/robots/${id}.glb`), glb);
     out0.model = { url: `robots/${id}.glb`, stowAngle: robot.spec.arm?.stowAngle, tint: '^Chasis-(Frontal|Trasero)' };

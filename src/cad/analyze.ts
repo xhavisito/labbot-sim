@@ -16,6 +16,10 @@ export interface AnalyzeOptions {
   forward?: `${'+' | '-'}${Axis}` | 'auto';
   mechanism?: MechanismName;
   massKg?: number;
+  /** Piso del CAD (m sobre el eje vertical); por defecto, la caja más baja del ensamble (las cajas de las llantas pueden pasarse). */
+  floor?: number;
+  /** Las piezas cuyo centro queda a esta altura (m sobre el piso) o más se cuentan como brazo (CAD sin nombres "Brazo-…"). Pide `up` explícito. */
+  armAbove?: number;
   /** Se mezclan al final sobre la especificación (rutas con punto: "arm.pivotY"). */
   overrides?: Record<string, number>;
 }
@@ -86,9 +90,19 @@ export function analyzeStep(model: StepModel, opts: AnalyzeOptions = {}, file?: 
   const supuestos: string[] = [];
   const parts = model.parts;
   const arm = parts.filter((p) => inGroup(p, RE_ARM));
-  const shafts = parts.filter((p) => inGroup(p, RE_SHAFT));
+  const allShafts = parts.filter((p) => inGroup(p, RE_SHAFT));
+  // Con varias flechas (ruedas, garra…), el eje del brazo es la que dice "pivote"
+  const shafts = allShafts.filter((p) => /pivote|pivot/i.test(p.name)).length ? allShafts.filter((p) => /pivote|pivot/i.test(p.name)) : allShafts;
   const claw = parts.filter((p) => inGroup(p, RE_CLAW) && !inGroup(p, RE_ARM));
   const elev = parts.filter((p) => inGroup(p, RE_ELEV));
+  if (opts.armAbove !== undefined) {
+    if (!opts.up || opts.up === 'auto') throw new Error('--arm-above pide --up x|y|z');
+    const uu = IDX[opts.up];
+    const fl = opts.floor ?? model.box.min[uu];
+    const high = parts.filter((p) => !arm.includes(p) && !claw.includes(p) && (p.box.min[uu] + p.box.max[uu]) / 2 - fl >= opts.armAbove!);
+    arm.push(...high);
+    supuestos.push(`brazo = las piezas del CAD cuyo centro queda a ${opts.armAbove} m del piso o más (${high.length} además de la garra): el CAD no nombra el brazo`);
+  }
   const chassisByName = parts.filter((p) => inGroup(p, RE_CHASSIS) && !arm.includes(p) && !claw.includes(p));
   const moving = new Set([...arm, ...claw, ...elev]);
   const chassisParts = chassisByName.length ? chassisByName : parts.filter((p) => !moving.has(p));
@@ -133,7 +147,7 @@ export function analyzeStep(model: StepModel, opts: AnalyzeOptions = {}, file?: 
 
   // Coordenadas del robot: a = adelante desde el centro del chasis, h = altura sobre el piso, s = lateral
   const cF = (chassis.min[f] + chassis.max[f]) / 2;
-  const floor = model.box.min[u];
+  const floor = opts.floor ?? model.box.min[u];
   const fwdOf = (v: number): number => fSign * (v - cF);
   const range = (b: Box, i: number): [number, number] => {
     if (i === f) {

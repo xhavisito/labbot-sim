@@ -149,6 +149,8 @@ export interface CadModel {
    * chasis (en Psycho, el Kraken X44 del gripper: Xhavi, 13-nov "va pegado en el gripper").
    */
   armParts?: string;
+  /** El modelo ya trae las llantas del CAD (estáticas): el simulador no dibuja las suyas encima. La física sí usa `RobotSpec.wheel`. */
+  staticWheels?: boolean;
 }
 
 /**
