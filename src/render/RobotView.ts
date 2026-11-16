@@ -55,6 +55,8 @@ export class RobotView {
   private rigidClaw: number | null = null;
   /** Dibujo genérico del robot: se oculta cuando el modelo del CAD termina de cargar. */
   private generic: THREE.Object3D[] = [];
+  /** Dedos y placa de la garra del simulador: con un modelo aproximado (`simpleClaw`) se quedan visibles. */
+  private genericClaw: THREE.Object3D[] = [];
   private numPlates: THREE.Mesh[] = [];
   /** Muestra en la garra. */
   private clawSample: THREE.Mesh;
@@ -150,9 +152,14 @@ export class RobotView {
     // Elevador: viga horizontal del carro, de los rieles a la garra
     if (a.linear) for (const z of [-0.09, 0.09]) this.generic.push(add(new THREE.BoxGeometry(a.length - 0.1, 0.04, 0.03), alu, -(a.length - 0.1) / 2 - CLAW.fingerLength / 2, 0, z, claw));
     // Mismas medidas que la hitbox (`CLAW`, `RobotPhysics.setArmPose`): dos dedos y la placa
-    for (const z of [-1, 1]) this.generic.push(add(new THREE.BoxGeometry(CLAW.fingerLength, CLAW.fingerHeight, CLAW.fingerThickness), alu, 0, CLAW.fingerHeight / 2, z * CLAW.fingerZ, claw));
+    for (const z of [-1, 1]) {
+      const finger = add(new THREE.BoxGeometry(CLAW.fingerLength, CLAW.fingerHeight, CLAW.fingerThickness), alu, 0, CLAW.fingerHeight / 2, z * CLAW.fingerZ, claw);
+      this.generic.push(finger);
+      this.genericClaw.push(finger);
+    }
     this.palm = add(new THREE.BoxGeometry(CLAW.palmThickness, CLAW.fingerHeight * 0.75, 2 * CLAW.fingerZ + CLAW.fingerThickness), dark, -(CLAW.fingerLength / 2 + CLAW.palmThickness / 2), CLAW.fingerHeight / 2, 0, claw);
     this.generic.push(this.palm);
+    this.genericClaw.push(this.palm);
     // Rodillos verdes de la garra-caja: 4 flechas verticales en los valeros del CAD de Psycho (hoyos de
     // 28 mm en la placa de abajo y la de arriba, Xhavi 13-nov), dos por costado: a 3 y a 17 cm de la boca
     // y a 10.6 cm del centro. Cada flecha lleva dos ruedas (abajo y arriba) que aprietan la Muestra ~1 cm
@@ -242,7 +249,7 @@ export class RobotView {
       arm.removeFromParent();
       arm.position.set(0, 0, 0); // this.arm ya está en el pivote
       arm.rotation.z = -(m.stowAngle ?? 0); // el CAD está en la pose de guardado
-      this.rigidClaw = -(m.stowAngle ?? 0); // la garra del CAD va fija al brazo (no se nivela)
+      if (!m.simpleClaw) this.rigidClaw = -(m.stowAngle ?? 0); // la garra del CAD va fija al brazo (no se nivela)
       this.arm.add(arm);
     }
     const tint = m.tint ? new RegExp(m.tint, 'i') : null;
@@ -261,7 +268,7 @@ export class RobotView {
       }
     });
     this.group.add(scene);
-    for (const g of this.generic) g.visible = false;
+    for (const g of this.generic) g.visible = m.simpleClaw === true && this.genericClaw.includes(g);
     // Placas con la estación: pegadas a los costados del chasis real
     for (const p of this.numPlates) p.position.z = Math.sign(p.position.z) * (width / 2 + 0.002);
   }
