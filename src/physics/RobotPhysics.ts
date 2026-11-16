@@ -35,6 +35,8 @@ const CHASSIS_Y0 = 0.03;
 const CHASSIS_TOP = 0.235;
 /** Consulta de "¿el brazo se metería en la madera?": solo la cancha (no robots ni piezas). */
 const FIELD_QUERY = groups(G.ARM, G.FIELD);
+/** Igual, con el robot volteado: la alfombra también cuenta (el brazo topa con el piso en vez de atravesarlo). */
+const FIELD_FLOOR_QUERY = groups(G.ARM, G.FIELD | G.FLOOR);
 /**
  * Las consultas usan cada pieza 8 mm más chica por lado: el contacto normal (unos milímetros de
  * encimado) no cuenta como "metido", así que el brazo apoyado o rozando la madera no se traba.
@@ -259,7 +261,7 @@ export class RobotPhysics {
     const beamLen = Math.max(0.05, spec.arm.length - beamShort(claw));
     const fh = claw.fingerHeight / 2;
     this.armQuery = {
-      beam: shrunk(beamLen / 2, 0.02, claw.fingerZ),
+      beam: shrunk(beamLen / 2, spec.arm.halfThickness ?? 0.02, claw.fingerZ),
       finger: shrunk(claw.fingerLength / 2, fh, claw.fingerThickness / 2),
       palm: shrunk(claw.palmThickness / 2, fh * 0.75, claw.fingerZ + claw.fingerThickness / 2),
       plate: shrunk(claw.fingerLength / 2, BOX_PLATE / 2, claw.fingerZ + claw.fingerThickness / 2),
@@ -267,7 +269,7 @@ export class RobotPhysics {
       critical: shrunk(CRITICAL_SIZE / 2, CRITICAL_SIZE / 2, CRITICAL_SIZE / 2),
     };
     this.armColliders = {
-      beam: mech(RAPIER.ColliderDesc.cuboid(beamLen / 2, 0.02, claw.fingerZ)),
+      beam: mech(RAPIER.ColliderDesc.cuboid(beamLen / 2, spec.arm.halfThickness ?? 0.02, claw.fingerZ)),
       fingers: [
         mech(RAPIER.ColliderDesc.cuboid(claw.fingerLength / 2, fh, claw.fingerThickness / 2)),
         mech(RAPIER.ColliderDesc.cuboid(claw.fingerLength / 2, fh, claw.fingerThickness / 2)),
@@ -436,7 +438,7 @@ export class RobotPhysics {
     if (held === 'sample' && count >= 2) parts.push([q.sample, p.sample2]);
     for (const [shape, pose] of parts) {
       const w = this.localToWorld(pose.t.x, pose.t.y, pose.t.z);
-      if (this.pw.world.intersectionWithShape(w, qmul(br, pose.r), shape, RAPIER.QueryFilterFlags.EXCLUDE_DYNAMIC, FIELD_QUERY)) return true;
+      if (this.pw.world.intersectionWithShape(w, qmul(br, pose.r), shape, RAPIER.QueryFilterFlags.EXCLUDE_DYNAMIC, this.tilt() > TILT_FLOOR_ARM ? FIELD_FLOOR_QUERY : FIELD_QUERY)) return true;
     }
     return false;
   }

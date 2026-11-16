@@ -35,7 +35,13 @@ describe('robot volteado', () => {
       g.player.phys.body.setRotation({ x: 1, y: 0, z: 0, w: 0 }, true);
       let tiltedSteps = 0;
       let worst = Infinity;
-      for (let i = 0; i < 240; i++) {
+      // Cae boca abajo y luego intenta enderezarse moviendo el brazo por todas sus posiciones
+      const targets = [0, 3, 0, 2, 1, 0, 3] as const;
+      for (let i = 0; i < 240 + targets.length * 120; i++) {
+        if (i >= 240 && (i - 240) % 120 === 0) {
+          g.player.mech.stowed = false;
+          g.player.mech.target = targets[(i - 240) / 120];
+        }
         g.setInput({ ...emptyInput() });
         g.step();
         if (i > 30 && g.player.phys.tilt() > 0.35) {
