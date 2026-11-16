@@ -4,7 +4,7 @@
  * robot real. El manual no habla de lanzar (§7.2 solo limita tamaño, extensión y altura): todo es SUPUESTO
  * de diseño (Xhavi, 16-nov: "si no lo dice, se puede hacer, y hazlo realista").
  */
-import type { ShooterSpec } from '../config/robot';
+import { DEFAULT_LOAD_PENALTY, type ShooterSpec } from '../config/robot';
 
 /** Gravedad del mundo (m/s²), la misma de `PhysicsWorld`. */
 export const GRAVITY = 9.81;
@@ -21,6 +21,15 @@ export function solveSpeed(dist: number, dh: number, pitch: number): number | nu
 }
 
 /**
+ * Velocidad máxima de salida (m/s) con `loaded` Muestras en la rampa (la que sale cuenta): cada una de más le quita
+ * `loadPenalty` de `maxSpeed` (SUPUESTO, el manual no habla de lanzar). Con una sola, la potencia completa; nunca baja del 20 %.
+ */
+export function maxSpeedFor(spec: ShooterSpec, loaded: number): number {
+  const k = 1 - (spec.loadPenalty ?? DEFAULT_LOAD_PENALTY) * Math.max(0, loaded - 1);
+  return spec.maxSpeed * Math.max(0.2, k);
+}
+
+/**
  * Tiro: velocidad de salida respecto al robot, con el azar del tiro (`rand` devuelve 0…1).
  * El rumbo es el del robot (el jugador tiene que apuntar); la velocidad se acomoda a la distancia.
  */
@@ -29,11 +38,13 @@ export function shotVelocity(
   dist: number,
   dh: number,
   rand: () => number,
+  loaded = 1,
 ): { speed: number; pitch: number; yaw: number; clipped: boolean } {
-  const need = solveSpeed(dist, dh, spec.pitch) ?? spec.maxSpeed;
-  const clipped = need > spec.maxSpeed;
+  const max = maxSpeedFor(spec, loaded);
+  const need = solveSpeed(dist, dh, spec.pitch) ?? max;
+  const clipped = need > max;
   // Los dos azares son una campana aproximada (suma de 3 uniformes): ruedas que no giran exactamente a las mismas rpm
   const g = () => (rand() + rand() + rand() - 1.5) / 0.7071;
-  const speed = Math.min(need, spec.maxSpeed) * (1 + spec.speedSigma * g());
+  const speed = Math.min(need, max) * (1 + spec.speedSigma * g());
   return { speed, pitch: spec.pitch, yaw: spec.yawSigma * g(), clipped };
 }

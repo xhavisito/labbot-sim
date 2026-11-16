@@ -3,7 +3,8 @@ import { beforeAll, describe, expect, it } from 'vitest';
 import * as F from '../src/config/field';
 import { robotSpec } from '../src/config/robotIds';
 import { GameSession } from '../src/game/GameSession';
-import { solveSpeed } from '../src/game/shooter';
+import { maxSpeedFor, solveSpeed } from '../src/game/shooter';
+import { shooterCapacity } from '../src/config/robot';
 import { emptyInput } from '../src/input/InputManager';
 import type { Level } from '../src/core/types';
 import { initRapier } from '../src/physics/PhysicsWorld';
@@ -122,5 +123,90 @@ describe('Phoenix tal cual el CAD', () => {
       g.step();
     }
     expect(g.player.mech.stored.length).toBe(1);
+  });
+});
+
+describe('Phoenix con varias Muestras', () => {
+  const P = () => robotSpec('cad:phoenix');
+
+  it('la capacidad sale del espacio de la rampa (4) y no de un número fijo', () => {
+    const s = P();
+    expect(shooterCapacity(s)).toBe(4);
+    expect(s.capacity).toBe(4);
+    expect(s.arm.holdsTwo).toBe(true);
+  });
+
+  it('la potencia baja 10 % por Muestra de más', () => {
+    const sh = P().intake!.shooter!;
+    expect(maxSpeedFor(sh, 1)).toBeCloseTo(6.5, 6);
+    expect(maxSpeedFor(sh, 2)).toBeCloseTo(5.85, 6);
+    expect(maxSpeedFor(sh, 4)).toBeCloseTo(4.55, 6);
+    // Con más de las que caben nunca baja del 20 %
+    expect(maxSpeedFor(sh, 50)).toBeCloseTo(1.3, 6);
+  });
+
+  it('recoge hasta llenar la rampa y no más', () => {
+    const g = new GameSession({ player: 0, preload: false, specs: [P()] });
+    const m = g.player.mech;
+    const pieces = g.pieces.list.filter((p) => p.kind === 'sample').slice(0, 6);
+    for (const p of g.pieces.list) if (p.state.at === 'field' && p.kind === 'sample') g.pieces.stash(p, { at: 'hp', alliance: 'red' });
+    for (const p of pieces.slice(0, 5)) m.load(p);
+    expect(m.stored.length).toBe(5); // `load` no limita (precarga); el intake sí:
+    m.stored.length = 0;
+    g.player.phys.teleport(2.6, -1.2, 0);
+    for (let k = 0; k < 6; k++) g.pieces.place(pieces[k], 2.6 - 0.9, 0.076, -1.2 + k * 0.3);
+    // Las trae una por una al canal trasero
+    for (let k = 0; k < 6; k++) {
+      g.player.phys.teleport(2.6, -1.2 + k * 0.3, 0);
+      for (let i = 0; i < 120 * 3 && m.stored.length < Math.min(k + 1, 4); i++) {
+        g.setInput({ ...emptyInput(), forward: -0.3, intake: true });
+        g.step();
+      }
+    }
+    expect(m.stored.length).toBe(4);
+  });
+
+  /** Un tiro a `range` m con `n` Muestras cargadas; devuelve si cayó en el nivel y la velocidad de salida. */
+  function shootLoaded(level: Level, range: number, n: number, seed: number): { ok: boolean; speed: number } {
+    const g = new GameSession({ player: 0, preload: false, specs: [P()], seed });
+    for (const p of g.pieces.list) if (p.state.at === 'field' && p.kind === 'sample') g.pieces.stash(p, { at: 'hp', alliance: 'red' });
+    const a = g.player.alliance;
+    const w = F.camaraWells()[level];
+    const c = F.forCamara(a, { x: (w.x0 + w.x1) / 2, z: (w.z0 + w.z1) / 2 - range });
+    g.player.phys.teleport(c.x, c.z, F.camaraHeading(a));
+    const ps = g.pieces.list.filter((p) => p.kind === 'sample').slice(0, n);
+    for (const p of ps) g.player.mech.load(p);
+    for (let i = 0; i < 120 * 3; i++) {
+      g.setInput({ ...emptyInput(), elevator: level });
+      g.step();
+    }
+    const shot = g.player.mech.stored[g.player.mech.stored.length - 1];
+    g.setInput({ ...emptyInput(), elevator: level, releaseSample: true });
+    g.step();
+    const v = shot.body.linvel();
+    const speed = Math.hypot(v.x, v.y, v.z);
+    for (let i = 0; i < 120 * 3; i++) {
+      g.setInput({ ...emptyInput(), elevator: level });
+      g.step();
+    }
+    return { ok: g.sensors.scored.get(shot.index)?.level === level, speed };
+  }
+
+  it('lleno tira más flojo y a larga distancia ya no llega', () => {
+    const one = shootLoaded(3, 2.0, 1, 3);
+    const four = shootLoaded(3, 2.0, 4, 3);
+    console.log('PHOENIX-CARGA', JSON.stringify({ one, four }));
+    expect(one.ok).toBe(true);
+    expect(four.speed).toBeLessThan(one.speed);
+    expect(four.speed).toBeLessThanOrEqual(4.55 * 1.2);
+    expect(four.ok).toBe(false);
+  });
+
+  it('lleno de cerca todavía anota (la velocidad que pide la distancia alcanza)', () => {
+    for (const level of [1, 2, 3] as Level[]) {
+      const r = shootLoaded(level, 1.0, 4, 5);
+      console.log(`N${level} 1.0 m con 4:`, JSON.stringify(r));
+    }
+    expect(shootLoaded(1, 1.0, 4, 5).ok).toBe(true);
   });
 });
