@@ -23,7 +23,7 @@ describe('Axiom tal cual el CAD', () => {
     expect(s.width).toBeCloseTo(0.6511, 3);
     expect(s.wheel!.xs).toHaveLength(2); // 2 por lado = 4 llantas
     expect(s.wheel!.r).toBeCloseTo(0.0762, 4); // 6 in
-    expect(s.arm.length).toBeCloseTo(0.6246, 3);
+    expect(s.arm.length).toBeCloseTo(0.6739, 3); // más largo que el CAD (0.6246): Xhavi, 16-nov
     expect(s.arm.pivotY).toBeCloseTo(0.2421, 3);
     expect(s.model?.url).toBe('robots/axiom.glb');
     expect(s.model?.staticWheels).toBe(true);
@@ -69,6 +69,16 @@ describe('IA con Axiom', () => {
 });
 
 describe('Axiom: ángulos de los niveles (Xhavi, 16-nov)', () => {
+  it('el tope del brazo (100°) deja el extremo del brazo a la altura de N3 y las garras ~10 cm más allá', () => {
+    const s = CAD_ROBOT_SPECS.axiom;
+    const a = (100 * Math.PI) / 180;
+    const garraDepth = 0.113; // fondo de la pinza del CAD
+    const end = s.arm.pivotY + (s.arm.length - garraDepth / 2) * Math.sin(a);
+    expect(end).toBeCloseTo(0.85, 2);
+    expect(garraDepth).toBeGreaterThan(0.1);
+    expect(garraDepth).toBeLessThan(0.125);
+  });
+
   it('N3 a 100° con la garra volteada atrás; N1 y N2 al frente', async () => {
     const { posAngle, posDir, armTip } = await import('../src/config/robot');
     const s = CAD_ROBOT_SPECS.axiom;
@@ -107,7 +117,10 @@ describe('Axiom: la pinza no atraviesa el piso en la pose de piso (Xhavi, 16-nov
       for (let k = 0; k < a.count; k++) {
         const x = bin.readFloatLE(o + k * (bv.byteStride ?? 12));
         const y = bin.readFloatLE(o + k * (bv.byteStride ?? 12) + 4);
-        lowest = Math.min(lowest, s.arm.pivotY + Math.sin(d) * x + Math.cos(d) * y);
+        // La garra va recorrida `dl` a lo largo del brazo (brazo más largo que el del CAD)
+        const dl = s.arm.length - (s.model?.cadArmLength ?? s.arm.length);
+        const stow = (axiom as { model: { stowAngle: number } }).model.stowAngle;
+        lowest = Math.min(lowest, s.arm.pivotY + Math.sin(d) * (x + dl * Math.cos(stow)) + Math.cos(d) * (y + dl * Math.sin(stow)));
       }
     }
     expect(lowest).toBeGreaterThanOrEqual(-0.002);
