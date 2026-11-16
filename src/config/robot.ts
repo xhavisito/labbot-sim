@@ -243,6 +243,13 @@ export interface ShooterSpec {
    * SUPUESTO (Xhavi, 16-nov): el manual no habla de lanzar (§7.2 solo limita tamaño, extensión y altura).
    */
   passCritical?: boolean;
+  /**
+   * Giro con que sale la pieza (rad/s, hacia atrás: la cara de arriba va contra el avance, como las ruedas de un lanzador que la
+   * frotan por abajo) y su variación (fracción, 1σ). SUPUESTO (Xhavi, 16-nov: «en las pruebas reales gira mucho»): el CAD no trae las rpm.
+   * Sin ella, sale sin giro.
+   */
+  spin?: number;
+  spinSigma?: number;
 }
 
 /** ¿Puede tomar la Crítica para pasarla (no para anotarla)? Necesita la apertura de 20 cm (§4.1.1). */
