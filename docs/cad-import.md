@@ -58,10 +58,20 @@ trasero a ras de piso, con la garra del simulador: `arm.rearClaw`), cuántas Mue
 El modelo es estático: no se sabe qué piezas se mueven, así que las llantas no giran en pantalla.
 
 ## Hitbox por pieza (16-nov)
-`node scripts/cad/hitboxes.mjs phoenix psycho` lee el GLB y escribe `spec.hitboxes` en `robots/<nombre>.robot.json`: un casco convexo
+`node scripts/cad/hitboxes.mjs phoenix psycho axiom` lee el GLB y escribe `spec.hitboxes` en `robots/<nombre>.robot.json`: un casco convexo
 (≤26 puntos) por cada pieza física fija del nodo `estatico`, con grosor mínimo de 1 cm para las placas (una Muestra rápida no las
 atraviesa; el CCD del cuerpo y de las Muestras hace el resto). `RobotPhysics` los crea sin masa (no mueven el centro de masa) y,
-con ellos, ya no crea la torre genérica inventada. Se saltan las llantas de tracción (cilindros de `spec.wheel`) y lo que ya cabe en el chasis bajo.
+con ellos, ya no crea la torre genérica inventada. Se saltan las llantas de tracción (cilindros de `spec.wheel`) y lo que ya cubre el chasis bajo (Axiom: todo su chasis ya está en la huella, sin hitboxes extra; un hitbox de más en su lado +z dejaba a la IA sin anotar).
 Las piezas del brazo de Psycho siguen con los colisionadores del brazo. **SUPUESTO:** qué piezas cuentan como "físicas".
-Volver a correrlo después de `robot:import`. Axiom se canceló (PR #136).
+Volver a correrlo después de `robot:import`. Axiom (PR #137) también.
 **Phoenix:** el intake va fijo al piso: ya no hereda del preset de elevador la pose "guardada" a 0.5 m (`specFromRobotFile`).
+
+## Axiom (16-nov, garra con pivote 180°)
+Importado de `ensamble comp interna.STEP` (83 piezas, AP214) con
+`npm run robot:import -- <STEP> --name Axiom --mechanism pivot180 --up y --forward +z --floor 0.1066 --arm-above 0.2 --arm-parts '^garra' --min-diag 0.01 --max-tris 6000`
+y luego se ajustó a mano el JSON. Opciones nuevas del importador: `--floor` (piso del CAD: las cajas de las llantas se pasan), `--arm-above` (las piezas con el centro a esa altura o más son el brazo: este CAD no nombra el brazo),
+`--min-diag` y `--max-tris` (detalle del modelo). Con varias flechas, el eje del brazo es la que dice "pivote". `model.staticWheels`: el modelo ya trae las llantas del CAD, el simulador no dibuja las suyas.
+**Del CAD:** chasis 0.561 × 0.651 m (el largo son los 56 cm de Xhavi); 4 llantas HiGrip de 6 in; eje del brazo a 0.24 m del piso y 0.173 m detrás del centro; brazo de 0.6246 m; garra de pinza al frente de 0.12 m de fondo. La forma 3D es la del CAD tal cual (motores y engranes simplificados, tornillos de menos de 1 cm quitados).
+**SUPUESTOS (a revisar con Xhavi):** el STEP es una sola pose y no dice cuánto gira el brazo: se toma "pivote 180°" de Xhavi; la garra es el frente, así que recoge y anota al frente (con `pickBack` la garra quedaría a 47 cm del chasis, > 40 cm, §7.2);
+pose de inicio a 60° (el CAD está a 38° y ahí la garra sale 7 cm del perímetro, §4.1); alturas N1–N3 del preset de pivote; pinza de 0.23 m de apertura y capacidad 1; qué piezas giran con el brazo (las que están a 20 cm del piso o más); placas frontal/posterior con el color de la alianza; llantas estáticas; masa y velocidades del preset.
+El ancho del CAD (0.651 m) pasa 65 cm (§7.2): el menú lo marca con ⚠.

@@ -5,7 +5,7 @@
 //
 // Reglas (SUPUESTOS de diseño, el CAD no dice qué es "físico"):
 //  - Se saltan las llantas de tracción, sus bujes y poleas (la física de las ruedas son los cilindros de `spec.wheel`).
-//  - Se saltan las piezas que ya caben enteras en una caja de `spec.footprint` (el chasis bajo ya las cubre).
+//  - Se saltan las piezas que ya caben (hasta 4 cm más arriba) en en una caja de `spec.footprint` (el chasis bajo ya las cubre).
 //  - Las placas más delgadas de 1 cm se engrosan a 1 cm (grosor mínimo: una Muestra rápida no las atraviesa).
 //  - Cada casco se guarda como ≤26 puntos de soporte (mm); Rapier calcula el casco al crear el colisionador.
 import fs from 'node:fs';
@@ -110,8 +110,11 @@ for (const name of process.argv.slice(2)) {
     const lo = [0, 1, 2].map((k) => Math.min(...pts.map((p) => p[k])));
     const hi = [0, 1, 2].map((k) => Math.max(...pts.map((p) => p[k])));
     if (Math.hypot(hi[0] - lo[0], hi[1] - lo[1], hi[2] - lo[2]) < SKIP_DIAG) { skipped.small++; continue; }
-    // Dentro del chasis bajo (alto 0.235 m, `CHASSIS_TOP` de RobotPhysics) y de una caja de la huella
-    if (hi[1] <= 0.235 && fp.some(([x0, x1, z0, z1]) => lo[0] >= x0 - 1e-3 && hi[0] <= x1 + 1e-3 && lo[2] >= z0 - 1e-3 && hi[2] <= z1 + 1e-3)) { skipped.inside++; continue; }
+    // Dentro del chasis bajo (alto 0.235 m, `CHASSIS_TOP` de RobotPhysics, con 4 cm de tolerancia) y de una caja de la huella
+    const covered = (x, z) => fp.some(([x0, x1, z0, z1]) => x >= x0 - 1e-3 && x <= x1 + 1e-3 && z >= z0 - 1e-3 && z <= z1 + 1e-3);
+    let all = hi[1] <= 0.235 + 0.04;
+    for (let i = 0; all && i <= 12; i++) for (let k = 0; all && k <= 4; k++) all = covered(lo[0] + ((hi[0] - lo[0]) * i) / 12, lo[2] + ((hi[2] - lo[2]) * k) / 4);
+    if (all) { skipped.inside++; continue; }
     hit.push({ name: n.name, pts: hullPoints(pts).flat() });
   }
   robot.spec.hitboxes = hit;
