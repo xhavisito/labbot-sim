@@ -564,7 +564,10 @@ export class Mechanisms {
     const intake = intakeOf(p.spec);
     const spec = p.spec;
     const h = p.heading();
-    const push = kind === 'sample' && !force && intake.kind === 'compliant' && this.grip !== 'precise';
+    // Pinza (Axiom): la Muestra sale por la boca con el empujón de siempre y sin chocar con el brazo hasta que se aleja
+    // (antes caía en el sitio sobre la viga y la placa de la garra y se quedaba trabada, Xhavi 16-nov)
+    const pinza = kind === 'sample' && !force && intake.kind === 'pinza';
+    const push = kind === 'sample' && !force && ((intake.kind === 'compliant' && this.grip !== 'precise') || pinza);
     const spit = rollers ? OUTTAKE.spit : intake.rollerSpeed;
     // Garra-caja fija al brazo (Psycho): la Muestra sale de la boca REAL de la caja, donde esté en ese
     // instante, y lleva la velocidad de la boca (robot + giro del chasis + giro del brazo) más la escupida
@@ -613,7 +616,7 @@ export class Mechanisms {
     // Con la caja del CAD, la Muestra sale con la inclinación de la caja (igual que la lleva)
     const tilt = rollers && p.rigidFloorAngle !== null ? this.angle - p.rigidFloorAngle : 0;
     this.pieces.place(piece, at.x, at.y, at.z, h, { x: vx, y: vy, z: vz }, tilt);
-    if (tilt !== 0 || shooter) {
+    if (tilt !== 0 || shooter || pinza) {
       this.finishLeaving();
       // Tiro: sale por dentro del robot (la rampa va entre sus placas), así que no choca con él hasta salir
       piece.collider.setCollisionGroups(shooter ? GROUPS.pieceShot : GROUPS.pieceLeaving);
@@ -644,7 +647,8 @@ export class Mechanisms {
     if (!clear && !this.leavingShot) {
       const t = l.body.translation();
       const p = this.phys.worldToLocalFlat(t.x, t.z);
-      clear = Math.hypot(p.lx - this.tipX(), t.y - this.height) > EXIT_CLEAR;
+      // `height` es local al robot: se compara con la altura del robot sumada (si no, 13 cm de más la dan por salida)
+      clear = Math.hypot(p.lx - this.tipX(), t.y - this.phys.position().y - this.height) > EXIT_CLEAR;
     }
     if (clear) this.finishLeaving();
   }
