@@ -635,7 +635,7 @@ export class RobotView {
       const nowS = performance.now() / 1000;
       const dtS = Math.min(0.1, nowS - (this.shooterT || nowS));
       this.shooterT = nowS;
-      const target = m.ejectT > 0 ? SHOOTER_SPIN_SHOT : m.intakeOn ? SHOOTER_SPIN_INTAKE : 0;
+      const target = m.shotSpinT > 0 || m.ejectT > 0 ? SHOOTER_SPIN_SHOT : m.intakeOn ? SHOOTER_SPIN_INTAKE : 0;
       this.shooterW += (target - this.shooterW) * Math.min(1, dtS * 10);
       if (Math.abs(this.shooterW) < 0.05) this.shooterW = 0;
       for (const r of this.shooterRollers) r.mesh.rotation.z += r.side * this.shooterW * dtS;

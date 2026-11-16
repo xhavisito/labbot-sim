@@ -217,6 +217,8 @@ export class Mechanisms {
   armScale = 1;
   /** Segundos que les quedan a los rodillos girando hacia afuera tras soltar (para el dibujo). */
   ejectT = 0;
+  /** Segundos que les quedan a los rodillos del lanzador girando tras un tiro (solo para el dibujo). */
+  shotSpinT = 0;
   /** Velocidad angular del brazo (rad/s) en el último paso: la Muestra que se suelta hereda la velocidad de la boca. */
   armW = 0;
   /** Muestra que está saliendo de la caja sin chocar con el brazo (y segundos que le quedan así). */
@@ -299,6 +301,7 @@ export class Mechanisms {
     }
     this.cooldown = Math.max(0, this.cooldown - dt);
     this.ejectT = Math.max(0, this.ejectT - dt);
+    this.shotSpinT = Math.max(0, this.shotSpinT - dt);
     this.updateLeaving(dt);
     this.rollerContacts = 0;
     // Al soltar en el piso, los rodillos giran al revés y la sacan de la caja
@@ -719,6 +722,7 @@ export class Mechanisms {
     }
     piece.lastRobot = p.index;
     this.cooldown = EJECT_COOLDOWN;
+    if (shooter) this.shotSpinT = 0.6;
     if (push && rollers && this.height < FLOOR_POSE) {
       // En el piso las ruedas giran hacia afuera hasta que sale toda de la caja (desde su lugar en la fila)
       const dir = clawDir(this.angle, spec.arm);
