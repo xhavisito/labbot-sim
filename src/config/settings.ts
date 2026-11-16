@@ -7,7 +7,7 @@ import { AI_LEVELS, type AiLevel } from '../ai/difficulty';
 import { isPersona, type AiPersona } from '../ai/persona';
 import { isStrategy, type StrategyId } from '../ai/strategy';
 import { DEFAULT_DAMAGE, sanitizeDamage, type DamageSettings } from '../core/damage';
-import { DEFAULT_ROBOT, GRIP_MODES, MECHANISM_KINDS, type GripMode, type MechanismKind } from './robot';
+import { DEFAULT_ROBOT, GRIP_MODES, type GripMode } from './robot';
 import { allRobotIds, type RobotId } from './robotIds';
 import { COLOR_MODES, nearestTextScale, type ColorMode, type TextScale } from './palette';
 import { CENTER_SPOT, sanitizeSpot, type StartSpot } from './startSpot';
@@ -15,7 +15,7 @@ import { CENTER_SPOT, sanitizeSpot, type StartSpot } from './startSpot';
 /** Un robot en la configuración del match (los de la IA; del tuyo solo cuenta tu rutina de AUTO). */
 export interface MatchRobot {
   /** Tipo de robot de la IA ('random' = al azar en cada match, `ai/lineup.ts`). */
-  kind: MechanismKind | 'random';
+  kind: string;
   /** Estrategia de la IA (`ai/strategy.ts`). */
   strategy: StrategyId;
   /** Dificultad de la IA (`ai/difficulty.ts`). */
@@ -261,7 +261,7 @@ export function sanitizeSettings(raw: unknown, autoIds: readonly string[]): Sett
   const robot = (i: number): MatchRobot => {
     const r = (list[i] && typeof list[i] === 'object' ? list[i] : {}) as Record<string, unknown>;
     return {
-      kind: r.kind === 'random' ? 'random' : (MECHANISM_KINDS.find((k) => k === r.kind) ?? 'random'),
+      kind: r.kind === 'random' || (typeof r.kind === 'string' && r.kind.startsWith('cad:')) ? r.kind : 'random',
       strategy: isStrategy(r.strategy) ? r.strategy : 'auto',
       ai: AI_LEVELS.find((l) => l === r.ai) ?? oldAi ?? botDefault().ai,
       persona: isPersona(r.persona) ? r.persona : 'balanced',
