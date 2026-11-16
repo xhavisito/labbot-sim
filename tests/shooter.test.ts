@@ -4,7 +4,7 @@ import * as F from '../src/config/field';
 import { robotSpec } from '../src/config/robotIds';
 import { GameSession } from '../src/game/GameSession';
 import { maxSpeedFor, solveSpeed } from '../src/game/shooter';
-import { shooterCapacity } from '../src/config/robot';
+import { canHoldCritical, canPassCritical, shooterCapacity } from '../src/config/robot';
 import { emptyInput } from '../src/input/InputManager';
 import type { Level } from '../src/core/types';
 import { initRapier } from '../src/physics/PhysicsWorld';
@@ -64,9 +64,9 @@ describe('lanzador de Phoenix', () => {
 });
 
 describe('lanzador de Phoenix: ventana de tiro', () => {
-  it('anota de 1 a 2 m del pozo y con hasta 8° de error de rumbo, y no con 18° (hay que apuntar)', () => {
+  it('anota de 1 a 1.5 m del pozo y con hasta 8° de error de rumbo, y no con 18° (hay que apuntar)', () => {
     for (const level of [1, 2, 3] as Level[]) {
-      for (const range of [1.0, 2.0]) for (let s = 1; s <= 4; s++) expect(shoot(level, range, s).level, `N${level} a ${range} m`).toBe(level);
+      for (const range of [1.0, 1.5]) for (let s = 1; s <= 4; s++) expect(shoot(level, range, s).level, `N${level} a ${range} m`).toBe(level);
       for (let s = 1; s <= 4; s++) expect(shoot(level, 1.5, s, 0, 8).level, `N${level} 8°`).toBe(level);
       for (let s = 1; s <= 4; s++) expect(shoot(level, 1.5, s, 0, 18).level, `N${level} 18°`).not.toBe(level);
     }
@@ -138,11 +138,11 @@ describe('Phoenix con varias Muestras', () => {
 
   it('la potencia baja 10 % por Muestra de más', () => {
     const sh = P().intake!.shooter!;
-    expect(maxSpeedFor(sh, 1)).toBeCloseTo(6.5, 6);
-    expect(maxSpeedFor(sh, 2)).toBeCloseTo(5.85, 6);
-    expect(maxSpeedFor(sh, 4)).toBeCloseTo(4.55, 6);
+    expect(maxSpeedFor(sh, 1)).toBeCloseTo(5, 6);
+    expect(maxSpeedFor(sh, 2)).toBeCloseTo(4.5, 6);
+    expect(maxSpeedFor(sh, 4)).toBeCloseTo(3.5, 6);
     // Con más de las que caben nunca baja del 20 %
-    expect(maxSpeedFor(sh, 50)).toBeCloseTo(1.3, 6);
+    expect(maxSpeedFor(sh, 50)).toBeCloseTo(1, 6);
   });
 
   it('recoge hasta llenar la rampa y no más', () => {
@@ -192,21 +192,79 @@ describe('Phoenix con varias Muestras', () => {
     return { ok: g.sensors.scored.get(shot.index)?.level === level, speed };
   }
 
-  it('lleno tira más flojo y a larga distancia ya no llega', () => {
-    const one = shootLoaded(3, 2.0, 1, 3);
-    const four = shootLoaded(3, 2.0, 4, 3);
+  it('lleno tira más flojo y a 1.5 m ya no llega', () => {
+    const one = shootLoaded(3, 1.5, 1, 3);
+    const four = shootLoaded(3, 1.5, 4, 3);
     console.log('PHOENIX-CARGA', JSON.stringify({ one, four }));
     expect(one.ok).toBe(true);
     expect(four.speed).toBeLessThan(one.speed);
-    expect(four.speed).toBeLessThanOrEqual(4.55 * 1.2);
+    expect(four.speed).toBeLessThanOrEqual(3.5 * 1.2);
     expect(four.ok).toBe(false);
   });
 
-  it('lleno de cerca todavía anota (la velocidad que pide la distancia alcanza)', () => {
-    for (const level of [1, 2, 3] as Level[]) {
-      const r = shootLoaded(level, 1.0, 4, 5);
-      console.log(`N${level} 1.0 m con 4:`, JSON.stringify(r));
-    }
-    expect(shootLoaded(1, 1.0, 4, 5).ok).toBe(true);
+  it('con dos de cerca todavía anota (la velocidad que pide la distancia alcanza)', () => {
+    // Con 2 (4.5 m/s) alcanza N1–N3 a 1 m (piden 3.5–4 m/s)
+    for (const level of [1, 2, 3] as Level[]) expect(shootLoaded(level, 1.0, 2, 5).ok).toBe(true);
   });
+});
+
+describe('Phoenix pasa la Muestra Crítica', () => {
+  const P = () => robotSpec('cad:phoenix');
+  function setup() {
+    const g = new GameSession({ player: 0, preload: false, specs: [P()] });
+    for (const p of g.pieces.list) if (p.state.at === 'field' && p.kind === 'sample') g.pieces.stash(p, { at: 'hp', alliance: 'red' });
+    return g;
+  }
+
+  it('la toma del piso (de reversa) pero no cuenta como robot que anota Críticas', () => {
+    const s = P();
+    expect(canHoldCritical(s)).toBe(false);
+    expect(canPassCritical(s)).toBe(true);
+    const g = setup();
+    g.player.phys.teleport(1.2, 1.0, 0);
+    const c = g.pieces.critical(g.player.alliance);
+    g.pieces.place(c, 1.2 - 0.85, 0.1, 1.0);
+    for (let i = 0; i < 120 * 3 && !g.player.mech.critical; i++) {
+      g.setInput({ ...emptyInput(), forward: -0.3, intake: true });
+      g.step();
+    }
+    expect(g.player.mech.critical).toBe(c);
+  });
+
+  it('al soltar la lanza hacia la zona de entrega y no la anota', () => {
+    const g = setup();
+    const a = g.player.alliance;
+    const c = g.pieces.critical(a);
+    const side = a === 'red' ? 1 : -1;
+    // Parado a 1.5 m de la zona de entrega, apuntando a ella
+    g.player.phys.teleport(side * 2.2, 0, a === 'red' ? Math.PI : 0);
+    g.player.mech.critical = c;
+    g.pieces.stash(c, { at: 'robot', robot: g.player.index });
+    for (let i = 0; i < 60; i++) {
+      g.setInput({ ...emptyInput() });
+      g.step();
+    }
+    g.setInput({ ...emptyInput(), releaseSample: true });
+    g.step();
+    for (let i = 0; i < 120 * 4; i++) {
+      g.setInput({ ...emptyInput() });
+      g.step();
+    }
+    const t = c.body.translation();
+    console.log('PASE', JSON.stringify(t));
+    expect(c.state.at).toBe('field');
+    // Cayó cerca de la zona de entrega (a ≤ 0.7 m), a ras de plataforma o piso, no en la Repisa
+    expect(Math.hypot(t.x - side * 0.7, t.z)).toBeLessThan(0.9);
+    expect(g.sensors.criticalOnRepisa(a)).toBe(false);
+  });
+});
+
+describe('Phoenix: tiro flojo', () => {
+  it('solo anota de cerca: a 2.5 m ni un tiro solo llega a N3, a 1 m sí', () => {
+    expect(shootLoaded3(2.5)).toBe(false);
+    expect(shootLoaded3(1.0)).toBe(true);
+  });
+  function shootLoaded3(range: number): boolean {
+    return shoot(3, range, 4).level === 3;
+  }
 });
