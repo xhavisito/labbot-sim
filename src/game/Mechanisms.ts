@@ -29,7 +29,7 @@
  */
 import { camaraWells, inCamara, rectForCamara } from '../config/field';
 import { shotVelocity } from './shooter';
-import { CLAW_GAP, armTip, canHoldCritical, canPassCritical, clawOf, intakeOf, posAngle, posDir, seatX, type ElevatorPos, type GripMode } from '../config/robot';
+import { CLAW_GAP, armTip, canHoldCritical, canPassCritical, clawOf, critSeat, intakeOf, posAngle, posDir, seatX, type ElevatorPos, type GripMode } from '../config/robot';
 import { CRITICAL_SIZE, SAMPLE_SIZE } from '../config/field';
 import { FLOOR_POSE, clawDir } from '../physics/RobotPhysics';
 import { GROUPS } from '../physics/PhysicsWorld';
@@ -288,7 +288,8 @@ export class Mechanisms {
       const next = Math.abs(d) <= stepA ? g : this.angle + Math.sign(d) * stepA;
       // Si en la nueva pose el brazo o la garra se meterían en la madera, el brazo topa y se queda
       // (si ya estaba metido, p. ej. por un empujón, lo deja moverse para que se zafe)
-      const held = this.critical ? 'critical' : this.inClaw ? 'sample' : null;
+      // La Crítica de la garra fija (`critClaw`) no se mueve con el brazo: no cuenta para topar
+      const held = this.critical && !critSeat(s) ? 'critical' : this.inClaw ? 'sample' : null;
       const n = this.inClawCount;
       this.armBlocked = next !== this.angle && this.phys.armHitsField(next, held, n) && !this.phys.armHitsField(this.angle, held, n);
       const prevAngle = this.angle;
@@ -342,7 +343,9 @@ export class Mechanisms {
     // Las Muestras de la garra (hasta dos apiladas con `holdsTwo`) chocan con todo
     // El lanzador lleva las Muestras dentro de su rampa (ya dentro del casco del CAD): al choque solo suma una
     const n = intakeOf(this.phys.spec).shooter ? Math.min(1, this.inClawCount) : this.inClawCount;
-    this.phys.setArmPose(this.angle, this.critical ? 'critical' : this.inClaw ? 'sample' : null, n);
+    // Garra fija de la Crítica (Psycho): el cubo va en el chasis aunque el brazo lleve Muestras
+    const fixed = critSeat(this.phys.spec) !== null;
+    this.phys.setArmPose(this.angle, this.critical && !fixed ? 'critical' : this.inClaw ? 'sample' : null, n, fixed && this.critical !== null);
   }
 
   /** Lugares de la rampa ocupados: las Muestras y, en Phoenix (`passCritical`), la Crítica, que mide 20 cm y ocupa 2 (SUPUESTO). */
@@ -580,6 +583,9 @@ export class Mechanisms {
    * rendija de la Campana, en el piso o en la Repisa). Las del hopper no estorban; la garra, sí.
    */
   grabCritical(events: MechEvent[]): boolean {
+    const seat = critSeat(this.phys.spec);
+    // Garra fija (Psycho): no depende del brazo ni de lo que lleve la caja; la toma si el cubo llega a su asiento
+    if (seat) return this.grabCriticalFixed(events);
     // La garra tiene que estar del lado donde toma la Crítica (no guardada ni volteada al otro)
     if (!(canHoldCritical(this.phys.spec) || canPassCritical(this.phys.spec)) || this.critical || clawDir(this.angle, this.phys.spec.arm) !== posDir(this.phys.spec, 4)) return false;
     // Phoenix: la Crítica entra por el intake como una Muestra, junto a las que ya lleve, si le caben sus 2 lugares de la rampa
@@ -594,6 +600,28 @@ export class Mechanisms {
     const reach = canPassCritical(this.phys.spec) ? 0.3 : 0.2;
     const ok = Math.abs(lx - this.tipX()) < reach && Math.abs(lz) < 0.3 && t.y > carriage - 0.2 && t.y < carriage + 0.35;
     if (!ok) return false;
+    this.pieces.stash(c, { at: 'robot', robot: p.index });
+    this.critical = c;
+    events.push({ type: 'grabCritical', robot: p.index, piece: c.index });
+    this.syncHitbox();
+    return true;
+  }
+
+  /**
+   * Garra fija de la Crítica (`IntakeSpec.critClaw`, la "Garrita" de Psycho): toma la Crítica propia si su centro queda dentro de la
+   * ventana de la garra (adelante del chasis, a la altura de los dedos o hasta `reachY` más abajo, p. ej. la rendija de la Campana) y la
+   * pone en su asiento. SUPUESTO: la garra cierra al instante y la sube al asiento; el manual (§7.2) no habla de mecanismos.
+   */
+  private grabCriticalFixed(events: MechEvent[]): boolean {
+    const p = this.phys;
+    const cc = p.spec.intake?.critClaw;
+    if (!cc || this.critical || this.jammed) return false;
+    const c = this.pieces.critical(this.alliance);
+    if (c.state.at !== 'field') return false;
+    const t = c.body.translation();
+    const { lx, lz } = p.worldToLocalFlat(t.x, t.z);
+    const dy = t.y - (p.position().y + cc.seat.y);
+    if (Math.abs(lx - cc.seat.x) > cc.reachX || Math.abs(lz) > cc.reachZ || Math.abs(dy) > cc.reachY) return false;
     this.pieces.stash(c, { at: 'robot', robot: p.index });
     this.critical = c;
     events.push({ type: 'grabCritical', robot: p.index, piece: c.index });
@@ -658,6 +686,12 @@ export class Mechanisms {
       // Garra del CAD centrada en la punta (Axiom): la Muestra sale del centro de los dedos
       loc = { x: lx, y: p.centeredClaw ? this.height : this.height + size / 2 };
       vl = { x: push ? spit * dir : 0, y: 0 };
+    }
+    // Crítica de la garra fija: sale de su asiento, sin empujón (con el robot)
+    const seat = kind === 'critical' ? critSeat(spec) : null;
+    if (seat) {
+      loc = { x: seat.x, y: seat.y };
+      vl = { x: 0, y: 0 };
     }
     // Lanzador (Phoenix): en N1–N3 la Muestra sale disparada hacia el pozo de ese nivel; sale de la boca del lanzador si el CAD la fija
     // Pase (Phoenix, `passCritical`): soltar con la Crítica la lanza hacia la zona de entrega, sin anotarla

@@ -7,13 +7,16 @@
  * centro de la ranura y a ~1 m/s hacia la cancha.
  */
 import * as F from '../config/field';
+import { critSeat, type IntakeSpec } from '../config/robot';
 import type { Alliance } from '../core/types';
 import type { Pieces } from '../physics/Pieces';
 
 /** Lo mínimo que el Human Player ve de un robot en la cancha. */
 export interface HpWatched {
   alliance: Alliance;
-  phys: { position(): { x: number; z: number }; localToWorld(lx: number, ly: number, lz: number): { x: number; z: number } };
+  phys: { position(): { x: number; z: number }; localToWorld(lx: number, ly: number, lz: number): { x: number; z: number }; heading?(): number };
+  /** Para saber si toma la Crítica con una garra fija (Psycho, `critSeat`). */
+  spec?: { intake?: IntakeSpec };
   mech: { tipX(): number; height: number };
 }
 
@@ -117,9 +120,16 @@ export class HumanPlayer {
     let best = Infinity;
     let goal = t.x;
     for (const r of this.robots) {
-      // Con la garra a la altura de la rendija (va por la Crítica), no la que pasa con el brazo abajo
-      if (r.alliance !== this.alliance || Math.abs(r.mech.height - F.CRITICAL_HOLDER_RED.y) > 0.12) continue;
-      const tip = r.phys.localToWorld(r.mech.tipX(), 0, 0);
+      if (r.alliance !== this.alliance) continue;
+      // Garra fija de la Crítica (Psycho): sirve el robot que va de frente a la rendija; con brazo, el que tiene la garra a su altura
+      // (va por la Crítica), no el que pasa con el brazo abajo
+      const seat = r.spec && r.phys.heading ? critSeat(r.spec) : null;
+      if (seat) {
+        const rp = r.phys.position();
+        const fz = -Math.sin(r.phys.heading!());
+        if (fz * Math.sign(h.z - rp.z) < 0.7) continue;
+      } else if (Math.abs(r.mech.height - F.CRITICAL_HOLDER_RED.y) > 0.12) continue;
+      const tip = r.phys.localToWorld(seat ? seat.x : r.mech.tipX(), 0, 0);
       const d = Math.hypot(tip.x - t.x, tip.z - t.z);
       if (d < CRIT_SLIDE_REACH && d < best) {
         best = d;

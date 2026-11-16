@@ -8,7 +8,7 @@ import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { CRITICAL_SIZE, SAMPLE_SIZE } from '../config/field';
-import { WHEEL_DROP, armTip, clawOf, intakeOf, posAngle, seatX, type CadModel, type ClawDims } from '../config/robot';
+import { WHEEL_DROP, armTip, clawOf, critSeat, intakeOf, posAngle, seatX, type CadModel, type ClawDims, type CritClaw } from '../config/robot';
 import { PALETTES } from '../config/palette';
 import { clawDir } from '../physics/RobotPhysics';
 import type { Robot } from '../game/Robot';
@@ -89,6 +89,11 @@ export class RobotView {
    */
   private clawFingers: Array<{ group: THREE.Group; q: THREE.Quaternion; dir: number; zHorn: number; r: number }> = [];
   private qTmp = new THREE.Quaternion();
+  /** Dedos de la garra fija de la Crítica (Psycho): cada uno gira sobre su eje vertical; `side` = costado (+1 = +z). */
+  private critFingers: Array<{ g: THREE.Group; side: number }> = [];
+  /** Cierre actual de esos dedos (0 = abiertos, la pose del CAD; 1 = sobre la Crítica). */
+  private critNow = 0;
+  private critT = 0;
   /** Centro de los dedos de la pinza del CAD en el sistema de la garra (donde se dibuja la Muestra que aprieta). */
   private pocket: { x: number; y: number } | null = null;
   /** Giro actual de los dedos hacia adentro (°); 0 = abiertos, la pose del CAD. */
@@ -223,6 +228,13 @@ export class RobotView {
     // La garra queda nivelada aunque el brazo gire (se corrige en sync)
     claw.name = 'claw';
     this.criticalMesh.visible = false;
+    // Crítica en la garra fija (Psycho): va en el chasis, no gira con el brazo
+    const seat = critSeat(s);
+    if (seat) {
+      this.criticalMesh.removeFromParent();
+      this.criticalMesh.position.set(seat.x, seat.y, 0);
+      this.group.add(this.criticalMesh);
+    }
     this.capture();
     this.capture();
     // Ruedas de tracción del CAD (no son del dibujo genérico: se quedan al cargar el modelo)
@@ -293,6 +305,8 @@ export class RobotView {
     if (arm && dl > 0) this.stretchArm(arm, m.stowAngle ?? 0, dl);
     if (arm && intakeOf(this.robot.spec).kind === 'pinza') this.findFingers(arm, m.stowAngle ?? 0, Math.max(0, dl));
     this.group.add(scene);
+    const cc = intakeOf(this.robot.spec).critClaw;
+    if (cc) this.rigCritClaw(scene, cc);
     for (const g of this.generic) g.visible = false;
     // Placas con la estación: pegadas a los costados del chasis real
     for (const p of this.numPlates) p.position.z = Math.sign(p.position.z) * (width / 2 + 0.002);
@@ -381,6 +395,39 @@ export class RobotView {
     this.criticalMesh.position.set(this.pocket.x, this.pocket.y, 0);
   }
 
+  /**
+   * Garra fija de la Crítica (`Garrita-Garrita` del CAD, uno por costado): cada dedo gira sobre su eje vertical (`Flecha 10cm`,
+   * `CritClaw.shafts`) hacia el frente hasta tocar la Crítica. El CAD solo trae la pose abierta (SUPUESTO el giro y su sentido).
+   */
+  private rigCritClaw(scene: THREE.Object3D, cc: CritClaw): void {
+    const fingers: THREE.Mesh[] = [];
+    scene.traverse((o) => {
+      if (o instanceof THREE.Mesh && /^Garrita-Garrita/i.test(o.name)) fingers.push(o);
+    });
+    for (const m of fingers) {
+      m.geometry.computeBoundingBox();
+      const bb = m.geometry.boundingBox!;
+      const side = Math.sign((bb.min.z + bb.max.z) / 2) || 1;
+      const sh = cc.shafts.find((q) => Math.sign(q.z) === side);
+      if (!sh || !m.parent) continue;
+      const g = new THREE.Group();
+      g.position.set(sh.x, 0, sh.z);
+      m.parent.add(g);
+      m.position.set(-sh.x, 0, -sh.z);
+      g.add(m);
+      this.critFingers.push({ g, side });
+    }
+  }
+
+  /** Cierra o abre los dedos de la garra de la Crítica según lleve o no la pieza (0.25 s, SUPUESTO). */
+  private animateCritClaw(dt: number): void {
+    const cc = intakeOf(this.robot.spec).critClaw;
+    if (!cc || !this.critFingers.length) return;
+    const want = this.robot.mech.critical !== null ? 1 : 0;
+    this.critNow += Math.max(-dt / 0.25, Math.min(dt / 0.25, want - this.critNow));
+    for (const f of this.critFingers) f.g.rotation.y = f.side * this.critNow * ((cc.closeDeg * Math.PI) / 180);
+  }
+
   /** Grados que hay que girar cada dedo para que su rama quede a `zTarget` del centro (arcsin; tope 40°). */
   private fingerDeg(zTarget: number): number {
     const f = this.clawFingers[0];
@@ -441,6 +488,11 @@ export class RobotView {
     for (const w of this.wheels) w.mesh.rotation.z = (w.flip ? 1 : -1) * this.spin[w.side];
     const m = this.robot.mech;
     this.criticalMesh.visible = m.critical !== null;
+    if (this.critFingers.length) {
+      const nowC = performance.now() / 1000;
+      this.animateCritClaw(Math.min(0.1, nowC - (this.critT || nowC)));
+      this.critT = nowC;
+    }
     const claw = this.arm.getObjectByName('claw');
     const sa = this.robot.spec.arm;
     if (sa.linear && claw) {
