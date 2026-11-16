@@ -52,7 +52,7 @@ function normals(pos, idx) {
 
 /**
  * @param {string} stepPath
- * @param {{frame:{ex:number[],ey:number[],ez:number[],origin:number[]}, pivot:[number,number], armPattern:RegExp, armAbove?:number, minDiag?:number, maxTrisPerPart?:number, log?:(s:string)=>void}} o
+ * @param {{frame:{ex:number[],ey:number[],ez:number[],origin:number[]}, pivot:[number,number], armPattern:RegExp, armAbove?:number, minDiag?:number, maxTrisPerPart?:number, skip?:RegExp, log?:(s:string)=>void}} o
  * `frame` y `pivot` en metros (como en el JSON del robot).
  */
 export async function stepToGlb(stepPath, o) {
@@ -106,6 +106,8 @@ export async function stepToGlb(stepPath, o) {
     const mn = [1e9, 1e9, 1e9], mx = [-1e9, -1e9, -1e9];
     for (let v = 0; v < pos.length; v += 3) for (let a = 0; a < 3; a++) { mn[a] = Math.min(mn[a], pos[v + a]); mx[a] = Math.max(mx[a], pos[v + a]); }
     const diag = Math.hypot(mx[0] - mn[0], mx[1] - mn[1], mx[2] - mn[2]);
+    // `skip`: piezas que el simulador dibuja por su cuenta (p. ej. las llantas de Psycho, que giran)
+    if (o.skip && o.skip.test(names[i])) return;
     // `armAbove`: el centro de la pieza a esa altura (m sobre el piso) o más; si no, por nombre
     const isArm = o.armPattern.test(names[i]) || (o.armAbove !== undefined && (mn[1] + mx[1]) / 2 >= o.armAbove);
     if (diag < minDiag && !isArm) return; // tornillos, rondanas…

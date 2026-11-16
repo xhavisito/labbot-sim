@@ -22,7 +22,7 @@
  */
 import * as F from '../config/field';
 import { GAME } from '../config/game';
-import { canHoldCritical, posDir, posTip, type ElevatorPos } from '../config/robot';
+import { canHoldCritical, critSeat, posDir, posTip, type ElevatorPos } from '../config/robot';
 import type { Phase } from '../core/clock';
 import { DAMAGE } from '../core/damage';
 import { opponent, type Alliance, type Level } from '../core/types';
@@ -1256,7 +1256,8 @@ export class Bot {
         return;
       }
       // La garra va vacía: si trae una Muestra, la suelta
-      if (m.inClaw && m.inHopper >= m.capacity - 1) {
+      // (con la garra fija de la Crítica, Psycho, la caja del brazo puede ir llena: son mecanismos distintos)
+      if (m.inClaw && m.inHopper >= m.capacity - 1 && !critSeat(r.spec)) {
         out.release = true;
         return;
       }

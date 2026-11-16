@@ -187,6 +187,25 @@ export interface CadModel {
 export type IntakeKind = 'compliant' | 'pinza';
 export const INTAKE_KINDS: readonly IntakeKind[] = ['compliant', 'pinza'];
 
+/**
+ * Garra fija de la Crítica (`IntakeSpec.critClaw`). Del CAD (Psycho, 16-nov): la placa de la garra (`Garrita-Suelo`, 11 × 23 cm, a ras del
+ * frente del chasis) y el eje de cada dedo. SUPUESTOS (el CAD trae una sola pose, la abierta, y no dice cómo cierran): el cubo queda con su
+ * cara de atrás en el borde de los dedos y sobre la placa (sobresale 16 cm del chasis); cada dedo gira `closeDeg` sobre su eje vertical
+ * hasta tocarlo; toma la Crítica de la rendija (100–140 mm más abajo que la garra: la sube al tomarla).
+ */
+export interface CritClaw {
+  /** Centro del cubo ya tomado (sistema del robot: x al frente, y desde la base del chasis). */
+  seat: { x: number; y: number };
+  /** Cuánto se aleja (m) el centro de la Crítica del asiento, hacia adelante y hacia atrás, y de lado, para que la tome al cerrar. */
+  reachX: number;
+  reachZ: number;
+  /** Cuánto más arriba o abajo (m) del centro del asiento puede estar el centro de la Crítica (la rendija queda más abajo que la garra). */
+  reachY: number;
+  /** Ejes de los dedos (x, z locales; dos, uno por lado) y cuánto giran al cerrar sobre la Crítica (°). Solo para el dibujo. */
+  shafts: Array<{ x: number; z: number }>;
+  closeDeg: number;
+}
+
 export interface IntakeSpec {
   kind: IntakeKind;
   /** Espacio libre entre los dedos (m). La Muestra mide 150 mm y la Crítica 200 mm (±5, §4.1.1). */
@@ -207,10 +226,17 @@ export interface IntakeSpec {
    */
   rollers?: boolean;
   /**
-   * Sin mecanismo para la Muestra Crítica (Psycho todavía no lo tiene, Xhavi 13-nov): no la toma, no la
+   * Sin mecanismo para la Muestra Crítica (Psycho no lo tenía, Xhavi 13-nov; desde el 16-nov tiene `critClaw`): no la toma, no la
    * cuenta como suya y la IA y el HUD lo tratan así. Quitar la bandera la vuelve a activar.
    */
   noCritical?: boolean;
+  /**
+   * Garra de la Crítica fija al chasis, aparte de la caja del brazo (Psycho, la "Garrita" del CAD del 16-nov: placa con dos
+   * dedos de eje vertical al frente). La Crítica se toma de la rendija de la Campana con el robot de frente a ella, queda
+   * en `seat` y se suelta ahí mismo (la deja caer sobre la Repisa subiendo a la Plataforma). Va sola: la caja del brazo
+   * sigue llevando Muestras al mismo tiempo. Todo SUPUESTO salvo la placa (CAD): ver `CritClaw`.
+   */
+  critClaw?: CritClaw;
   /** Lanzador (Phoenix): en N1–N3 la Muestra sale disparada hacia la Cámara en vez de soltarse. */
   shooter?: ShooterSpec;
 }
@@ -272,7 +298,19 @@ export const INTAKE_RANGE = {
 export const intakeOf = (s: { intake?: IntakeSpec }): IntakeSpec => s.intake ?? DEFAULT_INTAKE;
 
 /** ¿Le cabe la Muestra Crítica (200 mm, §4.1.1) entre los dedos? Si no, la IA no la intenta. */
-export const canHoldCritical = (s: { intake?: IntakeSpec }): boolean => intakeOf(s).noCritical !== true && intakeOf(s).gap >= mm(200) - 1e-9;
+export const canHoldCritical = (s: { intake?: IntakeSpec }): boolean => {
+  const i = intakeOf(s);
+  return i.noCritical !== true && (i.critClaw !== undefined || i.gap >= mm(200) - 1e-9);
+};
+
+/**
+ * Posición de la Crítica en la garra fija (`IntakeSpec.critClaw`): centro del cubo (x, y desde la base del chasis) y su cara de abajo.
+ * null si el robot la toma con el brazo.
+ */
+export function critSeat(s: { intake?: IntakeSpec }): { x: number; y: number; bottom: number } | null {
+  const c = s.intake?.critClaw;
+  return c ? { x: c.seat.x, y: c.seat.y, bottom: c.seat.y - mm(200) / 2 } : null;
+}
 
 /**
  * Garra (la misma medida en la física y en el dibujo). SUPUESTO de diseño: dos dedos de 20 × 16 cm
@@ -454,12 +492,16 @@ export function posAngle(s: RobotSpec, pos: ElevatorPos): number {
 
 /** +1 si en esa posición la punta queda al frente del robot, −1 si atrás. */
 export const posDir = (s: RobotSpec, pos: ElevatorPos): 1 | -1 =>
-  pos >= 1 && pos <= 3 && s.arm.levelAngles?.[pos as 1 | 2 | 3] !== undefined
+  pos === 4 && critSeat(s) ? 1 : pos >= 1 && pos <= 3 && s.arm.levelAngles?.[pos as 1 | 2 | 3] !== undefined
     ? Math.cos(s.arm.levelAngles[pos as 1 | 2 | 3]!) >= 0 ? 1 : -1
     : ((s.arm.pickBack || s.arm.rearClaw) && (pos === 0 || pos === 4) ? -1 : 1);
 
 /** Punta del brazo (local x, y) en una posición. */
-export const posTip = (s: RobotSpec, pos: ElevatorPos): { x: number; y: number } => armTip(s.arm, posAngle(s, pos));
+export const posTip = (s: RobotSpec, pos: ElevatorPos): { x: number; y: number } => {
+  // La Crítica (posición 4) con garra fija: la "punta" es el asiento del cubo (x del centro, y de su cara de abajo)
+  const seat = pos === 4 ? critSeat(s) : null;
+  return seat ? { x: seat.x, y: seat.bottom } : armTip(s.arm, posAngle(s, pos));
+};
 
 /** Ángulo del brazo (rad, 0 = horizontal hacia adelante) para que la punta quede a la altura `h`. */
 export function armAngle(arm: ArmSpec, h: number): number {

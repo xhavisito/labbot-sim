@@ -177,11 +177,11 @@ describe('Psycho según el CAD (pose de piso, dos Muestras, hueco)', () => {
     const { posAngle, posTip } = await import('../src/config/robot');
     const s = robotSpec('cad:psycho');
     expect(s.arm.pickBack).toBe(true);
-    expect(s.elevatorHeights[0]).toBeCloseTo(0.0249, 3); // pieza sobre la placa baja de la garra
+    expect(s.elevatorHeights[0]).toBeCloseTo(0.0233, 3); // pieza sobre la placa baja de la garra
     const d = posAngle(s, 0) - s.arm.stowAngle!;
     expect(Math.cos(d)).toBeCloseTo(1, 3);
     const tip = posTip(s, 0);
-    expect(tip.y).toBeCloseTo(0.0249, 2); // la punta toca el piso, no lo atraviesa
+    expect(tip.y).toBeCloseTo(0.0233, 2); // la punta toca el piso, no lo atraviesa
     expect(tip.x).toBeLessThan(-0.2); // la garra recoge atrás del frente (el lado de anotar es +x)
   });
   it('lleva dos Muestras a la vez (la garra mide 30.9 cm por dentro)', async () => {
@@ -198,29 +198,6 @@ describe('Psycho según el CAD (pose de piso, dos Muestras, hueco)', () => {
     expect(covered(-0.25, 0)).toBe(false); // canal de la garra, al fondo del lado de recoger
     expect(covered(-0.25, 0.27)).toBe(true); // riel
     expect(covered(0.2, 0)).toBe(true); // cubierta trasera
-  });
-});
-
-describe('psycho sin mecanismo para la Crítica (Xhavi, 13-nov)', () => {
-  it('no la lleva: la IA y el HUD lo ven, y la garra no la toma aunque esté enfrente', async () => {
-    const { robotSpec } = await import('../src/config/robotIds');
-    const { canHoldCritical, intakeOf } = await import('../src/config/robot');
-    const { GameSession } = await import('../src/game/GameSession');
-    const { initRapier } = await import('../src/physics/PhysicsWorld');
-    await initRapier();
-    const s = robotSpec('cad:psycho');
-    expect(intakeOf(s).noCritical).toBe(true);
-    expect(canHoldCritical(s)).toBe(false);
-    // Con la bandera apagada la apertura (30.9 cm) sí le cabe: es reversible
-    expect(canHoldCritical({ intake: { ...intakeOf(s), noCritical: false } })).toBe(true);
-    const g = new GameSession({ player: 0, preload: false, specs: [s] });
-    const m = g.player.mech;
-    const c = g.pieces.critical(g.player.alliance);
-    // La Crítica pegada a la garra, a su altura
-    const tip = g.player.phys.localToWorld(m.tipX(), m.height, 0);
-    g.pieces.place(c, tip.x, tip.y + 0.1, tip.z, 0);
-    expect(m.grabCritical([])).toBe(false);
-    expect(m.critical).toBeNull();
   });
 });
 
