@@ -56,3 +56,9 @@ Los lanza por `game/shooter.ts`: la velocidad se acomoda a la distancia al pozo 
 trasero a ras de piso, con la garra del simulador: `arm.rearClaw`), cuántas Muestras lleva (1), sin Muestra Crítica, velocidad máxima de salida
 (6.5 m/s), variación por tiro (4 % velocidad, 1.4° rumbo), masa y velocidades de manejo (preset), y qué placas toman el color de la alianza.
 El modelo es estático: no se sabe qué piezas se mueven, así que las llantas no giran en pantalla.
+
+## Axiom (16-nov, sin STEP)
+El STEP que llegó como Axiom (`EnsambleCoregido 2.STEP`) era idéntico al de Phoenix, así que no se usó. Xhavi no pudo exportar el ensamble de Axiom;
+`robots/axiom.robot.json` se hizo **solo con sus medidas**: ancho 0.65 m, largo sin brazo 0.56 m, alto 0.64 m (largo con brazo 0.63 m: anotado, no modelado).
+**SUPUESTOS:** mecanismo = pivote con garra (visto en 4 capturas de SolidWorks), y garra, llantas, masa y velocidades del preset de pivote, y un brazo de 0.46 m (el del preset no cabe en 0.56 m); se dibuja con el modelo genérico.
+Pendiente: el STEP de Axiom (o por partes) para reimportarlo con `robot:import` y tener forma 3D, llantas y brazo reales.
