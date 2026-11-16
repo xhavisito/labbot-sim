@@ -74,6 +74,8 @@ export interface ArmSpec {
   linear?: boolean;
   /** Elevador con la garra atrás (Phoenix: recoge de reversa por el canal trasero): la garra abre hacia −x. */
   rearClaw?: boolean;
+  /** Media altura (m) de la viga del brazo para la colisión (por defecto 2 cm). Axiom: 4.9 cm, el grosor de las placas del CAD. */
+  halfThickness?: number;
   /**
    * Punta (x, y locales) con el brazo plegado: con ángulos mayores a π/2 (el de guardado es π) la
    * punta pasa linealmente de la posición con el brazo arriba (π/2) a esta. Lo usa el brazo largo y el
