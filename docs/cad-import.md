@@ -45,3 +45,14 @@ lista en `supuestos` lo que se dedujo; corrige con `--mass`/`--set`. El eje vert
 fijan con `--up`/`--forward` (el piso es la pieza más baja del ensamble).
 
 Probado con el ensamble real del equipo (114 piezas, ~48 MB, 4 s). El STEP no se versiona; sí el `.robot.json`.
+
+## Phoenix (robot lanzador, 16-nov)
+Importado con `npm run robot:import -- EnsambleCoregido.STEP --name Phoenix --up z --forward +x --static`
+(`--static` = GLB completo sin brazo que gira; el detector de eje vertical se equivocó con este CAD, hay que fijarlo con `--up z`).
+**Del CAD:** chasis 0.668 × 0.64 × 0.73 m; 6 llantas HiGrip de 6 in (3 por lado); huella a ras de piso con el canal trasero abierto
+(0.446 m); rampa de rodillos compliant de 3 in a **66.4°** y su boca de salida (x 0.0125 m, y 0.6175 m) → `intake.shooter` (`ShooterSpec`).
+Los lanza por `game/shooter.ts`: la velocidad se acomoda a la distancia al pozo y cada tiro varía un poco; el rumbo es el del robot.
+**SUPUESTOS (a revisar con Xhavi, 16-nov "déjalo como supuesto, lo arreglamos después"):** por dónde y cómo recoge (por el canal
+trasero a ras de piso, con la garra del simulador: `arm.rearClaw`), cuántas Muestras lleva (1), sin Muestra Crítica, velocidad máxima de salida
+(6.5 m/s), variación por tiro (4 % velocidad, 1.4° rumbo), masa y velocidades de manejo (preset), y qué placas toman el color de la alianza.
+El modelo es estático: no se sabe qué piezas se mueven, así que las llantas no giran en pantalla.

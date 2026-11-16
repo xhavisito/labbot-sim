@@ -257,6 +257,9 @@ export class Bot {
 
   /** Distancia (centro del robot → centro de la Muestra al soltarla) en ese nivel. */
   private tipDistance(level: Level): number {
+    // Lanzador (Phoenix): tira desde `range` m del centro del pozo (en vez de arrimarse a la pared)
+    const shooter = this.robot.spec.intake?.shooter;
+    if (shooter) return shooter.range + (shooter.muzzle?.x ?? Math.abs(posTip(this.robot.spec, level).x));
     return Math.abs(posTip(this.robot.spec, level).x);
   }
 
@@ -1104,7 +1107,7 @@ export class Bot {
     const near = Math.hypot(pose.x - pos.x, pose.z - pos.z) < 1.6;
     if (level === 3 && near) this.team.n3By = r.index;
     out.elevator = near ? level : 0;
-    const st = this.dock(pose, -this.side, this.scoreDir, out, phase, { stage: this.profile.dockStage, tol: 0.1 + this.profile.sloppy, edge: EDGE_CLEAR });
+    const st = this.dock(pose, -this.side, this.scoreDir, out, phase, { stage: this.robot.spec.intake?.shooter ? 0.2 : this.profile.dockStage, tol: 0.1 + this.profile.sloppy, edge: EDGE_CLEAR });
     // Ya se está arrimando: se queda con ese nivel hasta soltar todo
     if (st === 'creep' || st === 'docked') this.lockedLevel = level;
     if (st === 'docked') out.release = m.atTarget;

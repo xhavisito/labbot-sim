@@ -22,6 +22,7 @@ for (let i = 0; i < args.length; i++) {
   const a = args[i];
   if (a === '--dry') dry = true;
   else if (a === '--no-model') noModel = true;
+  else if (a === '--static') opts.static = true;
   else if (a === '--set') {
     const [k, v] = (args[++i] ?? '').split('=');
     if (!k || Number.isNaN(Number(v))) throw new Error('--set espera ruta=numero');
@@ -47,12 +48,13 @@ for (const f of files) {
   const robot = analyzeStep(model, { ...opts, overrides }, basename(f));
   const id = robot.name.toLowerCase().normalize('NFD').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'robot';
   const { frame, ...out0 } = robot;
-  if (!noModel && robot.spec.arm) {
-    const armPattern = new RegExp(opts['arm-parts'] ?? '^(Brazo|Garra|Soporte-BrazoGarra|Sprocket|Flecha)', 'i');
-    const { glb } = await stepToGlb(f, { frame, pivot: [robot.spec.arm.pivotX, robot.spec.arm.pivotY], armPattern, log: (m) => console.log('  ' + m) });
+  // `--static`: robot sin brazo que gira (la forma completa en el nodo `estatico`; lo que se mueve se define a mano en el JSON)
+  if (!noModel && (robot.spec.arm || opts.static)) {
+    const armPattern = opts.static ? /^$/ : new RegExp(opts['arm-parts'] ?? '^(Brazo|Garra|Soporte-BrazoGarra|Sprocket|Flecha)', 'i');
+    const { glb } = await stepToGlb(f, { frame, pivot: robot.spec.arm ? [robot.spec.arm.pivotX, robot.spec.arm.pivotY] : [0, 0], armPattern, log: (m) => console.log('  ' + m) });
     mkdirSync(join(root, 'public/robots'), { recursive: true });
     if (!dry) writeFileSync(join(root, `public/robots/${id}.glb`), glb);
-    out0.model = { url: `robots/${id}.glb`, stowAngle: robot.spec.arm.stowAngle, tint: '^Chasis-(Frontal|Trasero)' };
+    out0.model = { url: `robots/${id}.glb`, stowAngle: robot.spec.arm?.stowAngle, tint: '^Chasis-(Frontal|Trasero)' };
   }
   const out = join(root, 'robots', `${id}.robot.json`);
   const json = JSON.stringify(out0, null, 2) + '\n';

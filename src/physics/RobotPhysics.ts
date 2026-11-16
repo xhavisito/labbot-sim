@@ -75,7 +75,7 @@ function qmul(a: Pose['r'], b: Pose['r']): Pose['r'] {
 const beamShort = (c: ClawDims): number => c.fingerLength / 2 + c.palmThickness + 0.01;
 
 /** Hacia dónde abre la garra: +1 si la punta está delante del eje del brazo, −1 si está detrás. */
-export const clawDir = (a: number, arm?: { linear?: boolean; stowTip?: unknown }): number => (arm?.stowTip || arm?.linear ? 1 : Math.cos(a) >= 0 ? 1 : -1);
+export const clawDir = (a: number, arm?: { linear?: boolean; stowTip?: unknown; rearClaw?: boolean }): number => (arm?.rearClaw ? -1 : arm?.stowTip || arm?.linear ? 1 : Math.cos(a) >= 0 ? 1 : -1);
 
 export function yawQuat(h: number): { x: number; y: number; z: number; w: number } {
   return { x: 0, y: Math.sin(h / 2), z: 0, w: Math.cos(h / 2) };
@@ -172,7 +172,10 @@ export class RobotPhysics {
     // Torre del pivote (o los soportes del eje bajo), con las medidas del dibujo (`RobotView`); antes
     // era una caja invisible del 90 % del chasis hasta `baseHeight`
     const a = spec.arm;
-    if (a.linear)
+    // Phoenix (`rearClaw`): la estructura es la del CAD (laterales y placas de `footprint`); sin torre inventada
+    if (a.rearClaw) {
+      /* nada */
+    } else if (a.linear)
       // Elevador: la torre va sobre el chasis (los rieles), no donde está el carro
       add(
         RAPIER.ColliderDesc.cuboid(0.04, (a.pivotY + a.length - 0.23) / 2, 0.15)
@@ -277,7 +280,7 @@ export class RobotPhysics {
     let beam: Pose = { t: { x: arm.pivotX + (ca * beamLen) / 2, y: arm.pivotY + (sa * beamLen) / 2, z: 0 }, r: { x: 0, y: 0, z: Math.sin(a / 2), w: Math.cos(a / 2) } };
     if (arm.linear) {
       // Elevador: el carro sale de la torre con una viga horizontal a la altura de la punta
-      beam = { t: { x: tip.x - this.claw.fingerLength / 2 - beamLen / 2, y: tip.y, z: 0 }, r: NO_ROT };
+      beam = { t: { x: tip.x - clawDir(a, arm) * (this.claw.fingerLength / 2 + beamLen / 2), y: tip.y, z: 0 }, r: NO_ROT };
     } else if (arm.stowTip && a > Math.PI / 2) {
       const b = Math.atan2(tip.y - arm.pivotY, tip.x - arm.pivotX);
       beam = { t: { x: arm.pivotX + (Math.cos(b) * beamLen) / 2, y: arm.pivotY + (Math.sin(b) * beamLen) / 2, z: 0 }, r: { x: 0, y: 0, z: Math.sin(b / 2), w: Math.cos(b / 2) } };
