@@ -10,7 +10,7 @@ el pipeline lo corre quien mantiene el repositorio.
    npm run robot:import -- ruta/EnsambleGeneral.STEP --name Psycho --mass 38
    ```
    Sin ruta procesa todo `robots/inbox/`. Opciones: `--up x|y|z|auto` (por defecto `y`), `--forward +x|-z|auto`,
-   `--mechanism generic|elevator|pivot`, `--mass kg`, `--set arm.pivotY=0.45` (repetible), `--dry`.
+   `--mechanism generic|elevator|pivot`, `--skip REGEX` (piezas que no van al GLB: las llantas que el simulador dibuja y gira), `--mass kg`, `--set arm.pivotY=0.45` (repetible), `--dry`.
 3. Se escribe `robots/<nombre>.robot.json`. `src/cad/cadRobots.ts` lo registra solo (`CAD_ROBOT_SPECS`) y se valida contra §7.2.
 
 ## Qué extrae
@@ -91,3 +91,14 @@ distancia (`solveSpeed`), pero con 5 m/s ya no alcanza a N3 más allá de ~1.6 m
 Phoenix **no** toma la Crítica por el intake (Xhavi, 16-nov: «Phoenix no come Critical piece»; se quitó el pase que se había puesto por malentendido): solo la empuja con el chasis.
 
 **Phoenix, giro al disparar (16-nov):** `ShooterSpec.spin` (30 rad/s hacia atrás, ±25 %) es SUPUESTO de Xhavi («en las pruebas reales gira mucho»); `Mechanisms.release` se lo pone a la pieza al salir (antes salía sin giro, «tiesa»).
+
+## Psycho: garra de la Crítica (16-nov)
+Nuevo STEP (`EnsambleGeneral 2.STEP`): el robot es el mismo con una garra más para la Muestra Crítica, la **Garrita**, y costillas nuevas en el brazo
+(`Brazo-SoporteIn`, `Brazo-Tras`, `CosadelSprocket`); el brazo giró 0.3° (`stowAngle` −1.9687 → −1.9636) y las llantas HiGrip ya vienen en el CAD (no van al GLB: el simulador dibuja las suyas).
+Importado con `--name Psycho --up y --forward +x --mechanism pivot --mass 40 --floor -0.09525 --skip '^(6 wheel|Llanta)' --arm-parts '^(Brazo|Garra|Soporte-BrazoGarra|Sprocket|Flecha 25|CosadelSprocket)'`
+(`--floor` = la base del chasis, para no mover el marco ahora que hay llantas; `--arm-parts` deja las flechas de los dedos fuera del brazo) y luego se fusionó a mano en el JSON
+(el analizador ya no confunde las flechas de 10 cm de los dedos con el eje del brazo) y se corrió `hitboxes.mjs psycho` (18 hitboxes, con placa, soportes, flechas y dedos de la Garrita).
+**Del CAD:** placa `Garrita-Suelo` (11 × 23 cm, a ras del frente del chasis, cara de arriba a 69.8 cm de la base), dos soportes bajo ella, dos dedos `Garrita-Garrita` de 28.5 cm sobre sus flechas verticales (x 26.4 cm, z ±5.1 cm).
+**SUPUESTOS (a revisar con Xhavi):** `IntakeSpec.critClaw` (`robots/psycho.robot.json`): el cubo queda con su cara de atrás en el borde de los dedos (centro a x 38 cm, y 79.8 cm; sobresale 16 cm del frente); cada dedo gira 40° sobre su flecha hacia el frente al cerrar (el CAD es una sola pose: la abierta; solo es dibujo, el hitbox queda en la pose abierta);
+toma la Crítica al llegar de frente (centro entre 32 y 44 cm del robot, ±10 cm de lado, hasta 14 cm abajo del asiento: la rendija queda 12 cm más abajo y la sube), cierra al instante y la suelta en el mismo lugar. Va aparte de la caja del brazo: lleva Muestras y la Crítica a la vez.
+El Human Player desliza la Crítica hacia el robot que va de frente a la rendija (como con la garra a su altura de los demás). La IA la toma y la deja en la Repisa subiendo de frente a la Plataforma (`posDir/posTip(…, 4)` apuntan al asiento).

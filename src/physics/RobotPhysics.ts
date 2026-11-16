@@ -18,7 +18,7 @@
  * y no chocan con la alfombra: la garra pasa rozándola al recoger.
  * CCD en el cuerpo: a toda velocidad o girando no atraviesa las paredes de 8 mm de la Cámara.
  */
-import { WHEEL_DROP, armTip, clawOf, intakeOf, posAngle, seatX, type ClawDims, type RobotSpec } from '../config/robot';
+import { WHEEL_DROP, armTip, clawOf, critSeat, intakeOf, posAngle, seatX, type ClawDims, type RobotSpec } from '../config/robot';
 import { CRITICAL_SIZE, SAMPLE_SIZE } from '../config/field';
 import { G, GROUPS, RAPIER, groups, type PhysicsWorld } from './PhysicsWorld';
 
@@ -35,6 +35,8 @@ const CHASSIS_Y0 = 0.03;
 const CHASSIS_TOP = 0.235;
 /** Consulta de "¿el brazo se metería en la madera?": solo la cancha (no robots ni piezas). */
 const FIELD_QUERY = groups(G.ARM, G.FIELD);
+/** Igual, con el robot volteado: la alfombra también cuenta (el brazo topa con el piso en vez de atravesarlo). */
+const FIELD_FLOOR_QUERY = groups(G.ARM, G.FIELD | G.FLOOR);
 /**
  * Las consultas usan cada pieza 8 mm más chica por lado: el contacto normal (unos milímetros de
  * encimado) no cuenta como "metido", así que el brazo apoyado o rozando la madera no se traba.
@@ -122,6 +124,8 @@ export class RobotPhysics {
   readonly rigidFloorAngle: number | null;
   /** Garra del CAD a lo largo del brazo con su centro en la punta (Axiom): dedos y Muestra centrados en la punta, sin placas de caja. */
   readonly centeredClaw: boolean;
+  /** Pose fija del cubo en la garra de la Crítica pegada al chasis (`IntakeSpec.critClaw`); null si la toma el brazo. */
+  private readonly critFixed: Pose | null;
   /** Placas de arriba y de abajo de la caja (solo la garra-caja con rodillos). */
   private readonly boxPlates: boolean;
   private armTilted = false;
@@ -256,10 +260,12 @@ export class RobotPhysics {
     this.rigidFloorAngle = spec.model && !spec.arm.linear && !spec.arm.stowTip ? (spec.model.clawAlongArm ? 0 : posAngle(spec, 0)) : null;
     this.centeredClaw = spec.model?.clawAlongArm === true && this.rigidFloorAngle !== null;
     this.boxPlates = intakeOf(spec).rollers === true;
+    const seat = critSeat(spec);
+    this.critFixed = seat ? { t: { x: seat.x, y: seat.y, z: 0 }, r: NO_ROT } : null;
     const beamLen = Math.max(0.05, spec.arm.length - beamShort(claw));
     const fh = claw.fingerHeight / 2;
     this.armQuery = {
-      beam: shrunk(beamLen / 2, 0.02, claw.fingerZ),
+      beam: shrunk(beamLen / 2, spec.arm.halfThickness ?? 0.02, claw.fingerZ),
       finger: shrunk(claw.fingerLength / 2, fh, claw.fingerThickness / 2),
       palm: shrunk(claw.palmThickness / 2, fh * 0.75, claw.fingerZ + claw.fingerThickness / 2),
       plate: shrunk(claw.fingerLength / 2, BOX_PLATE / 2, claw.fingerZ + claw.fingerThickness / 2),
@@ -267,7 +273,7 @@ export class RobotPhysics {
       critical: shrunk(CRITICAL_SIZE / 2, CRITICAL_SIZE / 2, CRITICAL_SIZE / 2),
     };
     this.armColliders = {
-      beam: mech(RAPIER.ColliderDesc.cuboid(beamLen / 2, 0.02, claw.fingerZ)),
+      beam: mech(RAPIER.ColliderDesc.cuboid(beamLen / 2, spec.arm.halfThickness ?? 0.02, claw.fingerZ)),
       fingers: [
         mech(RAPIER.ColliderDesc.cuboid(claw.fingerLength / 2, fh, claw.fingerThickness / 2)),
         mech(RAPIER.ColliderDesc.cuboid(claw.fingerLength / 2, fh, claw.fingerThickness / 2)),
@@ -332,7 +338,7 @@ export class RobotPhysics {
         base: at(0, -BOX_PLATE / 2),
         sample: at(rollers0 ? seatX(this.spec, 0, d0, 0) : 0, sy0),
         sample2: at(rollers0 ? seatX(this.spec, 0, d0, 1) : 0, rollers0 ? S / 2 : S * 1.5),
-        critical: at(0, this.centeredClaw ? 0 : CRITICAL_SIZE / 2),
+        critical: this.critFixed ?? at(0, this.centeredClaw ? 0 : CRITICAL_SIZE / 2),
       };
     }
     const rollers = intakeOf(this.spec).rollers === true && tip.y < FLOOR_POSE;
@@ -350,7 +356,7 @@ export class RobotPhysics {
       base: off,
       sample,
       sample2,
-      critical: { t: { x: tip.x, y: tip.y + CRITICAL_SIZE / 2, z: 0 }, r: NO_ROT },
+      critical: this.critFixed ?? { t: { x: tip.x, y: tip.y + CRITICAL_SIZE / 2, z: 0 }, r: NO_ROT },
     };
   }
 
@@ -381,7 +387,7 @@ export class RobotPhysics {
    * Coloca los colisionadores del brazo y la garra con el brazo en el ángulo `a` (rad, 0 = horizontal
    * al frente) y prende el de la pieza que lleva en la garra. Llamar en cada paso, antes de la física.
    */
-  setArmPose(a: number, held: 'sample' | 'critical' | null, count = 1): void {
+  setArmPose(a: number, held: 'sample' | 'critical' | null, count = 1, critFixedHeld = false): void {
     const c = this.armColliders;
     // Robot volteado o muy inclinado: el brazo y la garra también chocan con la alfombra (normal: la rozan al recoger)
     const tilted = this.tilt() > TILT_FLOOR_ARM;
@@ -411,7 +417,8 @@ export class RobotPhysics {
     c.sample2.setEnabled(held === 'sample' && count >= 2);
     put(c.critical, p.critical);
     c.sample.setEnabled(held === 'sample');
-    c.critical.setEnabled(held === 'critical');
+    // La Crítica de la garra fija va en el chasis, a la vez que lo que lleve la caja
+    c.critical.setEnabled(held === 'critical' || critFixedHeld);
   }
 
   /**
@@ -436,7 +443,7 @@ export class RobotPhysics {
     if (held === 'sample' && count >= 2) parts.push([q.sample, p.sample2]);
     for (const [shape, pose] of parts) {
       const w = this.localToWorld(pose.t.x, pose.t.y, pose.t.z);
-      if (this.pw.world.intersectionWithShape(w, qmul(br, pose.r), shape, RAPIER.QueryFilterFlags.EXCLUDE_DYNAMIC, FIELD_QUERY)) return true;
+      if (this.pw.world.intersectionWithShape(w, qmul(br, pose.r), shape, RAPIER.QueryFilterFlags.EXCLUDE_DYNAMIC, this.tilt() > TILT_FLOOR_ARM ? FIELD_FLOOR_QUERY : FIELD_QUERY)) return true;
     }
     return false;
   }
