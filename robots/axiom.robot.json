@@ -69,6 +69,7 @@
       "speed": 4,
       "stowAngle": 1.0472,
       "pickBack": false,
+      "halfThickness": 0.049,
       "levelAngles": {
         "3": 1.7453
       }
@@ -132,6 +133,7 @@
     ]
   },
   "supuestos": [
+    "COLISIÓN del brazo (Xhavi, 16-nov: el brazo atravesaba el piso al voltearse): la viga mide 9.8 cm de alto (±4.9 cm, la sección de las placas del brazo del CAD, v −0.051…0.046 m); antes 4 cm",
     "DEL CAD (ensamble comp interna.STEP, 83 piezas, AP214): chasis 0.561 × 0.651 m (el largo coincide con los 56 cm de Xhavi); eje vertical y; 4 llantas HiGrip de 6 in (2 por lado, x −0.1725/0.1475 m, a ±0.2755 m del centro); piso = parte baja de las llantas (y 0.1066 m en el CAD); eje del brazo (flecha pivote) a 0.24 m del piso y 0.173 m detrás del centro; garra de pinza al frente (0.12 m de fondo); brazo de 0.6246 m del eje al centro de la garra; la forma 3D es la del CAD (127 mil triángulos, motores y engranes simplificados, tornillos de menos de 1 cm quitados)",
     "SUPUESTO (Xhavi, 16-nov): mecanismo = garra con pivote 180° (el CAD es una sola pose y no dice cuánto gira ni de dónde a dónde); el frente es el lado de la garra. No se usa pickBack: recoger atrás con el brazo de 0.62 m dejaría la garra a 47 cm del chasis (> 40 cm, §7.2), así que recoge al frente y anota al frente",
     "SUPUESTO: el brazo del modelo = las piezas con el centro a 20 cm del piso o más (placas del brazo, garra, engranes y coronas del eje); el CAD no nombra el brazo y no se sabe si las coronas giran con él",

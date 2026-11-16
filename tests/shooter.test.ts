@@ -268,3 +268,61 @@ describe('Phoenix: tiro flojo', () => {
     return shoot(3, range, 4).level === 3;
   }
 });
+
+describe('Phoenix agarra la Crítica con el intake, como una Muestra', () => {
+  const P = () => robotSpec('cad:phoenix');
+  function grab(preload: number, extraSamples = 0) {
+    const g = new GameSession({ player: 0, preload: false, specs: [P()] });
+    for (const p of g.pieces.list) if (p.state.at === 'field' && p.kind === 'sample') g.pieces.stash(p, { at: 'hp', alliance: 'red' });
+    const m = g.player.mech;
+    const samples = g.pieces.list.filter((p) => p.kind === 'sample');
+    for (let i = 0; i < preload; i++) m.load(samples[i]);
+    g.player.phys.teleport(1.2, 1.0, 0);
+    const c = g.pieces.critical(g.player.alliance);
+    g.pieces.place(c, 1.2 - 0.85, 0.1, 1.0);
+    for (let k = 0; k < extraSamples; k++) g.pieces.place(samples[preload + k], 1.2 - 1.5 - k * 0.3, 0.076, 1.0);
+    for (let i = 0; i < 120 * 6; i++) {
+      g.setInput({ ...emptyInput(), forward: -0.3, intake: true });
+      g.step();
+    }
+    return { g, m, c };
+  }
+
+  it('con una Muestra de precarga ya en la rampa también la toma', () => {
+    const { m, c } = grab(1);
+    expect(m.critical).toBe(c);
+    expect(m.stored.length).toBe(1);
+  });
+
+  it('la Crítica ocupa 2 lugares de la rampa y las Muestras siguen entrando hasta llenarla', () => {
+    const { m, c } = grab(0, 3);
+    expect(m.critical).toBe(c);
+    // capacidad 4: la Crítica (2) + 2 Muestras
+    expect(m.stored.length).toBe(2);
+  });
+});
+
+describe('Phoenix: la pieza sale girando', () => {
+  it('gira hacia atrás a ~30 rad/s al salir (antes salía tiesa) y sigue anotando de cerca', () => {
+    const g = new GameSession({ player: 0, preload: false, specs: [robotSpec('cad:phoenix')], seed: 2 });
+    for (const p of g.pieces.list) if (p.state.at === 'field' && p.kind === 'sample') g.pieces.stash(p, { at: 'hp', alliance: 'red' });
+    const a = g.player.alliance;
+    const w = F.camaraWells()[3];
+    const c = F.forCamara(a, { x: (w.x0 + w.x1) / 2, z: (w.z0 + w.z1) / 2 - 1.2 });
+    g.player.phys.teleport(c.x, c.z, F.camaraHeading(a));
+    const piece = g.pieces.list.find((p) => p.kind === 'sample')!;
+    g.player.mech.load(piece);
+    for (let i = 0; i < 120; i++) { g.setInput({ ...emptyInput(), elevator: 3 }); g.step(); }
+    g.setInput({ ...emptyInput(), elevator: 3, releaseSample: true });
+    g.step();
+    const w0 = piece.body.angvel();
+    const spin = Math.hypot(w0.x, w0.y, w0.z);
+    const v = piece.body.linvel();
+    // Eje lateral al avance: ω · v ≈ 0, y atrás (ω × arriba apunta contra el avance → ω = avance × arriba)
+    expect(spin).toBeGreaterThan(15);
+    expect(spin).toBeLessThan(50);
+    expect(Math.abs(w0.x * v.x + w0.z * v.z)).toBeLessThan(0.05 * spin * Math.hypot(v.x, v.z));
+    for (let i = 0; i < 360; i++) { g.setInput({ ...emptyInput(), elevator: 3 }); g.step(); }
+    expect(g.sensors.scored.get(piece.index)?.level).toBe(3);
+  });
+});

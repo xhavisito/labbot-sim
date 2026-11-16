@@ -92,7 +92,12 @@ export function analyzeStep(model: StepModel, opts: AnalyzeOptions = {}, file?: 
   const arm = parts.filter((p) => inGroup(p, RE_ARM));
   const allShafts = parts.filter((p) => inGroup(p, RE_SHAFT));
   // Con varias flechas (ruedas, garra…), el eje del brazo es la que dice "pivote"
-  const shafts = allShafts.filter((p) => /pivote|pivot/i.test(p.name)).length ? allShafts.filter((p) => /pivote|pivot/i.test(p.name)) : allShafts;
+  const named = allShafts.filter((p) => /pivote|pivot/i.test(p.name));
+  // Sin "pivote" en el nombre: el eje del brazo es de la orientación de la flecha más larga (las flechas cortas y verticales de
+  // los dedos de una garra, p. ej. "Flecha 10cm" de la Garrita de Psycho, no mueven el pivote)
+  const longAxis = (p: StepPart): number => [0, 1, 2].reduce((a, i) => (ext(p.box, i) > ext(p.box, a) ? i : a), 0);
+  const longest = allShafts.reduce<StepPart | null>((a, p) => (!a || Math.hypot(...(p.box.max.map((v, i) => v - p.box.min[i]) as Vec3)) > Math.hypot(...(a.box.max.map((v, i) => v - a.box.min[i]) as Vec3)) ? p : a), null);
+  const shafts = named.length ? named : longest ? allShafts.filter((p) => longAxis(p) === longAxis(longest)) : allShafts;
   const claw = parts.filter((p) => inGroup(p, RE_CLAW) && !inGroup(p, RE_ARM));
   const elev = parts.filter((p) => inGroup(p, RE_ELEV));
   if (opts.armAbove !== undefined) {
