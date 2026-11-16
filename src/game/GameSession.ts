@@ -13,7 +13,7 @@ import { Team } from '../ai/Team';
 import { AUTO_REF_SPEED, AutoRunner, LEAVE_ZONE, type AutoOutput, type AutoRoutine } from '../auto/AutoRoutine';
 import * as F from '../config/field';
 import { GAME, type GameConfig } from '../config/game';
-import { DEFAULT_ROBOT, type RobotSpec } from '../config/robot';
+import { DEFAULT_ROBOT, intakeOf, type RobotSpec } from '../config/robot';
 import type { StartSpot } from '../config/startSpot';
 import { isTeleop, robotsEnabled, type Phase } from '../core/clock';
 import { DEFAULT_DAMAGE, type DamageSettings } from '../core/damage';
@@ -143,6 +143,8 @@ export class GameSession {
   private sinkView: SinkView | null = null;
   private pieceView: PieceView;
   private robotViews: RobotView[] = [];
+  /** Robots de pinza cuyo botón de garra sigue presionado (para contar una sola pulsación). */
+  private intakeHeld = new Set<number>();
   private ghostMesh: THREE.Group | null = null;
   private autos: AutoRunner[] = [];
   /** IA de cada robot (AUTO de IA y/o TELEOP), coordinada por alianza en un `Team`. */
@@ -366,8 +368,19 @@ export class GameSession {
     // mantiene presionado; al soltarlo se apaga. Con el botón presionado toma la Muestra Crítica en
     // cuanto la tiene al alcance y a su altura; si no, agarra Muestras. Soltar suelta lo que traiga
     // en la garra.
-    if (inp.intake && !m.critical && m.grabCritical(this.stepMechEvents)) a.grabCritical = true;
-    if (m.intakeOn !== inp.intake) a.intake = m.intakeOn = inp.intake;
+    if (intakeOf(r.spec).kind === 'pinza') {
+      // Garra de pinza: interruptor (cada pulsación cierra o abre), no se mantiene presionada (Xhavi, 16-nov)
+      if (inp.intake && !this.intakeHeld.has(r.index)) {
+        const was = m.clawClosed;
+        m.toggleClaw(this.stepMechEvents);
+        if (m.clawClosed !== was) a.intake = m.clawClosed;
+      }
+      if (inp.intake) this.intakeHeld.add(r.index);
+      else this.intakeHeld.delete(r.index);
+    } else {
+      if (inp.intake && !m.critical && m.grabCritical(this.stepMechEvents)) a.grabCritical = true;
+      if (m.intakeOn !== inp.intake) a.intake = m.intakeOn = inp.intake;
+    }
     if (inp.elevator !== null) a.elevator = m.target = inp.elevator;
     if (inp.releaseSample) {
       if (m.critical) a.releaseCritical = m.release('critical', this.stepMechEvents) || undefined;
