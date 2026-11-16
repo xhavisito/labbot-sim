@@ -3,6 +3,7 @@ import { existsSync } from 'node:fs';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { CAD_ROBOT_SPECS, CAD_ROBOT_PROBLEMS } from '../src/cad/cadRobots';
 import { robotSpec } from '../src/config/robotIds';
+import { labSpots } from '../src/config/field';
 import { GameSession } from '../src/game/GameSession';
 import { emptyInput } from '../src/input/InputManager';
 import { initRapier } from '../src/physics/PhysicsWorld';
@@ -82,5 +83,43 @@ describe('Menú: sin ⚠ en los robots del CAD (aprobados por el mentor)', () =>
     const src = (await import('node:fs')).readFileSync(new URL('../src/ui/Menu.ts', import.meta.url), 'utf8');
     expect(src).not.toMatch(/CAD_ROBOT_PROBLEMS/);
     expect(src).not.toMatch(/` ⚠ \$\{/);
+  });
+});
+
+describe('Axiom: la pinza no atraviesa el piso en la pose de piso (Xhavi, 16-nov)', () => {
+  it('los dedos del CAD quedan sobre el piso con la punta en elevatorHeights[0] y aun así recoge del piso', async () => {
+    const { readFileSync } = await import('node:fs');
+    const { posAngle } = await import('../src/config/robot');
+    const FLOOR_POSE_MAX = 0.06;
+    const b = readFileSync(new URL('../public/robots/axiom.glb', import.meta.url));
+    const n0 = 20 + b.readUInt32LE(12);
+    const j = JSON.parse(b.subarray(20, n0).toString('utf8'));
+    const bin = b.subarray(n0 + 8);
+    let lowest = Infinity;
+    const s = CAD_ROBOT_SPECS.axiom;
+    const d = posAngle(s, 0) - (axiom as { model: { stowAngle: number } }).model.stowAngle;
+    for (const n of j.nodes.filter((q: { name?: string }) => q.name === 'garra')) {
+      const a = j.accessors[j.meshes[n.mesh].primitives[0].attributes.POSITION];
+      const bv = j.bufferViews[a.bufferView];
+      const o = (bv.byteOffset ?? 0) + (a.byteOffset ?? 0);
+      for (let k = 0; k < a.count; k++) {
+        const x = bin.readFloatLE(o + k * (bv.byteStride ?? 12));
+        const y = bin.readFloatLE(o + k * (bv.byteStride ?? 12) + 4);
+        lowest = Math.min(lowest, s.arm.pivotY + Math.sin(d) * x + Math.cos(d) * y);
+      }
+    }
+    expect(lowest).toBeGreaterThanOrEqual(-0.002);
+    expect(lowest).toBeLessThan(0.02); // y casi tocándolo: se agarra desde el piso
+    expect(s.elevatorHeights[0]).toBeLessThan(FLOOR_POSE_MAX);
+  });
+
+  it('recoge una Muestra del piso con la pose de piso', () => {
+    const g = new GameSession({ player: 0, preload: false, specs: [robotSpec('cad:axiom')] });
+    const m = g.player.mech;
+    const spot = labSpots()[0];
+    g.player.phys.teleport(spot.x + 0.9, spot.z, Math.PI);
+    g.setInput({ ...emptyInput(), intake: true, forward: 0.25 });
+    for (let i = 0; i < 4 * 120 && !m.inClaw; i++) g.step();
+    expect(m.inClaw).toBe(true);
   });
 });
