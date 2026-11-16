@@ -275,7 +275,10 @@ export class RobotView {
         o.receiveShadow = false;
       }
     });
-    if (arm && intakeOf(this.robot.spec).kind === 'pinza') this.findFingers(arm, m.stowAngle ?? 0);
+    // Brazo más largo que el del CAD (Axiom): se estira a lo largo y la garra se recorre `dl`
+    const dl = m.cadArmLength !== undefined ? this.robot.spec.arm.length - m.cadArmLength : 0;
+    if (arm && dl > 0) this.stretchArm(arm, m.stowAngle ?? 0, dl);
+    if (arm && intakeOf(this.robot.spec).kind === 'pinza') this.findFingers(arm, m.stowAngle ?? 0, Math.max(0, dl));
     this.group.add(scene);
     for (const g of this.generic) g.visible = false;
     // Placas con la estación: pegadas a los costados del chasis real
@@ -288,7 +291,29 @@ export class RobotView {
    * (23°, Xhavi 16-nov) hacia adentro, que es justo lo que hace falta para tocar la Muestra (SUPUESTO: la bisagra no está
    * en el CAD; se pone detrás de la rama para que 23° la lleven a la cara de la Muestra y apretarla).
    */
-  private findFingers(arm: THREE.Object3D, stow: number): void {
+  private stretchArm(arm: THREE.Object3D, stow: number, dl: number): void {
+    const isClaw = (o: THREE.Object3D) => /^garra(_\d+)?$/i.test(o.name);
+    const U = new THREE.Vector3(Math.cos(stow), Math.sin(stow), 0);
+    // Donde empieza la garra a lo largo del brazo (fin del brazo en el CAD)
+    let uEnd = Infinity;
+    for (const o of arm.children) {
+      if (!(o instanceof THREE.Mesh) || !isClaw(o)) continue;
+      const a = o.geometry.getAttribute('position');
+      for (let k = 0; k < a.count; k++) uEnd = Math.min(uEnd, new THREE.Vector3().fromBufferAttribute(a, k).dot(U));
+    }
+    if (!Number.isFinite(uEnd)) return;
+    // Estira desde el eje hasta que el extremo del brazo llegue a donde queda la garra recorrida: R(stow)·S(k)·R(−stow)
+    const outer = new THREE.Group();
+    outer.rotation.z = stow;
+    outer.scale.x = (uEnd + dl) / uEnd;
+    const inner = new THREE.Group();
+    inner.rotation.z = -stow;
+    outer.add(inner);
+    for (const o of [...arm.children]) if (!isClaw(o)) inner.add(o);
+    arm.add(outer);
+  }
+
+  private findFingers(arm: THREE.Object3D, stow: number, dl = 0): void {
     const meshes: THREE.Mesh[] = [];
     const box = new THREE.Box3();
     arm.traverse((o) => {
@@ -321,7 +346,7 @@ export class RobotView {
       const q = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), V);
       const qInv = q.clone().invert();
       const group = new THREE.Group();
-      group.position.copy(pivot);
+      group.position.copy(pivot).addScaledVector(U, dl); // la garra recorrida `dl` a lo largo del brazo
       group.quaternion.copy(q);
       arm.add(group);
       for (const m of mine) {
@@ -339,7 +364,7 @@ export class RobotView {
     // La Muestra va entre los dedos: el centro de las piezas `garra` (con el eje del brazo en el origen) en el sistema de
     // la garra, que está a `arm.length` del eje (`claw.position`) y gira con el brazo: p − L·(cos, sin)(ángulo del CAD)
     const L = this.robot.spec.arm.length;
-    this.pocket = { x: (box.min.x + box.max.x) / 2 - L * Math.cos(stow), y: (box.min.y + box.max.y) / 2 - L * Math.sin(stow) };
+    this.pocket = { x: (box.min.x + box.max.x) / 2 + dl * Math.cos(stow) - L * Math.cos(stow), y: (box.min.y + box.max.y) / 2 + dl * Math.sin(stow) - L * Math.sin(stow) };
     this.criticalMesh.position.set(this.pocket.x, this.pocket.y, 0);
   }
 

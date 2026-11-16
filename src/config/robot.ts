@@ -162,6 +162,11 @@ export interface CadModel {
   armParts?: string;
   /** El modelo ya trae las llantas del CAD (estáticas): el simulador no dibuja las suyas encima. La física sí usa `RobotSpec.wheel`. */
   staticWheels?: boolean;
+  /**
+   * Largo del brazo (eje → centro de la garra) del CAD. Si `arm.length` es mayor (Axiom, Xhavi 16-nov), el modelo estira las
+   * piezas del brazo a lo largo y recorre la garra esa diferencia.
+   */
+  cadArmLength?: number;
 }
 
 /**

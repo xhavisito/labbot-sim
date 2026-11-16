@@ -65,7 +65,7 @@
     "arm": {
       "pivotX": -0.173,
       "pivotY": 0.2421,
-      "length": 0.6246,
+      "length": 0.6739,
       "speed": 4,
       "stowAngle": 1.0472,
       "pickBack": false,
@@ -80,10 +80,10 @@
     },
     "capacity": 1,
     "elevatorHeights": [
-      0.045,
+      0.044,
       0.26,
       0.61,
-      0.8572,
+      0.9058,
       0.615
     ],
     "wheel": {
@@ -117,6 +117,7 @@
     "SUPUESTO: alturas de la garra N1–N3 y de la rendija iguales a las del preset de pivote (0.26 / 0.61 / 0.8572 (N3 a 100°) / 0.615 m); el CAD no las trae",
     "SUPUESTO: la garra es una pinza (INTAKE 'pinza') de 0.23 m de apertura (preset) y capacidad 1; en la pose del CAD los dedos quedan a 0.124 m (menos que la Muestra, 0.15 m), así que no se puede saber la apertura real; 0.12 m de fondo salen del CAD; tampoco se sabe si toma la Muestra Crítica (apertura de 0.23 m ≥ 0.20 m: la toma)",
     "SUPUESTO (Xhavi, 16-nov): pose de piso con la punta (centro de los dedos del CAD) a 0.045 m: ahí la parte baja de los dedos toca el piso sin atravesarlo (a 0 m los dedos quedaban 4.7 cm bajo el piso) y sigue bajo los 0.06 m de la pose de piso para recoger Muestras",
+    "SUPUESTO (Xhavi, 16-nov): el brazo es más largo que el del CAD: el tope del brazo (100°) deja el extremo del brazo justo a la altura de N3 (0.85 m) y las garras llegan unos 10 cm más allá (el fondo de la pinza del CAD, 0.113 m). Largo del eje al centro de la garra 0.6739 m (el CAD trae 0.6246 m; +4.9 cm): en el modelo se estiran las piezas del brazo 8.7 % a lo largo y la garra se recorre esos 4.9 cm. La altura de la punta en N3 sale a 0.9058 m y en el piso a 0.044 m",
     "SUPUESTO (Xhavi, 16-nov, medida del robot): en N3 el brazo llega a 100° (primero dijo 110°, corregido) para anotar sin problema (la garra queda volteada hacia atrás, pasa la vertical; la altura de la punta sale de ese ángulo, 0.8572 m); en N2 queda de frente igual que en N1 (se deja el ángulo que da la altura 0.61 m)",
     "SUPUESTO (Xhavi, 16-nov): Axiom NO lleva rodillos; la garra es una pinza de dos dedos (las piezas `garra` del CAD) que gira en bisagra: la pose del CAD es la ABIERTA (la del intake) y cierra 23° hacia adentro hasta tocar y apretar la Muestra (la Crítica, más ancha, llega antes; cerrada en vacío llega a ~30°). La bisagra no está en el CAD: se puso detrás de la rama del dedo para que 23° lleven la rama a la cara de la Muestra. Es un INTERRUPTOR (una pulsación cierra o abre, no se mantiene): cierra aunque no haya Muestra, y abrir suelta lo que traiga. La velocidad es `closeTime` (preset)",
     "SUPUESTO: las placas frontal y posterior del chasis toman el color de la alianza (el resto va con los colores del CAD)",
@@ -128,6 +129,7 @@
     "url": "robots/axiom.glb",
     "stowAngle": 0.669,
     "tint": "^placa (frontal|posterior)$",
-    "staticWheels": true
+    "staticWheels": true,
+    "cadArmLength": 0.6246
   }
 }
