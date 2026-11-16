@@ -117,6 +117,10 @@ export class RobotPhysics {
    * (Xhavi, 13-nov: "ponle hitbox a el gripper... puedo atravesar eso"). null = garra que se nivela.
    */
   readonly rigidFloorAngle: number | null;
+  /** Garra del CAD a lo largo del brazo con su centro en la punta (Axiom): dedos y Muestra centrados en la punta, sin placas de caja. */
+  readonly centeredClaw: boolean;
+  /** Placas de arriba y de abajo de la caja (solo la garra-caja con rodillos). */
+  private readonly boxPlates: boolean;
   private wheelLocal: Array<[number, number]> = [];
   /** Radio de las ruedas (m): el del CAD o 5 cm. */
   private wheelR = WHEEL_R;
@@ -245,7 +249,9 @@ export class RobotPhysics {
     };
     const claw = clawOf(spec);
     this.claw = claw;
-    this.rigidFloorAngle = spec.model && !spec.arm.linear && !spec.arm.stowTip ? posAngle(spec, 0) : null;
+    this.rigidFloorAngle = spec.model && !spec.arm.linear && !spec.arm.stowTip ? (spec.model.clawAlongArm ? 0 : posAngle(spec, 0)) : null;
+    this.centeredClaw = spec.model?.clawAlongArm === true && this.rigidFloorAngle !== null;
+    this.boxPlates = intakeOf(spec).rollers === true;
     const beamLen = Math.max(0.05, spec.arm.length - beamShort(claw));
     const fh = claw.fingerHeight / 2;
     this.armQuery = {
@@ -309,16 +315,19 @@ export class RobotPhysics {
       const at = (lx: number, ly: number, z = 0): Pose => ({ t: { x: tip.x + lx * c - ly * sn, y: tip.y + lx * sn + ly * c, z }, r });
       const d0 = clawDir(a0, arm);
       const rollers0 = intakeOf(this.spec).rollers === true;
+      // Garra centrada en la punta (Axiom): dedos, placa y Muestra alrededor de la punta; si no, apoyados sobre ella
+      const cy = this.centeredClaw ? 0 : fh / 2;
+      const sy0 = this.centeredClaw ? 0 : S / 2;
       return {
         beam,
-        finger0: at(0, fh / 2, this.claw.fingerZ),
-        finger1: at(0, fh / 2, -this.claw.fingerZ),
-        palm: at(-d0 * (fl / 2 + this.claw.palmThickness / 2), fh / 2),
+        finger0: at(0, cy, this.claw.fingerZ),
+        finger1: at(0, cy, -this.claw.fingerZ),
+        palm: at(-d0 * (fl / 2 + this.claw.palmThickness / 2), cy),
         lid: at(0, BOX_INNER + BOX_PLATE / 2),
         base: at(0, -BOX_PLATE / 2),
-        sample: at(rollers0 ? seatX(this.spec, 0, d0, 0) : 0, S / 2),
+        sample: at(rollers0 ? seatX(this.spec, 0, d0, 0) : 0, sy0),
         sample2: at(rollers0 ? seatX(this.spec, 0, d0, 1) : 0, rollers0 ? S / 2 : S * 1.5),
-        critical: at(0, CRITICAL_SIZE / 2),
+        critical: at(0, this.centeredClaw ? 0 : CRITICAL_SIZE / 2),
       };
     }
     const rollers = intakeOf(this.spec).rollers === true && tip.y < FLOOR_POSE;
@@ -381,7 +390,7 @@ export class RobotPhysics {
     put(c.plates[0], p.lid);
     put(c.plates[1], p.base);
     // Placas de la caja: solo la garra del CAD; la de abajo no en el piso (ahí entra la Muestra)
-    const box = BOX_HITBOX && this.rigidFloorAngle !== null;
+    const box = BOX_HITBOX && this.rigidFloorAngle !== null && this.boxPlates;
     c.plates[0].setEnabled(box);
     c.plates[1].setEnabled(box && !this.boxAtFloor(a));
     put(c.sample, p.sample);
@@ -407,7 +416,7 @@ export class RobotPhysics {
       [q.finger, p.finger1],
       [q.palm, p.palm],
     ];
-    if (BOX_HITBOX && this.rigidFloorAngle !== null) {
+    if (BOX_HITBOX && this.rigidFloorAngle !== null && this.boxPlates) {
       parts.push([q.plate, p.lid]);
       if (!this.boxAtFloor(a)) parts.push([q.plate, p.base]);
     }

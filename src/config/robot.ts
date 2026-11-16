@@ -167,6 +167,11 @@ export interface CadModel {
    * piezas del brazo a lo largo y recorre la garra esa diferencia.
    */
   cadArmLength?: number;
+  /**
+   * La garra del CAD queda a lo largo del brazo (la boca mira hacia donde apunta el brazo) y su centro es la punta (Axiom):
+   * los colisionadores de la garra giran con el brazo igual que el dibujo y la Muestra queda centrada en la punta.
+   */
+  clawAlongArm?: boolean;
 }
 
 /**
@@ -192,6 +197,8 @@ export interface IntakeSpec {
   rollerSpeed: number;
   /** Pinza: segundos que tarda en cerrar con la Muestra adentro. */
   closeTime: number;
+  /** Medidas reales de la garra del CAD (m) si no son las genéricas de `CLAW`: alto de los dedos, grueso de cada dedo y grueso de la placa. */
+  claw?: { height?: number; thickness?: number; palm?: number };
   /**
    * Garra-caja con rodillos (Psycho, robot real de Xhavi): ejes de lado a lado con ruedas arriba y
    * abajo de la Muestra que la jalan por fricción hasta el fondo (`ROLLERS` en `game/Mechanisms.ts`).
@@ -269,7 +276,8 @@ export type ClawDims = { fingerLength: number; fingerHeight: number; fingerThick
 /** Medidas de la garra de un robot (las de `CLAW` con la apertura y el largo de dedos de su intake). */
 export function clawOf(s: { intake?: IntakeSpec }): ClawDims {
   const i = intakeOf(s);
-  return { ...CLAW, fingerLength: i.fingerLength, fingerZ: i.gap / 2 + CLAW.fingerThickness / 2 };
+  const t = i.claw?.thickness ?? CLAW.fingerThickness;
+  return { ...CLAW, fingerLength: i.fingerLength, fingerHeight: i.claw?.height ?? CLAW.fingerHeight, fingerThickness: t, palmThickness: i.claw?.palm ?? CLAW.palmThickness, fingerZ: i.gap / 2 + t / 2 };
 }
 
 /**

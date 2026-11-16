@@ -394,7 +394,7 @@ export class Mechanisms {
         // Pinza con interruptor (Xhavi, 16-nov: "injugable, imposible agarrar"): cualquier Muestra dentro de la boca abierta
         // (los dedos del CAD abren a ±0.14 m) se toma; al cerrar los dedos la acomodan y la aprietan, así que no hace falta
         // que llegue derecha. Solo no sirve una volteada sobre una arista.
-        if (Math.abs(lx - cx) > 0.11 || Math.abs(lz) > 0.12) continue;
+        if (Math.abs(lx - tip) > 0.11 || Math.abs(lz) > 0.12) continue;
         if (cubeAlignment(piece.body.rotation(), h).tilt > GRIP.maxTilt) continue;
         found = { piece, yaw: 0 };
         break;
@@ -634,7 +634,8 @@ export class Mechanisms {
     } else {
       const dir = clawDir(this.angle, spec.arm);
       const lx = rollers && this.height < FLOOR_POSE ? seatX(spec, this.tipX(), dir, slot) : this.tipX();
-      loc = { x: lx, y: this.height + size / 2 };
+      // Garra del CAD centrada en la punta (Axiom): la Muestra sale del centro de los dedos
+      loc = { x: lx, y: p.centeredClaw ? this.height : this.height + size / 2 };
       vl = { x: push ? spit * dir : 0, y: 0 };
     }
     // Lanzador (Phoenix): en N1–N3 la Muestra sale disparada hacia el pozo de ese nivel; sale de la boca del lanzador si el CAD la fija
