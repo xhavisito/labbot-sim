@@ -5,6 +5,7 @@
  * Modos: 'practice' (sin reloj; los sensores igual detectan anotaciones; con `solo` solo existe el
  * robot del jugador) y 'match' (150 s con puntuación, faltas y RP).
  */
+import { fieldCentricDrive, fieldUpAngle } from '../input/fieldCentric';
 import * as THREE from 'three';
 import { Bot, type AutoPlan, type BotOptions, type BotOutput } from '../ai/Bot';
 import type { AiLevel } from '../ai/difficulty';
@@ -432,6 +433,9 @@ export class GameSession {
         // El frente es el lado del intake: en el Pivote 180° (recoge atrás) avanzar va hacia la garra
         forward = r.spec.arm.pickBack ? -inp.forward : inp.forward;
         turn = inp.turn;
+        // Centrado en el campo: el stick es una dirección del campo; "frente" = el lado del intake
+        if (inp.fieldCentric)
+          ({ forward, turn } = fieldCentricDrive(inp.forward, inp.turn, r.phys.heading() + (r.spec.arm.pickBack ? Math.PI : 0), fieldUpAngle(r.alliance)));
         slow = inp.slow;
         if (r === this.player) {
           const k = slow ? 0.5 : 1;
