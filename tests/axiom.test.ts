@@ -3,6 +3,7 @@ import { existsSync } from 'node:fs';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { CAD_ROBOT_SPECS, CAD_ROBOT_PROBLEMS } from '../src/cad/cadRobots';
 import { robotSpec } from '../src/config/robotIds';
+import { posAngle } from '../src/config/robot';
 import { labSpots } from '../src/config/field';
 import { GameSession } from '../src/game/GameSession';
 import { emptyInput } from '../src/input/InputManager';
@@ -113,13 +114,65 @@ describe('Axiom: la pinza no atraviesa el piso en la pose de piso (Xhavi, 16-nov
     expect(s.elevatorHeights[0]).toBeLessThan(FLOOR_POSE_MAX);
   });
 
-  it('recoge una Muestra del piso con la pose de piso', () => {
+  it('recoge una Muestra del piso con la pose de piso (un toque cierra la garra sobre ella)', () => {
     const g = new GameSession({ player: 0, preload: false, specs: [robotSpec('cad:axiom')] });
     const m = g.player.mech;
     const spot = labSpots()[0];
-    g.player.phys.teleport(spot.x + 0.9, spot.z, Math.PI);
-    g.setInput({ ...emptyInput(), intake: true, forward: 0.25 });
-    for (let i = 0; i < 4 * 120 && !m.inClaw; i++) g.step();
+    // Brazo ya en la pose de piso y la Muestra entre los dedos
+    (m as unknown as { stowed: boolean; angle: number }).stowed = false;
+    (m as unknown as { angle: number }).angle = posAngle(CAD_ROBOT_SPECS.axiom, 0);
+    g.player.phys.teleport(spot.x + 0.44, spot.z, Math.PI);
+    g.setInput(emptyInput());
+    for (let i = 0; i < 120; i++) g.step();
+    g.setInput({ ...emptyInput(), intake: true });
+    for (let i = 0; i < 3 * 120 && !m.inClaw; i++) g.step();
     expect(m.inClaw).toBe(true);
+  });
+});
+
+describe('Axiom: la garra es un interruptor (Xhavi, 16-nov)', () => {
+  const press = (g: GameSession, ms = 3) => {
+    g.setInput({ ...emptyInput(), intake: true });
+    for (let i = 0; i < ms; i++) g.step();
+    g.setInput(emptyInput());
+    for (let i = 0; i < 2; i++) g.step();
+  };
+  const wait = (g: GameSession, s: number) => {
+    g.setInput(emptyInput());
+    for (let i = 0; i < s * 120; i++) g.step();
+  };
+
+  it('una pulsación sobre una Muestra la toma y sigue cerrada sin mantener la tecla; otra pulsación la suelta', () => {
+    const g = new GameSession({ player: 0, preload: false, specs: [robotSpec('cad:axiom')] });
+    const m = g.player.mech;
+    const spot = labSpots()[0];
+    // Brazo en la pose de piso y la Muestra ya entre los dedos
+    (m as unknown as { stowed: boolean; angle: number }).stowed = false;
+    (m as unknown as { angle: number }).angle = posAngle(CAD_ROBOT_SPECS.axiom, 0);
+    g.player.phys.teleport(spot.x + 0.44, spot.z, Math.PI);
+    wait(g, 1);
+    press(g);
+    expect(m.clawClosed).toBe(true);
+    wait(g, 2);
+    expect(m.inClaw).toBe(true); // se queda sin mantener la tecla
+    expect(m.clawClosed).toBe(true);
+    press(g);
+    expect(m.clawClosed).toBe(false);
+    expect(m.inClaw).toBe(false); // abrir la suelta
+  });
+
+  it('cerrar sin Muestra solo queda cerrada vacía; no recoge una que llegue después', () => {
+    const g = new GameSession({ player: 0, preload: false, specs: [robotSpec('cad:axiom')] });
+    const m = g.player.mech;
+    g.player.phys.teleport(-1.5, 0, 0);
+    press(g);
+    expect(m.clawClosed).toBe(true);
+    wait(g, 1.5);
+    expect(m.inClaw).toBe(false);
+    expect(m.clawClosed).toBe(true);
+    // Mantener la tecla presionada cuenta como UNA pulsación (abre una vez y no vuelve a cambiar)
+    g.setInput({ ...emptyInput(), intake: true });
+    for (let i = 0; i < 3 * 120; i++) g.step();
+    expect(m.clawClosed).toBe(false);
   });
 });

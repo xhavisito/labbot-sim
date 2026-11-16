@@ -17,6 +17,9 @@ import { ALLIANCE_COLOR } from './FieldView';
 import { criticalMaterial, sampleMaterial } from './PieceView';
 import { brushedTexture, textTexture } from './textures';
 
+/** Giro (°) de cada dedo de la pinza de Axiom hasta tocar la Muestra: el ángulo de intake del CAD (Xhavi, 16-nov). */
+const PINZA_DEG = 23;
+
 const brushed = brushedTexture();
 const dark = new THREE.MeshStandardMaterial({ color: 0x3c424c, roughness: 0.5, metalness: 0.4 });
 const alu = new THREE.MeshStandardMaterial({ color: brushed ? 0xd2d7de : 0xb8bec7, map: brushed, roughness: 0.32, metalness: 0.85 });
@@ -79,13 +82,12 @@ export class RobotView {
    * Dedos de la pinza del CAD (Axiom): las piezas `garra`, `side` = costado (+1 = +z, −1 = −z). Se separan o se juntan
    * en z para abrir y cerrar: apertura = `gap` del INTAKE; cerrada = la Muestra (0.15 m) o la Crítica (0.20 m, §4.1.1).
    */
-  private clawFingers: Array<{ mesh: THREE.Object3D; side: number; z0: number }> = [];
-  /** Hueco entre los dedos del CAD (m): SUPUESTO, el STEP trae una sola pose (con ese hueco). */
-  private cadGap = 0;
+  private clawFingers: Array<{ group: THREE.Group; q: THREE.Quaternion; dir: number; zHorn: number; r: number }> = [];
+  private qTmp = new THREE.Quaternion();
   /** Centro de los dedos de la pinza del CAD en el sistema de la garra (donde se dibuja la Muestra que aprieta). */
   private pocket: { x: number; y: number } | null = null;
-  /** Apertura actual de la pinza (m, entre dedos). */
-  private gapNow = 0;
+  /** Giro actual de los dedos hacia adentro (°); 0 = abiertos, la pose del CAD. */
+  private fingerNow = 0;
   private halfW = 0;
   private prevP = new THREE.Vector3();
   private curP = new THREE.Vector3();
@@ -280,25 +282,60 @@ export class RobotView {
     for (const p of this.numPlates) p.position.z = Math.sign(p.position.z) * (width / 2 + 0.002);
   }
 
-  /** Dedos de la pinza: las piezas `garra` del brazo, separadas por el signo de z. Hueco = el de la pose del CAD. */
+  /**
+   * Dedos de la pinza del CAD (piezas `garra`, dos por lado). El CAD es una sola pose: la ABIERTA (la del intake; las
+   * ramas de los dedos quedan a ±0.146 m del centro). Cada dedo gira en un eje vertical (el de la garra) hasta `PINZA_DEG`
+   * (23°, Xhavi 16-nov) hacia adentro, que es justo lo que hace falta para tocar la Muestra (SUPUESTO: la bisagra no está
+   * en el CAD; se pone detrás de la rama para que 23° la lleven a la cara de la Muestra y apretarla).
+   */
   private findFingers(arm: THREE.Object3D, stow: number): void {
-    const parts: Array<{ mesh: THREE.Object3D; zc: number; zi: number }> = [];
+    const meshes: THREE.Mesh[] = [];
     const box = new THREE.Box3();
     arm.traverse((o) => {
       if (o instanceof THREE.Mesh && /^garra(_\d+)?$/i.test(o.name)) {
         o.geometry.computeBoundingBox();
-        const b = o.geometry.boundingBox!;
-        const zc = (b.min.z + b.max.z) / 2 + o.position.z;
-        box.union(b);
-        parts.push({ mesh: o, zc, zi: (zc > 0 ? b.min.z : b.max.z) + o.position.z }); // zi = borde interior
+        box.union(o.geometry.boundingBox!);
+        meshes.push(o);
       }
     });
-    if (parts.length < 2) return;
-    const inner = (sg: number) => Math.min(...parts.filter((q) => Math.sign(q.zc) === sg).map((q) => Math.abs(q.zi)));
-    if (!parts.some((q) => q.zc > 0) || !parts.some((q) => q.zc < 0)) return;
-    this.cadGap = 2 * Math.min(inner(1), inner(-1)); // entre los bordes interiores (≈ 0.124 m)
-    this.clawFingers = parts.map((q) => ({ mesh: q.mesh, side: Math.sign(q.zc), z0: q.mesh.position.z }));
-    this.gapNow = this.cadGap;
+    if (meshes.length < 2) return;
+    // Ejes de la garra en el sistema del brazo: U a lo largo del brazo, V perpendicular (arriba con el brazo a `stow`), Z a lo ancho
+    const U = new THREE.Vector3(Math.cos(stow), Math.sin(stow), 0);
+    const V = new THREE.Vector3(-Math.sin(stow), Math.cos(stow), 0);
+    const P0 = new THREE.Vector3();
+    const verts = (m: THREE.Mesh): THREE.Vector3[] => {
+      const a = m.geometry.getAttribute('position');
+      return Array.from({ length: a.count }, (_, k) => new THREE.Vector3().fromBufferAttribute(a, k));
+    };
+    for (const side of [1, -1]) {
+      const mine = meshes.filter((m) => Math.sign((m.geometry.boundingBox!.min.z + m.geometry.boundingBox!.max.z) / 2) === side);
+      if (!mine.length) return;
+      const vs = mine.flatMap(verts);
+      const horn = vs.filter((v) => Math.abs(v.z) > 0.1); // la rama que aprieta (las otras son la base)
+      const zHorn = Math.min(...horn.map((v) => Math.abs(v.z)));
+      const uTip = Math.max(...horn.map((v) => v.dot(U)));
+      const vMid = vs.reduce((acc, v) => acc + v.dot(V), 0) / vs.length;
+      // Radio para que PINZA_DEG lleve la rama de zHorn a la cara de la Muestra (SAMPLE_SIZE / 2)
+      const r = (zHorn - SAMPLE_SIZE / 2) / Math.sin((PINZA_DEG * Math.PI) / 180);
+      const pivot = P0.copy(U).multiplyScalar(uTip - r).addScaledVector(V, vMid).add(new THREE.Vector3(0, 0, side * zHorn)).clone();
+      const q = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), V);
+      const qInv = q.clone().invert();
+      const group = new THREE.Group();
+      group.position.copy(pivot);
+      group.quaternion.copy(q);
+      arm.add(group);
+      for (const m of mine) {
+        // Que la pieza siga en su sitio: pos_local = q⁻¹ (pos_brazo − P)
+        m.position.copy(pivot).negate().applyQuaternion(qInv);
+        m.quaternion.copy(qInv);
+        group.add(m);
+      }
+      // Signo del giro hacia adentro: el que acerca la punta de la rama al centro
+      const tip = new THREE.Vector3().copy(U).multiplyScalar(uTip).addScaledVector(V, vMid).add(new THREE.Vector3(0, 0, side * zHorn));
+      const rot = (ang: number) => tip.clone().sub(pivot).applyAxisAngle(V, ang).add(pivot);
+      const dir = Math.abs(rot(0.2).z) < Math.abs(rot(-0.2).z) ? 1 : -1;
+      this.clawFingers.push({ group, q, dir, zHorn, r });
+    }
     // La Muestra va entre los dedos: el centro de las piezas `garra` (con el eje del brazo en el origen) en el sistema de
     // la garra, que está a `arm.length` del eje (`claw.position`) y gira con el brazo: p − L·(cos, sin)(ángulo del CAD)
     const L = this.robot.spec.arm.length;
@@ -306,18 +343,32 @@ export class RobotView {
     this.criticalMesh.position.set(this.pocket.x, this.pocket.y, 0);
   }
 
-  /** Abre/cierra la pinza hacia la apertura que toca (velocidad = recorrido / `closeTime`). */
+  /** Grados que hay que girar cada dedo para que su rama quede a `zTarget` del centro (arcsin; tope 40°). */
+  private fingerDeg(zTarget: number): number {
+    const f = this.clawFingers[0];
+    if (!f) return 0;
+    return Math.min(40, (Math.asin(Math.max(0, Math.min(1, (f.zHorn - zTarget) / f.r))) * 180) / Math.PI);
+  }
+
+  /**
+   * Abre/cierra la pinza. Abierta = la pose del CAD (0°). Con la Muestra adentro cierra hasta tocarla (23°) y la aprieta;
+   * la Crítica (0.20 m) llega antes; cerrada en vacío (interruptor, `Mechanisms.toggleClaw`) llega a ~30°. Velocidad: lo que
+   * falta entre `closeTime` (SUPUESTO).
+   */
   private animateFingers(dt: number): void {
+    if (!this.clawFingers.length) return;
     const m = this.robot.mech;
     const it = intakeOf(this.robot.spec);
-    const held = m.critical !== null ? 0.2 : m.inClaw ? 0.15 : null;
-    const open = it.gap;
-    const want = held ?? (m.closingFor > 0 ? open - (open - 0.15) * Math.min(1, m.closingFor / Math.max(0.05, it.closeTime)) : open);
-    const v = Math.abs(open - 0.15) / Math.max(0.05, it.closeTime);
-    this.gapNow += Math.max(-v * dt, Math.min(v * dt, want - this.gapNow));
-    // Los dedos del CAD ya están separados `cadGap` (del CAD); se suma lo que falta
-    const d = (this.gapNow - this.cadGap) / 2;
-    for (const f of this.clawFingers) f.mesh.position.z = f.z0 + f.side * d;
+    const hold = this.fingerDeg(SAMPLE_SIZE / 2);
+    const empty = this.fingerDeg(0.055);
+    const crit = this.fingerDeg(CRITICAL_SIZE / 2);
+    const want = m.critical !== null ? crit : m.inClaw ? hold : m.latched && m.clawClosed && m.closingFor === 0 ? empty : m.closingFor > 0 ? (hold * Math.min(1, m.closingFor / Math.max(0.05, it.closeTime))) : 0;
+    const v = hold / Math.max(0.05, it.closeTime);
+    this.fingerNow += Math.max(-v * dt, Math.min(v * dt, want - this.fingerNow));
+    const Y = new THREE.Vector3(0, 1, 0);
+    for (const f of this.clawFingers) {
+      f.group.quaternion.copy(f.q).multiply(this.qTmp.setFromAxisAngle(Y, (f.dir * this.fingerNow * Math.PI) / 180));
+    }
   }
 
   /** Guarda la pose después de cada paso de física (para interpolar). */

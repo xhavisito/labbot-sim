@@ -179,6 +179,16 @@ export const SHOT_AIM_ABOVE = 0.12;
 
 export class Mechanisms {
   intakeOn = false;
+  /**
+   * Garra de pinza con control de interruptor (Xhavi, 16-nov): cada pulsación cierra o abre la garra, no se mantiene. Cierra
+   * sin saber si hay Muestra: si la hay entre los dedos la toma (y se puede anotar); si no, queda cerrada vacía. Abrir
+   * suelta lo que traiga. Solo lo usa el control de una persona (`toggleClaw`); la IA y las rutinas siguen con `intakeOn`.
+   */
+  latched = false;
+  /** Con `latched`: la garra está cerrada (`intakeOn` lo refleja para el HUD y el botón). */
+  clawClosed = false;
+  /** Segundos que le quedan a la garra recién cerrada para tomar una Muestra; pasado eso queda cerrada sin recoger más. */
+  private closeWindow = 0;
   readonly stored: Piece[] = [];
   critical: Piece | null = null;
   target: ElevatorPos = 0;
@@ -292,9 +302,31 @@ export class Mechanisms {
     this.rollerContacts = 0;
     // Al soltar en el piso, los rodillos giran al revés y la sacan de la caja
     if (this.ejectT > 0 && intakeOf(s).rollers && this.height < FLOOR_POSE) this.runRollers(events, dt, -1);
-    else if (this.intakeOn && this.stored.length < this.capacity && !this.jammed) this.runClaw(events, dt);
+    else if (this.latched && this.clawClosed && this.closeWindow > 0 && this.stored.length < this.capacity && !this.jammed) {
+      this.closeWindow = Math.max(0, this.closeWindow - dt);
+      if (!this.critical && !this.inClaw) this.grabCritical(events);
+      this.runClaw(events, dt);
+    } else if (!this.latched && this.intakeOn && this.stored.length < this.capacity && !this.jammed) this.runClaw(events, dt);
     else this.closing = null;
     this.syncHitbox();
+  }
+
+  /** Pulsación del botón de la garra de pinza: cierra (intenta tomar lo que tenga entre los dedos) o abre (suelta lo que traiga). */
+  toggleClaw(events: MechEvent[]): void {
+    this.latched = true;
+    if (!this.clawClosed) {
+      this.clawClosed = true;
+      this.intakeOn = true;
+      this.closeWindow = intakeOf(this.phys.spec).closeTime + 0.2;
+      if (!this.critical) this.grabCritical(events);
+    } else {
+      if (this.critical) this.release('critical', events, true);
+      else if (this.inClaw) this.release('sample', events);
+      this.clawClosed = false;
+      this.intakeOn = false;
+      this.closeWindow = 0;
+      this.closing = null;
+    }
   }
 
   /** Pone los colisionadores del brazo y la garra donde está el brazo (con la pieza que lleva). */
@@ -358,6 +390,15 @@ export class Mechanisms {
       // Las anotadas quedan en el piso del pozo, tras paredes de 200–800 mm (§3.2.3): la garra no las saca
       if (inCamara(t.x, t.z)) continue;
       const { lx, lz } = p.worldToLocalFlat(t.x, t.z);
+      if (this.latched && intake.kind === 'pinza') {
+        // Pinza con interruptor (Xhavi, 16-nov: "injugable, imposible agarrar"): cualquier Muestra dentro de la boca abierta
+        // (los dedos del CAD abren a ±0.14 m) se toma; al cerrar los dedos la acomodan y la aprietan, así que no hace falta
+        // que llegue derecha. Solo no sirve una volteada sobre una arista.
+        if (Math.abs(lx - cx) > 0.11 || Math.abs(lz) > 0.12) continue;
+        if (cubeAlignment(piece.body.rotation(), h).tilt > GRIP.maxTilt) continue;
+        found = { piece, yaw: 0 };
+        break;
+      }
       if (mode === 'easy') {
         if (Math.abs(lx - tip) > 0.12 || Math.abs(lz) > 0.12) continue;
         found = { piece, yaw: 0 };
@@ -549,6 +590,12 @@ export class Mechanisms {
   release(kind: 'sample' | 'critical', events: MechEvent[], force = false): boolean {
     if (this.cooldown > 0 && !force) return false;
     if (kind === 'sample' && !this.inClaw) return false;
+    if (this.latched) {
+      // Soltar abre la garra
+      this.clawClosed = false;
+      this.intakeOn = false;
+      this.closeWindow = 0;
+    }
     const piece = kind === 'critical' ? this.critical : this.stored[this.stored.length - 1];
     if (!piece) return false;
     // Garra con rodillos: sale de su lugar en la fila (la de afuera primero)
@@ -665,6 +712,8 @@ export class Mechanisms {
     this.critical = null;
     this.inClaw = false;
     this.intakeOn = false;
+    this.clawClosed = false;
+    this.closeWindow = 0;
     this.target = 0;
     this.height = this.phys.spec.elevatorHeights[0];
     this.closing = null;
