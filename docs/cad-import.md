@@ -56,3 +56,12 @@ Los lanza por `game/shooter.ts`: la velocidad se acomoda a la distancia al pozo 
 trasero a ras de piso, con la garra del simulador: `arm.rearClaw`), cuántas Muestras lleva (1), sin Muestra Crítica, velocidad máxima de salida
 (6.5 m/s), variación por tiro (4 % velocidad, 1.4° rumbo), masa y velocidades de manejo (preset), y qué placas toman el color de la alianza.
 El modelo es estático: no se sabe qué piezas se mueven, así que las llantas no giran en pantalla.
+
+## Hitbox por pieza (16-nov)
+`node scripts/cad/hitboxes.mjs phoenix psycho` lee el GLB y escribe `spec.hitboxes` en `robots/<nombre>.robot.json`: un casco convexo
+(≤26 puntos) por cada pieza física fija del nodo `estatico`, con grosor mínimo de 1 cm para las placas (una Muestra rápida no las
+atraviesa; el CCD del cuerpo y de las Muestras hace el resto). `RobotPhysics` los crea sin masa (no mueven el centro de masa) y,
+con ellos, ya no crea la torre genérica inventada. Se saltan las llantas de tracción (cilindros de `spec.wheel`) y lo que ya cabe en el chasis bajo.
+Las piezas del brazo de Psycho siguen con los colisionadores del brazo. **SUPUESTO:** qué piezas cuentan como "físicas".
+Volver a correrlo después de `robot:import`. Axiom se canceló (PR #136).
+**Phoenix:** el intake va fijo al piso: ya no hereda del preset de elevador la pose "guardada" a 0.5 m (`specFromRobotFile`).
