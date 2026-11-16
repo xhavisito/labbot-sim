@@ -46,6 +46,11 @@ export interface MenuHooks {
   spawn(cmd: 'enter' | 'save' | 'reset' | 'cancel'): boolean;
 }
 
+/** Logo de cada equipo en el selector de robots (public/logos). los que no tengan usan el boceto. */
+const ROBOT_LOGO: Record<string, string> = { 'cad:axiom': 'logos/axiom.png', 'cad:phoenix': 'logos/phoenix.png', 'cad:psycho': 'logos/psycho.png' };
+const robotIcon = (id: RobotId): string =>
+  ROBOT_LOGO[id] ? `<img class="logo-img" src="${ROBOT_LOGO[id]}" alt="" width="64" height="64">` : robotSilhouette(robotSpec(id).mechanism);
+
 export interface MenuChoice {
   /**
    * 'auto' = práctica de AUTO (`ui/AutoPractice.ts`): solo tu robot, grabar y probar rutas.
@@ -248,7 +253,7 @@ export class Menu {
     const fs = !!document.documentElement.requestFullscreen;
     this.open(
       `<div class="mo-overlay">
-        <div class="mo-title"><h1>LabBot <span>Rescue 2026</span></h1><p>${t('disclaimer')}</p><small title="${t('playtimeTip')}">${t('playtime')}: ${formatPlaytime(loadPlaytime().total)}</small></div>
+        <div class="mo-title"><h1>LabBot <span>Rescue 2026</span></h1><small title="${t('playtimeTip')}">${t('playtime')}: ${formatPlaytime(loadPlaytime().total)}</small></div>
         <div class="mo-top"><span class="pwa-chips" data-pwa></span>${SYS_LINKS.map((l) => `<button class="chipbtn icon-only" data-go="${l.go}" title="${t(l.label)}" aria-label="${t(l.label)}">${l.icon}</button>`).join('')}${langChips()}${fs ? `<button class="chipbtn" data-fs title="${t('fullscreen')}">${ic.expand}</button>` : ''}</div>
         <nav class="mo-menu">
           <button data-act="play">${t('mo_play')}</button>
@@ -334,11 +339,10 @@ export class Menu {
       : ([['follow', t('mo_camThird')], ['driver', t('mo_camDriver')], ['top', t('mo_camTop')], ['free', t('mo_camFree')]] as Array<[string, string]>);
     const curCam = split ? side.camera : s.camera;
     const devOpts = VERSUS_DEVICES.map((d) => [d, t(`vs_dev_${d}` as Key)] as [string, string]);
-    const cards = ids.map((id) => `<button class="card ${id === curId ? 'sel' : ''}" data-rid="${id}" title="${robotDesc(id)}">${robotSilhouette(robotSpec(id).mechanism)}<span>${robotName(id)}</span></button>`).join('');
+    const cards = ids.map((id) => `<button class="card ${id === curId ? 'sel' : ''}" data-rid="${id}" title="${robotDesc(id)}">${robotIcon(id)}<span>${robotName(id)}</span></button>`).join('');
     const stubs = `
       ${this.moRow(t('mo_spawn'), `<button class="mo-btn" data-act="spawn">${t('mo_customize')}</button>`)}
-      ${this.moRow(t('mo_rumble'), this.moSlider(0, 100, 1, 60, false), true)}
-      ${this.moRow(t('mo_outpost'), this.moSlider(0.5, 3, 0.1, 1, true), true)}`;
+      ${this.moRow(t('mo_rumble'), this.moSlider(0, 100, 1, 60, false), true)}`;
     const alliance = (i: 1 | 2) => (i === 1 ? this.player < 2 : (this.player < 2) !== (v.team !== 'same'));
     const right = split
       ? `<aside class="mo-panel top"><h2>${t('mo_matchSettings')}</h2>

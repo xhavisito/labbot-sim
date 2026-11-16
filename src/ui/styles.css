@@ -1741,7 +1741,7 @@ body.vs-stacked .touch.vs-touch.p1 .pad { bottom: 12px; }
 .mo-menu { position: absolute; left: 52px; bottom: 9vh; display: grid; gap: 10px; justify-items: start; }
 .mo-menu .head { font-size: clamp(30px, 5vw, 52px); font-weight: 600; opacity: .35; }
 .mo-menu button { background: none; border: none; padding: 2px 0; font-size: clamp(30px, 5vw, 52px); font-weight: 600; text-shadow: 0 3px 12px rgba(0,0,0,.6); }
-.mo-menu button:hover { color: #7da2ff; }
+.mo-menu button:hover, .mo-menu button:focus-visible { background: var(--brand-purple); color: #fff; outline: none; border-radius: 6px; }
 .mo-back { position: absolute; top: 24px; left: 16px; background: var(--mo-blue); border: none; border-radius: 6px; padding: 12px 22px 12px 14px; font-size: 24px; font-weight: 700; z-index: 2; }
 .mo-back.inline { position: static; font-size: 22px; padding: 8px 18px 8px 12px; align-self: end; margin-right: 6px; }
 .mo-back span { margin-right: 8px; }
@@ -1918,3 +1918,6 @@ body.vs-stacked .touch.vs-touch.p1 .pad { bottom: 12px; }
 .results .rs-table .bc-card { padding: 6px 28px; }
 .results h3 { margin-top: 18px; }
 @media (max-width: 760px) { .results .rs-top { grid-template-columns: 1fr 1fr; } .results .rs-win { grid-column: 1 / -1; } }
+
+.card .logo-img { width: 80px; height: 80px; border-radius: 50%; object-fit: cover; background: #fff; border: 2px solid rgba(255, 255, 255, 0.25); }
+@media (max-width: 900px), (max-height: 520px) { .card .logo-img { width: 40px; height: 40px; } }
