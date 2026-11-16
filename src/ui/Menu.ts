@@ -340,7 +340,6 @@ export class Menu {
     this.open(
       `<div class="mo-overlay ${split ? 'split' : ''}">
         <button class="mo-back" data-act="back"><span>←</span> ${t('mo_back')}</button>
-        <div class="mo-plate"><div class="mo-sil">${robotSilhouette(robotSpec(curId).mechanism)}</div><b>${robotName(curId)}</b><p>${robotDesc(curId)}</p></div>
         ${right}
         <section class="mo-robots">
           <header><h2>${t('mo_robots')}</h2>
@@ -385,7 +384,7 @@ export class Menu {
     });
     this.on('[data-act="tips"]', () => this.moTips(() => this.robotSelect(split), curId));
     this.on('[data-act="back"]', () => this.playMenu());
-    this.on('[data-act="start"]', () => this.onStart({ mode: split ? 'versus' : this.moMode, player: this.player }));
+    this.on('[data-act="start"]', () => this.onStart({ mode: split ? 'versus' : this.moMode, player: this.player, ready: true }));
   }
 
   /** Consejos: qué hace el robot elegido y los controles actuales. */

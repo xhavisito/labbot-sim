@@ -1837,3 +1837,18 @@ body.vs-stacked .touch.vs-touch.p1 .pad { bottom: 12px; }
 
 .card svg { width: 84px; height: 56px; fill: currentColor; stroke: currentColor; }
 .screen .form[data-pane][hidden] { display: none !important; }
+
+/* ---------- Menús: pantalla estática y colores de la marca de la referencia (azul del logo, rojo de "sim") */
+.screen {
+  --accent: #3b6bff; --accent-2: #6f95ff; --accent-fill: #123fd0; --accent-ink: #ffffff;
+  --brand-red: #e0161e; --grid-bg: none;
+  background: linear-gradient(90deg, rgba(6, 10, 26, 0.97) 0%, rgba(6, 10, 26, 0.9) 45%, rgba(6, 10, 26, 0.62) 100%);
+}
+.screen.solid { background: rgba(6, 10, 26, 0.96); }
+.screen.mo { background: linear-gradient(90deg, rgba(6, 10, 26, 0.6), rgba(6, 10, 26, 0.06) 60%); }
+.screen, .screen * { animation: none !important; transition: none !important; }
+.screen h1::before, .mo-title span, .mm-title span { color: var(--brand-red); }
+.screen h1::before { background: var(--brand-red); }
+.screen .btn.primary, .screen .chipbtn.on, .screen .seg button.on, .screen .toggle.on { background: #123fd0; color: #fff; border-color: transparent; }
+.screen .mm-hero { background: #123fd0; color: #fff; }
+.screen .mm-hero.alt { background: var(--brand-red); }
