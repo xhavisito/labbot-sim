@@ -38,7 +38,8 @@ describe('Axiom tal cual el CAD', () => {
     expect(s.capacity).toBe(1);
   });
   it('solo se pasa del límite de ancho que dice el CAD (0.651 m) y declara sus SUPUESTOS', () => {
-    expect(CAD_ROBOT_PROBLEMS.axiom).toEqual(['chasis mayor a 65 × 65 cm (§7.2)']);
+    // El ancho (0.651 m) es del CAD y N3 a 100° deja la garra + Muestra a 1.007 m: el mentor aprobó el robot (sin ⚠ en el menú, Xhavi 16-nov)
+    expect(CAD_ROBOT_PROBLEMS.axiom).toEqual(['chasis mayor a 65 × 65 cm (§7.2)', 'garra en N3 + Muestra pasa de 100 cm (§7.2)']);
     const t = (axiom as { supuestos: string[] }).supuestos.join(' ');
     expect(t).toMatch(/SUPUESTO \(Xhavi, 16-nov\)/);
     expect(t).toMatch(/pose de inicio del brazo a 60°/);
@@ -68,10 +69,10 @@ describe('IA con Axiom', () => {
 });
 
 describe('Axiom: ángulos de los niveles (Xhavi, 16-nov)', () => {
-  it('N3 a 110° con la garra volteada atrás; N1 y N2 al frente', async () => {
+  it('N3 a 100° con la garra volteada atrás; N1 y N2 al frente', async () => {
     const { posAngle, posDir, armTip } = await import('../src/config/robot');
     const s = CAD_ROBOT_SPECS.axiom;
-    expect(posAngle(s, 3)).toBeCloseTo((110 * Math.PI) / 180, 3);
+    expect(posAngle(s, 3)).toBeCloseTo((100 * Math.PI) / 180, 3);
     expect(armTip(s.arm, posAngle(s, 3)).y).toBeCloseTo(s.elevatorHeights[3], 3);
     expect([1, 2, 3].map((l) => posDir(s, l as 1 | 2 | 3))).toEqual([1, 1, -1]);
     expect(posAngle(s, 2)).toBeLessThan(Math.PI / 2);
