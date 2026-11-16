@@ -47,6 +47,12 @@ export function specFromRobotFile(f: RobotFileLike, strict = true): RobotSpec {
     arm: { ...base.arm, ...s.arm },
     elevatorHeights: heights as RobotSpec['elevatorHeights'],
   };
+  // Intake fijo al piso (Phoenix, `rearClaw`): no hereda del preset de elevador la pose "guardada" a 0.5 m
+  // (el intake aparecía volando al entrar); empieza y se queda en el piso (Xhavi, 16-nov)
+  if (spec.arm.rearClaw) {
+    delete spec.arm.stowAngle;
+    delete spec.arm.stowTip;
+  }
   if (spec.elevatorHeights.length !== 5 || !spec.elevatorHeights.every(finite)) throw new Error('archivo de robot: elevatorHeights debe tener 5 números');
   const problems = strict ? validateRobot(spec) : [];
   if (problems.length) throw new Error(`robot "${spec.name}" no cumple el manual: ${problems.join('; ')}`);

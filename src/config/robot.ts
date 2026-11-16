@@ -122,6 +122,12 @@ export interface RobotSpec {
    * usa 4 esferas genéricas de 5 cm de radio. Medidas de las fotos aproximadas: SUPUESTO hasta que Xhavi las confirme.
    */
   wheel?: WheelSpec;
+  /**
+   * Hitbox por pieza del CAD (`scripts/cad/hitboxes.mjs`): un casco convexo por pieza física fija; `pts` = x,y,z
+   * de ≤26 puntos de soporte (m, sistema del robot). Choca con piezas, robots, pared y madera, sin masa.
+   * Con ellos no se crea la torre genérica inventada.
+   */
+  hitboxes?: ReadonlyArray<{ name: string; pts: readonly number[] }>;
 }
 
 /** Ruedas de tracción del CAD: radio, posiciones a lo largo del robot (por lado), distancia del centro a cada rueda y ancho (m). */

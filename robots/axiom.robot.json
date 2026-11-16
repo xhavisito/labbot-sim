@@ -91,7 +91,8 @@
       ],
       "z": 0.2755,
       "width": 0.035
-    }
+    },
+    "hitboxes": []
   },
   "source": {
     "file": "ensamble comp interna.STEP",
@@ -114,7 +115,8 @@
     "SUPUESTO: la garra es una pinza (INTAKE 'pinza') de 0.23 m de apertura (preset) y capacidad 1; en la pose del CAD los dedos quedan a 0.124 m (menos que la Muestra, 0.15 m), así que no se puede saber la apertura real; 0.12 m de fondo salen del CAD; tampoco se sabe si toma la Muestra Crítica (apertura de 0.23 m ≥ 0.20 m: la toma)",
     "SUPUESTO: las placas frontal y posterior del chasis toman el color de la alianza (el resto va con los colores del CAD)",
     "SUPUESTO: las llantas van estáticas dentro del modelo (no giran en pantalla); el robot mide 0.651 m de ancho (> 65 cm, §7.2: lo dice el CAD, el menú lo marca con ⚠)",
-    "masa, velocidades de manejo, velocidad del brazo (4 rad/s) y tracción del preset (el STEP no los trae); pásala con --mass"
+    "masa, velocidades de manejo, velocidad del brazo (4 rad/s) y tracción del preset (el STEP no los trae); pásala con --mass",
+    "HITBOX: un casco convexo por pieza del CAD (ver spec.hitboxes), de ≤26 puntos y grosor mínimo de 1 cm; sin llantas de tracción (cilindros de spec.wheel) ni piezas dentro del chasis bajo; densidad 0 (no mueven el centro de masa). Qué es \"físico\" es SUPUESTO"
   ],
   "model": {
     "url": "robots/axiom.glb",

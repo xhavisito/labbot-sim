@@ -173,8 +173,8 @@ export class RobotPhysics {
     // era una caja invisible del 90 % del chasis hasta `baseHeight`
     const a = spec.arm;
     // Phoenix (`rearClaw`): la estructura es la del CAD (laterales y placas de `footprint`); sin torre inventada
-    if (a.rearClaw) {
-      /* nada */
+    if (a.rearClaw || spec.hitboxes?.length) {
+      /* la estructura son los cascos del CAD (`spec.hitboxes`, abajo) */
     } else if (a.linear)
       // Elevador: la torre va sobre el chasis (los rieles), no donde está el carro
       add(
@@ -201,6 +201,13 @@ export class RobotPhysics {
             .setFriction(0.3)
             .setRestitution(0.05),
         );
+    // Hitbox literal de cada pieza fija del CAD (rampa, rieles, elevador, soportes...): sin masa, para no mover el
+    // centro de masa. El CCD del cuerpo y de las Muestras evita que las placas de 1 cm se atraviesen.
+    for (const h of spec.hitboxes ?? []) {
+      const d = RAPIER.ColliderDesc.convexHull(new Float32Array(h.pts));
+      if (d) add(d.setDensity(0).setFriction(0.3).setRestitution(0.05));
+      else console.warn(`[hitbox] ${spec.name}: "${h.name}" no forma un casco`);
+    }
     // Ruedas: las del CAD (`RobotSpec.wheel`: cilindros del ancho de la llanta, 2 por lado) o 4 esferas genéricas
     const wr = spec.wheel;
     this.wheelR = wr?.r ?? WHEEL_R;

@@ -57,6 +57,15 @@ trasero a ras de piso, con la garra del simulador: `arm.rearClaw`), cuántas Mue
 (6.5 m/s), variación por tiro (4 % velocidad, 1.4° rumbo), masa y velocidades de manejo (preset), y qué placas toman el color de la alianza.
 El modelo es estático: no se sabe qué piezas se mueven, así que las llantas no giran en pantalla.
 
+## Hitbox por pieza (16-nov)
+`node scripts/cad/hitboxes.mjs phoenix psycho axiom` lee el GLB y escribe `spec.hitboxes` en `robots/<nombre>.robot.json`: un casco convexo
+(≤26 puntos) por cada pieza física fija del nodo `estatico`, con grosor mínimo de 1 cm para las placas (una Muestra rápida no las
+atraviesa; el CCD del cuerpo y de las Muestras hace el resto). `RobotPhysics` los crea sin masa (no mueven el centro de masa) y,
+con ellos, ya no crea la torre genérica inventada. Se saltan las llantas de tracción (cilindros de `spec.wheel`) y lo que ya cubre el chasis bajo (Axiom: todo su chasis ya está en la huella, sin hitboxes extra; un hitbox de más en su lado +z dejaba a la IA sin anotar).
+Las piezas del brazo de Psycho siguen con los colisionadores del brazo. **SUPUESTO:** qué piezas cuentan como "físicas".
+Volver a correrlo después de `robot:import`. Axiom (PR #137) también.
+**Phoenix:** el intake va fijo al piso: ya no hereda del preset de elevador la pose "guardada" a 0.5 m (`specFromRobotFile`).
+
 ## Axiom (16-nov, garra con pivote 180°)
 Importado de `ensamble comp interna.STEP` (83 piezas, AP214) con
 `npm run robot:import -- <STEP> --name Axiom --mechanism pivot180 --up y --forward +z --floor 0.1066 --arm-above 0.2 --arm-parts '^garra' --min-diag 0.01 --max-tris 6000`
