@@ -223,7 +223,7 @@ export class App {
       this.audio.setRefMode(s.refAudio);
       this.cam.fovDefault = s.fov;
       this.cam2.fovDefault = s.fov;
-    }, this.input, { view: (v) => this.setMenuView(v), preview: (p) => this.previewRobot(p), spawn: (c) => this.spawnCmd(c) });
+    }, this.input, { view: (v) => this.setMenuView(v), preview: (p, r) => this.previewRobot(p, true, r), spawn: (c) => this.spawnCmd(c) });
     this.audio.setRefMode(this.settings.refAudio);
     this.cam.fovDefault = this.settings.fov;
     this.cam2.fovDefault = this.settings.fov;
@@ -969,16 +969,39 @@ export class App {
 
   /** En el menú: la cancha completa de fondo (`orbit`) o el robot elegido de cerca (`robot`). */
   private menuView: 'orbit' | 'robot' | 'spawn' = 'orbit';
+  /** Acercamiento de la cámara del menú al elegir robot (≈0.5 s); `menuBlend` 0 = cancha completa, 1 = robot de cerca. */
+  private static readonly MENU_ZOOM = 0.5;
+  private menuBlend = 0;
+  private menuPose = { px: 0, py: 1.35, pz: 2, tx: 0, ty: 0.3, tz: 0 };
+  private orbitPose() {
+    const a = 0.9;
+    return { px: Math.cos(a) * 7.8, py: 5.6, pz: Math.sin(a) * 6.5, tx: 0, ty: 0, tz: 0 };
+  }
+  private applyMenuPose(near: App['menuPose'], far: App['menuPose'], k: number): void {
+    const e = k * k * (3 - 2 * k);
+    const m = (a: number, b: number) => b + (a - b) * e;
+    this.cam.camera.position.set(m(near.px, far.px), m(near.py, far.py), m(near.pz, far.pz));
+    const tx = m(near.tx, far.tx), ty = m(near.ty, far.ty), tz = m(near.tz, far.tz);
+    this.cam.orbit.target.set(tx, ty, tz);
+    if (k > 0) this.cam.camera.lookAt(tx, ty, tz);
+  }
   private setMenuView(v: 'orbit' | 'robot'): void {
     if (this.state === 'menu' && !this.spawnOn) this.menuView = v;
   }
 
   /** Reconstruye la cancha de fondo con el robot elegido (sin empezar match); con `animate`, el robot llega rodando. */
-  private previewRobot(player: number, animate = true): void {
+  private previewRobot(player: number, animate = true, robot?: RobotId): void {
     if (this.state !== 'menu') return;
     this.renderer.scene.remove(this.session.root);
     this.session.dispose();
-    this.session = new GameSession({ ...this.sessionOptions(player), solo: true });
+    const o = { ...this.sessionOptions(player), solo: true };
+    // Pantalla dividida: el robot de P1 o P2, no el de un jugador
+    if (robot) {
+      const specs = [...(o.specs ?? [])];
+      specs[player] = { ...robotSpec(robot), maxSpeed: this.settings.maxSpeed };
+      o.specs = specs;
+    }
+    this.session = new GameSession(o);
     this.renderer.scene.add(this.session.root);
     this.arrive = null;
     if (animate) this.startArrival();
@@ -1342,15 +1365,15 @@ export class App {
         const shift = 0.5;
         const tx = R.x + k.rx * shift;
         const tz = R.z + k.rz * shift;
-        this.cam.camera.position.set(tx + k.cx * 2.1, 1.35, tz + k.cz * 2.1);
-        this.cam.orbit.target.set(tx, 0.3, tz);
-        this.cam.camera.lookAt(tx, 0.3, tz);
+        this.menuPose = { px: tx + k.cx * 2.1, py: 1.35, pz: tz + k.cz * 2.1, tx, ty: 0.3, tz };
+        this.menuBlend = Math.min(1, this.menuBlend + dt / App.MENU_ZOOM);
+        this.applyMenuPose(this.menuPose, this.orbitPose(), this.menuBlend);
       } else {
         this.session.setRobotsVisible(false);
         // Vista fija (el menú es estático: nada se mueve)
-        const a = 0.9;
-        this.cam.camera.position.set(Math.cos(a) * 7.8, 5.6, Math.sin(a) * 6.5);
-        this.cam.orbit.target.set(0, 0, 0);
+        // Al volver (Atrás) la cámara se aleja con la animación inversa
+        this.menuBlend = Math.max(0, this.menuBlend - dt / App.MENU_ZOOM);
+        this.applyMenuPose(this.menuPose, this.orbitPose(), this.menuBlend);
       }
     }
     // Después del estado: si A reanuda la pausa, el robot no recibe esa A (ya no es pulsación nueva)
