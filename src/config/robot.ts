@@ -149,11 +149,6 @@ export interface CadModel {
    * chasis (en Psycho, el Kraken X44 del gripper: Xhavi, 13-nov "va pegado en el gripper").
    */
   armParts?: string;
-  /**
-   * Modelo aproximado (sin CAD): el archivo solo trae chasis y barras del brazo, y la garra es la del simulador
-   * (dedos y placa genéricos, nivelados con el robot) en vez de ir fija al brazo.
-   */
-  simpleClaw?: boolean;
 }
 
 /**
