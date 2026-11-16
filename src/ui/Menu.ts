@@ -152,6 +152,8 @@ export class Menu {
       </table>
       <div class="form">
         <label>${t('padDriveLabel')} <select data-k="padDrive">${opt('left', b.padDrive, t('padDriveLeft'))}${opt('split', b.padDrive, t('padDriveSplit'))}</select></label>
+        <label><input type="checkbox" data-k="fieldCentric" ${b.fieldCentric ? 'checked' : ''}> ${t('fieldCentric')}</label>
+        <p class="help">${t('fieldCentricHelp')}</p>
         <label><input type="checkbox" data-k="invert" ${b.invertForward ? 'checked' : ''}> ${t('invertForward')}</label>
         <label>${t('touchControls')} <select data-k="touch">${opt('auto', this.settings.touch, t('touchAuto'))}${opt('on', this.settings.touch, t('touchOn'))}${opt('off', this.settings.touch, t('touchOff'))}</select></label>
       </div>
@@ -181,6 +183,9 @@ export class Menu {
     );
     this.root.querySelector<HTMLSelectElement>('[data-k="padDrive"]')!.addEventListener('change', (e) =>
       apply({ ...cloneBindings(inp.bindings), padDrive: (e.target as HTMLSelectElement).value === 'split' ? 'split' : 'left' }),
+    );
+    this.root.querySelector<HTMLInputElement>('[data-k="fieldCentric"]')!.addEventListener('change', (e) =>
+      apply({ ...cloneBindings(inp.bindings), fieldCentric: (e.target as HTMLInputElement).checked }),
     );
     this.root.querySelector<HTMLInputElement>('[data-k="invert"]')!.addEventListener('change', (e) =>
       apply({ ...cloneBindings(inp.bindings), invertForward: (e.target as HTMLInputElement).checked }),

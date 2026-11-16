@@ -179,6 +179,7 @@ elegir a Rank 2); PlayOffs todos contra todos entre alianzas y final al 2 de 3 (
 | D14 | Muestra en la Cámara de la alianza contraria | "Depositar en **su** Cámara"; no dice qué pasa si cae en la otra. | Cuenta para la alianza dueña de la Cámara. |
 | D15 | ¿Quién "entra en contacto"? | Foul por "entrar en contacto con los robots de la alianza contraria" (§4.5). | Lo comete el robot que se acerca más rápido al otro (mín. 0.15 m/s); dos robots quietos que se tocan no cometen falta. |
 | D16 | Muestra Crítica "durante el endgame" | Se evalúa "al sonar la bocina" (§4.3.1). | Cuenta si la Crítica propia está sobre la Repisa al sonar la bocina. |
+| D17 | Manejo centrado en el campo (opcional) | §7.2 exige chasis tipo tanque (swerve prohibido); el manual no dice nada del software de control. | **Xhavi**. Interruptor en Controles (apagado por defecto). **SUPUESTO**: "arriba" en el stick = lejos de la Driver Station propia (azul hacia +X, roja hacia −X). El chasis sigue siendo tanque: gira hacia la dirección del stick (o da reversa si queda más cerca) y avanza. `input/fieldCentric.ts`. |
 
 **Presentación del kickoff** (`2026 Robotics WinterFest.pdf`, Canva, 38 págs.): repite el manual
 con las mismas figuras y valores; no trae medidas nuevas ni ubica la línea de autónomo. Solo

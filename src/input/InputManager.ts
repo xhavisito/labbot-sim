@@ -13,6 +13,8 @@ export interface PlayerInput {
   turn: number;
   /** Modo fino (mitad de velocidad). */
   slow: boolean;
+  /** Manejo centrado en el campo: forward/turn son la dirección del stick, no del robot. */
+  fieldCentric: boolean;
   // Acciones de un solo disparo (se consumen en el cuadro)
   toggleIntake: boolean;
   elevator: ElevatorPos | null;
@@ -25,6 +27,7 @@ export const emptyInput = (): PlayerInput => ({
   forward: 0,
   turn: 0,
   slow: false,
+  fieldCentric: false,
   toggleIntake: false,
   elevator: null,
   releaseSample: false,
@@ -125,6 +128,7 @@ export class InputManager {
   /** Lee el estado del cuadro y limpia las acciones de un disparo. */
   poll(): PlayerInput {
     const inp = emptyInput();
+    inp.fieldCentric = this.bindings.fieldCentric;
     const hit = new Set<Action>();
     if (this.capture) {
       this.pollCapture();
@@ -175,7 +179,8 @@ export class InputManager {
     const b = this.bindings;
     const ax = pad.axes;
     const fwd = -dz(ax[1] ?? 0) * (b.invertForward ? -1 : 1);
-    const turn = -dz(b.padDrive === 'split' ? (ax[2] ?? 0) : (ax[0] ?? 0));
+    // Centrado en el campo, el stick izquierdo da toda la dirección (el derecho no gira)
+    const turn = -dz(b.padDrive === 'split' && !b.fieldCentric ? (ax[2] ?? 0) : (ax[0] ?? 0));
     if (Math.abs(fwd) > Math.abs(inp.forward)) inp.forward = fwd;
     if (Math.abs(turn) > Math.abs(inp.turn)) inp.turn = turn;
     const now = pad.buttons.map((x) => x.pressed);

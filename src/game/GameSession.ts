@@ -15,6 +15,7 @@ import { isTeleop, robotsEnabled, type Phase } from '../core/clock';
 import { Match, type MatchEvent } from '../core/match';
 import type { TimedEvent } from '../core/matchLog';
 import { ALLIANCES, type Alliance } from '../core/types';
+import { fieldCentricDrive, fieldUpAngle } from '../input/fieldCentric';
 import type { PlayerInput } from '../input/InputManager';
 import { buildFieldColliders } from '../physics/FieldColliders';
 import { Pieces } from '../physics/Pieces';
@@ -199,6 +200,7 @@ export class GameSession {
       } else if (enabled && r === this.player && this.input) {
         forward = this.input.forward;
         turn = this.input.turn;
+        if (this.input.fieldCentric) ({ forward, turn } = fieldCentricDrive(forward, turn, r.phys.heading(), fieldUpAngle(r.alliance)));
         slow = this.input.slow;
       }
       if (!enabled) r.mech.intakeOn = false;

@@ -37,6 +37,8 @@ export interface Bindings {
   padDrive: PadDrive;
   /** Invertir el eje de avance del stick. */
   invertForward: boolean;
+  /** Manejo centrado en el campo (ver `fieldCentric.ts`); apagado = normal, centrado en el robot. */
+  fieldCentric: boolean;
 }
 
 /** Botones del mapeo "standard" del navegador. */
@@ -86,6 +88,7 @@ export const DEFAULT_BINDINGS: Bindings = {
   },
   padDrive: 'left',
   invertForward: false,
+  fieldCentric: false,
 };
 
 /** Máximo de teclas o botones por acción. */
@@ -96,6 +99,7 @@ export const cloneBindings = (b: Bindings): Bindings => ({
   pad: Object.fromEntries(ACTIONS.map((a) => [a, [...b.pad[a]]])) as Bindings['pad'],
   padDrive: b.padDrive,
   invertForward: b.invertForward,
+  fieldCentric: b.fieldCentric,
 });
 
 /**
@@ -138,7 +142,7 @@ export function sanitizeBindings(raw: unknown): Bindings {
     const table = out[dev] as Record<Action, Array<string | number>>;
     for (const a of ACTIONS) table[a] = table[a].filter((x) => (seen.has(x) ? false : (seen.add(x), true)));
   }
-  out = { ...out, padDrive: o.padDrive === 'split' ? 'split' : 'left', invertForward: o.invertForward === true };
+  out = { ...out, padDrive: o.padDrive === 'split' ? 'split' : 'left', invertForward: o.invertForward === true, fieldCentric: o.fieldCentric === true };
   return out;
 }
 
