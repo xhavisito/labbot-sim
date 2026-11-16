@@ -205,7 +205,10 @@ export interface CritClaw {
   reachY: number;
   /** Ejes de los dedos (x, z locales; dos, uno por lado) y cuánto giran al cerrar sobre la Crítica (°). Solo para el dibujo. */
   shafts: Array<{ x: number; z: number }>;
+  /** Giro (°) con la Crítica adentro: los dedos quedan apretándola. */
   closeDeg: number;
+  /** Giro (°) al cerrar en vacío: los dos dedos chocan entre sí (como una garra de verdad, Xhavi 16-nov). SUPUESTO. */
+  emptyDeg: number;
 }
 
 export interface IntakeSpec {

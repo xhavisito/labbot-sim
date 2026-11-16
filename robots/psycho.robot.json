@@ -98,7 +98,8 @@
             "z": -0.051
           }
         ],
-        "closeDeg": 80
+        "closeDeg": 80,
+        "emptyDeg": 100
       }
     },
     "capacity": 2,
