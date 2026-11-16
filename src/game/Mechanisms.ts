@@ -182,6 +182,8 @@ export const SHOT_AIM_ABOVE = 0.12;
  */
 export const PASS_TARGET = { x: 0.7, z: 0 };
 export const PASS_MIN = 0.6;
+/** Lugares de la rampa que ocupa la Crítica de 20 cm (la Muestra de 15 cm ocupa 1). */
+const CRITICAL_SLOTS = 2;
 
 export class Mechanisms {
   intakeOn = false;
@@ -308,11 +310,11 @@ export class Mechanisms {
     this.rollerContacts = 0;
     // Al soltar en el piso, los rodillos giran al revés y la sacan de la caja
     if (this.ejectT > 0 && intakeOf(s).rollers && this.height < FLOOR_POSE) this.runRollers(events, dt, -1);
-    else if (this.latched && this.clawClosed && this.closeWindow > 0 && this.stored.length < this.capacity && !this.jammed) {
+    else if (this.latched && this.clawClosed && this.closeWindow > 0 && this.slotsUsed < this.capacity && !this.jammed) {
       this.closeWindow = Math.max(0, this.closeWindow - dt);
       if (!this.critical && !this.inClaw) this.grabCritical(events);
       this.runClaw(events, dt);
-    } else if (!this.latched && this.intakeOn && this.stored.length < this.capacity && !this.jammed) this.runClaw(events, dt);
+    } else if (!this.latched && this.intakeOn && this.slotsUsed < this.capacity && !this.jammed) this.runClaw(events, dt);
     else this.closing = null;
     this.syncHitbox();
   }
@@ -343,6 +345,11 @@ export class Mechanisms {
     this.phys.setArmPose(this.angle, this.critical ? 'critical' : this.inClaw ? 'sample' : null, n);
   }
 
+  /** Lugares de la rampa ocupados: las Muestras y, en Phoenix (`passCritical`), la Crítica, que mide 20 cm y ocupa 2 (SUPUESTO). */
+  get slotsUsed(): number {
+    return this.stored.length + (this.critical && canPassCritical(this.phys.spec) ? CRITICAL_SLOTS : 0);
+  }
+
   /** Muestras en la garra (con `holdsTwo` todas las guardadas; si no, 0 o 1). */
   get inClawCount(): number {
     if (!this.inClaw) return 0;
@@ -363,7 +370,7 @@ export class Mechanisms {
 
   /** Garra: con el brazo abajo y vacía, agarra la Muestra que queda entre sus dedos. */
   private runClaw(events: MechEvent[], dt: number): void {
-    if (this.critical || (this.inClaw && !this.phys.spec.arm.holdsTwo) || this.height > FLOOR_POSE || this.cooldown > 0 || this.hopperTask()) {
+    if ((this.critical && !canPassCritical(this.phys.spec)) || (this.inClaw && !this.phys.spec.arm.holdsTwo) || this.height > FLOOR_POSE || this.cooldown > 0 || this.hopperTask()) {
       this.closing = null;
       return;
     }
@@ -574,7 +581,9 @@ export class Mechanisms {
    */
   grabCritical(events: MechEvent[]): boolean {
     // La garra tiene que estar del lado donde toma la Crítica (no guardada ni volteada al otro)
-    if (!(canHoldCritical(this.phys.spec) || canPassCritical(this.phys.spec)) || this.critical || this.inClaw || clawDir(this.angle, this.phys.spec.arm) !== posDir(this.phys.spec, 4)) return false;
+    if (!(canHoldCritical(this.phys.spec) || canPassCritical(this.phys.spec)) || this.critical || clawDir(this.angle, this.phys.spec.arm) !== posDir(this.phys.spec, 4)) return false;
+    // Phoenix: la Crítica entra por el intake como una Muestra, junto a las que ya lleve, si le caben sus 2 lugares de la rampa
+    if (canPassCritical(this.phys.spec) ? this.stored.length + CRITICAL_SLOTS > this.capacity : this.inClaw) return false;
     const p = this.phys;
     const c = this.pieces.critical(this.alliance);
     if (c.state.at !== 'field') return false;
@@ -688,6 +697,12 @@ export class Mechanisms {
     // Con la caja del CAD, la Muestra sale con la inclinación de la caja (igual que la lleva)
     const tilt = rollers && p.rigidFloorAngle !== null ? this.angle - p.rigidFloorAngle : 0;
     this.pieces.place(piece, at.x, at.y, at.z, h, { x: vx, y: vy, z: vz }, tilt);
+    if (shooter?.spin) {
+      // Giro hacia atrás sobre el eje lateral: ω = avance × arriba (la Muestra gira "tiesa" sin él; al aire sigue girando)
+      const sp = shooter.spin * (1 + (shooter.spinSigma ?? 0) * (this.rand() + this.rand() + this.rand() - 1.5) / 0.7071);
+      const hs = Math.hypot(vx, vz) || 1;
+      piece.body.setAngvel({ x: (-vz / hs) * sp, y: 0, z: (vx / hs) * sp }, true);
+    }
     if (tilt !== 0 || shooter || pinza) {
       this.finishLeaving();
       // Tiro: sale por dentro del robot (la rampa va entre sus placas), así que no choca con él hasta salir
