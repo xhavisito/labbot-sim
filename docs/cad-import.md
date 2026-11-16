@@ -54,7 +54,7 @@ Importado con `npm run robot:import -- EnsambleCoregido.STEP --name Phoenix --up
 Los lanza por `game/shooter.ts`: la velocidad se acomoda a la distancia al pozo y cada tiro varía un poco; el rumbo es el del robot.
 **SUPUESTOS (a revisar con Xhavi, 16-nov "déjalo como supuesto, lo arreglamos después"):** por dónde y cómo recoge (por el canal
 trasero a ras de piso, con la garra del simulador: `arm.rearClaw`), cuántas Muestras lleva (1), sin Muestra Crítica, velocidad máxima de salida
-(6.5 m/s), variación por tiro (4 % velocidad, 1.4° rumbo), masa y velocidades de manejo (preset), y qué placas toman el color de la alianza.
+(5 m/s), variación por tiro (4 % velocidad, 1.4° rumbo), masa y velocidades de manejo (preset), y qué placas toman el color de la alianza.
 El modelo es estático: no se sabe qué piezas se mueven, así que las llantas no giran en pantalla.
 
 ## Hitbox por pieza (16-nov)
@@ -85,3 +85,8 @@ separa y se junta en z: abierta = `intake.gap`, cerrada = Muestra (0.15 m) o Cr�
 por la rampa, del pie (x −0.2 m) a la boca (4 hoy), y `specFromRobotFile` la pone en `capacity` con `holdsTwo`. SUPUESTO (el manual no habla de lanzar):
 cada Muestra de más le quita 10 % a la velocidad máxima del tiro (`ShooterSpec.loadPenalty`, `maxSpeedFor` en `game/shooter.ts`); la velocidad que pide la distancia
 se respeta mientras alcance, así que cargado hay que tirar más cerca.
+
+**Phoenix, tiro flojo y pase de la Crítica (16-nov):** `maxSpeed` baja de 6.5 a 5 m/s (SUPUESTO de Xhavi: "no dispara tanto"). La velocidad sigue acomodándose a la
+distancia (`solveSpeed`), pero con 5 m/s ya no alcanza a N3 más allá de ~1.6 m (con 4 Muestras, 3.5 m/s: solo de muy cerca), así que solo anota de cerca y no hay regla de zona.
+`ShooterSpec.passCritical`: toma la Crítica (de reversa, a ras de piso; alcance 30 cm de la punta, SUPUESTO) y al soltar la lanza hacia la plataforma junto a la
+Repisa (`PASS_TARGET` 0.7 m del centro, del lado de su alianza) con la misma potencia: lo que no alcanza cae más cerca. No la anota (no hay pozo ni Repisa que la reciba); la IA no la usa.
