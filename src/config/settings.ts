@@ -80,6 +80,12 @@ export interface Settings {
   hpSmart: boolean;
   /** Controles touch en pantalla: según el equipo, siempre o nunca. */
   touch: 'auto' | 'on' | 'off';
+  /** Cámara inicial al jugar solo: tu Driver Station, seguimiento, superior o libre. */
+  camera: 'driver' | 'follow' | 'top' | 'free';
+  /** Campo de visión vertical (grados). */
+  fov: number;
+  /** Límite de FPS; 0 = VSync. */
+  fpsLimit: 0 | 30 | 60 | 120;
   /** Partes del HUD del match que se ven (solo visual: el árbitro y los puntos no cambian). */
   hudScore: boolean;
   hudRobot: boolean;
@@ -178,6 +184,9 @@ export const DEFAULT_SETTINGS: Settings = {
   hpInterval: 3,
   hpSmart: true,
   touch: 'auto',
+  camera: 'driver',
+  fov: 50,
+  fpsLimit: 0,
   hudScore: true,
   hudRobot: true,
   hudToasts: true,
@@ -205,10 +214,14 @@ export const DEFAULT_SETTINGS: Settings = {
   },
 };
 
+export const CAMERA_CHOICES = ['driver', 'follow', 'top', 'free'] as const;
+export const FPS_LIMITS = [0, 30, 60, 120] as const;
+
 export const SETTINGS_RANGE = {
   maxSpeed: { min: 1, max: 4.5, step: 0.25 },
   hpInterval: { min: 1, max: 10, step: 0.5 },
   volume: { min: 0, max: 100, step: 5 },
+  fov: { min: 30, max: 100, step: 1 },
 } as const;
 
 const KEY = 'labbot.settings';
@@ -289,6 +302,9 @@ export function sanitizeSettings(raw: unknown, autoIds: readonly string[]): Sett
     hpInterval: num(o.hpInterval, d.hpInterval, SETTINGS_RANGE.hpInterval),
     hpSmart: typeof o.hpSmart === 'boolean' ? o.hpSmart : d.hpSmart,
     touch: o.touch === 'on' || o.touch === 'off' ? o.touch : d.touch,
+    camera: CAMERA_CHOICES.find((c) => c === o.camera) ?? d.camera,
+    fov: Math.round(num(o.fov, d.fov, SETTINGS_RANGE.fov)),
+    fpsLimit: FPS_LIMITS.find((f) => f === o.fpsLimit) ?? d.fpsLimit,
     ...(Object.fromEntries(HUD_KEYS.map((k) => [k, typeof o[k] === 'boolean' ? o[k] : d[k]])) as Record<HudKey, boolean>),
     quality: o.quality === 'low' || o.quality === 'medium' || o.quality === 'high' ? o.quality : d.quality,
     showFps: typeof o.showFps === 'boolean' ? o.showFps : d.showFps,
