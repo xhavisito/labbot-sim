@@ -11,7 +11,8 @@ import { SECRET_AUTOS, SECRET_STRATEGIES, STRATEGY_OPTIONS, weighted, type Strat
 import { activeColorMode } from '../config/palette';
 import { applyAccessibility } from '../ui/a11y';
 import { allAutoRoutines, autoRoutineIds } from '../auto/recorded';
-import { clampSpot } from '../config/startSpot';
+import { CENTER_SPOT, clampSpot, spawnCheck, spotPose } from '../config/startSpot';
+import { emptyInput, type PlayerInput } from '../input/InputManager';
 import { FieldAudio } from '../audio/FieldAudio';
 import { ROBOT_PRESETS, type MechanismKind, type RobotSpec } from '../config/robot';
 import { robotStats } from '../replay/stats';
@@ -222,7 +223,7 @@ export class App {
       this.audio.setRefMode(s.refAudio);
       this.cam.fovDefault = s.fov;
       this.cam2.fovDefault = s.fov;
-    }, this.input, { view: (v) => this.setMenuView(v), preview: (p) => this.previewRobot(p) });
+    }, this.input, { view: (v) => this.setMenuView(v), preview: (p) => this.previewRobot(p), spawn: (c) => this.spawnCmd(c) });
     this.audio.setRefMode(this.settings.refAudio);
     this.cam.fovDefault = this.settings.fov;
     this.cam2.fovDefault = this.settings.fov;
@@ -752,7 +753,7 @@ export class App {
     const want = vs ? this.input.layout.p1 === 'touch' : this.touchForced || s === 'on' || (s === 'auto' && isTouchDevice());
     const want2 = vs && this.input.layout.p2 === 'touch';
     document.body.classList.toggle('touch-on', want || want2);
-    this.touch.show(want && this.state === 'playing');
+    this.touch.show(want && (this.state === 'playing' || this.spawnOn));
     this.touch2.show(want2 && this.state === 'playing');
   }
 
@@ -967,22 +968,152 @@ export class App {
   }
 
   /** En el menú: la cancha completa de fondo (`orbit`) o el robot elegido de cerca (`robot`). */
-  private menuView: 'orbit' | 'robot' = 'orbit';
+  private menuView: 'orbit' | 'robot' | 'spawn' = 'orbit';
   private setMenuView(v: 'orbit' | 'robot'): void {
-    if (this.state === 'menu') this.menuView = v;
+    if (this.state === 'menu' && !this.spawnOn) this.menuView = v;
   }
 
-  /** Reconstruye la cancha de fondo con el robot elegido (sin empezar match). */
-  private previewRobot(player: number): void {
+  /** Reconstruye la cancha de fondo con el robot elegido (sin empezar match); con `animate`, el robot llega rodando. */
+  private previewRobot(player: number, animate = true): void {
     if (this.state !== 'menu') return;
     this.renderer.scene.remove(this.session.root);
     this.session.dispose();
     this.session = new GameSession({ ...this.sessionOptions(player), solo: true });
     this.renderer.scene.add(this.session.root);
+    this.arrive = null;
+    if (animate) this.startArrival();
+  }
+
+  // ------------------------------------------------------------------ llegada del robot (selección de robot)
+  /** Llegada en curso: curva de Bézier desde un lado de la pantalla hasta su lugar; frena suave y se estaciona. */
+  private arrive: { t: number; p0: { x: number; z: number }; p1: { x: number; z: number }; p2: { x: number; z: number }; h: number } | null = null;
+  private static readonly ARRIVE_TIME = 1.7;
+  /** Dirección horizontal de la cámara de la selección (de la cancha al robot, unitaria) y su derecha en pantalla. */
+  private pickCam(r: { x: number; z: number }): { cx: number; cz: number; rx: number; rz: number } {
+    const len = Math.hypot(r.x, r.z) || 1;
+    const dx = -r.x / len;
+    const dz = -r.z / len;
+    const ang = 0.7;
+    const cx = dx * Math.cos(ang) - dz * Math.sin(ang);
+    const cz = dx * Math.sin(ang) + dz * Math.cos(ang);
+    // Mira hacia −(cx, cz); su derecha en pantalla es (−dz', dx') con d = −c
+    return { cx, cz, rx: cz, rz: -cx };
+  }
+
+  private startArrival(): void {
+    const pl = this.session.player;
+    const p = pl.phys.position();
+    const h = pl.phys.heading();
+    const cam = this.pickCam(p);
+    const f = { x: Math.cos(h), z: -Math.sin(h) };
+    // Entra por la izquierda de la pantalla; la esquina de la curva queda detrás del lugar final
+    const p0 = { x: p.x - cam.rx * 2.6, z: p.z - cam.rz * 2.6 };
+    const p1 = { x: p.x - f.x * 0.6, z: p.z - f.z * 0.6 };
+    this.arrive = { t: 0, p0, p1, p2: { x: p.x, z: p.z }, h };
+    pl.phys.teleport(p0.x, p0.z, h);
+  }
+
+  private arriveStep(dt: number): void {
+    const a = this.arrive;
+    if (!a) return;
+    const pl = this.session.player;
+    a.t += dt;
+    const k = Math.min(1, a.t / App.ARRIVE_TIME);
+    // Frenado suave: la velocidad baja a cero justo en el lugar
+    const u = 1 - (1 - k) ** 3;
+    const w0 = (1 - u) ** 2;
+    const w1 = 2 * u * (1 - u);
+    const w2 = u * u;
+    const x = w0 * a.p0.x + w1 * a.p1.x + w2 * a.p2.x;
+    const z = w0 * a.p0.z + w1 * a.p1.z + w2 * a.p2.z;
+    if (k >= 1) {
+      pl.phys.teleport(a.p2.x, a.p2.z, a.h);
+      this.arrive = null;
+      return;
+    }
+    const tx = 2 * (1 - u) * (a.p1.x - a.p0.x) + 2 * u * (a.p2.x - a.p1.x);
+    const tz = 2 * (1 - u) * (a.p1.z - a.p0.z) + 2 * u * (a.p2.z - a.p1.z);
+    // El frente del robot es el de su rumbo final; con el intake atrás (Pivote 180°) el chasis llega de reversa
+    const back = pl.spec.arm.pickBack ? Math.PI : 0;
+    pl.phys.teleport(x, z, Math.atan2(-tz, tx) + back);
+  }
+
+  // ------------------------------------------------------------------ punto de aparición (Personalizar)
+  /** Modo "Personalizar": manejas tu robot en la cancha; guardar solo si está en su zona y toca la línea. */
+  private spawnOn = false;
+  private spawnKey = '';
+
+  private spawnCmd(c: 'enter' | 'save' | 'reset' | 'cancel'): boolean {
+    if (this.state !== 'menu') return false;
+    const pl = () => this.session.player;
+    if (c === 'enter') {
+      this.previewRobot(this.menuPlayer(), false);
+      this.spawnOn = true;
+      this.spawnKey = '';
+      this.menuView = 'spawn';
+      this.cam.setMode('top');
+      this.updateTouch();
+      return true;
+    }
+    if (c === 'save') {
+      const r = this.spawnStatus();
+      if (!r.ok) return false;
+      this.settings.match.start = r.spot;
+      saveSettings(this.settings);
+    } else if (c === 'reset') {
+      // Vuelve al lugar de siempre (el centro de su zona) y lo deja guardado
+      this.settings.match.start = { ...CENTER_SPOT };
+      saveSettings(this.settings);
+      const p = spotPose(pl().alliance, pl().station, CENTER_SPOT);
+      pl().phys.teleport(p.x, p.z, p.heading);
+      this.spawnKey = '';
+      return true;
+    }
+    // Guardar o Cancelar: salir del modo
+    this.spawnOn = false;
+    this.menuView = 'robot';
+    this.cam.setMode('free');
+    this.updateTouch();
+    this.previewRobot(this.menuPlayer(), false);
+    return true;
+  }
+
+  private menuPlayer(): number {
+    return this.session.opts.player;
+  }
+
+  private spawnStatus(): ReturnType<typeof spawnCheck> & { fwd: number; right: number; deg: number } {
+    const pl = this.session.player;
+    const p = pl.phys.position();
+    const r = spawnCheck(pl.spec.length, pl.spec.width, pl.alliance, pl.station, { x: p.x, z: p.z, heading: pl.phys.heading() });
+    return { ...r, fwd: Math.round(-r.spot.dx * 100), right: Math.round(-r.spot.dz * 100), deg: Math.round((r.spot.turn * 180) / Math.PI) };
+  }
+
+  /** Cada cuadro del modo: maneja el robot, dibuja desde arriba y avisa al menú si ya se puede guardar. */
+  private spawnFrame(dt: number, inp: PlayerInput): void {
+    const pl = this.session.player;
+    this.session.setRobotsVisible(false, pl);
+    this.session.setInput({ ...emptyInput(), forward: inp.forward, turn: inp.turn, slow: inp.slow, fieldCentric: inp.fieldCentric });
+    this.session.update(dt);
+    // Cámara fija desde arriba sobre la zona de inicio, con la pared de tu alianza abajo
+    const c = spotPose(pl.alliance, pl.station, CENTER_SPOT);
+    const up = pl.alliance === 'red' ? -1 : 1;
+    const cam = this.cam.camera;
+    cam.up.set(up, 0, 0);
+    cam.position.set(c.x + up * 0.9, 4.6, c.z + 0.001);
+    cam.lookAt(c.x + up * 0.9, 0, c.z);
+    const st = this.spawnStatus();
+    const key = `${st.ok}|${st.reason}|${st.fwd}|${st.right}|${st.deg}`;
+    if (key !== this.spawnKey) {
+      this.spawnKey = key;
+      this.menu.spawnStatus(st);
+    }
   }
 
   toMenu(): void {
     this.menuView = 'orbit';
+    this.spawnOn = false;
+    this.arrive = null;
     this.audio.stopVoice();
     this.flushPlaytime();
     this.closeAutoPractice();
@@ -1196,20 +1327,24 @@ export class App {
       if (this.replayBar.root.style.display !== 'none') this.replay.update(dt);
       this.replayBar.update();
     } else if (this.state === 'menu') {
-      if (this.menuView === 'robot') {
-        // Selección de robot: solo se ve el que vas a elegir, con la cámara fija de frente y un poco arriba
+      if (this.menuView === 'spawn') {
+        this.spawnFrame(dt, inp);
+      } else if (this.menuView === 'robot') {
+        // Selección de robot: solo se ve el que vas a elegir. Llega rodando, frena y se estaciona; la cámara
+        // fija, de frente y un poco arriba, queda cerca (como MoSim) con el robot a la izquierda del panel
         const pl = this.session.player;
         this.session.setRobotsVisible(false, pl);
+        this.arriveStep(dt);
+        this.session.update(dt);
         const r = pl.phys.position();
-        const len = Math.hypot(r.x, r.z) || 1;
-        const dx = -r.x / len;
-        const dz = -r.z / len;
-        const ang = 0.7;
-        const cx = dx * Math.cos(ang) - dz * Math.sin(ang);
-        const cz = dx * Math.sin(ang) + dz * Math.cos(ang);
-        this.cam.camera.position.set(r.x + cx * 2.8, 1.7, r.z + cz * 2.8);
-        this.cam.orbit.target.set(r.x, 0.4, r.z);
-        this.cam.camera.lookAt(r.x, 0.4, r.z);
+        const k = this.pickCam({ x: this.arrive ? this.arrive.p2.x : r.x, z: this.arrive ? this.arrive.p2.z : r.z });
+        const R = this.arrive ? this.arrive.p2 : r;
+        const shift = 0.5;
+        const tx = R.x + k.rx * shift;
+        const tz = R.z + k.rz * shift;
+        this.cam.camera.position.set(tx + k.cx * 2.1, 1.35, tz + k.cz * 2.1);
+        this.cam.orbit.target.set(tx, 0.3, tz);
+        this.cam.camera.lookAt(tx, 0.3, tz);
       } else {
         this.session.setRobotsVisible(false);
         // Vista fija (el menú es estático: nada se mueve)

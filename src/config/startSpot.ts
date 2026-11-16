@@ -83,3 +83,64 @@ export function sanitizeSpot(raw: unknown): StartSpot {
   const n = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? v : 0);
   return { dx: Math.max(-1, Math.min(1, n(o.dx))), dz: Math.max(-1, Math.min(1, n(o.dz))), turn: wrap(n(o.turn)) };
 }
+
+/** Lugar (en la zona de la estación) que corresponde a una pose en la cancha; inversa de `spotPose`. */
+export function spotFromPose(a: Alliance, station: 0 | 1, pose: { x: number; z: number; heading: number }): StartSpot {
+  const c = zoneCenterRed(station);
+  const red = F.forAlliance(a, { x: pose.x, z: pose.z }); // el giro de 180° es su propia inversa
+  const base = a === 'red' ? Math.PI : 0;
+  return { dx: red.x - c.x, dz: red.z - c.z, turn: wrap(pose.heading - base) };
+}
+
+/** Cuánto (m) puede separarse el chasis de la cinta y aun así "tocarla" (SUPUESTO, ver `spawnCheck`). */
+export const LINE_TOUCH_TOL = 0.02;
+/** Cuánto (m) puede sobresalir el chasis de la zona y aun así contar como adentro (la cinta cuenta como adentro). */
+export const ZONE_TOL = 0.01;
+
+export type SpawnReason = 'outside' | 'noLine';
+
+/**
+ * ¿Puede guardarse esta pose como lugar de inicio? Como el punto de aparición de MoSim: el robot se
+ * maneja libre, pero solo se guarda si cumple lo de §4.1 y toca la línea.
+ * - Adentro: el chasis completo dentro de su Zona de Inicio (§3.2.1, §4.1; D31).
+ * - Toca la línea: el borde del chasis (con el giro) llega a la cinta de su zona a ≤ 2 cm. El manual
+ *   no dice que el robot deba tocar la cinta al acomodarse: es **SUPUESTO** copiado de MoSim (Xhavi,
+ *   16-nov: "no te deja aceptar si no está tocando la línea").
+ * Devuelve el lugar ya recortado a la zona (`clampSpot`) cuando es válido.
+ */
+export function spawnCheck(
+  length: number,
+  width: number,
+  a: Alliance,
+  station: 0 | 1,
+  pose: { x: number; z: number; heading: number },
+): { ok: boolean; reason: SpawnReason | null; spot: StartSpot } {
+  const raw = spotFromPose(a, station, pose);
+  const r = spotRoom(length, width, raw.turn);
+  const over = Math.max(Math.abs(raw.dx) - r.x, Math.abs(raw.dz) - r.z);
+  const inside = r.x >= -ZONE_TOL && r.z >= -ZONE_TOL && over <= ZONE_TOL;
+  if (!inside) return { ok: false, reason: 'outside', spot: raw };
+  const spot = clampSpot(length, width, raw);
+  // Distancia del borde del chasis a cada tramo de cinta que da a su zona (marco rojo)
+  const zone = F.START_ZONES_RED[station];
+  const h = halfExtents(length, width, spot.turn);
+  const c = zoneCenterRed(station);
+  const cx = c.x + spot.dx;
+  const cz = c.z + spot.dz;
+  const eps = 1e-6;
+  let touch = false;
+  for (const [x0, z0, x1, z1] of F.START_TAPE_RED) {
+    if (Math.abs(x0 - x1) < eps) {
+      // Cinta vertical (x fijo) sobre un borde de X de la zona
+      if (Math.min(z0, z1) > zone.z1 - eps || Math.max(z0, z1) < zone.z0 + eps) continue;
+      if (Math.abs(x0 - zone.x1) < eps) touch ||= zone.x1 - (cx + h.x) <= LINE_TOUCH_TOL;
+      else if (Math.abs(x0 - zone.x0) < eps) touch ||= cx - h.x - zone.x0 <= LINE_TOUCH_TOL;
+    } else {
+      // Cinta horizontal (z fijo) sobre un borde de Z de la zona
+      if (Math.min(x0, x1) > zone.x1 - eps || Math.max(x0, x1) < zone.x0 + eps) continue;
+      if (Math.abs(z0 - zone.z1) < eps) touch ||= zone.z1 - (cz + h.z) <= LINE_TOUCH_TOL;
+      else if (Math.abs(z0 - zone.z0) < eps) touch ||= cz - h.z - zone.z0 <= LINE_TOUCH_TOL;
+    }
+  }
+  return touch ? { ok: true, reason: null, spot } : { ok: false, reason: 'noLine', spot };
+}

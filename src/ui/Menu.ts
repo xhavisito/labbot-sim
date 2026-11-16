@@ -42,6 +42,8 @@ const esc = (v: string): string => v.replace(/[&<>"']/g, (c) => `&#${c.charCodeA
 export interface MenuHooks {
   view(v: 'orbit' | 'robot'): void;
   preview(player: number): void;
+  /** Punto de aparición: entrar al modo, guardar (false si aún no cumple), restablecer o cancelar. */
+  spawn(cmd: 'enter' | 'save' | 'reset' | 'cancel'): boolean;
 }
 
 /** Logo de cada equipo en el selector de robots (public/logos). los que no tengan usan el boceto. */
@@ -214,7 +216,7 @@ export class Menu {
     private settings: Settings,
     private onSettings: (s: Settings) => void,
     private input: InputManager,
-    private hooks: MenuHooks = { view: () => undefined, preview: () => undefined },
+    private hooks: MenuHooks = { view: () => undefined, preview: () => undefined, spawn: () => false },
   ) {
     this.root = document.createElement('div');
     host.appendChild(this.root);
@@ -321,7 +323,7 @@ export class Menu {
 
   /**
    * Selección de robot (un jugador o pantalla dividida): Ajustes del match, lista de robots y Empezar.
-   * Punto de aparición, Intensidad de vibración y Rango de Outpost son controles visuales sin efecto.
+   * Punto de aparición abre `spawnScreen`; Intensidad de vibración y Rango de Outpost son controles visuales sin efecto.
    */
   robotSelect(split: boolean): void {
     this.hooks.view('robot');
@@ -339,7 +341,7 @@ export class Menu {
     const devOpts = VERSUS_DEVICES.map((d) => [d, t(`vs_dev_${d}` as Key)] as [string, string]);
     const cards = ids.map((id) => `<button class="card ${id === curId ? 'sel' : ''}" data-rid="${id}" title="${robotDesc(id)}">${robotIcon(id)}<span>${robotName(id)}</span></button>`).join('');
     const stubs = `
-      ${this.moRow(t('mo_spawn'), `<button class="mo-btn" data-stub="1">${t('mo_customize')}</button>`, true)}
+      ${this.moRow(t('mo_spawn'), `<button class="mo-btn" data-act="spawn">${t('mo_customize')}</button>`)}
       ${this.moRow(t('mo_rumble'), this.moSlider(0, 100, 1, 60, false), true)}`;
     const alliance = (i: 1 | 2) => (i === 1 ? this.player < 2 : (this.player < 2) !== (v.team !== 'same'));
     const right = split
@@ -406,9 +408,49 @@ export class Menu {
       this.moActive = this.moActive === 1 ? 2 : 1;
       this.robotSelect(split);
     });
+    this.on('[data-act="spawn"]', () => this.spawnScreen(() => this.robotSelect(split)));
     this.on('[data-act="tips"]', () => this.moTips(() => this.robotSelect(split), curId));
     this.on('[data-act="back"]', () => this.playMenu());
     this.on('[data-act="start"]', () => this.onStart({ mode: split ? 'versus' : this.moMode, player: this.player, ready: true }));
+  }
+
+  /**
+   * Punto de aparición (como el de MoSim): manejas tu robot en la cancha para elegir dónde empieza el match.
+   * Guardar solo se puede si el robot está en su Zona de Inicio y toca la línea (`spawnCheck`); si no,
+   * queda deshabilitado y el aviso dice por qué. `back` vuelve a la selección de robot.
+   */
+  spawnScreen(back: () => void): void {
+    this.hooks.spawn('enter');
+    this.open(
+      `<div class="mo-overlay sp-overlay">
+        <div class="sp-left">
+          <button class="sp-btn" data-act="cancel"><span>←</span> ${t('sp_cancel')}</button>
+          <button class="sp-btn" data-act="save" disabled><span>✓</span> ${t('sp_save')}</button>
+        </div>
+        <div class="sp-banner"><p>${t('sp_hint')}</p><p class="sp-status" data-sp="status" aria-live="polite"></p></div>
+        <button class="sp-btn sp-reset" data-act="reset">${t('sp_reset')}</button>
+      </div>`,
+      'screen mo',
+    );
+    this.on('[data-act="cancel"]', () => {
+      this.hooks.spawn('cancel');
+      back();
+    });
+    this.on('[data-act="save"]', () => {
+      if (this.hooks.spawn('save')) back();
+    });
+    this.on('[data-act="reset"]', () => this.hooks.spawn('reset'));
+    (this.root.querySelector('[data-act="cancel"]') as HTMLElement | null)?.blur();
+  }
+
+  /** Estado del modo de punto de aparición (lo llama la app al cambiar): botón Guardar y aviso del motivo. */
+  spawnStatus(st: { ok: boolean; reason: 'outside' | 'noLine' | null; fwd: number; right: number; deg: number }): void {
+    const save = this.root.querySelector<HTMLButtonElement>('[data-act="save"]');
+    const msg = this.root.querySelector<HTMLElement>('[data-sp="status"]');
+    if (!save || !msg) return;
+    save.disabled = !st.ok;
+    msg.className = `sp-status ${st.ok ? 'ok' : 'bad'}`;
+    msg.textContent = st.ok ? t('sp_ok', { f: st.fwd, r: st.right, d: st.deg }) : t(st.reason === 'outside' ? 'sp_outside' : 'sp_noLine');
   }
 
   /** Consejos: qué hace el robot elegido y los controles actuales. */
