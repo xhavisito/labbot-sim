@@ -2,7 +2,7 @@ import { beforeAll, describe, expect, it } from 'vitest';
 import * as F from '../src/config/field';
 import { PIVOT_ROBOT } from '../src/config/robot';
 import { DEFAULT_SETTINGS, sanitizeSettings } from '../src/config/settings';
-import { CENTER_SPOT, clampSpot, sanitizeSpot, spotPose, spotRoom, spotValid } from '../src/config/startSpot';
+import { CENTER_SPOT, clampSpot, sanitizeSpot, spotPose, spotRoom, spotValid , spawnCheck, spotFromPose } from '../src/config/startSpot';
 import { GameSession } from '../src/game/GameSession';
 import { initRapier } from '../src/physics/PhysicsWorld';
 
@@ -90,5 +90,42 @@ describe('posición de inicio en la física', () => {
       const other = g.robots.find((o) => o !== r)!;
       expect(other.phys.position().x).toBeCloseTo(spotPose(other.alliance, other.station).x, 2);
     }
+  });
+});
+
+describe('punto de aparición (spawnCheck)', () => {
+  const L = 0.6;
+  const W = 0.6;
+  it('spotFromPose es la inversa de spotPose', () => {
+    for (const a of ['red', 'blue'] as const)
+      for (const st of [0, 1] as const) {
+        const s = { dx: 0.1, dz: -0.05, turn: 0.4 };
+        const back = spotFromPose(a, st, spotPose(a, st, s));
+        expect(back.dx).toBeCloseTo(s.dx, 9);
+        expect(back.dz).toBeCloseTo(s.dz, 9);
+        expect(back.turn).toBeCloseTo(s.turn, 9);
+      }
+  });
+  it('al centro de la zona: adentro pero sin tocar la línea', () => {
+    const r = spawnCheck(L, W, 'red', 0, spotPose('red', 0, CENTER_SPOT));
+    expect(r.ok).toBe(false);
+    expect(r.reason).toBe('noLine');
+  });
+  it('pegado a la cinta de su zona: se puede guardar (rojo y azul)', () => {
+    for (const a of ['red', 'blue'] as const)
+      for (const st of [0, 1] as const) {
+        const room = spotRoom(L, W, 0);
+        // Estación 0: cinta en +X y +Z; estación 1: en −X y −Z
+        const sgn = st === 0 ? 1 : -1;
+        const r = spawnCheck(L, W, a, st, spotPose(a, st, { dx: sgn * room.x, dz: 0, turn: 0 }));
+        expect(r.ok).toBe(true);
+        expect(spotValid(L, W, r.spot)).toBe(true);
+      }
+  });
+  it('fuera de la zona: no se puede', () => {
+    const p = spotPose('red', 0, CENTER_SPOT);
+    const r = spawnCheck(L, W, 'red', 0, { ...p, x: p.x - 1.5 });
+    expect(r.ok).toBe(false);
+    expect(r.reason).toBe('outside');
   });
 });
