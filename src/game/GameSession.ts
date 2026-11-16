@@ -14,7 +14,7 @@ import { Team } from '../ai/Team';
 import { AUTO_REF_SPEED, AutoRunner, LEAVE_ZONE, type AutoOutput, type AutoRoutine } from '../auto/AutoRoutine';
 import * as F from '../config/field';
 import { GAME, type GameConfig } from '../config/game';
-import { DEFAULT_ROBOT, intakeOf, type RobotSpec } from '../config/robot';
+import { DEFAULT_ROBOT, critSeat, intakeOf, type RobotSpec } from '../config/robot';
 import type { StartSpot } from '../config/startSpot';
 import { isTeleop, robotsEnabled, type Phase } from '../core/clock';
 import { DEFAULT_DAMAGE, type DamageSettings } from '../core/damage';
@@ -152,6 +152,7 @@ export class GameSession {
   private robotViews: RobotView[] = [];
   /** Robots de pinza cuyo botón de garra sigue presionado (para contar una sola pulsación). */
   private intakeHeld = new Set<number>();
+  private critKeyHeld = new Set<number>();
   private ghostMesh: THREE.Group | null = null;
   private autos: AutoRunner[] = [];
   /** IA de cada robot (AUTO de IA y/o TELEOP), coordinada por alianza en un `Team`. */
@@ -391,10 +392,23 @@ export class GameSession {
       if (inp.intake) this.intakeHeld.add(r.index);
       else this.intakeHeld.delete(r.index);
     } else {
-      if (inp.intake && !m.critical && m.grabCritical(this.stepMechEvents)) a.grabCritical = true;
+      // Con Garrita (Psycho) la Crítica se toma solo con su interruptor (tecla 4), no con la tecla de la garra
+      if (inp.intake && !m.critical && !critSeat(r.spec) && m.grabCritical(this.stepMechEvents)) a.grabCritical = true;
       if (m.intakeOn !== inp.intake) a.intake = m.intakeOn = inp.intake;
     }
-    if (inp.elevator !== null) a.elevator = m.target = inp.elevator;
+    if (inp.elevator === 4 && critSeat(r.spec)) {
+      // Garrita fija (Psycho): la tecla 4 es un interruptor de la garra de la Crítica; no sube el brazo (Xhavi, 16-nov)
+      if (!this.critKeyHeld.has(r.index)) {
+        const had = m.critical !== null;
+        m.toggleCritClaw(this.stepMechEvents);
+        if (!had && m.critical) a.grabCritical = true;
+        else if (had && !m.critical) a.releaseCritical = true;
+      }
+      this.critKeyHeld.add(r.index);
+    } else {
+      this.critKeyHeld.delete(r.index);
+      if (inp.elevator !== null) a.elevator = m.target = inp.elevator;
+    }
     if (inp.releaseSample) {
       if (m.critical) a.releaseCritical = m.release('critical', this.stepMechEvents) || undefined;
       else a.release = m.release('sample', this.stepMechEvents) || undefined;

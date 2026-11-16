@@ -491,7 +491,8 @@ export class RobotView {
   private animateCritClaw(dt: number): void {
     const cc = intakeOf(this.robot.spec).critClaw;
     if (!cc || !this.critFingers.length) return;
-    const want = this.robot.mech.critical !== null ? 1 : 0;
+    // Con la Crítica adentro cierra hasta tocarla; cerrada en vacío (interruptor, tecla 4) llega a 75 % (SUPUESTO)
+    const want = this.robot.mech.critical !== null ? 1 : this.robot.mech.critClawClosed ? 0.75 : 0;
     this.critNow += Math.max(-dt / 0.25, Math.min(dt / 0.25, want - this.critNow));
     for (const f of this.critFingers) f.g.rotation.y = f.side * this.critNow * ((cc.closeDeg * Math.PI) / 180);
   }

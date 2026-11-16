@@ -142,3 +142,42 @@ describe('Psycho con la IA: toma la Crítica y la deja en la Repisa', () => {
     expect(r.red.samples).toBeGreaterThan(5);
   }, 120_000);
 });
+
+describe('Psycho: la tecla 4 es un interruptor de la Garrita', () => {
+  const key4 = { elevator: 4 as const };
+  const press = (g: GameSession) => {
+    const base = { forward: 0, turn: 0, elevator: null, intake: false, releaseSample: false } as never as Parameters<GameSession['setInput']>[0];
+    g.setInput({ ...base, ...key4 });
+    g.setInput(base); // suelta la tecla
+  };
+
+  it('un toque cierra (toma la Crítica) y otro abre (la suelta), sin subir el brazo', () => {
+    const g = new GameSession({ player: 0, preload: false, specs: [spec()] });
+    const r = g.player;
+    r.phys.teleport(2.6, -1.2, 0);
+    const c = g.pieces.critical(r.alliance);
+    const at = r.phys.localToWorld(0.42, 0, 0);
+    g.pieces.place(c, at.x, 0.71, at.z, 0);
+    const target0 = r.mech.target;
+    press(g);
+    expect(r.mech.target).toBe(target0);
+    expect(r.mech.critClawClosed).toBe(true);
+    expect(r.mech.critical).toBe(c);
+    press(g);
+    expect(r.mech.target).toBe(target0);
+    expect(r.mech.critClawClosed).toBe(false);
+    expect(r.mech.critical).toBeNull();
+  });
+
+  it('sin Crítica a la mano también cierra en vacío y vuelve a abrir', () => {
+    const g = new GameSession({ player: 0, preload: false, specs: [spec()] });
+    const r = g.player;
+    r.phys.teleport(0, 0, 0);
+    press(g);
+    expect(r.mech.critClawClosed).toBe(true);
+    expect(r.mech.critical).toBeNull();
+    expect(r.mech.target).toBe(0);
+    press(g);
+    expect(r.mech.critClawClosed).toBe(false);
+  });
+});

@@ -197,6 +197,13 @@ export class Mechanisms {
   clawClosed = false;
   /** Segundos que le quedan a la garra recién cerrada para tomar una Muestra; pasado eso queda cerrada sin recoger más. */
   private closeWindow = 0;
+  /**
+   * Garrita de Psycho (`IntakeSpec.critClaw`) con interruptor, como la pinza de Axiom (Xhavi, 16-nov): la tecla 4 la cierra o la abre
+   * sin mover el brazo. Cierra sin saber si hay Crítica: si el cubo está en la ventana la toma; si no, queda cerrada vacía. Abrir la suelta.
+   */
+  critClawClosed = false;
+  /** Segundos que le quedan a la Garrita recién cerrada para tomar la Crítica (SUPUESTO: lo que tarda en cerrar). */
+  private critWindow = 0;
   readonly stored: Piece[] = [];
   critical: Piece | null = null;
   target: ElevatorPos = 0;
@@ -307,6 +314,10 @@ export class Mechanisms {
         }
       } else this.transferT = 0;
     }
+    if (this.critClawClosed && this.critWindow > 0) {
+      this.critWindow = Math.max(0, this.critWindow - dt);
+      if (!this.critical) this.grabCriticalFixed(events);
+    }
     this.cooldown = Math.max(0, this.cooldown - dt);
     this.ejectT = Math.max(0, this.ejectT - dt);
     this.shotSpinT = Math.max(0, this.shotSpinT - dt);
@@ -339,6 +350,23 @@ export class Mechanisms {
       this.closeWindow = 0;
       this.closing = null;
     }
+  }
+
+  /**
+   * Tecla 4 de un robot con Garrita (`critClaw`): interruptor. Cierra (toma la Crítica si está en la ventana, si no queda cerrada
+   * en vacío) o abre (suelta la Crítica en su asiento). No mueve el brazo. Devuelve si quedó cerrada.
+   */
+  toggleCritClaw(events: MechEvent[]): boolean {
+    if (!this.critClawClosed) {
+      this.critClawClosed = true;
+      this.critWindow = 0.45; // SUPUESTO: tarda ~0.45 s en cerrar
+      if (!this.critical) this.grabCriticalFixed(events);
+    } else {
+      this.critClawClosed = false;
+      this.critWindow = 0;
+      if (this.critical) this.release('critical', events, true);
+    }
+    return this.critClawClosed;
   }
 
   /** Pone los colisionadores del brazo y la garra donde está el brazo (con la pieza que lleva). */
@@ -650,6 +678,10 @@ export class Mechanisms {
     }
     const piece = kind === 'critical' ? this.critical : this.stored[this.stored.length - 1];
     if (!piece) return false;
+    if (kind === 'critical') {
+      this.critClawClosed = false;
+      this.critWindow = 0;
+    }
     // Garra con rodillos: sale de su lugar en la fila (la de afuera primero)
     const rollers = kind === 'sample' && intakeOf(this.phys.spec).rollers === true;
     // Muestras en la rampa del lanzador al tirar (la que sale cuenta): más cargado, más débil el tiro
@@ -794,6 +826,8 @@ export class Mechanisms {
     this.intakeOn = false;
     this.clawClosed = false;
     this.closeWindow = 0;
+    this.critClawClosed = false;
+    this.critWindow = 0;
     this.target = 0;
     this.height = this.phys.spec.elevatorHeights[0];
     this.closing = null;
