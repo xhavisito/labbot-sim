@@ -27,7 +27,8 @@
  * con la primera Muestra). Ahí queda agarrada; la segunda entra igual y se queda en fila detrás de la
  * primera (`seatX`). Si algo la detiene (otro robot, la pared) el robot no "la teletransporta".
  */
-import { inCamara } from '../config/field';
+import { camaraWells, inCamara, rectForCamara } from '../config/field';
+import { shotVelocity } from './shooter';
 import { CLAW_GAP, armTip, canHoldCritical, clawOf, intakeOf, posAngle, posDir, seatX, type ElevatorPos, type GripMode } from '../config/robot';
 import { SAMPLE_SIZE } from '../config/field';
 import { FLOOR_POSE, clawDir } from '../physics/RobotPhysics';
@@ -171,6 +172,10 @@ const EJECT_COOLDOWN = 0.35;
 /** Mientras sale de la caja, la Muestra no choca con el brazo: hasta que se aleja `EXIT_CLEAR` m de la punta o pasan `EXIT_MAX` s. */
 const EXIT_CLEAR = 0.32;
 const EXIT_MAX = 0.9;
+/** Lanzador: altura (m) sobre la apertura del nivel a la que apunta el centro de la Muestra al llegar al pozo (SUPUESTO, afinado con pruebas). */
+/** Segundos que la Muestra lanzada no choca con el robot (sale de la rampa por dentro de sus placas). */
+const SHOT_EXIT = 0.25;
+export const SHOT_AIM_ABOVE = 0.12;
 
 export class Mechanisms {
   intakeOn = false;
@@ -207,6 +212,7 @@ export class Mechanisms {
   /** Muestra que está saliendo de la caja sin chocar con el brazo (y segundos que le quedan así). */
   private leaving: Piece | null = null;
   private leavingT = 0;
+  private leavingShot = false;
   /** Muestras que los rodillos están tocando ahora (para el dibujo y las pruebas). */
   rollerContacts = 0;
 
@@ -581,21 +587,39 @@ export class Mechanisms {
       loc = { x: lx, y: this.height + size / 2 };
       vl = { x: push ? spit * dir : 0, y: 0 };
     }
+    // Lanzador (Phoenix): en N1–N3 la Muestra sale disparada hacia el pozo de ese nivel; sale de la boca del lanzador si el CAD la fija
+    const shooter = kind === 'sample' && !force && this.target >= 1 && this.target <= 3 ? intake.shooter : undefined;
+    if (shooter?.muzzle) loc = { x: shooter.muzzle.x, y: shooter.muzzle.y };
     const at = p.localToWorld(loc.x, loc.y, 0);
     const v = p.body.linvel();
     const wy = p.body.angvel().y;
     const rp = p.position();
     // v del punto = v + ω_chasis × r (sin la parte vertical del giro del chasis, que no se da)
-    const vx = v.x + wy * (at.z - rp.z) + Math.cos(h) * vl.x;
-    const vz = v.z - wy * (at.x - rp.x) - Math.sin(h) * vl.x;
+    let vx = v.x + wy * (at.z - rp.z) + Math.cos(h) * vl.x;
+    let vz = v.z - wy * (at.x - rp.x) - Math.sin(h) * vl.x;
+    // La velocidad la pide la distancia (como una tabla de tiro); el rumbo es el del robot, así que hay que apuntar, y cada tiro varía un poco
+    let vy = vl.y;
+    if (shooter) {
+      const level = this.target as 1 | 2 | 3;
+      const well = camaraWells()[level];
+      const r = rectForCamara(this.alliance, well);
+      const dist = Math.max(0.3, (((r.x0 + r.x1) / 2 - at.x) * Math.cos(h)) - (((r.z0 + r.z1) / 2 - at.z) * Math.sin(h)));
+      const sh = shotVelocity(shooter, dist, well.rim + SHOT_AIM_ABOVE - at.y, this.rand);
+      const hy = h + sh.yaw;
+      vx = v.x + wy * (at.z - rp.z) + Math.cos(hy) * sh.speed * Math.cos(sh.pitch);
+      vz = v.z - wy * (at.x - rp.x) - Math.sin(hy) * sh.speed * Math.cos(sh.pitch);
+      vy = sh.speed * Math.sin(sh.pitch);
+    }
     // Con la caja del CAD, la Muestra sale con la inclinación de la caja (igual que la lleva)
     const tilt = rollers && p.rigidFloorAngle !== null ? this.angle - p.rigidFloorAngle : 0;
-    this.pieces.place(piece, at.x, at.y, at.z, h, { x: vx, y: vl.y, z: vz }, tilt);
-    if (tilt !== 0) {
+    this.pieces.place(piece, at.x, at.y, at.z, h, { x: vx, y: vy, z: vz }, tilt);
+    if (tilt !== 0 || shooter) {
       this.finishLeaving();
-      piece.collider.setCollisionGroups(GROUPS.pieceLeaving);
+      // Tiro: sale por dentro del robot (la rampa va entre sus placas), así que no choca con él hasta salir
+      piece.collider.setCollisionGroups(shooter ? GROUPS.pieceShot : GROUPS.pieceLeaving);
       this.leaving = piece;
-      this.leavingT = EXIT_MAX;
+      this.leavingShot = !!shooter;
+      this.leavingT = shooter ? SHOT_EXIT : EXIT_MAX;
     }
     piece.lastRobot = p.index;
     this.cooldown = EJECT_COOLDOWN;
@@ -617,7 +641,7 @@ export class Mechanisms {
     if (!l) return;
     this.leavingT -= dt;
     let clear = this.leavingT <= 0 || l.state.at !== 'field';
-    if (!clear) {
+    if (!clear && !this.leavingShot) {
       const t = l.body.translation();
       const p = this.phys.worldToLocalFlat(t.x, t.z);
       clear = Math.hypot(p.lx - this.tipX(), t.y - this.height) > EXIT_CLEAR;

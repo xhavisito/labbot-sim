@@ -46,6 +46,8 @@ export const GROUPS = {
   /** Viga del brazo, garra (dedos y placa) y pieza agarrada: chocan con todo menos la alfombra (D34). */
   /** La Muestra recién soltada de la caja del CAD: no choca con el brazo mientras sale (si no, se atora entre las placas). */
   pieceLeaving: groups(G.PIECE, G.FLOOR | G.FIELD | G.BOUNDARY | G.ROBOT | G.PIECE),
+  /** Muestra lanzada: no choca con el robot ni con su brazo mientras sale de la rampa. */
+  pieceShot: groups(G.PIECE, G.FLOOR | G.FIELD | G.BOUNDARY | G.PIECE),
   arm: groups(G.ARM, G.FIELD | G.BOUNDARY | G.ROBOT | G.PIECE | G.ARM),
 };
 

@@ -210,7 +210,7 @@ export class RobotView {
           this.wheels.push({ mesh: spin, side: side > 0 ? 1 : 0, flip: side < 0 });
         }
     }
-    if (s.model && !a.linear && !a.stowTip) void this.useModel(s.model, color, W);
+    if (s.model) void this.useModel(s.model, color, W);
   }
 
   /** Dibuja el robot del CAD: el chasis y la torre quietos, el brazo con la garra girando en el pivote. */
@@ -222,7 +222,9 @@ export class RobotView {
       console.warn('[cad] no se pudo cargar el modelo', m.url, e);
       return; // se queda el dibujo genérico
     }
-    const arm = scene.getObjectByName('brazo');
+    // Robot sin brazo que gira (Phoenix): el nodo `brazo` va vacío y todo el modelo es estático
+    const arm0 = scene.getObjectByName('brazo');
+    const arm = arm0 && arm0.children.length ? arm0 : undefined;
     if (arm) {
       // Piezas que se mueven con el brazo aunque el CAD las tenga en el chasis (attach conserva su pose)
       if (m.armParts) {

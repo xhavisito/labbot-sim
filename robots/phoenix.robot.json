@@ -3,173 +3,77 @@
   "name": "Phoenix",
   "mechanism": "elevator",
   "spec": {
-    "length": 0.6933,
-    "width": 0.6684,
-    "baseHeight": 0.64,
+    "length": 0.6684,
+    "width": 0.64,
+    "baseHeight": 0.7295,
     "footprint": [
       [
-        -0.3466,
-        -0.3266,
-        -0.2942,
-        -0.1542
+        -0.316,
+        0.334,
+        -0.32,
+        -0.223
       ],
       [
-        -0.3466,
-        -0.3266,
-        -0.0942,
-        0.0858
+        -0.316,
+        0.334,
+        0.223,
+        0.32
       ],
       [
-        -0.3466,
-        -0.3266,
-        0.1258,
-        0.2858
-      ],
-      [
-        -0.3266,
-        -0.2866,
-        -0.3342,
-        0.0858
-      ],
-      [
-        -0.3266,
-        -0.2866,
-        0.1058,
-        0.3058
-      ],
-      [
-        -0.2866,
-        -0.1666,
-        -0.3342,
-        0.3258
-      ],
-      [
-        -0.1666,
-        -0.1466,
-        -0.3342,
-        0.3342
-      ],
-      [
-        -0.1466,
-        -0.0866,
-        0.2258,
-        0.3342
-      ],
-      [
-        -0.1066,
-        -0.0866,
-        -0.0542,
-        0.0858
-      ],
-      [
-        -0.0866,
-        -0.0266,
-        -0.2142,
-        0.0858
-      ],
-      [
-        -0.0866,
-        -0.0266,
-        0.2458,
-        0.2858
-      ],
-      [
-        -0.0266,
-        -0.0066,
-        -0.2142,
-        -0.0342
-      ],
-      [
-        -0.0066,
-        0.0334,
-        -0.2142,
-        -0.1142
-      ],
-      [
-        -0.0266,
-        0.0534,
-        0.1458,
-        0.2858
-      ],
-      [
-        0.0734,
-        0.0934,
-        0.1858,
-        0.2258
-      ],
-      [
-        0.0334,
-        0.1334,
-        -0.2142,
-        0.0058
-      ],
-      [
-        0.0934,
-        0.1334,
-        0.1058,
-        0.2258
-      ],
-      [
-        0.1334,
-        0.1734,
-        -0.2142,
-        -0.1142
-      ],
-      [
-        0.1734,
-        0.1934,
-        -0.2142,
-        -0.0742
-      ],
-      [
-        0.1334,
-        0.2334,
-        0.1058,
-        0.2058
-      ],
-      [
-        0.1934,
-        0.2334,
-        -0.2142,
-        -0.0542
-      ],
-      [
-        0.2334,
-        0.2734,
-        -0.1742,
-        -0.0542
-      ],
-      [
-        0.2334,
-        0.2734,
-        0.1258,
-        0.1658
-      ],
-      [
-        0.2734,
-        0.2934,
-        -0.1542,
-        -0.0742
-      ],
-      [
-        0.2734,
-        0.2934,
-        0.0258,
-        0.1658
-      ],
-      [
-        0.2934,
-        0.3466,
-        0.0258,
-        0.1458
+        0.103,
+        0.334,
+        -0.223,
+        0.223
       ]
-    ]
+    ],
+    "wheel": {
+      "r": 0.0762,
+      "xs": [
+        -0.208,
+        0.009,
+        0.227
+      ],
+      "z": 0.27,
+      "width": 0.025
+    },
+    "arm": {
+      "pivotX": -0.2,
+      "pivotY": 0,
+      "length": 0.1,
+      "speed": 4,
+      "linear": true,
+      "rearClaw": true
+    },
+    "elevatorHeights": [
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "capacity": 1,
+    "intake": {
+      "gap": 0.28,
+      "fingerLength": 0.2,
+      "noCritical": true,
+      "shooter": {
+        "pitch": 1.1589,
+        "maxSpeed": 6.5,
+        "speedSigma": 0.04,
+        "yawSigma": 0.025,
+        "range": 1.0,
+        "muzzle": {
+          "x": 0.0125,
+          "y": 0.6175
+        }
+      }
+    }
   },
   "source": {
     "file": "EnsambleCoregido.STEP",
     "parts": 147,
-    "up": "y",
-    "forward": "+z",
+    "up": "z",
+    "forward": "+x",
     "unitScale": 0.001,
     "bboxM": [
       0.6684,
@@ -178,12 +82,17 @@
     ]
   },
   "supuestos": [
-    "no hay piezas cuyo nombre empiece con \"Chasis\": el chasis es todo lo que no es garra/brazo/elevador",
-    "eje vertical y (convención de SolidWorks); usa --up para cambiarlo",
-    "frente detectado como +z (lado donde anota, opuesto a la garra); usa --forward para fijarlo",
-    "mecanismo \"elevator\" deducido de los nombres de las piezas",
-    "altura del elevador guardado 0.4755 m; las alturas de los niveles son las del preset (SUPUESTO)",
-    "masa del preset (el STEP no la trae); pásala con --mass",
-    "velocidades y tracción del preset (el manual no las fija, §7.2)"
-  ]
+    "eje vertical = z del CAD (las llantas de 6 in quedan abajo y la Bellypan es el piso del chasis); frente = +x (la rampa sube hacia ah\u00ed y la Placa frente est\u00e1 de ese lado)",
+    "DEL CAD: chasis 0.668 \u00d7 0.64 m y 0.73 m de alto; 6 llantas HiGrip de 6 in (3 por lado, x \u22120.208/0.009/0.227 m, a \u00b10.27 m del centro); huella a ras de piso: laterales de 0.223 a 0.32 m, Bellypan y Placa frente adelante de x 0.103 m, y el canal de 0.446 m abierto por atr\u00e1s (los rodillos de 3 in van a m\u00e1s de 18 cm de altura, no estorban a una Muestra en el piso); rampa de rodillos compliant de 3 in a 66.4\u00b0 (la boca de salida en x 0.0125 m, y 0.6175 m); intake con compliants de 3 in",
+    "SUPUESTO: recoge por el canal trasero a ras de piso (en el pie de la rampa, x \u22120.2 m): el CAD no dice c\u00f3mo entra la Muestra; la garra del simulador (compliants, 0.28 m de apertura, 0.2 m de largo) la representa",
+    "SUPUESTO: lleva una sola Muestra (capacity 1) aunque la rampa alcanzar\u00eda varias; sin mecanismo para la Muestra Cr\u00edtica (el CAD no trae uno); la rampa no se mueve, por eso los niveles N1\u2013N3 comparten la misma altura",
+    "SUPUESTO: velocidad de salida m\u00e1xima 6.5 m/s, variaci\u00f3n de 4 % en la velocidad y 1.4\u00b0 en el rumbo por tiro (el CAD no trae motores con rpm ni reducciones)",
+    "SUPUESTO: la Placa frente y la Placa detr\u00e1s toman el color de la alianza (el resto va con los colores del CAD)",
+    "masa, velocidades de manejo y tracci\u00f3n del preset (el STEP no los trae); p\u00e1sala con --mass",
+    "las llantas no giran en pantalla: el modelo del CAD va est\u00e1tico (no se sabe qu\u00e9 piezas se mueven)"
+  ],
+  "model": {
+    "url": "robots/phoenix.glb",
+    "tint": "^Placa (frente|detras)$"
+  }
 }

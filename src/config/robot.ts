@@ -67,6 +67,8 @@ export interface ArmSpec {
    * ángulo (−π/2…π/2) lo recorre de forma lineal: y = pivotY + length·(2a/π), x = pivotX.
    */
   linear?: boolean;
+  /** Elevador con la garra atrás (Phoenix: recoge de reversa por el canal trasero): la garra abre hacia −x. */
+  rearClaw?: boolean;
   /**
    * Punta (x, y locales) con el brazo plegado: con ángulos mayores a π/2 (el de guardado es π) la
    * punta pasa linealmente de la posición con el brazo arriba (π/2) a esta. Lo usa el brazo largo y el
@@ -184,7 +186,30 @@ export interface IntakeSpec {
    * cuenta como suya y la IA y el HUD lo tratan así. Quitar la bandera la vuelve a activar.
    */
   noCritical?: boolean;
+  /** Lanzador (Phoenix): en N1–N3 la Muestra sale disparada hacia la Cámara en vez de soltarse. */
+  shooter?: ShooterSpec;
 }
+
+/**
+ * Lanzador de ruedas (Phoenix, Xhavi 16-nov). El manual no prohíbe lanzar (§7.2 solo limita tamaño, extensión y altura):
+ * todo es SUPUESTO de diseño. El ángulo es fijo; la velocidad se acomoda a la distancia al pozo (`game/shooter.ts`).
+ */
+export interface ShooterSpec {
+  /** Ángulo de salida sobre la horizontal (rad). */
+  pitch: number;
+  /** Velocidad máxima de las ruedas (m/s en la salida): más allá no llega. */
+  maxSpeed: number;
+  /** Variación de la velocidad (fracción, 1σ) y del rumbo (rad, 1σ) en cada tiro. */
+  speedSigma: number;
+  yawSigma: number;
+  /** Distancia horizontal de la boca al centro del pozo a la que la IA se pone a tirar (m). */
+  range: number;
+  /** Boca del lanzador en el sistema del robot (x al frente, y desde el piso), donde sale el centro de la Muestra. Sin ella, la punta de la garra. */
+  muzzle?: { x: number; y: number };
+}
+
+/** Lanzador por defecto de Phoenix (SUPUESTOS). */
+export const DEFAULT_SHOOTER: ShooterSpec = { pitch: (62 * Math.PI) / 180, maxSpeed: 6.5, speedSigma: 0.04, yawSigma: 0.025, range: 1.0 };
 
 /** Intake de los dos pivotes: garra con compliants, abierta 23 cm, dedos de 20 cm (D36, D37, D41). */
 export const DEFAULT_INTAKE: IntakeSpec = { kind: 'compliant', gap: mm(230), fingerLength: mm(200), rollerSpeed: 1.0, closeTime: 0.18 };
@@ -378,7 +403,7 @@ export function posAngle(s: RobotSpec, pos: ElevatorPos): number {
 }
 
 /** +1 si en esa posición la punta queda al frente del robot, −1 si atrás. */
-export const posDir = (s: RobotSpec, pos: ElevatorPos): 1 | -1 => (s.arm.pickBack && (pos === 0 || pos === 4) ? -1 : 1);
+export const posDir = (s: RobotSpec, pos: ElevatorPos): 1 | -1 => ((s.arm.pickBack || s.arm.rearClaw) && (pos === 0 || pos === 4) ? -1 : 1);
 
 /** Punta del brazo (local x, y) en una posición. */
 export const posTip = (s: RobotSpec, pos: ElevatorPos): { x: number; y: number } => armTip(s.arm, posAngle(s, pos));
