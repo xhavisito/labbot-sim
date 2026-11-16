@@ -56,13 +56,3 @@ Los lanza por `game/shooter.ts`: la velocidad se acomoda a la distancia al pozo 
 trasero a ras de piso, con la garra del simulador: `arm.rearClaw`), cuántas Muestras lleva (1), sin Muestra Crítica, velocidad máxima de salida
 (6.5 m/s), variación por tiro (4 % velocidad, 1.4° rumbo), masa y velocidades de manejo (preset), y qué placas toman el color de la alianza.
 El modelo es estático: no se sabe qué piezas se mueven, así que las llantas no giran en pantalla.
-
-## Axiom (16-nov, sin STEP): aproximación visual
-El STEP que llegó como Axiom (`EnsambleCoregido 2.STEP`) era idéntico al de Phoenix, así que no se usó, y Xhavi no pudo exportar el ensamble de Axiom.
-`robots/axiom.robot.json` sale **solo de sus medidas** (ancho 0.65 m, largo sin brazo 0.56 m, alto 0.64 m; largo con brazo 0.63 m: anotado, no modelado)
-y de **4 capturas de SolidWorks**. Su modelo 3D (`public/robots/axiom.glb`) es una **aproximación** hecha con cajas y cilindros por
-`node scripts/axiom/approx-model.mjs`, no del importador de STEP. `model.simpleClaw` deja la garra del simulador (dedos y placa) en lugar de una garra del CAD.
-**SUPUESTOS (todo lo que salga de las capturas):** mecanismo = pivote con garra; 4 llantas de 6 in (2 por lado); dos motores grandes por costado al frente;
-dos placas por lado (perfil recto, no inclinado); controlador y batería en el chasis; brazo de dos barras con placa ancha, de 0.46 m (el del preset no cabe en 0.56 m, §4.1/§7.2)
-guardado a 131° como el preset; garra, masa y velocidades del preset.
-**Se reemplaza cuando llegue el CAD:** `npm run robot:import -- <STEP> --name Axiom` (y se borra `scripts/axiom/`).
