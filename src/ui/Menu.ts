@@ -10,10 +10,10 @@ import { customById } from '../config/customRobots';
 import { allRobotIds, isCadId, robotSpec, type RobotId } from '../config/robotIds';
 import { GRIP_MODES } from '../config/robot';
 import { GAME } from '../config/game';
-import { VERSUS_CAMERAS, type VersusCamera } from '../config/settings';
+import { VERSUS_CAMERAS, VERSUS_DEVICES, type VersusCamera } from '../config/settings';
 import type { RobotStats } from '../replay/stats';
 import { versusOutcome, type DeviceHelpRow } from './versus';
-import { DEFAULT_SETTINGS, HUD_KEYS, PLAN_BOARDS, PRACTICE_LIMITS, REF_AUDIO_MODES, RIVALS, SETTINGS_RANGE, type HudKey, type PlanBoard, type RefAudioMode, type RivalKind, type Settings } from '../config/settings';
+import { DEFAULT_SETTINGS, FPS_LIMITS, HUD_KEYS, PLAN_BOARDS, PRACTICE_LIMITS, REF_AUDIO_MODES, RIVALS, SETTINGS_RANGE, type HudKey, type PlanBoard, type RefAudioMode, type RivalKind, type Settings } from '../config/settings';
 import { DAMAGE_LEVELS, type DamageLevel, type DamageTargets } from '../core/damage';
 import { buildRefereeReport } from '../core/refereeReport';
 import { refereeHtml } from './refereeView';
@@ -27,6 +27,7 @@ import { ACTIONS, assign, clampDeadzone, clearAction, DEADZONE_RANGE, cloneBindi
 import type { InputManager } from '../input/InputManager';
 import { CAMERA_MODES, type CameraMode } from '../render/CameraRig';
 import { padHelp } from './controlsHelp';
+import { keyboardHelp } from './controlsHelp';
 import { backBtn, brandbar, ic, kbds, langChips, robotSilhouette, UI_ALLIANCES, UI_SLOTS } from './chrome';
 import { formatPlaytime } from '../core/playtime';
 import { loadPlaytime } from '../game/playtimeStore';
@@ -232,50 +233,22 @@ export class Menu {
   }
 
   // ------------------------------------------------------------------ principal
+  /** Menú raíz estilo videojuego: la cancha gira de fondo y las opciones van abajo a la izquierda. */
   main(): void {
-    const s = this.settings;
     const fs = !!document.documentElement.requestFullscreen;
-    this.open(`
-      ${brandbar('', `<span class="pwa-chips" data-pwa></span>${SYS_LINKS.map((l) => `<button class="chipbtn icon-only" data-go="${l.go}" title="${t(l.label)}" aria-label="${t(l.label)}">${l.icon}</button>`).join('')}${langChips()}${fs ? `<button class="chipbtn" data-fs title="${t('fullscreen')}">${ic.expand}</button>` : ''}`)}
-      <div class="mm">
-        <div class="mm-left">
-          <h1 class="mm-title">LabBot <span>Rescue 2026</span></h1>
-          <button class="mm-hero" data-act="match">
-            <b>${t('match')}</b>
-            <small>${t('matchDesc')}</small>
-            <span class="mh-go">${ic.go}</span>
-          </button>
-          <button class="mm-hero alt" data-act="practice">
-            <b>${t('practice')}</b>
-            <small>${t('practiceDesc')}</small>
-            <span class="mh-go">${ic.go}</span>
-          </button>
-          <div class="mm-hubs">
-            ${HUBS.map((h) => `<button class="mm-hub" data-hub="${h.id}">${h.icon.replace('class="ic"', 'class="mi"')}<span class="mt-txt"><b>${t(h.title)}</b><small>${t(h.desc)}</small></span><i class="chev">${ic.go}</i></button>`).join('')}
-          </div>
-        </div>
-        <div class="mm-right">
-          <div class="bay">
-            <div class="bay-head"><span class="bay-label">${t('station')}</span></div>
-            <div class="stations">${UI_SLOTS.map((i) => `<button class="${i < 2 ? 'red' : 'blue'} ${i === this.player ? 'on' : ''}" data-slot="${i}"><i></i>${stationLabel(i)}</button>`).join('')}</div>
-            <div class="bay-head"><span class="bay-label">${t('yourRobot')}</span></div>
-            <div class="showcase">${robotSilhouette(robotSpec(s.robotType).mechanism)}<span class="dim">${chassisSize(s.robotType)} · ${t('robotType')}</span></div>
-            <div class="robotinfo" data-robotinfo></div>
-            <div class="playtime" title="${t('playtimeTip')}"><span>${t('playtime')}</span><b>${formatPlaytime(loadPlaytime().total)}</b></div>
-          </div>
-        </div>
-      </div>
-      <div class="mm-bottom">
-        <div>${t('disclaimer')}</div>
-      </div>`);
-    this.robotInfo();
+    this.open(
+      `<div class="mo-overlay">
+        <div class="mo-title"><h1>LabBot <span>Rescue 2026</span></h1><p>${t('disclaimer')}</p><small title="${t('playtimeTip')}">${t('playtime')}: ${formatPlaytime(loadPlaytime().total)}</small></div>
+        <div class="mo-top"><span class="pwa-chips" data-pwa></span>${SYS_LINKS.map((l) => `<button class="chipbtn icon-only" data-go="${l.go}" title="${t(l.label)}" aria-label="${t(l.label)}">${l.icon}</button>`).join('')}${langChips()}${fs ? `<button class="chipbtn" data-fs title="${t('fullscreen')}">${ic.expand}</button>` : ''}</div>
+        <nav class="mo-menu">
+          <button data-act="play">${t('mo_play')}</button>
+          ${HUBS.map((h) => `<button class="sm" data-hub="${h.id}">${t(h.title)}</button>`).join('')}
+        </nav>
+      </div>`,
+      'screen mo',
+    );
     this.pwaChips();
-    this.on('[data-slot]', (el) => {
-      this.player = Number(el.dataset.slot);
-      this.main();
-    });
-    this.on('[data-act="match"]', () => this.onStart({ mode: 'match', player: this.player }));
-    this.on('[data-act="practice"]', () => this.onStart({ mode: 'practice', player: this.player }));
+    this.on('[data-act="play"]', () => this.playMenu());
     this.on('[data-hub]', (el) => this.hub(el.dataset.hub as HubId));
     this.on('[data-go]', (el) => this.go(el.dataset.go as GoId));
     this.on('[data-lang]', (el) => {
@@ -287,7 +260,145 @@ export class Menu {
       if (document.fullscreenElement) void document.exitFullscreen();
       else void document.documentElement.requestFullscreen().catch(() => undefined);
     });
-    (this.root.querySelector('[data-act="match"]') as HTMLElement).focus({ preventScroll: true });
+    (this.root.querySelector('[data-act="play"]') as HTMLElement).focus({ preventScroll: true });
+  }
+
+  /** Jugar: "Jugar" tenue de título y las dos formas de entrar. */
+  playMenu(): void {
+    this.open(
+      `<div class="mo-overlay">
+        <div class="mo-title"><h1>LabBot <span>Rescue 2026</span></h1></div>
+        <nav class="mo-menu">
+          <span class="head">${t('mo_play')}</span>
+          <button data-act="single">${t('mo_single')}</button>
+          <button data-act="split">${t('mo_split')}</button>
+          <button data-act="back">${t('mo_back')}</button>
+        </nav>
+      </div>`,
+      'screen mo',
+    );
+    this.on('[data-act="single"]', () => this.robotSelect(false));
+    this.on('[data-act="split"]', () => this.robotSelect(true));
+    this.on('[data-act="back"]', () => this.main());
+    (this.root.querySelector('[data-act="single"]') as HTMLElement).focus({ preventScroll: true });
+  }
+
+  private moSelect(k: string, opts: Array<[string, string]>, cur: string): string {
+    return `<select data-mk="${k}">${opts.map(([v, l]) => `<option value="${v}" ${v === cur ? 'selected' : ''}>${l}</option>`).join('')}</select>`;
+  }
+
+  /** Fila de ajuste; `stub` = control visual sin efecto todavía. */
+  private moRow(label: string, control: string, stub = false): string {
+    return `<div class="mo-row ${stub ? 'stub' : ''}" ${stub ? `title="${t('mo_noEffect')}"` : ''}><span>${label}</span>${control}</div>`;
+  }
+
+  private moSlider(min: number, max: number, step: number, v: number, show: boolean): string {
+    return `<span class="mo-slide"><input type="range" min="${min}" max="${max}" step="${step}" value="${v}" data-stub="1">${show ? `<output>${v}</output>` : ''}</span>`;
+  }
+
+  private moMode: 'match' | 'practice' = 'match';
+  private moActive: 1 | 2 = 1;
+
+  /**
+   * Selección de robot (un jugador o pantalla dividida): Ajustes del match, lista de robots y Empezar.
+   * Punto de aparición, Intensidad de vibración y Rango de Outpost son controles visuales sin efecto.
+   */
+  robotSelect(split: boolean): void {
+    const s = this.settings;
+    const v = s.versus;
+    const side = this.moActive === 2 ? v.p2 : v.p1;
+    const ids = allRobotIds();
+    const curId = split ? side.robot : s.robotType;
+    const slotOpts = UI_SLOTS.map((i) => [String(i), stationLabel(i)] as [string, string]);
+    const allianceOpts: Array<[string, string]> = [['red', t('red')], ['blue', t('blue')]];
+    const cams = split
+      ? VERSUS_CAMERAS.map((c) => [c, t(`vs_cam_${c}` as Key)] as [string, string])
+      : ([['follow', t('mo_camThird')], ['driver', t('mo_camDriver')], ['top', t('mo_camTop')], ['free', t('mo_camFree')]] as Array<[string, string]>);
+    const curCam = split ? side.camera : s.camera;
+    const devOpts = VERSUS_DEVICES.map((d) => [d, t(`vs_dev_${d}` as Key)] as [string, string]);
+    const cards = ids.map((id) => `<button class="card ${id === curId ? 'sel' : ''}" data-rid="${id}" title="${robotDesc(id)}">${robotSilhouette(robotSpec(id).mechanism)}<span>${robotName(id)}</span></button>`).join('');
+    const stubs = `
+      ${this.moRow(t('mo_spawn'), `<button class="mo-btn" data-stub="1">${t('mo_customize')}</button>`, true)}
+      ${this.moRow(t('mo_rumble'), this.moSlider(0, 100, 1, 60, false), true)}
+      ${this.moRow(t('mo_outpost'), this.moSlider(0.5, 3, 0.1, 1, true), true)}`;
+    const alliance = (i: 1 | 2) => (i === 1 ? this.player < 2 : (this.player < 2) !== (v.team !== 'same'));
+    const right = split
+      ? `<aside class="mo-panel top"><h2>${t('mo_matchSettings')}</h2>
+          ${this.moRow(t('mo_camera'), this.moSelect('cam', cams, curCam))}
+          ${this.moRow(t('mo_device'), this.moSelect('dev', devOpts, side.device))}
+          ${stubs}</aside>
+        <aside class="mo-panel bottom"><h2>${t('mo_matchSettings')}<span class="tri">▾</span></h2>
+          ${this.moRow(t('mo_p1'), this.moSelect('a1', allianceOpts, alliance(1) ? 'red' : 'blue'))}
+          ${this.moRow(t('mo_p2'), this.moSelect('a2', allianceOpts, alliance(2) ? 'red' : 'blue'))}
+          <button class="mo-start" data-act="start">${t('mo_start')}</button></aside>`
+      : `<aside class="mo-panel full"><h2>${t('mo_matchSettings')}</h2>
+          ${this.moRow(t('mo_mode'), this.moSelect('mode', [['match', t('match')], ['practice', t('practice')]], this.moMode))}
+          ${this.moRow(t('mo_alliance'), this.moSelect('slot', slotOpts, String(this.player)))}
+          ${this.moRow(t('mo_camera'), this.moSelect('cam', cams, curCam))}
+          ${stubs}
+          <button class="mo-start" data-act="start">${t('mo_start')}</button></aside>`;
+    this.open(
+      `<div class="mo-overlay ${split ? 'split' : ''}">
+        <button class="mo-back" data-act="back"><span>←</span> ${t('mo_back')}</button>
+        <div class="mo-plate"><div class="mo-sil">${robotSilhouette(robotSpec(curId).mechanism)}</div><b>${robotName(curId)}</b><p>${robotDesc(curId)}</p></div>
+        ${right}
+        <section class="mo-robots">
+          <header><h2>${t('mo_robots')}</h2>
+            ${split ? `<span class="p-toggle"><b>P1</b><button class="tog ${this.moActive === 2 ? 'on' : ''}" data-act="toggle" aria-label="P1 / P2"><i></i></button><b>P2</b></span>` : ''}
+            <select class="set"><option>${t('mo_robotSet')}</option></select>
+            <button class="mo-btn" data-act="tips">${t('mo_tips')}</button></header>
+          <div class="cards">${cards}</div>
+        </section>
+      </div>`,
+      'screen mo',
+    );
+    this.on('[data-rid]', (el) => {
+      const id = el.dataset.rid as RobotId;
+      if (split) side.robot = id;
+      else adoptRobot(s, id);
+      this.onSettings(s);
+      this.robotSelect(split);
+    });
+    this.root.querySelectorAll<HTMLSelectElement>('select[data-mk]').forEach((el) =>
+      el.addEventListener('change', () => {
+        const k = el.dataset.mk;
+        if (k === 'cam') {
+          if (split) side.camera = el.value as typeof side.camera;
+          else s.camera = el.value as Settings['camera'];
+        } else if (k === 'dev') side.device = el.value as typeof side.device;
+        else if (k === 'mode') this.moMode = el.value as 'match' | 'practice';
+        else if (k === 'slot') this.player = Number(el.value);
+        else if (k === 'a1' || k === 'a2') {
+          // Jugador 1 elige su alianza; el 2 queda en la misma (equipo) o en la contraria
+          const a1 = k === 'a1' ? el.value : alliance(1) ? 'red' : 'blue';
+          const a2 = k === 'a2' ? el.value : alliance(2) ? 'red' : 'blue';
+          this.player = a1 === 'red' ? 0 : 2;
+          if (a1 === a2) v.team = 'same';
+          else if (v.team === 'same') v.team = 'opp';
+        }
+        this.onSettings(s);
+      }),
+    );
+    this.on('[data-act="toggle"]', () => {
+      this.moActive = this.moActive === 1 ? 2 : 1;
+      this.robotSelect(split);
+    });
+    this.on('[data-act="tips"]', () => this.moTips(() => this.robotSelect(split), curId));
+    this.on('[data-act="back"]', () => this.playMenu());
+    this.on('[data-act="start"]', () => this.onStart({ mode: split ? 'versus' : this.moMode, player: this.player }));
+  }
+
+  /** Consejos: qué hace el robot elegido y los controles actuales. */
+  private moTips(onBack: () => void, id: RobotId): void {
+    this.open(
+      `${brandbar(t('mo_tips'))}
+      <h1>${robotName(id)}</h1>
+      <p class="sub">${robotDesc(id)}</p>
+      <div class="mo-tips">${keyboardHelp(this.input.bindings).map((h) => `<div>${kbds(h.keys)} <span>${h.what}</span></div>`).join('')}</div>
+      <div class="actionbar">${backBtn('data-act="back"')}<div class="grow"></div></div>`,
+      'screen solid',
+    );
+    this.on('[data-act="back"]', onBack);
   }
 
   /** Abre un destino (de una tarjeta de grupo o de los atajos de la barra). */
@@ -412,9 +523,9 @@ export class Menu {
       `${brandbar(t('settings'))}
       <h1>${t('settings')}</h1>
       <p class="sub">${t('settingsNote')}</p>
-      <div class="seg tabs" role="tablist">${(['match', 'robot', 'display'] as const).map((k, i) => `<button class="${i === 0 ? 'on' : ''}" role="tab" data-tab="${k}">${t(`tab_${k}` as Key)}</button>`).join('')}</div>
+      <div class="seg tabs" role="tablist">${(['display', 'audio', 'keys', 'misc'] as const).map((k, i) => `<button class="${i === 0 ? 'on' : ''}" role="tab" data-tab="${k}">${t(`mo_${k === 'display' ? 'gfx' : k}` as Key)}</button>`).join('')}</div>
       <div class="panel narrow">
-        <div class="form" data-pane="match">
+        <div class="form" data-pane="misc" hidden>
           <h3>${t('sec_match')}</h3>
           <label>${t('setAi')}</label>${toggle('ai')}
           <label>${t('setPlayerAuto')}</label><select data-k="playerAuto">${autoOpts(s.playerAuto, true)}</select>
@@ -432,7 +543,7 @@ export class Menu {
           <label>${t('p1_limit')}</label>${seg('p1.limit', PRACTICE_LIMITS.map(String), String(s.practice.limit), (v) => (v === '0' ? t('p1_free') : `${v} s`))}
           <p class="full sub">${t('p1_settingsNote')}</p>
         </div>
-        <div class="form" data-pane="robot" hidden>
+        <div class="form" data-pane="misc" hidden>
           <h3>${t('sec_robot')}</h3>
           <label>${t('robotType')}</label>${robotSel()}
           <p class="full sub" data-desc>${robotDesc(s.robotType)}</p>
@@ -444,7 +555,12 @@ export class Menu {
           <label>${t('setDamageRandom')}</label><button class="toggle ${s.damage.random ? 'on' : ''}" data-tog-dmg><i></i>${s.damage.random ? t('on_') : t('no_')}</button>
           <p class="full sub">${t('realismNote')}</p>
         </div>
-        <div class="form" data-pane="display" hidden>
+        <div class="form" data-pane="display">
+          <h3>${t('mo_display')}</h3>
+          <label>${t('mo_windowMode')}</label><div class="seg" data-wm><button class="${document.fullscreenElement ? '' : 'on'}" data-v="win">${t('mo_windowed')}</button><button class="${document.fullscreenElement ? 'on' : ''}" data-v="full">${t('fullscreen')}</button></div>
+          <label>${t('mo_resolution')}</label><select disabled title="${t('mo_noEffect')}"><option>${t('mo_resAuto')}</option></select>
+          <label>${t('mo_fov')}</label>${range('fov', '°')}
+          <label>${t('mo_fps')}</label><div class="seg" data-seg="fpsLimit">${FPS_LIMITS.map((f) => `<button class="${s.fpsLimit === f ? 'on' : ''}" data-v="${f}">${f === 0 ? t('mo_vsync') : f}</button>`).join('')}</div>
           <h3>${t('sec_graphics')}</h3>
           <label>${t('setQuality')}</label><div class="seg" data-qseg>${(['auto', 'low', 'medium', 'high'] as const).map((q) => `<button class="${q === s.quality ? 'on' : ''}" data-v="${q}">${t(`quality_${q}`)}</button>`).join('')}</div>
           <p class="full sub">${t('qualityNote')}</p>
@@ -458,12 +574,18 @@ export class Menu {
           <label>${t('setColorMode')}</label>${seg('colorMode', COLOR_MODES, s.colorMode, (v) => t(`colorMode_${v}` as Key))}
           <label>${t('setTextScale')}</label>${seg('textScale', TEXT_SCALES.map(String), String(s.textScale), (v) => `${Math.round(Number(v) * 100)} %`)}
           <p class="full sub">${t('accessNote')}</p>
+        </div>
+        <div class="form" data-pane="audio" hidden>
           <h3>${t('sec_sound')}</h3>
           <label>${t('setVolume')}</label>${range('volume', '%')}
           <p class="full sub">${t('soundNote')}</p>
           <label>${t('setRumble')}</label>${toggle('rumble')}
           <label>${t('setRefAudio')}</label>${seg('refAudio', REF_AUDIO_MODES, s.refAudio, (v) => t(`refAudio_${v}` as Key))}
           <p class="full sub">${t('refAudioNote')}</p>
+        </div>
+        <div class="form" data-pane="keys" hidden>
+          <h3>${t('mo_keys')}</h3>
+          <label>${t('controlsTitle')}</label><button class="btn" data-act="openkeys">${ic.gamepad}<span>${t('mo_openKeys')}</span></button>
         </div>
       </div>
       <div class="actionbar">${backBtn('data-act="cancel"')}<div class="grow"></div>
@@ -527,6 +649,7 @@ export class Menu {
         const v = b.dataset.v!;
         if (k === 'p1.rival') s.practice = { ...s.practice, rival: v as RivalKind };
         else if (k === 'p1.limit') s.practice = { ...s.practice, limit: Number(v) };
+        else if (k === 'fpsLimit') s.fpsLimit = Number(v) as Settings['fpsLimit'];
         else if (k === 'grip') s.grip = v as Settings['grip'];
         else if (k === 'damage.level') s.damage = { ...s.damage, level: v as DamageLevel };
         else if (k === 'damage.targets') s.damage = { ...s.damage, targets: v as DamageTargets };
@@ -544,6 +667,16 @@ export class Menu {
       s.damage = { ...s.damage, random: !s.damage.random };
       el.classList.toggle('on', s.damage.random);
       el.lastChild!.textContent = s.damage.random ? t('on_') : t('no_');
+    });
+    this.on('[data-wm] button', (el) => {
+      if (el.dataset.v === 'full' && !document.fullscreenElement) void document.documentElement.requestFullscreen().catch(() => undefined);
+      else if (el.dataset.v === 'win' && document.fullscreenElement) void document.exitFullscreen().catch(() => undefined);
+      el.parentElement!.querySelectorAll('button').forEach((x) => x.classList.toggle('on', x === el));
+    });
+    this.on('[data-act="openkeys"]', () => {
+      Object.assign(this.settings, s);
+      this.onSettings(this.settings);
+      this.controlsPanel(() => this.settingsPanel());
     });
     this.on('[data-act="save"]', () => {
       Object.assign(this.settings, s);

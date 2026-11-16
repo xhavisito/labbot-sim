@@ -19,6 +19,8 @@ export interface Viewer {
 }
 
 export class CameraRig {
+  /** FOV de las cámaras normales (Ajustes → FOV); las de a bordo y conductor usan el suyo. */
+  fovDefault: number = FOV.default;
   readonly camera = new THREE.PerspectiveCamera(50, 1, 0.05, 100);
   readonly orbit: OrbitControls;
   mode: CameraMode = 'free';
@@ -61,7 +63,7 @@ export class CameraRig {
   update(dt: number, target?: { x: number; y: number; z: number; heading: number }, viewer?: Viewer): void {
     if (this.mode === 'free') this.orbit.update();
     if (!target) return;
-    const fov = this.mode === 'onboard' ? FOV.onboard : this.mode === 'driverEye' ? FOV.driver : FOV.default;
+    const fov = this.mode === 'onboard' ? FOV.onboard : this.mode === 'driverEye' ? FOV.driver : this.fovDefault;
     if (this.camera.fov !== fov) {
       this.camera.fov = fov;
       this.camera.updateProjectionMatrix();

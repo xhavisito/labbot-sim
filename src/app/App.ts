@@ -220,8 +220,12 @@ export class App {
       this.applyQuality();
       this.audio.setVolume(s.volume / 100);
       this.audio.setRefMode(s.refAudio);
+      this.cam.fovDefault = s.fov;
+      this.cam2.fovDefault = s.fov;
     }, this.input);
     this.audio.setRefMode(this.settings.refAudio);
+    this.cam.fovDefault = this.settings.fov;
+    this.cam2.fovDefault = this.settings.fov;
     this.replayBar = new ReplayBar(ui, { camera: () => this.cycleCamera(), stats: () => this.replayStats(), exit: () => this.exitReplay() });
     this.replays = new ReplaysScreen(this.menu.root, {
       back: () => this.toMenu(),
@@ -374,7 +378,8 @@ export class App {
     this.hud.setHelp(this.input.bindings);
     this.state = 'playing';
     this.updateTouch();
-    this.cam.setMode(c.player < 2 ? 'driverRed' : 'driverBlue');
+    const camPref = this.settings.camera;
+    this.cam.setMode(camPref === 'follow' || camPref === 'top' || camPref === 'free' ? camPref : c.player < 2 ? 'driverRed' : 'driverBlue');
     if (c.mode === 'versus' || duo) {
       // Cada quien ve su robot con la cámara que eligió (pantalla dividida); la presentación de cada
       // mitad dice quién es quién y sus controles (`Hud.setVersus`)
@@ -1112,6 +1117,12 @@ export class App {
   }
 
   private loop = (now: number): void => {
+    // Límite de FPS de Ajustes (0 = VSync): salta el cuadro si aún no toca
+    const cap = this.settings.fpsLimit;
+    if (cap > 0 && now - this.last < 1000 / cap - 2) {
+      requestAnimationFrame(this.loop);
+      return;
+    }
     const t0 = performance.now();
     const dt = Math.min(0.1, (now - this.last) / 1000);
     this.last = now;
