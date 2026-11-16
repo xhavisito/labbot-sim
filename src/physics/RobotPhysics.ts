@@ -35,12 +35,17 @@ const CHASSIS_Y0 = 0.03;
 const CHASSIS_TOP = 0.235;
 /** Consulta de "¿el brazo se metería en la madera?": solo la cancha (no robots ni piezas). */
 const FIELD_QUERY = groups(G.ARM, G.FIELD);
+/** Igual, con el robot volteado: la alfombra también cuenta (el brazo topa con el piso en vez de atravesarlo). */
+const FIELD_FLOOR_QUERY = groups(G.ARM, G.FIELD | G.FLOOR);
 /**
  * Las consultas usan cada pieza 8 mm más chica por lado: el contacto normal (unos milímetros de
  * encimado) no cuenta como "metido", así que el brazo apoyado o rozando la madera no se traba.
  */
 const QUERY_SHRINK = 0.008;
 const shrunk = (hx: number, hy: number, hz: number) => new RAPIER.Cuboid(Math.max(0.004, hx - QUERY_SHRINK), Math.max(0.004, hy - QUERY_SHRINK), Math.max(0.004, hz - QUERY_SHRINK));
+
+/** Inclinación (rad, ~20°) desde la que el brazo y la garra chocan con la alfombra (robot volteado). */
+export const TILT_FLOOR_ARM = 0.35;
 
 /** Altura (m) de la punta bajo la que la garra está en la pose de piso (recoger). */
 export const FLOOR_POSE = 0.06;
@@ -123,6 +128,7 @@ export class RobotPhysics {
   private readonly critFixed: Pose | null;
   /** Placas de arriba y de abajo de la caja (solo la garra-caja con rodillos). */
   private readonly boxPlates: boolean;
+  private armTilted = false;
   private wheelLocal: Array<[number, number]> = [];
   /** Radio de las ruedas (m): el del CAD o 5 cm. */
   private wheelR = WHEEL_R;
@@ -259,7 +265,7 @@ export class RobotPhysics {
     const beamLen = Math.max(0.05, spec.arm.length - beamShort(claw));
     const fh = claw.fingerHeight / 2;
     this.armQuery = {
-      beam: shrunk(beamLen / 2, 0.02, claw.fingerZ),
+      beam: shrunk(beamLen / 2, spec.arm.halfThickness ?? 0.02, claw.fingerZ),
       finger: shrunk(claw.fingerLength / 2, fh, claw.fingerThickness / 2),
       palm: shrunk(claw.palmThickness / 2, fh * 0.75, claw.fingerZ + claw.fingerThickness / 2),
       plate: shrunk(claw.fingerLength / 2, BOX_PLATE / 2, claw.fingerZ + claw.fingerThickness / 2),
@@ -267,7 +273,7 @@ export class RobotPhysics {
       critical: shrunk(CRITICAL_SIZE / 2, CRITICAL_SIZE / 2, CRITICAL_SIZE / 2),
     };
     this.armColliders = {
-      beam: mech(RAPIER.ColliderDesc.cuboid(beamLen / 2, 0.02, claw.fingerZ)),
+      beam: mech(RAPIER.ColliderDesc.cuboid(beamLen / 2, spec.arm.halfThickness ?? 0.02, claw.fingerZ)),
       fingers: [
         mech(RAPIER.ColliderDesc.cuboid(claw.fingerLength / 2, fh, claw.fingerThickness / 2)),
         mech(RAPIER.ColliderDesc.cuboid(claw.fingerLength / 2, fh, claw.fingerThickness / 2)),
@@ -383,6 +389,13 @@ export class RobotPhysics {
    */
   setArmPose(a: number, held: 'sample' | 'critical' | null, count = 1, critFixedHeld = false): void {
     const c = this.armColliders;
+    // Robot volteado o muy inclinado: el brazo y la garra también chocan con la alfombra (normal: la rozan al recoger)
+    const tilted = this.tilt() > TILT_FLOOR_ARM;
+    if (tilted !== this.armTilted) {
+      this.armTilted = tilted;
+      const g = tilted ? GROUPS.armTilted : GROUPS.arm;
+      for (const col of [c.beam, ...c.fingers, c.palm, ...c.plates, c.sample, c.sample2, c.critical]) col.setCollisionGroups(g);
+    }
     const p = this.armPoses(a);
     const put = (col: RAPIER.Collider, pose: Pose) => {
       col.setTranslationWrtParent(pose.t);
@@ -430,7 +443,7 @@ export class RobotPhysics {
     if (held === 'sample' && count >= 2) parts.push([q.sample, p.sample2]);
     for (const [shape, pose] of parts) {
       const w = this.localToWorld(pose.t.x, pose.t.y, pose.t.z);
-      if (this.pw.world.intersectionWithShape(w, qmul(br, pose.r), shape, RAPIER.QueryFilterFlags.EXCLUDE_DYNAMIC, FIELD_QUERY)) return true;
+      if (this.pw.world.intersectionWithShape(w, qmul(br, pose.r), shape, RAPIER.QueryFilterFlags.EXCLUDE_DYNAMIC, this.tilt() > TILT_FLOOR_ARM ? FIELD_FLOOR_QUERY : FIELD_QUERY)) return true;
     }
     return false;
   }

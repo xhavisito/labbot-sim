@@ -14,6 +14,8 @@ export interface PlayerInput {
   turn: number;
   /** Modo fino (mitad de velocidad). */
   slow: boolean;
+  /** Manejo centrado en el campo: forward/turn son la dirección del stick, no del robot. */
+  fieldCentric: boolean;
   /** Garra encendida mientras se mantiene presionado el botón (Xhavi, 30-oct). */
   intake: boolean;
   // Acciones de un solo disparo (se consumen en el cuadro)
@@ -26,6 +28,7 @@ export const emptyInput = (): PlayerInput => ({
   forward: 0,
   turn: 0,
   slow: false,
+  fieldCentric: false,
   intake: false,
   elevator: null,
   releaseSample: false,
@@ -210,7 +213,7 @@ export class InputManager {
     if (pad) {
       const b = this.bindings;
       const fwd = -dz(pad.axes[1] ?? 0) * (b.invertForward ? -1 : 1);
-      const turn = -dz(b.padDrive === 'split' ? (pad.axes[2] ?? 0) : (pad.axes[0] ?? 0));
+      const turn = -dz(b.padDrive === 'split' && !b.fieldCentric ? (pad.axes[2] ?? 0) : (pad.axes[0] ?? 0));
       if (Math.abs(fwd) > Math.abs(inp.forward)) inp.forward = fwd;
       if (Math.abs(turn) > Math.abs(inp.turn)) inp.turn = turn;
       const now = pad.buttons.map((x) => x.pressed);
@@ -227,6 +230,7 @@ export class InputManager {
       for (const a of tc.pressed) acts.add(a);
     }
     this.touch2.pressed.clear();
+    inp.fieldCentric = this.bindings.fieldCentric;
     inp.releaseSample = acts.has('releaseSample');
     for (const [a, pos] of ELEVATOR_ACTIONS) if (acts.has(a)) inp.elevator = this.elevatorPos2 = pos;
     if (acts.has('elevatorUp')) inp.elevator = this.elevatorPos2 = Math.min(4, this.elevatorPos2 + 1) as ElevatorPos;
@@ -266,6 +270,7 @@ export class InputManager {
     if (hit.has('elevatorDown')) inp.elevator = this.elevatorPos = Math.max(0, this.elevatorPos - 1) as ElevatorPos;
     this.camera = hit.has('camera');
     this.pause = hit.has('pause');
+    inp.fieldCentric = this.bindings.fieldCentric;
     return inp;
   }
 
@@ -288,7 +293,7 @@ export class InputManager {
     const ax = pad.axes;
     const zone = b.padDeadzone;
     const fwd = -dz(ax[1] ?? 0, zone) * (b.invertForward ? -1 : 1);
-    const turn = -dz(b.padDrive === 'split' ? (ax[2] ?? 0) : (ax[0] ?? 0), zone);
+    const turn = -dz(b.padDrive === 'split' && !b.fieldCentric ? (ax[2] ?? 0) : (ax[0] ?? 0), zone);
     if (Math.abs(fwd) > Math.abs(inp.forward)) inp.forward = fwd;
     if (Math.abs(turn) > Math.abs(inp.turn)) inp.turn = turn;
     const now = pad.buttons.map((x) => x.pressed);

@@ -594,6 +594,8 @@ export class Menu {
           <div class="full msg ${pad ? 'ok' : ''}">${ic.gamepad}${pad ? t('padConnected', { name: pad.id.split('(')[0].trim() }) : t('padNone')}</div>
           <p class="full sub">${t('padMenus')}</p>
           <label>${t('padDriveLabel')}</label>${seg('padDrive', b.padDrive, [['left', t('padDriveLeft')], ['split', t('padDriveSplit')]])}
+          <label>${t('fieldCentric')}</label><button class="toggle ${b.fieldCentric ? 'on' : ''}" data-tog="fieldCentric"><i></i>${b.fieldCentric ? t('on_') : t('no_')}</button>
+          <p class="full sub">${t('fieldCentricHelp')}</p>
           <label>${t('invertForward')}</label><button class="toggle ${b.invertForward ? 'on' : ''}" data-tog="invert"><i></i>${b.invertForward ? t('on_') : t('no_')}</button>
           <label>${t('padDeadzone')}</label><div class="range"><input type="range" data-dz min="${DEADZONE_RANGE.min}" max="${DEADZONE_RANGE.max}" step="${DEADZONE_RANGE.step}" value="${b.padDeadzone}"><output>${Math.round(b.padDeadzone * 100)} %</output></div>
           <p class="full sub">${t('padDeadzoneNote')}</p>
@@ -642,6 +644,7 @@ export class Menu {
       saveBindings(inp.bindings);
       (el.nextElementSibling as HTMLOutputElement).textContent = `${Math.round(inp.bindings.padDeadzone * 100)} %`;
     });
+    this.on('[data-tog="fieldCentric"]', () => apply({ ...cloneBindings(inp.bindings), fieldCentric: !inp.bindings.fieldCentric }));
     this.on('[data-tog="invert"]', () => apply({ ...cloneBindings(inp.bindings), invertForward: !inp.bindings.invertForward }));
     this.on('[data-act="back"]', () => {
       inp.cancelCapture();
