@@ -492,9 +492,9 @@ export class RobotView {
     const cc = intakeOf(this.robot.spec).critClaw;
     if (!cc || !this.critFingers.length) return;
     // Con la Crítica adentro cierra hasta tocarla; cerrada en vacío (interruptor, tecla 4) llega a 75 % (SUPUESTO)
-    const want = this.robot.mech.critical !== null ? 1 : this.robot.mech.critClawClosed ? 0.75 : 0;
-    this.critNow += Math.max(-dt / 0.25, Math.min(dt / 0.25, want - this.critNow));
-    for (const f of this.critFingers) f.g.rotation.y = f.side * this.critNow * ((cc.closeDeg * Math.PI) / 180);
+    const want = this.robot.mech.critical !== null ? cc.closeDeg : this.robot.mech.critClawClosed ? cc.emptyDeg : 0;
+    this.critNow += Math.max(-(cc.emptyDeg / 0.25) * dt, Math.min((cc.emptyDeg / 0.25) * dt, want - this.critNow));
+    for (const f of this.critFingers) f.g.rotation.y = f.side * ((this.critNow * Math.PI) / 180);
   }
 
   /** Grados que hay que girar cada dedo para que su rama quede a `zTarget` del centro (arcsin; tope 40°). */
