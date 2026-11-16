@@ -4,7 +4,7 @@
  */
 import { CAD_ROBOT_SPECS } from '../cad/cadRobots';
 import { CUSTOM_PREFIX, customById, customRobots, customSpec } from './customRobots';
-import { DEFAULT_ROBOT, MECHANISM_KINDS, ROBOT_PRESETS, type MechanismKind, type RobotSpec } from './robot';
+import { DEFAULT_ROBOT, ROBOT_PRESETS, type MechanismKind, type RobotSpec } from './robot';
 
 /** Robot elegible: un tipo de LabBot o uno propio del editor. */
 export type RobotId = MechanismKind | `custom:${string}` | `cad:${string}`;
@@ -13,7 +13,8 @@ export type RobotId = MechanismKind | `custom:${string}` | `cad:${string}`;
 export const CAD_PREFIX = 'cad:';
 export const isCadId = (id: string): boolean => id.startsWith(CAD_PREFIX) && id.slice(CAD_PREFIX.length) in CAD_ROBOT_SPECS;
 
-export const ROBOT_IDS: readonly RobotId[] = MECHANISM_KINDS;
+/** Presets de LabBot elegibles: ninguno (quitados de la lista; quedan internos para la IA y los robots CAD). */
+export const ROBOT_IDS: readonly RobotId[] = [];
 
 /** Ids elegibles ahora: los fijos y los robots propios guardados en este navegador. */
 export const allRobotIds = (): RobotId[] => [...ROBOT_IDS, ...Object.keys(CAD_ROBOT_SPECS).map((k): RobotId => `${CAD_PREFIX}${k}`), ...customRobots.map((c): RobotId => `${CUSTOM_PREFIX}${c.id}`)];
