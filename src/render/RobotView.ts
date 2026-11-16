@@ -74,6 +74,16 @@ export class RobotView {
   /** Rodillos de la garra (robots del CAD): `row` = costado (+1 = +z, −1 = −z) de la flecha vertical; giran hacia adentro. */
   private clawRollers: Array<{ mesh: THREE.Object3D; row: number }> = [];
   private rollerT = 0;
+  private fingerT = 0;
+  /**
+   * Dedos de la pinza del CAD (Axiom): las piezas `garra`, `side` = costado (+1 = +z, −1 = −z). Se separan o se juntan
+   * en z para abrir y cerrar: apertura = `gap` del INTAKE; cerrada = la Muestra (0.15 m) o la Crítica (0.20 m, §4.1.1).
+   */
+  private clawFingers: Array<{ mesh: THREE.Object3D; side: number; z0: number }> = [];
+  /** Hueco entre los dedos del CAD (m): SUPUESTO, el STEP trae una sola pose (con ese hueco). */
+  private cadGap = 0;
+  /** Apertura actual de la pinza (m, entre dedos). */
+  private gapNow = 0;
   private halfW = 0;
   private prevP = new THREE.Vector3();
   private curP = new THREE.Vector3();
@@ -157,7 +167,8 @@ export class RobotView {
     // 28 mm en la placa de abajo y la de arriba, Xhavi 13-nov), dos por costado: a 3 y a 17 cm de la boca
     // y a 10.6 cm del centro. Cada flecha lleva dos ruedas (abajo y arriba) que aprietan la Muestra ~1 cm
     // por los costados. Solo dibujo: la física de los rodillos está en `Mechanisms.runRollers`.
-    if (s.model || intakeOf(s).rollers) {
+    // Axiom (pinza) no lleva rodillos: su garra del CAD abre y cierra (`clawFingers`)
+    if ((s.model || intakeOf(s).rollers) && intakeOf(s).kind !== 'pinza') {
       const rollerMat = new THREE.MeshStandardMaterial({ color: 0x4fd13c, roughness: 0.55 });
       const hubMat = new THREE.MeshStandardMaterial({ color: 0x2f8f25, roughness: 0.6 });
       const axleMat = new THREE.MeshStandardMaterial({ color: 0x222222, roughness: 0.4, metalness: 0.6 });
@@ -260,10 +271,44 @@ export class RobotView {
         o.receiveShadow = false;
       }
     });
+    if (arm && intakeOf(this.robot.spec).kind === 'pinza') this.findFingers(arm);
     this.group.add(scene);
     for (const g of this.generic) g.visible = false;
     // Placas con la estación: pegadas a los costados del chasis real
     for (const p of this.numPlates) p.position.z = Math.sign(p.position.z) * (width / 2 + 0.002);
+  }
+
+  /** Dedos de la pinza: las piezas `garra` del brazo, separadas por el signo de z. Hueco = el de la pose del CAD. */
+  private findFingers(arm: THREE.Object3D): void {
+    const parts: Array<{ mesh: THREE.Object3D; zc: number; zi: number }> = [];
+    arm.traverse((o) => {
+      if (o instanceof THREE.Mesh && /^garra$/i.test(o.name)) {
+        o.geometry.computeBoundingBox();
+        const b = o.geometry.boundingBox!;
+        const zc = (b.min.z + b.max.z) / 2 + o.position.z;
+        parts.push({ mesh: o, zc, zi: (zc > 0 ? b.min.z : b.max.z) + o.position.z }); // zi = borde interior
+      }
+    });
+    if (parts.length < 2) return;
+    const inner = (sg: number) => Math.min(...parts.filter((q) => Math.sign(q.zc) === sg).map((q) => Math.abs(q.zi)));
+    if (!parts.some((q) => q.zc > 0) || !parts.some((q) => q.zc < 0)) return;
+    this.cadGap = 2 * Math.min(inner(1), inner(-1)); // entre los bordes interiores (≈ 0.124 m)
+    this.clawFingers = parts.map((q) => ({ mesh: q.mesh, side: Math.sign(q.zc), z0: q.mesh.position.z }));
+    this.gapNow = this.cadGap;
+  }
+
+  /** Abre/cierra la pinza hacia la apertura que toca (velocidad = recorrido / `closeTime`). */
+  private animateFingers(dt: number): void {
+    const m = this.robot.mech;
+    const it = intakeOf(this.robot.spec);
+    const held = m.critical !== null ? 0.2 : m.inClaw ? 0.15 : null;
+    const open = it.gap;
+    const want = held ?? (m.closingFor > 0 ? open - (open - 0.15) * Math.min(1, m.closingFor / Math.max(0.05, it.closeTime)) : open);
+    const v = Math.abs(open - 0.15) / Math.max(0.05, it.closeTime);
+    this.gapNow += Math.max(-v * dt, Math.min(v * dt, want - this.gapNow));
+    // Los dedos del CAD ya están separados `cadGap` (del CAD); se suma lo que falta
+    const d = (this.gapNow - this.cadGap) / 2;
+    for (const f of this.clawFingers) f.mesh.position.z = f.z0 + f.side * d;
   }
 
   /** Guarda la pose después de cada paso de física (para interpolar). */
@@ -345,6 +390,11 @@ export class RobotView {
         // Flechas verticales: la del costado +z gira con +ω (vista desde arriba) para jalar hacia la placa
         for (const r of this.clawRollers) r.mesh.rotation.y += r.row * boxDir * w * dtR;
       }
+    }
+    if (this.clawFingers.length) {
+      const nowF = performance.now() / 1000;
+      this.animateFingers(Math.min(0.1, nowF - (this.fingerT || nowF)));
+      this.fingerT = nowF;
     }
     // Con falla: LEDs en ámbar parpadeando
     const f = this.faults();

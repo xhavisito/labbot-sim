@@ -113,6 +113,7 @@
     "SUPUESTO: pose de inicio del brazo a 60°: el CAD está a 38° y ahí la garra sale 7 cm del chasis (63 cm con brazo, 56 sin brazo), fuera del perímetro de inicio (§4.1). El modelo se dibuja a 38° (la del CAD) y gira desde ahí",
     "SUPUESTO: alturas de la garra N1–N3 y de la rendija iguales a las del preset de pivote (0.26 / 0.61 / 0.85 / 0.615 m); el CAD no las trae",
     "SUPUESTO: la garra es una pinza (INTAKE 'pinza') de 0.23 m de apertura (preset) y capacidad 1; en la pose del CAD los dedos quedan a 0.124 m (menos que la Muestra, 0.15 m), así que no se puede saber la apertura real; 0.12 m de fondo salen del CAD; tampoco se sabe si toma la Muestra Crítica (apertura de 0.23 m ≥ 0.20 m: la toma)",
+    "SUPUESTO (Xhavi, 16-nov): Axiom NO lleva rodillos; la garra es una pinza de dos dedos (las piezas `garra` del CAD, una a cada lado) que abre y cierra en z. El CAD es una sola pose (dedos a 0.124 m entre bordes): la apertura abierta es la del INTAKE (0.23 m), cerrada sobre la Muestra 0.15 m o la Crítica 0.20 m, y tarda `closeTime` en cerrar; todo eso es supuesto y solo se dibuja (la física es la de la pinza)",
     "SUPUESTO: las placas frontal y posterior del chasis toman el color de la alianza (el resto va con los colores del CAD)",
     "SUPUESTO: las llantas van estáticas dentro del modelo (no giran en pantalla); el robot mide 0.651 m de ancho (> 65 cm, §7.2: lo dice el CAD, el menú lo marca con ⚠)",
     "masa, velocidades de manejo, velocidad del brazo (4 rad/s) y tracción del preset (el STEP no los trae); pásala con --mass",

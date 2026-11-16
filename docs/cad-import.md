@@ -75,3 +75,8 @@ y luego se ajustó a mano el JSON. Opciones nuevas del importador: `--floor` (pi
 **SUPUESTOS (a revisar con Xhavi):** el STEP es una sola pose y no dice cuánto gira el brazo: se toma "pivote 180°" de Xhavi; la garra es el frente, así que recoge y anota al frente (con `pickBack` la garra quedaría a 47 cm del chasis, > 40 cm, §7.2);
 pose de inicio a 60° (el CAD está a 38° y ahí la garra sale 7 cm del perímetro, §4.1); alturas N1–N3 del preset de pivote; pinza de 0.23 m de apertura y capacidad 1; qué piezas giran con el brazo (las que están a 20 cm del piso o más); placas frontal/posterior con el color de la alianza; llantas estáticas; masa y velocidades del preset.
 El ancho del CAD (0.651 m) pasa 65 cm (§7.2): el menú lo marca con ⚠.
+
+## Axiom: pinza sin rodillos (16-nov)
+Los cilindros verdes (rodillos de Psycho) ya no se dibujan en robots con `intake.kind: "pinza"`. La garra del CAD (las 4 piezas `garra`, dos por lado) se
+separa y se junta en z: abierta = `intake.gap`, cerrada = Muestra (0.15 m) o Crítica (0.20 m). SUPUESTO: el STEP trae una sola pose, así que apertura, rango y velocidad
+(`closeTime`) no son del CAD.
