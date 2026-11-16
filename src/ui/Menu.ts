@@ -12,7 +12,7 @@ import { GRIP_MODES } from '../config/robot';
 import { GAME } from '../config/game';
 import { VERSUS_CAMERAS, VERSUS_DEVICES, type VersusCamera } from '../config/settings';
 import type { RobotStats } from '../replay/stats';
-import { versusOutcome, type DeviceHelpRow } from './versus';
+import { partnerStation, versusOutcome, type DeviceHelpRow } from './versus';
 import { DEFAULT_SETTINGS, FPS_LIMITS, HUD_KEYS, PLAN_BOARDS, PRACTICE_LIMITS, REF_AUDIO_MODES, RIVALS, SETTINGS_RANGE, type HudKey, type PlanBoard, type RefAudioMode, type RivalKind, type Settings } from '../config/settings';
 import { DAMAGE_LEVELS, type DamageLevel, type DamageTargets } from '../core/damage';
 import { buildRefereeReport } from '../core/refereeReport';
@@ -41,7 +41,7 @@ const esc = (v: string): string => v.replace(/[&<>"']/g, (c) => `&#${c.charCodeA
 /** Vista de fondo del menú y reconstrucción de la cancha con el robot elegido. */
 export interface MenuHooks {
   view(v: 'orbit' | 'robot'): void;
-  preview(player: number): void;
+  preview(player: number, robot?: RobotId): void;
   /** Punto de aparición: entrar al modo, guardar (false si aún no cumple), restablecer o cancelar. */
   spawn(cmd: 'enter' | 'save' | 'reset' | 'cancel'): boolean;
 }
@@ -295,10 +295,13 @@ export class Menu {
     );
     this.on('[data-act="single"]', () => {
       this.hooks.preview(this.player);
+      this.moEnter = true;
       this.robotSelect(false);
     });
     this.on('[data-act="split"]', () => {
-      this.hooks.preview(this.player);
+      this.moActive = 1;
+      this.previewActive(true);
+      this.moEnter = true;
       this.robotSelect(true);
     });
     this.on('[data-act="back"]', () => this.main());
@@ -325,7 +328,20 @@ export class Menu {
    * Selección de robot (un jugador o pantalla dividida): Ajustes del match, lista de robots y Empezar.
    * Punto de aparición abre `spawnScreen`; Intensidad de vibración y Rango de Outpost son controles visuales sin efecto.
    */
+  /** Muestra en la cancha de fondo el robot del jugador que está eligiendo (P1 o P2 en pantalla dividida). */
+  private previewActive(split: boolean): void {
+    if (!split) return this.hooks.preview(this.player);
+    const v = this.settings.versus;
+    const p2 = this.moActive === 2;
+    this.hooks.preview(p2 ? partnerStation(this.player, v.team) : this.player, (p2 ? v.p2 : v.p1).robot);
+  }
+
+  /** La próxima selección de robot entra con la animación de acercamiento (solo desde el menú, no al re-dibujarla). */
+  private moEnter = false;
+
   robotSelect(split: boolean): void {
+    const enter = this.moEnter;
+    this.moEnter = false;
     this.hooks.view('robot');
     const s = this.settings;
     const v = s.versus;
@@ -339,7 +355,7 @@ export class Menu {
       : ([['follow', t('mo_camThird')], ['driver', t('mo_camDriver')], ['top', t('mo_camTop')], ['free', t('mo_camFree')]] as Array<[string, string]>);
     const curCam = split ? side.camera : s.camera;
     const devOpts = VERSUS_DEVICES.map((d) => [d, t(`vs_dev_${d}` as Key)] as [string, string]);
-    const cards = ids.map((id) => `<button class="card ${id === curId ? 'sel' : ''}" data-rid="${id}" title="${robotDesc(id)}">${robotIcon(id)}<span>${robotName(id)}</span></button>`).join('');
+    const cards = ids.map((id) => `<button class="card ${id === curId ? 'sel' : ''}" data-rid="${id}" title="${robotName(id)} · ${robotDesc(id)}" aria-label="${robotName(id)}">${robotIcon(id)}${ROBOT_LOGO[id] ? '' : `<span>${robotName(id)}</span>`}</button>`).join('');
     const stubs = `
       ${this.moRow(t('mo_spawn'), `<button class="mo-btn" data-act="spawn">${t('mo_customize')}</button>`)}
       ${this.moRow(t('mo_rumble'), this.moSlider(0, 100, 1, 60, false), true)}`;
@@ -360,7 +376,7 @@ export class Menu {
           ${stubs}
           <button class="mo-start" data-act="start">${t('mo_start')}</button></aside>`;
     this.open(
-      `<div class="mo-overlay ${split ? 'split' : ''}">
+      `<div class="mo-overlay ${split ? 'split' : ''} ${enter ? 'enter' : ''}">
         <button class="mo-back" data-act="back"><span>←</span> ${t('mo_back')}</button>
         ${right}
         <section class="mo-robots">
@@ -378,7 +394,7 @@ export class Menu {
       if (split) side.robot = id;
       else adoptRobot(s, id);
       this.onSettings(s);
-      this.hooks.preview(this.player);
+      this.previewActive(split);
       this.robotSelect(split);
     });
     this.root.querySelectorAll<HTMLSelectElement>('select[data-mk]').forEach((el) =>
@@ -406,11 +422,17 @@ export class Menu {
     );
     this.on('[data-act="toggle"]', () => {
       this.moActive = this.moActive === 1 ? 2 : 1;
+      this.previewActive(split);
       this.robotSelect(split);
     });
     this.on('[data-act="spawn"]', () => this.spawnScreen(() => this.robotSelect(split)));
     this.on('[data-act="tips"]', () => this.moTips(() => this.robotSelect(split), curId));
-    this.on('[data-act="back"]', () => this.playMenu());
+    this.on('[data-act="back"]', () => {
+      const ov = this.root.querySelector('.mo-overlay');
+      ov?.classList.add('leaving');
+      this.hooks.view('orbit');
+      window.setTimeout(() => this.playMenu(), ov ? 300 : 0);
+    });
     this.on('[data-act="start"]', () => this.onStart({ mode: split ? 'versus' : this.moMode, player: this.player, ready: true }));
   }
 

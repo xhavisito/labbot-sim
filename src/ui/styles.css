@@ -1793,6 +1793,8 @@ body.vs-stacked .touch.vs-touch.p1 .pad { bottom: 12px; }
 .tog { width: 58px; height: 30px; border-radius: 15px; border: none; background: #0a0f1d; position: relative; padding: 0; }
 .tog i { position: absolute; top: 3px; left: 3px; width: 24px; height: 24px; border-radius: 50%; background: #e5e7ee; transition: left .15s; }
 .tog.on i { left: 31px; }
+.tog { transition: background .15s; }
+.tog.on { background: var(--brand-purple); }
 .cards { display: flex; gap: 6px; padding: 8px 8px 0; overflow-x: auto; }
 .card { background: transparent; border: none; border-radius: 4px; padding: 8px 14px; display: grid; justify-items: center; gap: 6px; font-size: 20px; font-weight: 700; min-width: 110px; }
 .card:hover { background: rgba(255,255,255,.08); }
@@ -1865,6 +1867,12 @@ body.vs-stacked .touch.vs-touch.p1 .pad { bottom: 12px; }
 .screen.solid { background: rgba(11, 6, 16, 0.96); }
 .screen.mo { background: linear-gradient(90deg, rgba(11, 6, 16, 0.6), rgba(11, 6, 16, 0.06) 60%); }
 .screen, .screen * { animation: none !important; transition: none !important; }
+/* Transición corta (0.5 s) entre el menú de modo y la selección de robot; el Atrás hace la inversa */
+@keyframes mo-in { from { opacity: 0; transform: scale(1.06); } to { opacity: 1; transform: none; } }
+@keyframes mo-out { from { opacity: 1; transform: none; } to { opacity: 0; transform: scale(1.06); } }
+.screen.mo .mo-overlay.enter { animation: mo-in 0.5s cubic-bezier(0.22, 0.8, 0.24, 1) both !important; }
+.screen.mo .mo-overlay.leaving { animation: mo-out 0.35s ease-in both !important; pointer-events: none; }
+@media (prefers-reduced-motion: reduce) { .screen.mo .mo-overlay, .screen.mo .mo-overlay.leaving { animation: none !important; } }
 
 /* ---------- Marcador y pausa con el diseño de la referencia, en la paleta del branding del equipo */
 .scorebug { margin-top: 1.9em; border-radius: 6px; }
@@ -1944,5 +1952,5 @@ body.vs-stacked .touch.vs-touch.p1 .pad { bottom: 12px; }
   .results .rs-stage { padding-top: 0; background: #1c0f26; }
 }
 
-.card .logo-img { width: 80px; height: 80px; border-radius: 50%; object-fit: cover; background: #fff; border: 2px solid rgba(255, 255, 255, 0.25); }
-@media (max-width: 900px), (max-height: 520px) { .card .logo-img { width: 40px; height: 40px; } }
+.card .logo-img { width: 112px; height: 112px; border-radius: 50%; object-fit: cover; background: #fff; border: 2px solid rgba(255, 255, 255, 0.25); }
+@media (max-width: 900px), (max-height: 520px) { .card .logo-img { width: 56px; height: 56px; } }
