@@ -241,13 +241,8 @@ export class Bot {
     const spread = (w.x1 - w.x0) / 2 - 0.14;
     const dx = [0, -1, 1, -0.5, 0.5][this.visits % 5] * spread;
     const p = F.forCamara(this.robot.alliance, { x: (w.x0 + w.x1) / 2 + dx, z });
-    const back = this.scoreDir < 0 ? Math.PI : 0;
+    const back = posDir(this.robot.spec, level) < 0 ? Math.PI : 0;
     return { ...p, heading: wrap(F.camaraHeading(this.robot.alliance) + back) };
-  }
-
-  /** +1 si anota al frente, −1 si anota atrás (llega a la Cámara de reversa). */
-  private get scoreDir(): number {
-    return posDir(this.robot.spec, 3);
   }
 
   /** +1 si recoge del piso al frente, −1 si atrás (llega a la Muestra de reversa, `ArmSpec.pickBack`). */
@@ -1107,7 +1102,7 @@ export class Bot {
     const near = Math.hypot(pose.x - pos.x, pose.z - pos.z) < 1.6;
     if (level === 3 && near) this.team.n3By = r.index;
     out.elevator = near ? level : 0;
-    const st = this.dock(pose, -this.side, this.scoreDir, out, phase, { stage: this.robot.spec.intake?.shooter ? 0.2 : this.profile.dockStage, tol: 0.1 + this.profile.sloppy, edge: EDGE_CLEAR });
+    const st = this.dock(pose, -this.side, posDir(this.robot.spec, level), out, phase, { stage: this.robot.spec.intake?.shooter ? 0.2 : this.profile.dockStage, tol: 0.1 + this.profile.sloppy, edge: EDGE_CLEAR });
     // Ya se está arrimando: se queda con ese nivel hasta soltar todo
     if (st === 'creep' || st === 'docked') this.lockedLevel = level;
     if (st === 'docked') out.release = m.atTarget;

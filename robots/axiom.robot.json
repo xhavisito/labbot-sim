@@ -68,7 +68,10 @@
       "length": 0.6246,
       "speed": 4,
       "stowAngle": 1.0472,
-      "pickBack": false
+      "pickBack": false,
+    "levelAngles": {
+      "3": 1.9199
+    }
     },
     "intake": {
       "kind": "pinza",
@@ -80,7 +83,7 @@
       0,
       0.26,
       0.61,
-      0.85,
+      0.829,
       0.615
     ],
     "wheel": {
@@ -111,8 +114,9 @@
     "SUPUESTO (Xhavi, 16-nov): mecanismo = garra con pivote 180° (el CAD es una sola pose y no dice cuánto gira ni de dónde a dónde); el frente es el lado de la garra. No se usa pickBack: recoger atrás con el brazo de 0.62 m dejaría la garra a 47 cm del chasis (> 40 cm, §7.2), así que recoge al frente y anota al frente",
     "SUPUESTO: el brazo del modelo = las piezas con el centro a 20 cm del piso o más (placas del brazo, garra, engranes y coronas del eje); el CAD no nombra el brazo y no se sabe si las coronas giran con él",
     "SUPUESTO: pose de inicio del brazo a 60°: el CAD está a 38° y ahí la garra sale 7 cm del chasis (63 cm con brazo, 56 sin brazo), fuera del perímetro de inicio (§4.1). El modelo se dibuja a 38° (la del CAD) y gira desde ahí",
-    "SUPUESTO: alturas de la garra N1–N3 y de la rendija iguales a las del preset de pivote (0.26 / 0.61 / 0.85 / 0.615 m); el CAD no las trae",
+    "SUPUESTO: alturas de la garra N1–N3 y de la rendija iguales a las del preset de pivote (0.26 / 0.61 / 0.829 (N3 a 110°) / 0.615 m); el CAD no las trae",
     "SUPUESTO: la garra es una pinza (INTAKE 'pinza') de 0.23 m de apertura (preset) y capacidad 1; en la pose del CAD los dedos quedan a 0.124 m (menos que la Muestra, 0.15 m), así que no se puede saber la apertura real; 0.12 m de fondo salen del CAD; tampoco se sabe si toma la Muestra Crítica (apertura de 0.23 m ≥ 0.20 m: la toma)",
+    "SUPUESTO (Xhavi, 16-nov, medida del robot): en N3 el brazo llega a 110° para anotar sin problema (la garra queda volteada hacia atrás, pasa la vertical; la altura de la punta sale de ese ángulo, 0.829 m); en N2 queda de frente igual que en N1 (se deja el ángulo que da la altura 0.61 m)",
     "SUPUESTO (Xhavi, 16-nov): Axiom NO lleva rodillos; la garra es una pinza de dos dedos (las piezas `garra` del CAD, una a cada lado) que abre y cierra en z. El CAD es una sola pose (dedos a 0.124 m entre bordes): la apertura abierta es la del INTAKE (0.23 m), cerrada sobre la Muestra 0.15 m o la Crítica 0.20 m, y tarda `closeTime` en cerrar; todo eso es supuesto y solo se dibuja (la física es la de la pinza)",
     "SUPUESTO: las placas frontal y posterior del chasis toman el color de la alianza (el resto va con los colores del CAD)",
     "SUPUESTO: las llantas van estáticas dentro del modelo (no giran en pantalla); el robot mide 0.651 m de ancho (> 65 cm, §7.2: lo dice el CAD, el menú lo marca con ⚠)",
