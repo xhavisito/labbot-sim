@@ -31,7 +31,7 @@ export const G = {
 export const groups = (member: number, filter: number): number => ((member & 0xffff) << 16) | (filter & 0xffff);
 
 export const GROUPS = {
-  floor: groups(G.FLOOR, G.ROBOT | G.PIECE),
+  floor: groups(G.FLOOR, G.ROBOT | G.PIECE | G.ARM),
   /**
    * Estructuras del juego (Cámara, Campana y su barra, Plataforma, Repisa). Chocan con todo el robot,
    * brazo, garra y pieza agarrada incluidos (Xhavi, 30-oct: "hitbox literal a cualquier parte del
@@ -49,6 +49,8 @@ export const GROUPS = {
   /** Muestra lanzada: no choca con el robot ni con su brazo mientras sale de la rampa. */
   pieceShot: groups(G.PIECE, G.FLOOR | G.FIELD | G.BOUNDARY | G.PIECE),
   arm: groups(G.ARM, G.FIELD | G.BOUNDARY | G.ROBOT | G.PIECE | G.ARM),
+  /** El brazo de un robot volteado (inclinado): también choca con la alfombra (Xhavi, 16-nov), si no la atraviesa y se endereza solo. */
+  armTilted: groups(G.ARM, G.FIELD | G.BOUNDARY | G.ROBOT | G.PIECE | G.ARM | G.FLOOR),
 };
 
 /** Lo que guardamos de cada colisionador para saber qué tocamos. */

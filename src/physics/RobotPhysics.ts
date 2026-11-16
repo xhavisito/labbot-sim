@@ -42,6 +42,9 @@ const FIELD_QUERY = groups(G.ARM, G.FIELD);
 const QUERY_SHRINK = 0.008;
 const shrunk = (hx: number, hy: number, hz: number) => new RAPIER.Cuboid(Math.max(0.004, hx - QUERY_SHRINK), Math.max(0.004, hy - QUERY_SHRINK), Math.max(0.004, hz - QUERY_SHRINK));
 
+/** Inclinación (rad, ~20°) desde la que el brazo y la garra chocan con la alfombra (robot volteado). */
+export const TILT_FLOOR_ARM = 0.35;
+
 /** Altura (m) de la punta bajo la que la garra está en la pose de piso (recoger). */
 export const FLOOR_POSE = 0.06;
 
@@ -121,6 +124,7 @@ export class RobotPhysics {
   readonly centeredClaw: boolean;
   /** Placas de arriba y de abajo de la caja (solo la garra-caja con rodillos). */
   private readonly boxPlates: boolean;
+  private armTilted = false;
   private wheelLocal: Array<[number, number]> = [];
   /** Radio de las ruedas (m): el del CAD o 5 cm. */
   private wheelR = WHEEL_R;
@@ -379,6 +383,13 @@ export class RobotPhysics {
    */
   setArmPose(a: number, held: 'sample' | 'critical' | null, count = 1): void {
     const c = this.armColliders;
+    // Robot volteado o muy inclinado: el brazo y la garra también chocan con la alfombra (normal: la rozan al recoger)
+    const tilted = this.tilt() > TILT_FLOOR_ARM;
+    if (tilted !== this.armTilted) {
+      this.armTilted = tilted;
+      const g = tilted ? GROUPS.armTilted : GROUPS.arm;
+      for (const col of [c.beam, ...c.fingers, c.palm, ...c.plates, c.sample, c.sample2, c.critical]) col.setCollisionGroups(g);
+    }
     const p = this.armPoses(a);
     const put = (col: RAPIER.Collider, pose: Pose) => {
       col.setTranslationWrtParent(pose.t);
