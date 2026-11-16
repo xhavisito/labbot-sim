@@ -87,6 +87,12 @@ export interface SessionOptions {
    * mete Muestras y su Cámara también tiene el vacío. SUPUESTO de diseño (el manual no tiene práctica).
    */
   rival?: 'none' | 'passive' | 'ai' | 'human';
+  /**
+   * Solo existen los robots de estas estaciones (0–1 rojo, 2–3 azul): 1 contra 1, un match completo con
+   * un robot por alianza (SUPUESTO del simulador; el manual fija 2 por alianza, §8.2). Sin `solo`: hay
+   * reloj, puntos, faltas y RP como en cualquier match, y la línea de AUTO del RP la cruza ese único robot.
+   */
+  stations?: number[];
   /** 'human' = otra persona maneja ese robot en la misma pantalla (`player2Index`); no hay IA. */
   /** Estrategia de la IA de cada robot (nivel, de dónde junta, papel, ENDGAME; `ai` = su dificultad). */
   bots?: Array<Partial<BotOptions> | undefined>;
@@ -186,6 +192,7 @@ export class GameSession {
     this.root.add(this.pieceView.group);
     for (let i = 0; i < 2 * F.ROBOTS_PER_ALLIANCE; i++) {
       if (opts.solo && i !== opts.player && i !== this.rivalIndex) continue;
+      if (opts.stations && !opts.stations.includes(i)) continue;
       const r = new Robot(this.pw, this.pieces, i, i < 2 ? 'red' : 'blue', (i % 2) as 0 | 1, opts.specs?.[i] ?? DEFAULT_ROBOT, opts.starts?.[i]);
       this.robots.push(r);
       const v = new RobotView(r, i === opts.player);
@@ -302,11 +309,16 @@ export class GameSession {
   startMatch(): void {
     if (this.opts.solo) throw new Error('una sesión solo es de práctica: el match necesita los 4 robots');
     this.resetField();
-    this.match = new Match(this.game, F.ROBOTS_PER_ALLIANCE);
+    // Con estaciones elegidas (1 contra 1) la línea de AUTO la cruzan los robots que hay por alianza
+    const per = Math.min(...ALLIANCES.map((a) => this.robots.filter((r) => r.alliance === a).length));
+    this.match = new Match(this.game, F.ROBOTS_PER_ALLIANCE, per > 0 ? per : F.ROBOTS_PER_ALLIANCE);
     this.log.length = 0;
-    this.autos = this.robots.map((r) => new AutoRunner(this.opts.autos?.[r.index] ?? LEAVE_ZONE));
+    // Los arreglos van por estación (`r.index`), no por posición: con 1 contra 1 faltan estaciones
+    this.autos = [];
+    for (const r of this.robots) this.autos[r.index] = new AutoRunner(this.opts.autos?.[r.index] ?? LEAVE_ZONE);
     const teams = { red: new Team('red', this.hps.red), blue: new Team('blue', this.hps.blue) };
-    this.bots = this.robots.map((r) => {
+    this.bots = [];
+    for (const r of this.robots) this.bots[r.index] = ((): BotDriver | null => {
       const routine = this.autos[r.index].routine.bot;
       const teleop = !!this.opts.ai && !this.humans.includes(r.index);
       if (!routine && !teleop) return null;
@@ -314,7 +326,7 @@ export class GameSession {
       const ai = teleop ? (this.opts.aiLevel ?? 'hard') : 'hard';
       const o = { ai, ...this.opts.bots?.[r.index], auto: (routine ? (routine.scoreOnly ? 'preload' : 'collect') : 'none') as AutoPlan, teleop };
       return this.opts.makeBot?.(r, o, this.robots, this.pieces) ?? new Bot(r, this.pieces, this.robots, o, teams[r.alliance]);
-    });
+    })();
     this.match.start();
   }
 

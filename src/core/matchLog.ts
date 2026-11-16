@@ -70,7 +70,7 @@ export function explainRp(m: Match, a: Alliance, events: readonly TimedEvent[] =
   out.push({ key: 'win', earned: redCard ? 0 : rp.win, possible: R.win, section: '§4.4', why: win });
 
   const crossed = s.autoLine.size;
-  const need = m.robotsPerAlliance;
+  const need = m.autoLineNeeded;
   const lastLine = events.filter((e) => e.type === 'autoLine' && e.alliance === a).map((e) => e.t).sort((x, y) => x - y)[need - 1];
   out.push({
     key: 'autoLine', earned: rp.autoLine && !redCard ? R.autoLine : 0, possible: R.autoLine, section: '§4.4',
