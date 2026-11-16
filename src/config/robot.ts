@@ -266,12 +266,6 @@ export interface ShooterSpec {
    */
   loadPenalty?: number;
   /**
-   * Puede tomar la Muestra Crítica (de donde esté, a ras de piso) y PASARLA: soltar con ella la lanza hacia la zona de entrega
-   * (`PASS_TARGET`), sin anotarla. No la deposita en la Repisa (`canHoldCritical` sigue en falso: la IA y el HUD no cuentan con ella).
-   * SUPUESTO (Xhavi, 16-nov): el manual no habla de lanzar (§7.2 solo limita tamaño, extensión y altura).
-   */
-  passCritical?: boolean;
-  /**
    * Giro con que sale la pieza (rad/s, hacia atrás: la cara de arriba va contra el avance, como las ruedas de un lanzador que la
    * frotan por abajo) y su variación (fracción, 1σ). SUPUESTO (Xhavi, 16-nov: «en las pruebas reales gira mucho»): el CAD no trae las rpm.
    * Sin ella, sale sin giro.
@@ -280,8 +274,6 @@ export interface ShooterSpec {
   spinSigma?: number;
 }
 
-/** ¿Puede tomar la Crítica para pasarla (no para anotarla)? Necesita la apertura de 20 cm (§4.1.1). */
-export const canPassCritical = (s: { intake?: IntakeSpec }): boolean => intakeOf(s).shooter?.passCritical === true && intakeOf(s).gap >= mm(200) - 1e-9;
 
 /** Pérdida de potencia por Muestra extra en el lanzador (SUPUESTO de Xhavi, 16-nov: "mientras más lleno, más débiles sus disparos"). */
 export const DEFAULT_LOAD_PENALTY = 0.1;

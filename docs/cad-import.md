@@ -88,8 +88,7 @@ se respeta mientras alcance, así que cargado hay que tirar más cerca.
 
 **Phoenix, tiro flojo y pase de la Crítica (16-nov):** `maxSpeed` baja de 6.5 a 5 m/s (SUPUESTO de Xhavi: "no dispara tanto"). La velocidad sigue acomodándose a la
 distancia (`solveSpeed`), pero con 5 m/s ya no alcanza a N3 más allá de ~1.6 m (con 4 Muestras, 3.5 m/s: solo de muy cerca), así que solo anota de cerca y no hay regla de zona.
-`ShooterSpec.passCritical`: toma la Crítica (de reversa, a ras de piso; alcance 30 cm de la punta, SUPUESTO) y al soltar la lanza hacia la plataforma junto a la
-Repisa (`PASS_TARGET` 0.7 m del centro, del lado de su alianza) con la misma potencia: lo que no alcanza cae más cerca. No la anota (no hay pozo ni Repisa que la reciba); la IA no la usa.
+Phoenix **no** toma la Crítica por el intake (Xhavi, 16-nov: «Phoenix no come Critical piece»; se quitó el pase que se había puesto por malentendido): solo la empuja con el chasis.
 
 **Phoenix, giro al disparar (16-nov):** `ShooterSpec.spin` (30 rad/s hacia atrás, ±25 %) es SUPUESTO de Xhavi («en las pruebas reales gira mucho»); `Mechanisms.release` se lo pone a la pieza al salir (antes salía sin giro, «tiesa»).
 
