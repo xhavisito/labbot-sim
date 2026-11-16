@@ -56,3 +56,13 @@ Los lanza por `game/shooter.ts`: la velocidad se acomoda a la distancia al pozo 
 trasero a ras de piso, con la garra del simulador: `arm.rearClaw`), cuántas Muestras lleva (1), sin Muestra Crítica, velocidad máxima de salida
 (6.5 m/s), variación por tiro (4 % velocidad, 1.4° rumbo), masa y velocidades de manejo (preset), y qué placas toman el color de la alianza.
 El modelo es estático: no se sabe qué piezas se mueven, así que las llantas no giran en pantalla.
+
+## Axiom (16-nov, garra con pivote 180°)
+Importado de `ensamble comp interna.STEP` (83 piezas, AP214) con
+`npm run robot:import -- <STEP> --name Axiom --mechanism pivot180 --up y --forward +z --floor 0.1066 --arm-above 0.2 --arm-parts '^garra' --min-diag 0.01 --max-tris 6000`
+y luego se ajustó a mano el JSON. Opciones nuevas del importador: `--floor` (piso del CAD: las cajas de las llantas se pasan), `--arm-above` (las piezas con el centro a esa altura o más son el brazo: este CAD no nombra el brazo),
+`--min-diag` y `--max-tris` (detalle del modelo). Con varias flechas, el eje del brazo es la que dice "pivote". `model.staticWheels`: el modelo ya trae las llantas del CAD, el simulador no dibuja las suyas.
+**Del CAD:** chasis 0.561 × 0.651 m (el largo son los 56 cm de Xhavi); 4 llantas HiGrip de 6 in; eje del brazo a 0.24 m del piso y 0.173 m detrás del centro; brazo de 0.6246 m; garra de pinza al frente de 0.12 m de fondo. La forma 3D es la del CAD tal cual (motores y engranes simplificados, tornillos de menos de 1 cm quitados).
+**SUPUESTOS (a revisar con Xhavi):** el STEP es una sola pose y no dice cuánto gira el brazo: se toma "pivote 180°" de Xhavi; la garra es el frente, así que recoge y anota al frente (con `pickBack` la garra quedaría a 47 cm del chasis, > 40 cm, §7.2);
+pose de inicio a 60° (el CAD está a 38° y ahí la garra sale 7 cm del perímetro, §4.1); alturas N1–N3 del preset de pivote; pinza de 0.23 m de apertura y capacidad 1; qué piezas giran con el brazo (las que están a 20 cm del piso o más); placas frontal/posterior con el color de la alianza; llantas estáticas; masa y velocidades del preset.
+El ancho del CAD (0.651 m) pasa 65 cm (§7.2): el menú lo marca con ⚠.

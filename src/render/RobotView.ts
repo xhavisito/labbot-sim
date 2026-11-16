@@ -198,7 +198,7 @@ export class RobotView {
     this.capture();
     this.capture();
     // Ruedas de tracción del CAD (no son del dibujo genérico: se quedan al cargar el modelo)
-    if (s.wheel) {
+    if (s.wheel && !s.model?.staticWheels) {
       for (const side of [1, -1])
         for (const x of s.wheel.xs) {
           const pivot = new THREE.Group();
