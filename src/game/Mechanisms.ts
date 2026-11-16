@@ -385,7 +385,9 @@ export class Mechanisms {
     // Pinza (sin ruedas): agarre preciso con su tiempo de cierre; compliants: según `grip` (Ajustes)
     const intake = intakeOf(p.spec);
     const CLAW = clawOf(p.spec);
-    const mode: GripMode = intake.kind === 'pinza' ? 'precise' : this.grip;
+    // Phoenix (lanzador): sus compliants jalan el cubo al canal rodando, sin cerrar ni acomodarlo en un asiento: con "Preciso" (que pide
+    // un cubo centrado a ±4.5 cm, derecho y casi parado) no agarraba nada manejando con control (Xhavi, 16-nov), así que ahí cuenta como Compliants
+    const mode: GripMode = intake.kind === 'pinza' ? 'precise' : intake.shooter && this.grip === 'precise' ? 'compliant' : this.grip;
     if (intake.rollers && intake.kind !== 'pinza' && mode !== 'easy') return this.runRollers(events, dt);
     // Lugar de la Muestra en la garra (agarre preciso): recargada en la placa (del lado del brazo)
     const dir = clawDir(this.angle, this.phys.spec.arm);

@@ -326,3 +326,21 @@ describe('Phoenix: la pieza sale girando', () => {
     expect(g.sensors.scored.get(piece.index)?.level).toBe(3);
   });
 });
+
+describe('Phoenix come con cualquier ajuste de agarre', () => {
+  for (const grip of ['compliant', 'precise', 'easy'] as const) {
+    it(`agarra la Muestra en movimiento con el agarre "${grip}" (antes "precise" no agarraba nada)`, () => {
+      const g = new GameSession({ player: 0, preload: false, specs: [robotSpec('cad:phoenix')], grip });
+      for (const p of g.pieces.list) if (p.state.at === 'field' && p.kind === 'sample') g.pieces.stash(p, { at: 'hp', alliance: 'red' });
+      g.player.phys.teleport(2.6, -1.2, 0);
+      const piece = g.pieces.list.find((p) => p.kind === 'sample')!;
+      g.pieces.place(piece, 2.6 - 0.9, 0.076, -1.2 + 0.05);
+      // Con un control no se llega centrado (5 cm de lado) y se va a un tercio de velocidad
+      for (let i = 0; i < 120 * 8 && g.player.mech.stored.length < 1; i++) {
+        g.setInput({ ...emptyInput(), forward: -0.3, intake: true });
+        g.step();
+      }
+      expect(g.player.mech.stored.length).toBe(1);
+    });
+  }
+});
