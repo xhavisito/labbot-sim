@@ -36,6 +36,13 @@ const ROLLER_R = 0.041;
  */
 const ROLLER_SHAFTS = { fromMouth: [0.0295, 0.1695], z: 0.106, y: [-0.016, 0.164] } as const;
 const WHEEL_R = 0.05;
+/** Nombre de la pieza del CAD: el GLB la deja en el nodo (la malla viene sin nombre). */
+const nodeName = (o: THREE.Object3D): string => o.name || o.parent?.name || '';
+/** Flechas (ejes) de los robots del CAD: negras (Xhavi, 16-nov). */
+const SHAFT_MAT = new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.45, metalness: 0.5 });
+/** Giro de dibujo de los rodillos del lanzador (rad/s): tomando una Muestra y al tirar. No son los reales: así no se ve el efecto estroboscópico. */
+const SHOOTER_SPIN_INTAKE = 22;
+const SHOOTER_SPIN_SHOT = 38;
 /** GLB de robots del CAD, una sola descarga por archivo. */
 const modelCache = new Map<string, Promise<THREE.Group>>();
 function loadModel(url: string): Promise<THREE.Group> {
@@ -82,6 +89,11 @@ export class RobotView {
   /** Rodillos de la garra (robots del CAD): `row` = costado (+1 = +z, −1 = −z) de la flecha vertical; giran hacia adentro. */
   private clawRollers: Array<{ mesh: THREE.Object3D; row: number }> = [];
   private rollerT = 0;
+  /** Rodillos del lanzador del CAD (Phoenix): `side` = signo del giro (+1 / −1) para que ambas filas empujen la Muestra por la rampa. */
+  private shooterRollers: Array<{ mesh: THREE.Object3D; side: number }> = [];
+  /** Velocidad angular actual de los rodillos del lanzador (rad/s; solo dibujo). */
+  private shooterW = 0;
+  private shooterT = 0;
   private fingerT = 0;
   /**
    * Dedos de la pinza del CAD (Axiom): las piezas `garra`, `side` = costado (+1 = +z, −1 = −z). Se separan o se juntan
@@ -292,10 +304,66 @@ export class RobotView {
     const dl = m.cadArmLength !== undefined ? this.robot.spec.arm.length - m.cadArmLength : 0;
     if (arm && dl > 0) this.stretchArm(arm, m.stowAngle ?? 0, dl);
     if (arm && intakeOf(this.robot.spec).kind === 'pinza') this.findFingers(arm, m.stowAngle ?? 0, Math.max(0, dl));
+    // Flechas (ejes) del CAD: negras en todos los robots
     this.group.add(scene);
+    this.group.traverse((o) => {
+      if (o instanceof THREE.Mesh && /flecha/i.test(nodeName(o))) o.material = SHAFT_MAT; // incluye el brazo (`this.arm`)
+    });
+    this.buildShooterRollers(scene);
     for (const g of this.generic) g.visible = false;
     // Placas con la estación: pegadas a los costados del chasis real
     for (const p of this.numPlates) p.position.z = Math.sign(p.position.z) * (width / 2 + 0.002);
+  }
+
+  /**
+   * Rodillos del lanzador (Phoenix, ruedas compliant `am-3945` / `am-3949` del CAD): cada una se pega a su flecha (la
+   * pieza `Flechas…` con el mismo centro en x, y), se pinta de verde y gira sobre ella (eje z). Solo dibujo: la física
+   * del tiro está en `Mechanisms` / `shooter.ts`. Las dos filas van del mismo lado de la rampa, así que giran al revés
+   * entre sí (Muestra entre ellas: la superficie de cada rueda avanza hacia la boca).
+   */
+  private buildShooterRollers(scene: THREE.Object3D): void {
+    const sh = this.robot.spec.intake?.shooter;
+    if (!sh?.muzzle) return;
+    scene.updateMatrixWorld(true);
+    const wheels: Array<{ mesh: THREE.Mesh; c: THREE.Vector3; big: boolean }> = [];
+    const shafts: THREE.Vector3[] = [];
+    const box = new THREE.Box3();
+    scene.traverse((o) => {
+      if (!(o instanceof THREE.Mesh)) return;
+      box.setFromObject(o);
+      const c = box.getCenter(new THREE.Vector3());
+      if (/flecha/i.test(nodeName(o))) shafts.push(c);
+      else if (/^am-39(45|49)/i.test(nodeName(o))) wheels.push({ mesh: o, c, big: box.getSize(new THREE.Vector3()).x > 0.04 });
+    });
+    if (!wheels.length || !shafts.length) return;
+    // Las flechas van en dos filas paralelas a la rampa (la Muestra pasa entre ellas): se saca la dirección de la rampa por
+    // mínimos cuadrados (x = a + b·y, hacia arriba) y de qué lado de esa recta queda cada flecha decide el sentido del giro
+    const mx = shafts.reduce((t, c) => t + c.x, 0) / shafts.length;
+    const my = shafts.reduce((t, c) => t + c.y, 0) / shafts.length;
+    let sxy = 0;
+    let syy = 0;
+    for (const c of shafts) {
+      sxy += (c.x - mx) * (c.y - my);
+      syy += (c.y - my) ** 2;
+    }
+    const slope = syy > 1e-9 ? sxy / syy : 0;
+    const ul = Math.hypot(slope, 1);
+    const ux = slope / ul;
+    const uy = 1 / ul;
+    const rollerMat = new THREE.MeshStandardMaterial({ color: 0x4fd13c, roughness: 0.55 });
+    const hubGreen = new THREE.MeshStandardMaterial({ color: 0x2f8f25, roughness: 0.6 });
+    for (const c of shafts) {
+      const pivot = new THREE.Group();
+      pivot.position.set(c.x, c.y, 0);
+      scene.add(pivot);
+      const side = Math.sign(ux * (c.y - my) - uy * (c.x - mx)) || 1;
+      for (const w of wheels) {
+        if (Math.hypot(w.c.x - c.x, w.c.y - c.y) > 0.012) continue;
+        w.mesh.material = w.big ? rollerMat : hubGreen;
+        pivot.attach(w.mesh);
+      }
+      this.shooterRollers.push({ mesh: pivot, side });
+    }
   }
 
   /**
@@ -508,6 +576,16 @@ export class RobotView {
         // Flechas verticales: la del costado +z gira con +ω (vista desde arriba) para jalar hacia la placa
         for (const r of this.clawRollers) r.mesh.rotation.y += r.row * boxDir * w * dtR;
       }
+    }
+    // Rodillos del lanzador: giran al tomar una Muestra (intake prendido) y más rápido al tirar; frenan al terminar
+    if (this.shooterRollers.length) {
+      const nowS = performance.now() / 1000;
+      const dtS = Math.min(0.1, nowS - (this.shooterT || nowS));
+      this.shooterT = nowS;
+      const target = m.ejectT > 0 ? SHOOTER_SPIN_SHOT : m.intakeOn ? SHOOTER_SPIN_INTAKE : 0;
+      this.shooterW += (target - this.shooterW) * Math.min(1, dtS * 10);
+      if (Math.abs(this.shooterW) < 0.05) this.shooterW = 0;
+      for (const r of this.shooterRollers) r.mesh.rotation.z += r.side * this.shooterW * dtS;
     }
     if (this.clawFingers.length) {
       const nowF = performance.now() / 1000;
