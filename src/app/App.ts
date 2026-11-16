@@ -15,7 +15,7 @@ import { clampSpot } from '../config/startSpot';
 import { FieldAudio } from '../audio/FieldAudio';
 import { ROBOT_PRESETS, type MechanismKind, type RobotSpec } from '../config/robot';
 import { robotStats } from '../replay/stats';
-import { robotSpec } from '../config/robotIds';
+import { robotSpec, type RobotId } from '../config/robotIds';
 import { loadSettings, saveSettings, type Settings } from '../config/settings';
 import { formatTimer, timerSeconds } from '../core/clock';
 import { callForEvent, EndgameWatcher, type RefCall } from '../core/refCalls';
@@ -583,7 +583,7 @@ export class App {
     const s = this.settings;
     const m = s.match;
     const routine = (id: string) => allAutoRoutines().find((r) => r.id === id) ?? LEAVE_ZONE;
-    const random = aiLineup(player, this.playerSpec().mechanism);
+    const random = aiLineup(player, this.settings.robotType);
     // 2 contra 2: no eliges ni ves lo de los rivales (Xhavi, 30-oct). Su tipo, estrategia y AUTO los
     // elige la IA en secreto en cada match; de ellos solo se elige la dificultad
     const rival = (i: number) => m.secret && player >= 0 && (i < 2) !== (player < 2);
@@ -593,7 +593,8 @@ export class App {
     const mate = player >= 0 ? player ^ 1 : -1;
     const plan = mate >= 0 && s.ai ? planById(m.robots[mate].plan) : undefined;
     this.activePlan = plan ?? null;
-    const types = kinds ?? m.robots.map((r, i) => (r.kind === 'random' || rival(i) ? random[i] : r.kind));
+    // Solo los robots CAD son elegibles en partido: un preset de LabBot guardado cae a "Al azar"
+    const types: string[] = kinds ? [...kinds] : m.robots.map((r, i) => (r.kind === 'random' || rival(i) || !r.kind.startsWith('cad:') ? random[i] : r.kind));
     const botAuto = (i: number): AutoRoutine => {
       if (i === mate && plan) return planAutoRoutine(plan);
       const a = routine(this.secret[i]?.auto ?? m.robots[i].auto);
@@ -608,7 +609,7 @@ export class App {
     };
     const autos = [0, 1, 2, 3].map((i) => (i === player ? routine(s.playerAuto) : botAuto(i)));
     // Tu robot es el del menú (con tu velocidad y capacidad), salvo en el Scouting: el de tu equipo
-    const specs = types.map((k, i) => (i === player && (!kinds || tour) ? this.playerSpec() : ROBOT_PRESETS[k]));
+    const specs = types.map((k, i) => (i === player && (!kinds || tour) ? this.playerSpec() : kinds ? ROBOT_PRESETS[k as MechanismKind] : robotSpec(k as RobotId)));
     // Una rutina dibujada arranca donde se dibujó si el robot está en esa Zona de Inicio (§4.1)
     const pathStart = (i: number) => {
       const p = autos[i].path;

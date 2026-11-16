@@ -3,18 +3,20 @@
  * (y distintos al tuyo si alcanza), para que cada match tenga variedad. Solo hay dos tipos (el pivote y
  * su variante de 180°), así que se reparten y se repiten.
  */
-import { MECHANISM_KINDS, type MechanismKind } from '../config/robot';
+import { CAD_ROBOT_SPECS } from '../cad/cadRobots';
 
-export const AI_TYPES: readonly MechanismKind[] = MECHANISM_KINDS;
+/** Robots que usa la IA: los CAD (`cad:<nombre>`), sin los presets de LabBot. */
+export const AI_TYPES: readonly string[] = Object.keys(CAD_ROBOT_SPECS).map((k) => `cad:${k}`);
 
 /**
  * Tipo de cada uno de los 4 robots (0–1 rojo, 2–3 azul): `player` lleva `playerType` (−1 = ninguno,
  * la IA maneja los 4) y los demás salen al azar de `AI_TYPES`, sin repetir mientras haya.
  */
-export function aiLineup(player: number, playerType: MechanismKind, rand: () => number = Math.random): MechanismKind[] {
+export function aiLineup(player: number, playerType: string, rand: () => number = Math.random): string[] {
   const bots = [0, 1, 2, 3].filter((i) => i !== player).length;
-  let pool = AI_TYPES.filter((k) => k !== playerType);
-  if (pool.length < bots) pool = [...AI_TYPES];
+  const all = AI_TYPES.length ? AI_TYPES : [playerType];
+  let pool = all.filter((k) => k !== playerType);
+  if (pool.length < bots) pool = [...all];
   // Fisher–Yates
   const deck = [...pool];
   for (let i = deck.length - 1; i > 0; i--) {

@@ -4,30 +4,31 @@ import { AI_TYPES, aiLineup } from '../src/ai/lineup';
 import { rng } from '../src/core/rng';
 
 describe('tipos de robot de la IA en cada match', () => {
-  it('hay cinco tipos de robot y la IA reparte tipos distintos entre sí', () => {
-    expect([...AI_TYPES].sort()).toEqual(['dual', 'elevator', 'longarm', 'pivot', 'pivot180']);
+  it('la IA usa solo los robots CAD (Phoenix, Axiom, Psycho) y reparte tipos distintos entre sí', () => {
+    expect([...AI_TYPES].sort()).toEqual(['cad:axiom', 'cad:phoenix', 'cad:psycho']);
     const rand = rng(7);
     for (let n = 0; n < 50; n++) {
       for (const player of [0, 1, 2, 3]) {
-        const types = aiLineup(player, 'pivot', rand);
-        expect(types[player]).toBe('pivot');
+        const types = aiLineup(player, 'cad:psycho', rand);
+        expect(types[player]).toBe('cad:psycho');
         const bots = types.filter((_, i) => i !== player);
-        // Con 4 tipos disponibles y 3 robots no se repite ninguno ni el del jugador
+        // Con 3 tipos disponibles y 3 robots no se repite ninguno ni el del jugador
         expect(new Set(bots).size).toBe(3);
         for (const k of bots) expect(AI_TYPES).toContain(k);
       }
     }
   });
 
-  it('sin jugador, los cuatro robots son de tipos distintos', () => {
-    const all = aiLineup(-1, 'pivot180', rng(3));
-    expect(new Set(all).size).toBe(4);
+  it('sin jugador, los cuatro robots salen de los robots CAD (tres tipos; se repiten si hace falta)', () => {
+    const all = aiLineup(-1, 'cad:axiom', rng(3));
+    for (const k of all) expect(AI_TYPES).toContain(k);
+    expect(new Set(all).size).toBeGreaterThanOrEqual(3);
   });
 
   it('varía de un match a otro', () => {
     const rand = rng(11);
     const seen = new Set<string>();
-    for (let n = 0; n < 20; n++) seen.add(aiLineup(0, 'pivot', rand).join(','));
+    for (let n = 0; n < 20; n++) seen.add(aiLineup(0, 'cad:psycho', rand).join(','));
     expect(seen.size).toBeGreaterThan(1);
   });
 });
