@@ -82,6 +82,8 @@ export class RobotView {
   private clawFingers: Array<{ mesh: THREE.Object3D; side: number; z0: number }> = [];
   /** Hueco entre los dedos del CAD (m): SUPUESTO, el STEP trae una sola pose (con ese hueco). */
   private cadGap = 0;
+  /** Centro de los dedos de la pinza del CAD en el sistema de la garra (donde se dibuja la Muestra que aprieta). */
+  private pocket: { x: number; y: number } | null = null;
   /** Apertura actual de la pinza (m, entre dedos). */
   private gapNow = 0;
   private halfW = 0;
@@ -271,7 +273,7 @@ export class RobotView {
         o.receiveShadow = false;
       }
     });
-    if (arm && intakeOf(this.robot.spec).kind === 'pinza') this.findFingers(arm);
+    if (arm && intakeOf(this.robot.spec).kind === 'pinza') this.findFingers(arm, m.stowAngle ?? 0);
     this.group.add(scene);
     for (const g of this.generic) g.visible = false;
     // Placas con la estación: pegadas a los costados del chasis real
@@ -279,13 +281,15 @@ export class RobotView {
   }
 
   /** Dedos de la pinza: las piezas `garra` del brazo, separadas por el signo de z. Hueco = el de la pose del CAD. */
-  private findFingers(arm: THREE.Object3D): void {
+  private findFingers(arm: THREE.Object3D, stow: number): void {
     const parts: Array<{ mesh: THREE.Object3D; zc: number; zi: number }> = [];
+    const box = new THREE.Box3();
     arm.traverse((o) => {
       if (o instanceof THREE.Mesh && /^garra(_\d+)?$/i.test(o.name)) {
         o.geometry.computeBoundingBox();
         const b = o.geometry.boundingBox!;
         const zc = (b.min.z + b.max.z) / 2 + o.position.z;
+        box.union(b);
         parts.push({ mesh: o, zc, zi: (zc > 0 ? b.min.z : b.max.z) + o.position.z }); // zi = borde interior
       }
     });
@@ -295,6 +299,11 @@ export class RobotView {
     this.cadGap = 2 * Math.min(inner(1), inner(-1)); // entre los bordes interiores (≈ 0.124 m)
     this.clawFingers = parts.map((q) => ({ mesh: q.mesh, side: Math.sign(q.zc), z0: q.mesh.position.z }));
     this.gapNow = this.cadGap;
+    // La Muestra va entre los dedos: el centro de las piezas `garra` (con el eje del brazo en el origen) en el sistema de
+    // la garra, que está a `arm.length` del eje (`claw.position`) y gira con el brazo: p − L·(cos, sin)(ángulo del CAD)
+    const L = this.robot.spec.arm.length;
+    this.pocket = { x: (box.min.x + box.max.x) / 2 - L * Math.cos(stow), y: (box.min.y + box.max.y) / 2 - L * Math.sin(stow) };
+    this.criticalMesh.position.set(this.pocket.x, this.pocket.y, 0);
   }
 
   /** Abre/cierra la pinza hacia la apertura que toca (velocidad = recorrido / `closeTime`). */
@@ -376,7 +385,7 @@ export class RobotView {
     const boxDir = this.rigidClaw !== null ? clawDir(posAngle(this.robot.spec, 0), sa) : clawDir(m.angle, sa);
     const seat = (k: number) => (rollers ? seatX(this.robot.spec, 0, boxDir, k) : 0);
     this.clawSample.visible = n >= 1;
-    this.clawSample.position.set(seat(0), SAMPLE_SIZE * 0.475, 0);
+    this.clawSample.position.set(this.pocket?.x ?? seat(0), this.pocket?.y ?? SAMPLE_SIZE * 0.475, 0);
     this.clawSample2.visible = n >= 2;
     this.clawSample2.position.set(seat(1), rollers ? SAMPLE_SIZE * 0.475 : SAMPLE_SIZE * 1.45, 0);
     // Rodillos: con la garra prendida giran jalando hacia adentro (hacia la placa); al soltar, hacia afuera

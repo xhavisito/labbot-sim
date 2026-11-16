@@ -64,3 +64,23 @@ describe('IA con Axiom', () => {
     expect(red.samplesAuto + red.samplesTeleop + blue.samplesAuto + blue.samplesTeleop).toBeGreaterThan(0);
   }, 240000);
 });
+
+describe('Axiom: ángulos de los niveles (Xhavi, 16-nov)', () => {
+  it('N3 a 110° con la garra volteada atrás; N1 y N2 al frente', async () => {
+    const { posAngle, posDir, armTip } = await import('../src/config/robot');
+    const s = CAD_ROBOT_SPECS.axiom;
+    expect(posAngle(s, 3)).toBeCloseTo((110 * Math.PI) / 180, 3);
+    expect(armTip(s.arm, posAngle(s, 3)).y).toBeCloseTo(s.elevatorHeights[3], 3);
+    expect([1, 2, 3].map((l) => posDir(s, l as 1 | 2 | 3))).toEqual([1, 1, -1]);
+    expect(posAngle(s, 2)).toBeLessThan(Math.PI / 2);
+    expect(posAngle(s, 1)).toBeLessThan(posAngle(s, 2));
+  });
+});
+
+describe('Menú: sin ⚠ en los robots del CAD (aprobados por el mentor)', () => {
+  it('la descripción de Axiom y Psycho no lleva ⚠ aunque pasen un límite de §7.2', async () => {
+    const src = (await import('node:fs')).readFileSync(new URL('../src/ui/Menu.ts', import.meta.url), 'utf8');
+    expect(src).not.toMatch(/CAD_ROBOT_PROBLEMS/);
+    expect(src).not.toMatch(/` ⚠ \$\{/);
+  });
+});

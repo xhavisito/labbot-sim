@@ -63,6 +63,11 @@ export interface ArmSpec {
    */
   pickBack?: boolean;
   /**
+   * Ángulo (rad) del brazo en N1–N3 si no es el que sale de la altura de la punta (`armAngle`): con más de 90° el brazo
+   * pasa la vertical y la garra voltea hacia atrás (Axiom, N3 a 110°). `elevatorHeights` debe traer la altura de la punta a ese ángulo.
+   */
+  levelAngles?: Partial<Record<1 | 2 | 3, number>>;
+  /**
    * Elevador: la punta no hace un arco sino que sube recto. `length` es la mitad del recorrido y el
    * ángulo (−π/2…π/2) lo recorre de forma lineal: y = pivotY + length·(2a/π), x = pivotX.
    */
@@ -406,12 +411,17 @@ export function knownSpec(s: RobotSpec): RobotSpec {
  * por arriba) en el piso y la posición 4 si el brazo recoge atrás (`ArmSpec.pickBack`).
  */
 export function posAngle(s: RobotSpec, pos: ElevatorPos): number {
+  const fixed = pos >= 1 && pos <= 3 ? s.arm.levelAngles?.[pos as 1 | 2 | 3] : undefined;
+  if (fixed !== undefined) return fixed;
   const a = armAngle(s.arm, s.elevatorHeights[pos]);
   return s.arm.pickBack && (pos === 0 || pos === 4) ? Math.PI - a : a;
 }
 
 /** +1 si en esa posición la punta queda al frente del robot, −1 si atrás. */
-export const posDir = (s: RobotSpec, pos: ElevatorPos): 1 | -1 => ((s.arm.pickBack || s.arm.rearClaw) && (pos === 0 || pos === 4) ? -1 : 1);
+export const posDir = (s: RobotSpec, pos: ElevatorPos): 1 | -1 =>
+  pos >= 1 && pos <= 3 && s.arm.levelAngles?.[pos as 1 | 2 | 3] !== undefined
+    ? Math.cos(s.arm.levelAngles[pos as 1 | 2 | 3]!) >= 0 ? 1 : -1
+    : ((s.arm.pickBack || s.arm.rearClaw) && (pos === 0 || pos === 4) ? -1 : 1);
 
 /** Punta del brazo (local x, y) en una posición. */
 export const posTip = (s: RobotSpec, pos: ElevatorPos): { x: number; y: number } => armTip(s.arm, posAngle(s, pos));

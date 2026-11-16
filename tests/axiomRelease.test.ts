@@ -29,12 +29,16 @@ describe('Axiom suelta la Muestra', () => {
       run(g, 0.05, { elevator: level, releaseSample: true });
       expect(m.inClaw).toBe(false);
       run(g, 2, { elevator: level });
-      // Sin contacto con la viga, los dedos ni la placa de la garra
+      // Sin contacto real con la viga, los dedos ni la placa de la garra
       const c = g.player.phys.armColliders;
-      const arm = [c.beam, c.palm, ...c.fingers].map((x) => x.handle);
-      const touching: number[] = [];
-      g.pw.world.contactPairsWith(piece.collider, (o) => touching.push(o.handle));
-      expect(touching.filter((h) => arm.includes(h))).toEqual([]);
+      const touching = [c.beam, c.palm, ...c.fingers].filter((x) => {
+        let hit = false;
+        g.pw.world.contactPair(piece.collider, x, (man) => {
+          if (man.numContacts() > 0) hit = true;
+        });
+        return hit;
+      });
+      expect(touching).toHaveLength(0);
       // El brazo no quedó trabado: llega a otro nivel
       const before = m.angle;
       run(g, 3, { elevator: level === 2 ? 0 : 2 });

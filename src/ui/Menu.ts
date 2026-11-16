@@ -7,7 +7,6 @@ import { AUTO_ROUTINES } from '../auto/AutoRoutine';
 import { routeRoutine, savedRoutes } from '../auto/recorded';
 import { loadPaths, pathRoutine } from '../game/autoPathStore';
 import { customById } from '../config/customRobots';
-import { CAD_ROBOT_PROBLEMS } from '../cad/cadRobots';
 import { allRobotIds, isCadId, robotSpec, type RobotId } from '../config/robotIds';
 import { GRIP_MODES } from '../config/robot';
 import { GAME } from '../config/game';
@@ -105,8 +104,8 @@ const robotName = (id: RobotId): string => robotSpec(id).label ?? t(`type_${id}`
 function robotDesc(id: RobotId): string {
   if (isCadId(id)) {
     const s = robotSpec(id);
-    const bad = CAD_ROBOT_PROBLEMS[id.slice(4)] ?? [];
-    return t('cadRobotDesc', { type: t(`type_${s.mechanism}` as Key), mass: s.massKg.toFixed(1), speed: s.maxSpeed.toFixed(2) }) + (bad.length ? ` ⚠ ${bad.join('; ')}.` : '');
+    // Sin ⚠ en los robots del CAD: aunque pasen algún límite de §7.2 (65 cm, 40 cm), el mentor los aprobó (Xhavi, 16-nov)
+    return t('cadRobotDesc', { type: t(`type_${s.mechanism}` as Key), mass: s.massKg.toFixed(1), speed: s.maxSpeed.toFixed(2) });
   }
   const c = customById(id);
   if (c) {
