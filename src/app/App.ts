@@ -1010,7 +1010,7 @@ export class App {
     const p0 = { x: p.x - cam.rx * 2.6, z: p.z - cam.rz * 2.6 };
     const p1 = { x: p.x - f.x * 0.6, z: p.z - f.z * 0.6 };
     this.arrive = { t: 0, p0, p1, p2: { x: p.x, z: p.z }, h };
-    pl.phys.teleport(p0.x, p0.z, h);
+    pl.phys.teleport(p0.x, p0.z, h + (pl.spec.arm.pickBack ? Math.PI : 0));
   }
 
   private arriveStep(dt: number): void {
@@ -1026,15 +1026,15 @@ export class App {
     const w2 = u * u;
     const x = w0 * a.p0.x + w1 * a.p1.x + w2 * a.p2.x;
     const z = w0 * a.p0.z + w1 * a.p1.z + w2 * a.p2.z;
+    // Con el intake atrás (Psycho, Pivote 180°) llega de reversa y termina igual, con la garra al frente: sin giro final
+    const back = pl.spec.arm.pickBack ? Math.PI : 0;
     if (k >= 1) {
-      pl.phys.teleport(a.p2.x, a.p2.z, a.h);
+      pl.phys.teleport(a.p2.x, a.p2.z, a.h + back);
       this.arrive = null;
       return;
     }
     const tx = 2 * (1 - u) * (a.p1.x - a.p0.x) + 2 * u * (a.p2.x - a.p1.x);
     const tz = 2 * (1 - u) * (a.p1.z - a.p0.z) + 2 * u * (a.p2.z - a.p1.z);
-    // El frente del robot es el de su rumbo final; con el intake atrás (Pivote 180°) el chasis llega de reversa
-    const back = pl.spec.arm.pickBack ? Math.PI : 0;
     pl.phys.teleport(x, z, Math.atan2(-tz, tx) + back);
   }
 
