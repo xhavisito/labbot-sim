@@ -1180,8 +1180,10 @@ export class App {
       if (this.replayBar.root.style.display !== 'none') this.replay.update(dt);
       this.replayBar.update();
     } else if (this.state === 'menu') {
-      // Vista de fondo: la cámara libre gira despacio alrededor de la cancha
-      const a = now / 1000 / 20;
+      this.session.setRobotsVisible(false);
+      // Vista de fondo de la cancha
+      // Vista fija (el menú es estático: nada se mueve)
+      const a = 0.9;
       this.cam.camera.position.set(Math.cos(a) * 9, 6.5, Math.sin(a) * 7.5);
       this.cam.orbit.target.set(0, 0, 0);
     }
@@ -1195,7 +1197,7 @@ export class App {
     this.effects.update(this.state === 'paused' ? 0 : dt);
     this.boardView.update(this.board, this.boardRev);
     this.boardView.group.visible = this.state !== 'replay';
-    this.arena.update(now / 1000, this.cam.camera.position.y);
+    this.arena.update(now / 1000, this.cam.camera.position.y, this.state === 'menu');
     const sm = this.session.match;
     const sb = this.replay?.scoreboard;
     if (sb) this.arena.setScreen(sb.timer, String(sb.red), String(sb.blue));

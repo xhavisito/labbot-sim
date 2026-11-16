@@ -116,9 +116,10 @@ export class Arena {
     }
   }
 
-  update(time: number, cameraY = 0): void {
+  update(time: number, cameraY = 0, still = false): void {
     this.overhead.visible = cameraY < 7;
-    for (const t of this.led) t.offset.x = (time * 0.04) % 1;
+    // `still`: el menú es estático, los letreros no corren
+    for (const t of this.led) t.offset.x = still ? 0 : (time * 0.04) % 1;
   }
 
   /** Pantalla: azul · centro (timer o título) · rojo (azul primero, como en la UI). */
