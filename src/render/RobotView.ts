@@ -40,8 +40,7 @@ const WHEEL_R = 0.05;
 const nodeName = (o: THREE.Object3D): string => o.name || o.parent?.name || '';
 /** Flechas (ejes) de los robots del CAD: negras (Xhavi, 16-nov). */
 const SHAFT_MAT = new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.45, metalness: 0.5 });
-/** Giro de dibujo de los rodillos del lanzador (rad/s): tomando una Muestra y al tirar. No son los reales: así no se ve el efecto estroboscópico. */
-const SHOOTER_SPIN_INTAKE = 22;
+/** Giro de dibujo de los rodillos del lanzador (rad/s) al tirar. No es el real: así no se ve el efecto estroboscópico. */
 const SHOOTER_SPIN_SHOT = 38;
 /** GLB de robots del CAD, una sola descarga por archivo. */
 const modelCache = new Map<string, Promise<THREE.Group>>();
@@ -630,12 +629,12 @@ export class RobotView {
         for (const r of this.clawRollers) r.mesh.rotation.y += r.row * boxDir * w * dtR;
       }
     }
-    // Rodillos del lanzador: giran al tomar una Muestra (intake prendido) y más rápido al tirar; frenan al terminar
+    // Rodillos del lanzador: giran solo al tirar (no con el intake); frenan al terminar
     if (this.shooterRollers.length) {
       const nowS = performance.now() / 1000;
       const dtS = Math.min(0.1, nowS - (this.shooterT || nowS));
       this.shooterT = nowS;
-      const target = m.shotSpinT > 0 || m.ejectT > 0 ? SHOOTER_SPIN_SHOT : m.intakeOn ? SHOOTER_SPIN_INTAKE : 0;
+      const target = m.shotSpinT > 0 || m.ejectT > 0 ? SHOOTER_SPIN_SHOT : 0; // solo al disparar (Xhavi, 16-nov): con el intake quietos
       this.shooterW += (target - this.shooterW) * Math.min(1, dtS * 10);
       if (Math.abs(this.shooterW) < 0.05) this.shooterW = 0;
       for (const r of this.shooterRollers) r.mesh.rotation.z += r.side * this.shooterW * dtS;
