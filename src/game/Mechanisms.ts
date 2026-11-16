@@ -332,7 +332,9 @@ export class Mechanisms {
   /** Pone los colisionadores del brazo y la garra donde está el brazo (con la pieza que lleva). */
   syncHitbox(): void {
     // Las Muestras de la garra (hasta dos apiladas con `holdsTwo`) chocan con todo
-    this.phys.setArmPose(this.angle, this.critical ? 'critical' : this.inClaw ? 'sample' : null, this.inClawCount);
+    // El lanzador lleva las Muestras dentro de su rampa (ya dentro del casco del CAD): al choque solo suma una
+    const n = intakeOf(this.phys.spec).shooter ? Math.min(1, this.inClawCount) : this.inClawCount;
+    this.phys.setArmPose(this.angle, this.critical ? 'critical' : this.inClaw ? 'sample' : null, n);
   }
 
   /** Muestras en la garra (con `holdsTwo` todas las guardadas; si no, 0 o 1). */
@@ -600,6 +602,8 @@ export class Mechanisms {
     if (!piece) return false;
     // Garra con rodillos: sale de su lugar en la fila (la de afuera primero)
     const rollers = kind === 'sample' && intakeOf(this.phys.spec).rollers === true;
+    // Muestras en la rampa del lanzador al tirar (la que sale cuenta): más cargado, más débil el tiro
+    const loaded = this.stored.length;
     const slot = Math.max(0, this.inClawCount - 1);
     if (kind === 'critical') this.critical = null;
     else {
@@ -655,7 +659,7 @@ export class Mechanisms {
       const well = camaraWells()[level];
       const r = rectForCamara(this.alliance, well);
       const dist = Math.max(0.3, (((r.x0 + r.x1) / 2 - at.x) * Math.cos(h)) - (((r.z0 + r.z1) / 2 - at.z) * Math.sin(h)));
-      const sh = shotVelocity(shooter, dist, well.rim + SHOT_AIM_ABOVE - at.y, this.rand);
+      const sh = shotVelocity(shooter, dist, well.rim + SHOT_AIM_ABOVE - at.y, this.rand, loaded);
       const hy = h + sh.yaw;
       vx = v.x + wy * (at.z - rp.z) + Math.cos(hy) * sh.speed * Math.cos(sh.pitch);
       vz = v.z - wy * (at.x - rp.x) - Math.sin(hy) * sh.speed * Math.cos(sh.pitch);

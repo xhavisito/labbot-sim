@@ -231,6 +231,28 @@ export interface ShooterSpec {
   range: number;
   /** Boca del lanzador en el sistema del robot (x al frente, y desde el piso), donde sale el centro de la Muestra. Sin ella, la punta de la garra. */
   muzzle?: { x: number; y: number };
+  /**
+   * Potencia que pierde el tiro por cada Muestra que lleva de más (fracción de `maxSpeed`): con `n` Muestras, la velocidad
+   * máxima es `maxSpeed · (1 − loadPenalty · (n − 1))` (`game/shooter.ts`). SUPUESTO: el manual no habla de lanzar.
+   * Sin ella, `DEFAULT_LOAD_PENALTY`.
+   */
+  loadPenalty?: number;
+}
+
+/** Pérdida de potencia por Muestra extra en el lanzador (SUPUESTO de Xhavi, 16-nov: "mientras más lleno, más débiles sus disparos"). */
+export const DEFAULT_LOAD_PENALTY = 0.1;
+
+/**
+ * Cuántas Muestras caben en la rampa del lanzador: el único límite es el espacio físico (Xhavi, 16-nov). Van en fila desde el
+ * pie de la rampa (donde entran, centro a `SAMPLE_SIZE / 2` del piso y a `arm.pivotX`) hasta la boca (`muzzle`); cada una ocupa
+ * 15 cm (§4.1.1) y la fila cuenta media pieza de más en cada punta (los centros no pasan de la boca ni del pie).
+ */
+export function shooterCapacity(s: { arm: { pivotX: number }; intake?: { shooter?: ShooterSpec } }): number {
+  const m = s.intake?.shooter?.muzzle;
+  if (!m) return 1;
+  const S = SAMPLE_SIZE;
+  const len = Math.hypot(m.x - s.arm.pivotX, m.y - S / 2);
+  return Math.max(1, Math.floor((len + S) / S + 1e-9));
 }
 
 /** Lanzador por defecto de Phoenix (SUPUESTOS). */

@@ -54,6 +54,8 @@ export class RobotView {
   private criticalMesh: THREE.Mesh;
   /** Segunda Muestra en la garra (garra con rodillos: en fila detrás de la primera, `seatX`). */
   private clawSample2: THREE.Mesh;
+  /** Lanzador: las Muestras de más, en fila por la rampa (la primera es `clawSample`). */
+  private rampSamples: THREE.Mesh[] = [];
   /** Con el modelo del CAD la garra va rígida al brazo: su giro respecto al brazo (rad). */
   private rigidClaw: number | null = null;
   /** Dibujo genérico del robot: se oculta cuando el modelo del CAD termina de cargar. */
@@ -206,6 +208,14 @@ export class RobotView {
     this.clawSample = add(new THREE.BoxGeometry(sz, sz, sz), sampleMat, 0, sz / 2, 0, claw);
     this.clawSample2 = add(new THREE.BoxGeometry(sz, sz, sz), sampleMat, 0, sz / 2, 0, claw);
     this.clawSample2.visible = false;
+    const shooterSpec = this.robot.spec.intake?.shooter;
+    if (shooterSpec?.muzzle) {
+      for (let i = 1; i < this.robot.spec.capacity; i++) {
+        const mesh = add(new THREE.BoxGeometry(sz, sz, sz), sampleMat, 0, 0, 0, this.group);
+        mesh.visible = false;
+        this.rampSamples.push(mesh);
+      }
+    }
     this.criticalMesh = add(new THREE.BoxGeometry(c, c, c), critMat, 0, c / 2, 0, claw);
     // La garra queda nivelada aunque el brazo gire (se corrige en sync)
     claw.name = 'claw';
@@ -462,7 +472,22 @@ export class RobotView {
     const seat = (k: number) => (rollers ? seatX(this.robot.spec, 0, boxDir, k) : 0);
     this.clawSample.visible = n >= 1;
     this.clawSample.position.set(this.pocket?.x ?? seat(0), this.pocket?.y ?? SAMPLE_SIZE * 0.475, 0);
-    this.clawSample2.visible = n >= 2;
+    this.clawSample2.visible = n >= 2 && !this.rampSamples.length;
+    // Lanzador: las Muestras suben en fila por la rampa, del pie (donde entran) hacia la boca; cada una ocupa SAMPLE_SIZE
+    const ramp = this.robot.spec.intake?.shooter?.muzzle;
+    if (ramp) {
+      const x0 = sa.pivotX;
+      const y0 = SAMPLE_SIZE / 2;
+      const len = Math.hypot(ramp.x - x0, ramp.y - y0);
+      const ux = (ramp.x - x0) / len;
+      const uy = (ramp.y - y0) / len;
+      const have = m.inClaw ? m.stored.length : 0;
+      this.rampSamples.forEach((mesh, i) => {
+        mesh.visible = i + 1 < have;
+        mesh.position.set(x0 + ux * SAMPLE_SIZE * (i + 1), y0 + uy * SAMPLE_SIZE * (i + 1), 0);
+        mesh.rotation.z = Math.atan2(uy, ux) - Math.PI / 2;
+      });
+    }
     this.clawSample2.position.set(seat(1), rollers ? SAMPLE_SIZE * 0.475 : SAMPLE_SIZE * 1.45, 0);
     // Rodillos: con la garra prendida giran jalando hacia adentro (hacia la placa); al soltar, hacia afuera
     if (this.clawRollers.length) {

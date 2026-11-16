@@ -80,3 +80,8 @@ El ancho del CAD (0.651 m) pasa 65 cm (§7.2): el menú lo marca con ⚠.
 Los cilindros verdes (rodillos de Psycho) ya no se dibujan en robots con `intake.kind: "pinza"`. La garra del CAD (las 4 piezas `garra`, dos por lado) se
 separa y se junta en z: abierta = `intake.gap`, cerrada = Muestra (0.15 m) o Crítica (0.20 m). SUPUESTO: el STEP trae una sola pose, así que apertura, rango y velocidad
 (`closeTime`) no son del CAD.
+
+**Phoenix, varias Muestras (16-nov):** la capacidad ya no es 1: `shooterCapacity` (`config/robot.ts`) cuenta cuántas Muestras de 15 cm (§4.1.1) caben en fila
+por la rampa, del pie (x −0.2 m) a la boca (4 hoy), y `specFromRobotFile` la pone en `capacity` con `holdsTwo`. SUPUESTO (el manual no habla de lanzar):
+cada Muestra de más le quita 10 % a la velocidad máxima del tiro (`ShooterSpec.loadPenalty`, `maxSpeedFor` en `game/shooter.ts`); la velocidad que pide la distancia
+se respeta mientras alcance, así que cargado hay que tirar más cerca.

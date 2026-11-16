@@ -2,7 +2,7 @@
  * Robots generados desde CAD (`npm run robot:import`): archivos `robots/*.robot.json` que se mezclan
  * sobre el preset de su mecanismo y se validan con los límites del manual (§7.2).
  */
-import { DEFAULT_INTAKE, ROBOT_PRESETS, validateRobot, type MechanismKind, type RobotSpec } from './robot';
+import { shooterCapacity, DEFAULT_INTAKE, ROBOT_PRESETS, validateRobot, type MechanismKind, type RobotSpec } from './robot';
 
 export interface RobotFileLike {
   schema?: string;
@@ -52,6 +52,11 @@ export function specFromRobotFile(f: RobotFileLike, strict = true): RobotSpec {
   if (spec.arm.rearClaw) {
     delete spec.arm.stowAngle;
     delete spec.arm.stowTip;
+    // Lanzador (Phoenix): la rampa lleva en fila todas las Muestras que le quepan, sin hopper ni paso (Xhavi, 16-nov)
+    if (spec.intake?.shooter?.muzzle) {
+      spec.capacity = shooterCapacity(spec);
+      spec.arm.holdsTwo = true;
+    }
   }
   if (spec.elevatorHeights.length !== 5 || !spec.elevatorHeights.every(finite)) throw new Error('archivo de robot: elevatorHeights debe tener 5 números');
   const problems = strict ? validateRobot(spec) : [];
