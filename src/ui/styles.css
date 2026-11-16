@@ -1845,3 +1845,29 @@ body.vs-stacked .touch.vs-touch.p1 .pad { bottom: 12px; }
 .screen.solid { background: rgba(11, 6, 16, 0.96); }
 .screen.mo { background: linear-gradient(90deg, rgba(11, 6, 16, 0.6), rgba(11, 6, 16, 0.06) 60%); }
 .screen, .screen * { animation: none !important; transition: none !important; }
+
+/* ---------- Marcador y pausa con el diseño de la referencia, en la paleta del branding del equipo */
+.scorebug { margin-top: 1.9em; border-radius: 6px; }
+.scorebug::before {
+  content: 'LabBot Rescue'; position: absolute; left: 0; right: 0; bottom: 100%; height: 1.9em; display: grid; place-items: center;
+  background: var(--brand-deep); color: var(--brand-white); border-radius: 6px 6px 0 0; font: 700 0.95em var(--display); letter-spacing: 0.02em;
+}
+.scorebug::after { content: ''; position: absolute; left: 0; right: 0; top: 100%; height: 0.3em; background: var(--brand-magenta); border-radius: 0 0 6px 6px; }
+.sb-center { background: var(--brand-white); color: var(--brand-deep); }
+.sb-center .period { color: var(--brand-plum); }
+.sb-center .timer.endgame { color: var(--brand-magenta); }
+.sb-prog { background: rgba(59, 11, 62, 0.15); }
+.sb-prog i { background: var(--brand-magenta); }
+
+.pause { width: min(560px, 100%); display: block; background: var(--brand-deep); border-radius: 8px; border: 1px solid var(--line-2); }
+.ps-main { align-items: stretch; gap: 12px; padding: 0 0 20px; }
+.ps-main::before { display: none; }
+.ps-main .kicker, .ps-main .ps-score { margin: 0 20px; }
+.ps-main .kicker { display: none; }
+.ps-main h2 { margin: 0; padding: 14px 20px; text-align: center; font: italic 700 26px/1 var(--display); background: #12081a; border-bottom: 3px solid rgba(255, 255, 255, 0.35); }
+.ps-menu { padding: 0 20px; gap: 10px; }
+.ps-menu button { justify-content: center; text-align: center; background: var(--brand-purple); color: #fff; border-color: transparent; border-radius: 8px; font-weight: 700; }
+.ps-menu button:hover { background: var(--brand-plum); transform: none; }
+.ps-menu button.primary { background: var(--accent-fill); font-size: 1.15em; }
+.ps-menu button.primary:hover { background: var(--accent); }
+.ps-menu button.quit:hover { color: #fff; }

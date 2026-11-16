@@ -222,7 +222,7 @@ export class App {
       this.audio.setRefMode(s.refAudio);
       this.cam.fovDefault = s.fov;
       this.cam2.fovDefault = s.fov;
-    }, this.input);
+    }, this.input, { view: (v) => this.setMenuView(v), preview: (p) => this.previewRobot(p) });
     this.audio.setRefMode(this.settings.refAudio);
     this.cam.fovDefault = this.settings.fov;
     this.cam2.fovDefault = this.settings.fov;
@@ -966,7 +966,23 @@ export class App {
     if (calls.some((c) => c.alliance === mine && (c.kind === 'foul' || c.kind === 'tech' || c.kind === 'yellow' || c.kind === 'red'))) rumblePad(this.input.pad(), 'foul');
   }
 
+  /** En el menú: la cancha completa de fondo (`orbit`) o el robot elegido de cerca (`robot`). */
+  private menuView: 'orbit' | 'robot' = 'orbit';
+  private setMenuView(v: 'orbit' | 'robot'): void {
+    if (this.state === 'menu') this.menuView = v;
+  }
+
+  /** Reconstruye la cancha de fondo con el robot elegido (sin empezar match). */
+  private previewRobot(player: number): void {
+    if (this.state !== 'menu') return;
+    this.renderer.scene.remove(this.session.root);
+    this.session.dispose();
+    this.session = new GameSession({ ...this.sessionOptions(player), solo: true });
+    this.renderer.scene.add(this.session.root);
+  }
+
   toMenu(): void {
+    this.menuView = 'orbit';
     this.audio.stopVoice();
     this.flushPlaytime();
     this.closeAutoPractice();
@@ -1180,19 +1196,34 @@ export class App {
       if (this.replayBar.root.style.display !== 'none') this.replay.update(dt);
       this.replayBar.update();
     } else if (this.state === 'menu') {
-      this.session.setRobotsVisible(false);
-      // Vista de fondo de la cancha
-      // Vista fija (el menú es estático: nada se mueve)
-      const a = 0.9;
-      this.cam.camera.position.set(Math.cos(a) * 9, 6.5, Math.sin(a) * 7.5);
-      this.cam.orbit.target.set(0, 0, 0);
+      if (this.menuView === 'robot') {
+        // Selección de robot: solo se ve el que vas a elegir, con la cámara fija de frente y un poco arriba
+        const pl = this.session.player;
+        this.session.setRobotsVisible(false, pl);
+        const r = pl.phys.position();
+        const len = Math.hypot(r.x, r.z) || 1;
+        const dx = -r.x / len;
+        const dz = -r.z / len;
+        const ang = 0.7;
+        const cx = dx * Math.cos(ang) - dz * Math.sin(ang);
+        const cz = dx * Math.sin(ang) + dz * Math.cos(ang);
+        this.cam.camera.position.set(r.x + cx * 2.8, 1.7, r.z + cz * 2.8);
+        this.cam.orbit.target.set(r.x, 0.4, r.z);
+        this.cam.camera.lookAt(r.x, 0.4, r.z);
+      } else {
+        this.session.setRobotsVisible(false);
+        // Vista fija (el menú es estático: nada se mueve)
+        const a = 0.9;
+        this.cam.camera.position.set(Math.cos(a) * 9, 6.5, Math.sin(a) * 7.5);
+        this.cam.orbit.target.set(0, 0, 0);
+      }
     }
     // Después del estado: si A reanuda la pausa, el robot no recibe esa A (ya no es pulsación nueva)
     this.padNav.update(now, this.input.pad(), this.padScope(), this.input.capturing);
     if (this.autoPractice) this.autoPractice.root.style.display = this.state === 'playing' ? '' : 'none';
     if (this.trainingRun) this.trainingRun.root.style.display = this.state === 'playing' ? '' : 'none';
     if (this.practice1v1) this.practice1v1.root.style.display = this.state === 'playing' ? '' : 'none';
-    if (this.state !== 'paused' && this.state !== 'replay') this.session.update(this.state === 'playing' ? 0 : dt);
+    if (this.state !== 'paused' && this.state !== 'replay') this.session.update(this.state === 'playing' || this.state === 'menu' ? 0 : dt);
     this.watchFps(dt);
     this.effects.update(this.state === 'paused' ? 0 : dt);
     this.boardView.update(this.board, this.boardRev);
