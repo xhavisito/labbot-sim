@@ -23,7 +23,16 @@ export interface Settings {
   hpInterval: number;
   /** Controles touch en pantalla: según el equipo, siempre o nunca. */
   touch: 'auto' | 'on' | 'off';
+  /** Cámara inicial al jugar: la de tu Driver Station, seguimiento, superior o libre. */
+  camera: 'driver' | 'follow' | 'top' | 'free';
+  /** Campo de visión vertical de la cámara (grados). */
+  fov: number;
+  /** Límite de cuadros por segundo; 0 = VSync (lo que marque el monitor). */
+  fpsLimit: 0 | 30 | 60 | 120;
 }
+
+export const CAMERA_CHOICES = ['driver', 'follow', 'top', 'free'] as const;
+export const FPS_LIMITS = [0, 30, 60, 120] as const;
 
 export const DEFAULT_SETTINGS: Settings = {
   ai: true,
@@ -36,12 +45,16 @@ export const DEFAULT_SETTINGS: Settings = {
   hpEnabled: true,
   hpInterval: 3,
   touch: 'auto',
+  camera: 'driver',
+  fov: 50,
+  fpsLimit: 0,
 };
 
 export const SETTINGS_RANGE = {
   maxSpeed: { min: 1, max: 4.5, step: 0.25 },
   capacity: { min: 1, max: 10, step: 1 },
   hpInterval: { min: 1, max: 10, step: 0.5 },
+  fov: { min: 30, max: 100, step: 1 },
 } as const;
 
 const KEY = 'labbot.settings';
@@ -66,6 +79,9 @@ export function sanitizeSettings(raw: unknown, autoIds: readonly string[]): Sett
     hpEnabled: typeof o.hpEnabled === 'boolean' ? o.hpEnabled : d.hpEnabled,
     hpInterval: num(o.hpInterval, d.hpInterval, SETTINGS_RANGE.hpInterval),
     touch: o.touch === 'on' || o.touch === 'off' ? o.touch : d.touch,
+    camera: CAMERA_CHOICES.find((c) => c === o.camera) ?? d.camera,
+    fov: Math.round(num(o.fov, d.fov, SETTINGS_RANGE.fov)),
+    fpsLimit: FPS_LIMITS.find((f) => f === o.fpsLimit) ?? d.fpsLimit,
   };
 }
 

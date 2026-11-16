@@ -60,3 +60,16 @@ describe('registro del match', () => {
     expect(JSON.parse(JSON.stringify(log))).toEqual(log);
   });
 });
+
+describe('ajustes de vista', () => {
+  it('FOV, cámara y límite de FPS se recortan a valores válidos', () => {
+    const s = sanitizeSettings({ fov: 500, camera: 'follow', fpsLimit: 60 }, ids);
+    expect(s.fov).toBe(SETTINGS_RANGE.fov.max);
+    expect(s.camera).toBe('follow');
+    expect(s.fpsLimit).toBe(60);
+    const bad = sanitizeSettings({ fov: 'x', camera: 'dron', fpsLimit: 17 }, ids);
+    expect(bad.fov).toBe(DEFAULT_SETTINGS.fov);
+    expect(bad.camera).toBe(DEFAULT_SETTINGS.camera);
+    expect(bad.fpsLimit).toBe(0);
+  });
+});

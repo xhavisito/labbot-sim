@@ -38,8 +38,19 @@ export class App {
     this.session = new GameSession();
     this.renderer.scene.add(this.session.root);
     this.hud = new Hud(ui);
-    this.menu = new Menu(ui, (c) => this.start(c), this.settings, (s) => saveSettings(s), this.input);
+    this.menu = new Menu(
+      ui,
+      (c) => this.start(c),
+      this.settings,
+      (s) => {
+        saveSettings(s);
+        this.applyView();
+      },
+      this.input,
+      { view: (v) => this.setMenuView(v), preview: (p) => this.previewRobot(p) },
+    );
     this.touch = new TouchControls(ui, this.input, () => this.cycleCamera(), () => this.togglePause());
+    this.applyView();
     this.toMenu();
     const onResize = () => this.renderer.resize(this.cam.camera);
     window.addEventListener('resize', onResize);
@@ -63,7 +74,31 @@ export class App {
     this.hud.setHelp(keyboardHelp(this.input.bindings), padHelp(this.input.bindings));
     this.state = 'playing';
     this.updateTouch();
-    this.cam.setMode(c.player < 2 ? 'driverRed' : 'driverBlue');
+    const cam = this.settings.camera;
+    this.cam.setMode(cam === 'follow' ? 'follow' : cam === 'top' ? 'top' : cam === 'free' ? 'free' : c.player < 2 ? 'driverRed' : 'driverBlue');
+  }
+
+  /** Aplica FOV (la proyección se recalcula) y límite de FPS de los ajustes. */
+  private applyView(): void {
+    if (this.cam.camera.fov !== this.settings.fov) {
+      this.cam.camera.fov = this.settings.fov;
+      this.cam.camera.updateProjectionMatrix();
+    }
+  }
+
+  /** En el menú: la cancha gira de fondo (`orbit`) o la cámara se acerca al robot elegido (`robot`). */
+  private menuView: 'orbit' | 'robot' = 'orbit';
+  private setMenuView(v: 'orbit' | 'robot'): void {
+    if (this.state === 'menu') this.menuView = v;
+  }
+
+  /** Reconstruye la cancha de fondo con el robot/alianza elegidos (sin empezar match). */
+  private previewRobot(player: number): void {
+    if (this.state !== 'menu') return;
+    this.renderer.scene.remove(this.session.root);
+    this.session.dispose();
+    this.session = new GameSession(this.sessionOptions(player));
+    this.renderer.scene.add(this.session.root);
   }
 
   /** Opciones de la sesión según los ajustes: IA, rutinas de AUTO, tu robot y Human Player. */
@@ -108,6 +143,7 @@ export class App {
 
   toMenu(): void {
     this.state = 'menu';
+    this.menuView = 'orbit';
     this.touch.show(false);
     this.hud.show(false);
     this.cam.setMode('free');
@@ -141,6 +177,11 @@ export class App {
   }
 
   private loop = (now: number): void => {
+    const cap = this.settings.fpsLimit;
+    if (cap > 0 && now - this.last < 1000 / cap - 2) {
+      requestAnimationFrame(this.loop);
+      return;
+    }
     const dt = Math.min(0.1, (now - this.last) / 1000);
     this.last = now;
     const inp = this.input.poll();
@@ -165,8 +206,16 @@ export class App {
     } else if (this.state === 'menu') {
       // Vista de fondo: la cámara libre gira despacio alrededor de la cancha
       const a = now / 1000 / 20;
-      this.cam.camera.position.set(Math.cos(a) * 9, 6.5, Math.sin(a) * 7.5);
-      this.cam.orbit.target.set(0, 0, 0);
+      if (this.menuView === 'robot') {
+        // Selección de robot: la cámara rodea despacio al robot elegido
+        const r = this.session.player.phys.position();
+        const b = now / 1000 / 8;
+        this.cam.camera.position.set(r.x + Math.cos(b) * 2.6, 1.5, r.z + Math.sin(b) * 2.6);
+        this.cam.orbit.target.set(r.x, 0.35, r.z);
+      } else {
+        this.cam.camera.position.set(Math.cos(a) * 9, 6.5, Math.sin(a) * 7.5);
+        this.cam.orbit.target.set(0, 0, 0);
+      }
     }
     if (this.state !== 'paused') this.session.update(this.state === 'playing' ? 0 : dt);
     const p = this.session.player.phys;
