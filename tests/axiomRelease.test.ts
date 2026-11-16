@@ -46,3 +46,24 @@ describe('Axiom suelta la Muestra', () => {
     });
   }
 });
+
+describe('Axiom: colisiones de la garra (Xhavi, 16-nov: "se queda flotando")', () => {
+  it('4 Axiom de la IA en 100 s no se levantan ni se inclinan por topar con la Cámara', () => {
+    const P = robotSpec('cad:axiom');
+    const g = new GameSession({ player: 0, preload: true, ai: true, specs: [P, P, P, P] });
+    g.startMatch();
+    let maxTilt = 0;
+    let floating = 0;
+    for (let i = 0; i < 100 * 120 && !g.match!.finished; i++) {
+      g.setInput(emptyInput());
+      g.step();
+      for (const r of g.robots) {
+        maxTilt = Math.max(maxTilt, r.phys.tilt());
+        if (r.phys.position().y > 0.035) floating++;
+      }
+    }
+    // Antes: 492 pasos levantado hasta 7 cm y 21° de inclinación
+    expect(floating).toBeLessThan(100);
+    expect(maxTilt).toBeLessThan((15 * Math.PI) / 180);
+  }, 240000);
+});
