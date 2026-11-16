@@ -1,0 +1,31 @@
+{
+  "schema": "labbot-robot/1",
+  "name": "Axiom",
+  "mechanism": "pivot",
+  "spec": {
+    "length": 0.56,
+    "width": 0.65,
+    "baseHeight": 0.64,
+    "arm": {
+      "pivotX": 0.1,
+      "pivotY": 0.46,
+      "length": 0.46
+    }
+  },
+  "source": {
+    "file": "medidas de Xhavi (16-nov), sin STEP",
+    "parts": 0,
+    "bboxM": [
+      0.56,
+      0.65,
+      0.64
+    ]
+  },
+  "supuestos": [
+    "SIN CAD: el STEP que mandó Xhavi era el de Phoenix y no pudo exportar el de Axiom; este robot sale SOLO de las medidas que dio (16-nov) y de 4 capturas de SolidWorks, que no se pueden leer como geometría",
+    "DE XHAVI: ancho 0.65 m, largo sin brazo 0.56 m, alto 0.64 m (se tomó el largo sin brazo como largo del chasis); largo con brazo 0.63 m (el brazo asoma 0.07 m del chasis): anotado, no modelado",
+    "SUPUESTO: mecanismo = pivote con garra (las capturas muestran una caja con brazo que gira en un eje, 4 llantas y dos motores grandes al frente); es lo más cercano, hay que confirmarlo",
+    "SUPUESTO: brazo de 0.46 m con el pivote 0.10 m adelante del centro y a 0.46 m del piso: el preset de pivote (0.51 m) no cabe en un chasis de 0.56 m (§4.1, §7.2), así que se acortó lo justo; garra, llantas, capacidad, masa, velocidades y tracción salen del preset (el manual no los fija, §7.2)",
+    "SUPUESTO: se dibuja con el modelo genérico del simulador con estas medidas; sin modelo 3D del CAD hasta tener el STEP de Axiom"
+  ]
+}
