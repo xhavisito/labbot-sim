@@ -158,11 +158,14 @@ export const PLAN_BOARDS: readonly PlanBoard[] = ['all', 'card', 'off'];
 
 const botDefault = (): MatchRobot => ({ kind: 'random', strategy: 'auto', ai: 'hard', persona: 'balanced', auto: 'preload', plan: '' });
 
+/** Robot por defecto: Psycho (CAD). Los presets de LabBot ya no son elegibles. */
+const DEFAULT_ROBOT_ID: RobotId = 'cad:psycho';
+
 export const DEFAULT_SETTINGS: Settings = {
   ai: true,
   playerAuto: 'leave',
   match: { robots: [botDefault(), botDefault(), botDefault(), botDefault()], start: { ...CENTER_SPOT }, secret: true },
-  robotType: DEFAULT_ROBOT.mechanism,
+  robotType: DEFAULT_ROBOT_ID,
   maxSpeed: DEFAULT_ROBOT.maxSpeed,
   hpEnabled: true,
   hpInterval: 3,
@@ -189,8 +192,8 @@ export const DEFAULT_SETTINGS: Settings = {
   textScale: 1,
   versus: {
     team: 'opp',
-    p1: { robot: DEFAULT_ROBOT.mechanism, auto: 'leave', start: { ...CENTER_SPOT }, device: 'keys1', camera: 'follow' },
-    p2: { robot: DEFAULT_ROBOT.mechanism, auto: 'leave', start: { ...CENTER_SPOT }, device: 'keys2', camera: 'follow' },
+    p1: { robot: DEFAULT_ROBOT_ID, auto: 'leave', start: { ...CENTER_SPOT }, device: 'keys1', camera: 'follow' },
+    p2: { robot: DEFAULT_ROBOT_ID, auto: 'leave', start: { ...CENTER_SPOT }, device: 'keys2', camera: 'follow' },
   },
 };
 

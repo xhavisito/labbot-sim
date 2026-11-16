@@ -18,7 +18,7 @@ import { routeRoutine, savedRoutes } from '../auto/recorded';
 import { loadPaths, pathRoutine } from '../game/autoPathStore';
 import { loadPlans } from '../game/planStore';
 import * as F from '../config/field';
-import { MECHANISM_KINDS, type MechanismKind, type RobotSpec } from '../config/robot';
+import { type MechanismKind, type RobotSpec } from '../config/robot';
 import type { MatchRobot, Settings } from '../config/settings';
 import { CENTER_SPOT, clampSpot, spotValid, type StartSpot } from '../config/startSpot';
 import { backBtn, brandbar, ic, UI_ALLIANCES, UI_SLOTS } from './chrome';
@@ -95,7 +95,7 @@ export class MatchSetup {
     const autoOpts = autoOptionsHtml;
     const kindCell = (i: number, r: MatchRobot) => {
       if (inp.kinds) return `<span class="ms-fixed">${t(`type_${inp.kinds[i]}` as Key)}</span>`;
-      return `<select data-kind="${i}">${opt('random', t('ms_random'), r.kind)}${MECHANISM_KINDS.map((k) => opt(k, t(`type_${k}` as Key), r.kind)).join('')}</select>`;
+      return `<select data-kind="${i}">${opt('random', t('ms_random'), r.kind)}</select>`;
     };
     // Dificultad: un solo control con la actual; al tocarlo se despliega la lista (antes eran 3 botones que no cabían)
     const aiOpts = (cur: string) => AI_LEVELS.map((l) => opt(l, t(`ai_${l}`), cur)).join('');

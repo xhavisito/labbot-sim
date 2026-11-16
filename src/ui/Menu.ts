@@ -9,7 +9,7 @@ import { loadPaths, pathRoutine } from '../game/autoPathStore';
 import { customById } from '../config/customRobots';
 import { CAD_ROBOT_PROBLEMS } from '../cad/cadRobots';
 import { allRobotIds, isCadId, robotSpec, type RobotId } from '../config/robotIds';
-import { GRIP_MODES, MECHANISM_KINDS } from '../config/robot';
+import { GRIP_MODES } from '../config/robot';
 import { GAME } from '../config/game';
 import { VERSUS_CAMERAS, type VersusCamera } from '../config/settings';
 import type { RobotStats } from '../replay/stats';
@@ -117,7 +117,7 @@ function robotDesc(id: RobotId): string {
 }
 /** Lista de robots para elegir: el pivote, su variante de 180° y los robots propios del editor. */
 const robotOptions = (sel: RobotId): string =>
-  `<optgroup label="${t('grp_labbot')}">${MECHANISM_KINDS.map((m) => `<option value="${m}" ${m === sel ? 'selected' : ''}>${robotName(m)}</option>`).join('')}</optgroup>${cadOptions(sel)}${mineOptions(sel)}`;
+  `${cadOptions(sel)}${mineOptions(sel)}`;
 /** Robots importados desde CAD (si hay). */
 function cadOptions(sel: RobotId): string {
   const ids = allRobotIds().filter(isCadId);

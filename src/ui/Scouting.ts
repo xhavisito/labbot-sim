@@ -172,7 +172,6 @@ export class ScoutingScreen {
 
   // ------------------------------------------------------------------ equipos
   private teamsHtml(): string {
-    const opts = (sel: MechanismKind) => MECHANISM_KINDS.map((k) => `<option value="${k}" ${k === sel ? 'selected' : ''}>${t(`type_${k}` as Key)}</option>`).join('');
     return `<div class="panels"><div class="panel">
       <h3>${t('sc_teams')}</h3>
       <p class="sub">${t('sc_teamsNote')}</p>
@@ -182,7 +181,7 @@ export class ScoutingScreen {
           .map(
             (tm, i) => `<tr><td class="mono">${esc(tm.id)}</td>
           <td><input class="tin" data-name="${i}" value="${esc(tm.name)}" maxlength="40"></td>
-          <td><select data-robot="${i}">${opts(tm.robot)}</select></td>
+          <td><span class="dim">${t(`type_${tm.robot}` as Key)}</span></td>
           <td><button class="x" data-del="${i}" title="${t('clear')}" aria-label="${t('clear')}">${ic.x}</button></td></tr>`,
           )
           .join('')}
