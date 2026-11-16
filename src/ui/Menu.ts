@@ -38,6 +38,12 @@ import { applyUpdate, isIos, isStandalone, promptInstall, pwa } from '../pwa/reg
 
 const esc = (v: string): string => v.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
 
+/** Vista de fondo del menú y reconstrucción de la cancha con el robot elegido. */
+export interface MenuHooks {
+  view(v: 'orbit' | 'robot'): void;
+  preview(player: number): void;
+}
+
 export interface MenuChoice {
   /**
    * 'auto' = práctica de AUTO (`ui/AutoPractice.ts`): solo tu robot, grabar y probar rutas.
@@ -203,6 +209,7 @@ export class Menu {
     private settings: Settings,
     private onSettings: (s: Settings) => void,
     private input: InputManager,
+    private hooks: MenuHooks = { view: () => undefined, preview: () => undefined },
   ) {
     this.root = document.createElement('div');
     host.appendChild(this.root);
@@ -235,6 +242,7 @@ export class Menu {
   // ------------------------------------------------------------------ principal
   /** Menú raíz estilo videojuego: la cancha gira de fondo y las opciones van abajo a la izquierda. */
   main(): void {
+    this.hooks.view('orbit');
     const fs = !!document.documentElement.requestFullscreen;
     this.open(
       `<div class="mo-overlay">
@@ -265,6 +273,7 @@ export class Menu {
 
   /** Jugar: "Jugar" tenue de título y las dos formas de entrar. */
   playMenu(): void {
+    this.hooks.view('orbit');
     this.open(
       `<div class="mo-overlay">
         <div class="mo-title"><h1>LabBot <span>Rescue 2026</span></h1></div>
@@ -277,8 +286,14 @@ export class Menu {
       </div>`,
       'screen mo',
     );
-    this.on('[data-act="single"]', () => this.robotSelect(false));
-    this.on('[data-act="split"]', () => this.robotSelect(true));
+    this.on('[data-act="single"]', () => {
+      this.hooks.preview(this.player);
+      this.robotSelect(false);
+    });
+    this.on('[data-act="split"]', () => {
+      this.hooks.preview(this.player);
+      this.robotSelect(true);
+    });
     this.on('[data-act="back"]', () => this.main());
     (this.root.querySelector('[data-act="single"]') as HTMLElement).focus({ preventScroll: true });
   }
@@ -304,6 +319,7 @@ export class Menu {
    * Punto de aparición, Intensidad de vibración y Rango de Outpost son controles visuales sin efecto.
    */
   robotSelect(split: boolean): void {
+    this.hooks.view('robot');
     const s = this.settings;
     const v = s.versus;
     const side = this.moActive === 2 ? v.p2 : v.p1;
@@ -356,6 +372,7 @@ export class Menu {
       if (split) side.robot = id;
       else adoptRobot(s, id);
       this.onSettings(s);
+      this.hooks.preview(this.player);
       this.robotSelect(split);
     });
     this.root.querySelectorAll<HTMLSelectElement>('select[data-mk]').forEach((el) =>
@@ -366,7 +383,10 @@ export class Menu {
           else s.camera = el.value as Settings['camera'];
         } else if (k === 'dev') side.device = el.value as typeof side.device;
         else if (k === 'mode') this.moMode = el.value as 'match' | 'practice';
-        else if (k === 'slot') this.player = Number(el.value);
+        else if (k === 'slot') {
+          this.player = Number(el.value);
+          this.hooks.preview(this.player);
+        }
         else if (k === 'a1' || k === 'a2') {
           // Jugador 1 elige su alianza; el 2 queda en la misma (equipo) o en la contraria
           const a1 = k === 'a1' ? el.value : alliance(1) ? 'red' : 'blue';

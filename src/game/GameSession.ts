@@ -605,9 +605,9 @@ export class GameSession {
     this.sinkView?.update(this.time);
   }
 
-  /** Muestra u oculta los robots (el menú enseña la cancha vacía: solo Muestras y Críticas). */
-  setRobotsVisible(v: boolean): void {
-    for (const rv of this.robotViews) rv.group.visible = v;
+  /** Muestra u oculta los robots; con `only`, solo se ve ese (el menú enseña el robot que vas a elegir). */
+  setRobotsVisible(v: boolean, only?: Robot): void {
+    this.robotViews.forEach((rv, i) => (rv.group.visible = only ? this.robots[i] === only : v));
   }
 
   dispose(): void {
