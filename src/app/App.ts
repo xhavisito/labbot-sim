@@ -1214,7 +1214,7 @@ export class App {
         this.session.setRobotsVisible(false);
         // Vista fija (el menú es estático: nada se mueve)
         const a = 0.9;
-        this.cam.camera.position.set(Math.cos(a) * 9, 6.5, Math.sin(a) * 7.5);
+        this.cam.camera.position.set(Math.cos(a) * 7.8, 5.6, Math.sin(a) * 6.5);
         this.cam.orbit.target.set(0, 0, 0);
       }
     }
