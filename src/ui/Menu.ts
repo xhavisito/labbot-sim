@@ -997,34 +997,49 @@ export class Menu {
     const outcome = vs ? versusOutcome(winner, vs.stations[0], vs.team) : null;
     const title = outcome ? t(`vs_res_${outcome}` as Key) : winner ? `${t('winner')} ${t(winner)}` : t('tie');
     const rsRow = (k: string, kind: 'head' | 'row' | 'head-row', v?: Record<Alliance, number>): string => {
-      const label = k === 'teleop' ? 'TELEOP' : t(k as Key);
-      if (kind === 'head') return `<div class="rs-sec">${k === 'autoPoints' ? 'AUTO' : label}</div>`;
-      return `<div class="rs-row ${kind === 'head-row' ? 'pen' : ''}"><b class="blue">${v!.blue}</b><span>${label}</span><b class="red">${v!.red}</b></div>`;
+      const label = k === 'teleop' ? 'TELEOP' : k === 'auto' ? 'AUTO' : t(k as Key);
+      if (kind === 'head') return `<div class="rs-sec">${label}</div>`;
+      return `<div class="rs-row ${kind === 'head-row' ? 'pen' : ''}"><b class="red">${v!.red}</b><span>${label}</span><b class="blue">${v!.blue}</b></div>`;
     };
+    // fichas de los robots de cada alianza (como los equipos de la referencia): estación + quién la llevaba
+    const tiles = (a: Alliance): string =>
+      [0, 1].map((n) => {
+        const st = (a === 'red' ? 0 : 2) + n;
+        const tag = vs ? (vs.stations.indexOf(st) === 0 ? t('vs_p1short') : vs.stations.indexOf(st) === 1 ? t('vs_p2short') : t('vs_ai')) : st === player ? t('you') : 'IA';
+        return `<div class="rs-tile ${a}"><i>${a === 'red' ? 'R' : 'A'}${n + 1}</i><b>${tag}</b></div>`;
+      }).join('');
     this.open(
-      `<div class="dialog results ${vs ? 'vs-results' : ''}">
+      `<div class="dialog results rs-full ${vs ? 'vs-results' : ''}">
         <div class="rs-head"><i class="logo" aria-hidden="true"></i><b>LabBot Rescue</b><span>LamBot 3478${player >= 0 && !vs ? ` · ${t('yourRobot')}: ${stationLabel(player)}` : ''}</span></div>
-        <div class="rs-top">
-          <div class="rs-side blue ${winner === 'blue' ? 'win' : ''}"><small>${t('blue')}${who('blue')}</small><b>${b.blue.total}</b></div>
-          <div class="rs-side red ${winner === 'red' ? 'win' : ''}"><small>${t('red')}${who('red')}</small><b>${b.red.total}</b></div>
-          <div class="rs-win ${winner ?? 'tie'}">${winner ? ic.trophy : ''}<span>${title}</span></div>
+        <div class="rs-stage">
+          <div class="rs-cell rs-l1">${rpCell('red')}</div>
+          <div class="rs-cell rs-c1">
+            <div class="rs-side red ${winner === 'red' ? 'win' : ''}"><small>${t('red')}${who('red')}</small><b>${b.red.total}</b></div>
+            <div class="rs-side blue ${winner === 'blue' ? 'win' : ''}"><small>${t('blue')}${who('blue')}</small><b>${b.blue.total}</b></div>
+          </div>
+          <div class="rs-cell rs-r1"><div class="rs-win ${winner ?? 'tie'}">${winner ? ic.trophy : ''}<span>${title}</span></div></div>
+          <div class="rs-cell rs-l2"><div class="rs-tiles">${tiles('red')}</div></div>
+          <div class="rs-cell rs-c2">
+            <div class="rs-table">
+              ${rsRow('auto', 'head')}
+              ${rsRow('samplesAuto', 'row', { red: b.red.samplesAuto, blue: b.blue.samplesAuto })}
+              ${rsRow('autoLineRow', 'row', { red: b.red.autoLine, blue: b.blue.autoLine })}
+              ${rsRow('teleop', 'head')}
+              ${rsRow('samplesTeleop', 'row', cat('samplesTeleop'))}
+              ${rsRow('platform', 'row', cat('platform'))}
+              ${rsRow('criticalSample', 'row', cat('critical'))}
+              ${rsRow('penalties', 'head-row', cat('penalties'))}
+              ${ALLIANCES.some((a) => b[a].redCard) ? `<div class="bc-card">${UI_ALLIANCES.map((a) => `<span class="${a}">${b[a].redCard ? `✕ ${t('redCard')} (${b[a].subtotal} → 0)` : ''}</span>`).join('')}</div>` : ''}
+            </div>
+            <div class="rs-extra">
+              ${vs ? this.vsPlayersHtml(vs, winner) : ''}
+              <h3>${t('ref_title')}</h3>${fouls}
+              ${note ? `<div class="msg ok">${ic.check}${note}</div>` : ''}
+              ${earned.map((n) => `<div class="msg ok ach-toast">${ic.medal}<b>${t('ach_new')}:</b>&nbsp;${n}</div>`).join('')}
+            </div>
+          </div>
+          <div class="rs-cell rs-r2">${rpCell('blue')}<div class="rs-tiles">${tiles('blue')}</div></div>
         </div>
-        <div class="rs-table">
-          ${rsRow('autoPoints', 'head')}
-          ${rsRow('autoPoints', 'row', cat('auto'))}
-          ${rsRow('teleop', 'head')}
-          ${rsRow('samplesTeleop', 'row', cat('samplesTeleop'))}
-          ${rsRow('platform', 'row', cat('platform'))}
-          ${rsRow('criticalSample', 'row', cat('critical'))}
-          ${rsRow('penalties', 'head-row', cat('penalties'))}
-          ${ALLIANCES.some((a) => b[a].redCard) ? `<div class="bc-card">${UI_ALLIANCES.map((a) => `<span class="${a}">${b[a].redCard ? `✕ ${t('redCard')} (${b[a].subtotal} → 0)` : ''}</span>`).join('')}</div>` : ''}
-        </div>
-        ${vs ? this.vsPlayersHtml(vs, winner) : ''}
-        <h3>${t('rp')}</h3>
-        <div class="rpgrid">${UI_ALLIANCES.map(rpCell).join('')}</div>
-        <h3>${t('ref_title')}</h3>${fouls}
-        ${note ? `<div class="msg ok">${ic.check}${note}</div>` : ''}
-        ${earned.map((n) => `<div class="msg ok ach-toast">${ic.medal}<b>${t('ach_new')}:</b>&nbsp;${n}</div>`).join('')}
         <div class="actions">
           ${
             vs
