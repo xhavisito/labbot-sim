@@ -1871,3 +1871,30 @@ body.vs-stacked .touch.vs-touch.p1 .pad { bottom: 12px; }
 .ps-menu button.primary { background: var(--accent-fill); font-size: 1.15em; }
 .ps-menu button.primary:hover { background: var(--accent); }
 .ps-menu button.quit:hover { color: #fff; }
+
+/* ---------- Resultados: marcador de la referencia (encabezado, Azul/Rojo con puntaje grande, tabla, ganador), paleta del equipo */
+.dialog.results { width: min(980px, 100%); padding-top: 0; gap: 0; background: var(--brand-deep); }
+.dialog.results::before { display: none; }
+.results .rs-head { display: flex; align-items: center; gap: 12px; margin: 0 -28px; padding: 12px 22px; background: #12081a; color: var(--brand-white); font: 700 1.05em var(--display); }
+.results .rs-head b { flex: 1; text-align: center; letter-spacing: 0.02em; }
+.results .rs-head span { font: italic 700 0.8em var(--display); opacity: 0.85; }
+.results .rs-top { display: grid; grid-template-columns: 1fr 1fr 1.3fr; margin: 0 -28px; }
+.results .rs-side { display: flex; flex-direction: column; align-items: center; padding: 14px 8px 10px; color: #fff; }
+.results .rs-side.blue { background: var(--blue); }
+.results .rs-side.red { background: var(--red); }
+.results .rs-side small { font: 700 1.1em var(--display); }
+.results .rs-side b { font: 700 clamp(48px, 8vw, 84px)/1 var(--display); }
+.results .rs-win { display: flex; align-items: center; justify-content: center; gap: 10px; padding: 8px 14px; background: var(--brand-magenta); color: #fff; font: 800 clamp(22px, 3.4vw, 40px)/1 var(--display); text-align: center; }
+.results .rs-win .ic { width: 1.2em; height: 1.2em; }
+.results .rs-win.tie { background: var(--brand-purple); }
+.results .rs-table { margin: 0 -28px; background: var(--brand-white); color: var(--brand-deep); }
+.results .rs-sec { padding: 8px; text-align: center; background: #e6dde8; font: 800 1.05em var(--display); }
+.results .rs-row { display: grid; grid-template-columns: 1fr 2fr 1fr; align-items: center; padding: 6px 28px; font-size: 1.15em; }
+.results .rs-row b { font: 700 1.9em/1.1 var(--display); }
+.results .rs-row b.blue { text-align: left; }
+.results .rs-row b.red { text-align: right; }
+.results .rs-row span { text-align: center; font: 700 1em var(--display); text-transform: uppercase; }
+.results .rs-row.pen { background: #e6dde8; }
+.results .rs-table .bc-card { padding: 6px 28px; }
+.results h3 { margin-top: 18px; }
+@media (max-width: 760px) { .results .rs-top { grid-template-columns: 1fr 1fr; } .results .rs-win { grid-column: 1 / -1; } }
