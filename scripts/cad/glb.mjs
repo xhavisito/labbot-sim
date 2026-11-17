@@ -109,7 +109,7 @@ export async function stepToGlb(stepPath, o) {
     // `skip`: piezas que el simulador dibuja por su cuenta (p. ej. las llantas de Psycho, que giran)
     if (o.skip && o.skip.test(names[i])) return;
     // `armAbove`: el centro de la pieza a esa altura (m sobre el piso) o más; si no, por nombre
-    const isArm = o.armPattern.test(names[i]) || (o.armAbove !== undefined && (mn[1] + mx[1]) / 2 >= o.armAbove);
+    const isArm = (o.armPattern.test(names[i]) && (o.armMaxH === undefined || (mn[1] + mx[1]) / 2 <= o.armMaxH)) || (o.armAbove !== undefined && (mn[1] + mx[1]) / 2 >= o.armAbove);
     if (diag < minDiag && !isArm) return; // tornillos, rondanas…
     // Las placas (estructura) no se simplifican: con huecos se deforman; solo motores, engranes y demás
     const structural = /^(chasis|pivote|brazo|garra|soporte|flecha)/i.test(names[i]);

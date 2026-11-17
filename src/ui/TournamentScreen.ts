@@ -91,7 +91,7 @@ const catValue = (s: TeamSummary, c: Cat): number => (c === 'samples' ? s.sample
 export type WatchMode = 'broadcast' | 'stands';
 export const WATCH_CAMERA: Record<WatchMode, CameraMode> = { broadcast: 'top', stands: 'free' };
 
-const LOGOS: Record<string, string> = { 'cad:axiom': 'logos/axiom.png', 'cad:phoenix': 'logos/phoenix.png', 'cad:psycho': 'logos/psycho.png' };
+const LOGOS: Record<string, string> = { 'cad:axiom': 'logos/axiom.png', 'cad:phoenix': 'logos/phoenix.png', 'cad:psycho': 'logos/psycho.png', 'cad:hazmat-704': 'logos/hazmat-704.png' };
 
 export class TournamentScreen {
   private cfg = { player: '', perTeam: 5, format: 'manual' as PlayoffFormat, others: 'ask' as 'ask' | 'skip' };
