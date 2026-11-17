@@ -1698,8 +1698,8 @@ export class Bot {
     const v0 = p.body.linvel();
     const hl = p.halfL;
     const hw = p.halfW;
-    const px = F.PLATFORM_LENGTH / 2 + 0.08;
-    const pz = F.PLATFORM_WIDTH / 2 + 0.08;
+    const px = F.PLATFORM_LENGTH / 2 + 0.11;
+    const pz = F.PLATFORM_WIDTH / 2 + 0.11;
     // Margen a la orilla (m); 0 al despegarse de un rincón (usa lo que le queda, sin salirse)
     let edge = 0.03;
     const invasion = (f: number, t: number, plat = !platformOk, withEdge = edge >= 0): number => {
