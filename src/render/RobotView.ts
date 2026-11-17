@@ -42,6 +42,8 @@ const nodeName = (o: THREE.Object3D): string => o.name || o.parent?.name || '';
 const SHAFT_MAT = new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.45, metalness: 0.5 });
 /** Giro de dibujo de los rodillos del lanzador (rad/s) al tirar. No es el real: así no se ve el efecto estroboscópico. */
 const SHOOTER_SPIN_SHOT = 38;
+/** Giro de dibujo (rad/s) de las ruedas de abajo del lanzador mientras toman una Muestra. */
+const SHOOTER_SPIN_INTAKE = 22;
 /** GLB de robots del CAD, una sola descarga por archivo. */
 const modelCache = new Map<string, Promise<THREE.Group>>();
 export function preloadRobotModels(urls: string[]): void {
@@ -92,9 +94,11 @@ export class RobotView {
   private clawRollers: Array<{ mesh: THREE.Object3D; row: number }> = [];
   private rollerT = 0;
   /** Rodillos del lanzador del CAD (Phoenix): `side` = signo del giro (+1 / −1) para que ambas filas empujen la Muestra por la rampa. */
-  private shooterRollers: Array<{ mesh: THREE.Object3D; side: number }> = [];
+  private shooterRollers: Array<{ mesh: THREE.Object3D; side: number; bottom: boolean; w: number }> = [];
+  /** Entrada animada de las Muestras al almacén del lanzador (Phoenix): posición dibujada de cada lugar (0 = en la garra, k = en la rampa). */
+  private slotAnim: Array<{ x: number; y: number; rot: number; shown: boolean }> = [];
+  private slotT = 0;
   /** Velocidad angular actual de los rodillos del lanzador (rad/s; solo dibujo). */
-  private shooterW = 0;
   private shooterT = 0;
   private fingerT = 0;
   /**
@@ -384,8 +388,11 @@ export class RobotView {
         w.mesh.material = w.big ? rollerMat : hubGreen;
         pivot.attach(w.mesh);
       }
-      this.shooterRollers.push({ mesh: pivot, side });
+      this.shooterRollers.push({ mesh: pivot, side, bottom: false, w: 0 });
     }
+    // Ruedas de abajo (donde entran las Muestras): las dos flechas más bajas (entre ellas pasa la Muestra al entrar); solo ellas giran con el intake
+    const low = Math.min(...this.shooterRollers.map((r) => r.mesh.position.y));
+    for (const r of this.shooterRollers) r.bottom = r.mesh.position.y < low + 0.1;
   }
 
   /**
@@ -619,11 +626,36 @@ export class RobotView {
       const ux = (ramp.x - x0) / len;
       const uy = (ramp.y - y0) / len;
       const have = m.inClaw ? m.stored.length : 0;
+      // Entrada suave: la Muestra que se acaba de tomar viene del piso, por detrás de la boca del intake, y sube por la rampa
+      // hasta su lugar (se acomoda y se endereza) en vez de aparecer ahí de golpe. Solo dibujo (SUPUESTO ~0.4 s).
+      const nowA = performance.now() / 1000;
+      const dtA = Math.min(0.1, nowA - (this.slotT || nowA));
+      this.slotT = nowA;
+      const k = Math.min(1, dtA * 9);
+      const place = (idx: number, mesh: THREE.Object3D, show: boolean, tx: number, ty: number, trot: number): void => {
+        const st = (this.slotAnim[idx] ??= { x: tx, y: ty, rot: trot, shown: false });
+        mesh.visible = show;
+        if (!show) {
+          st.shown = false;
+          return;
+        }
+        if (!st.shown) {
+          st.shown = true;
+          st.x = tx - 0.22; // afuera, detrás de la boca
+          st.y = SAMPLE_SIZE * 0.5;
+          st.rot = trot - 0.7; // llega inclinada y se endereza
+        }
+        st.x += (tx - st.x) * k;
+        st.y += (ty - st.y) * k;
+        st.rot += (trot - st.rot) * k;
+        mesh.position.set(st.x, st.y, 0);
+        mesh.rotation.z = st.rot;
+      };
       this.rampSamples.forEach((mesh, i) => {
-        mesh.visible = i + 1 < have;
-        mesh.position.set(x0 + ux * SAMPLE_SIZE * (i + 1), y0 + uy * SAMPLE_SIZE * (i + 1), 0);
-        mesh.rotation.z = Math.atan2(uy, ux) - Math.PI / 2;
+        place(i + 1, mesh, i + 1 < have, x0 + ux * SAMPLE_SIZE * (i + 1), y0 + uy * SAMPLE_SIZE * (i + 1), Math.atan2(uy, ux) - Math.PI / 2);
       });
+      if (n >= 1) place(0, this.clawSample, true, this.pocket?.x ?? seat(0), this.pocket?.y ?? SAMPLE_SIZE * 0.475, 0);
+      else place(0, this.clawSample, false, 0, 0, 0);
     }
     this.clawSample2.position.set(seat(1), rollers ? SAMPLE_SIZE * 0.475 : SAMPLE_SIZE * 1.45, 0);
     // Rodillos: con la garra prendida giran jalando hacia adentro (hacia la placa); al soltar, hacia afuera
@@ -638,15 +670,19 @@ export class RobotView {
         for (const r of this.clawRollers) r.mesh.rotation.y += r.row * boxDir * w * dtR;
       }
     }
-    // Rodillos del lanzador: giran solo al tirar (no con el intake); frenan al terminar
+    // Rodillos del lanzador: con el intake giran solo los de abajo; al tirar giran todos; frenan al terminar
     if (this.shooterRollers.length) {
       const nowS = performance.now() / 1000;
       const dtS = Math.min(0.1, nowS - (this.shooterT || nowS));
       this.shooterT = nowS;
-      const target = m.shotSpinT > 0 || m.ejectT > 0 ? SHOOTER_SPIN_SHOT : 0; // solo al disparar (Xhavi, 16-nov): con el intake quietos
-      this.shooterW += (target - this.shooterW) * Math.min(1, dtS * 10);
-      if (Math.abs(this.shooterW) < 0.05) this.shooterW = 0;
-      for (const r of this.shooterRollers) r.mesh.rotation.z += r.side * this.shooterW * dtS;
+      const shooting = m.shotSpinT > 0 || m.ejectT > 0;
+      // Intake prendido: solo giran las ruedas de abajo (las que jalan la Muestra); al tirar giran todas
+      for (const r of this.shooterRollers) {
+        const target = shooting ? SHOOTER_SPIN_SHOT : m.intakeOn && r.bottom ? SHOOTER_SPIN_INTAKE : 0;
+        r.w += (target - r.w) * Math.min(1, dtS * 10);
+        if (Math.abs(r.w) < 0.05) r.w = 0;
+        r.mesh.rotation.z += r.side * r.w * dtS;
+      }
     }
     if (this.clawFingers.length) {
       const nowF = performance.now() / 1000;
