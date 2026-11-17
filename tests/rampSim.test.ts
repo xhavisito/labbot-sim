@@ -10,7 +10,7 @@ describe('RampSim (Muestras guardadas de Phoenix, solo dibujo)', () => {
     const sim = new RampSim(4);
     sim.step(1 / 60, 1, 0, 0);
     expect(sim.bodies[0].s).toBeLessThan(sim.target(0) - 1); // todavía viene de atrás
-    run(sim, 2, 1);
+    run(sim, 3, 1);
     expect(sim.bodies[0].s).toBeCloseTo(3, 1);
     expect(Math.abs(sim.bodies[0].rot)).toBeLessThan(0.02);
   });
@@ -97,5 +97,29 @@ describe('RampSim: movimiento contenido', () => {
       worst = Math.max(worst, 2 - sim.bodies[1].s);
     }
     expect(worst).toBeLessThan(0.5);
+  });
+});
+
+describe('RampSim: el PID se nota frente al resorte de antes', () => {
+  const OLD = { k: 110, ki: 0, c: 13, maxAcc: 1e9, maxV: 1e9, gravity: 14, restitution: 0.25 };
+  const entry = (p: ConstructorParameters<typeof RampSim>[1]) => {
+    const sim = new RampSim(4, p);
+    let reach = -1;
+    let peak = 0;
+    for (let t = 0; t < 3; t += 1 / 120) {
+      sim.step(1 / 120, 1, 0, 0);
+      peak = Math.max(peak, Math.abs(sim.bodies[0].v));
+      if (reach < 0 && Math.abs(sim.bodies[0].s - 3) < 0.05) reach = t;
+    }
+    return { reach, peak };
+  };
+  it('la Muestra sube rodando (≤ 5 lados/s) en ~0.85 s; el resorte la lanzaba a ~19 lados/s en 0.28 s', () => {
+    const before = entry(OLD);
+    const now = entry(undefined);
+    expect(before.peak).toBeGreaterThan(15);
+    expect(before.reach).toBeLessThan(0.4);
+    expect(now.peak).toBeLessThanOrEqual(5 + 1e-9);
+    expect(now.reach).toBeGreaterThan(0.6);
+    expect(now.reach).toBeLessThan(1.2);
   });
 });

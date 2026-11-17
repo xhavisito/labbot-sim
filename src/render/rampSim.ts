@@ -29,13 +29,15 @@ export interface RampParams {
   c: number;
   /** Aceleración máxima que pueden dar los rodillos (lados de Muestra/s²): límite del motor. */
   maxAcc: number;
+  /** Velocidad máxima de la Muestra sobre los rodillos (lados/s): la rapidez de la banda. */
+  maxV: number;
   /** Gravedad a lo largo de la rampa, en lados de Muestra/s² (positiva = hacia el pie). */
   gravity: number;
   /** Rebote de los choques (0 = pegajoso, 1 = elástico). */
   restitution: number;
 }
 
-export const RAMP_DEFAULTS: RampParams = { k: 110, ki: 12, c: 13, maxAcc: 220, gravity: 14, restitution: 0.25 };
+export const RAMP_DEFAULTS: RampParams = { k: 70, ki: 25, c: 11.5, maxAcc: 90, maxV: 5, gravity: 14, restitution: 0.25 };
 
 /** Donde entra una Muestra nueva (lados de Muestra detrás del pie) y con qué cabeceo (rad). */
 export const ENTRY_S = -0.9;
@@ -55,7 +57,7 @@ export class RampSim {
   }
 
   private mkPid(): Pid {
-    return new Pid(this.p.k, this.p.ki, this.p.c, this.p.maxAcc);
+    return new Pid(this.p.k, this.p.ki, this.p.c, this.p.maxAcc, 0.5);
   }
 
   /** Lugar de la rampa de la Muestra `i` (0 = la más vieja, junto a la boca). */
@@ -99,6 +101,8 @@ export class RampSim {
         let a = b.pid.update(t - b.s, b.v, h) - ax;
         if (t - b.s > 0.4) a -= p.gravity;
         b.v += a * h;
+        // Los rodillos no la jalan más rápido que su rapidez: se ve entrar rodando y subir, no "teletransportarse"
+        if (b.v > p.maxV) b.v = p.maxV;
         b.s += b.v * h;
         // Cabeceo: vuelve a 0 con su resorte; los golpes (aceleración lateral y choques) lo excitan
         b.w += (-70 * b.rot - 9 * b.w + lat * 0.12) * h;
