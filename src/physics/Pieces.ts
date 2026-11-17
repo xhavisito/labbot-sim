@@ -20,6 +20,8 @@ export interface Piece {
   body: RAPIER.RigidBody;
   collider: RAPIER.Collider;
   state: PieceState;
+  /** Último robot que la soltó (para el scouting: quién anotó). Se borra si el HP o el acomodo la ponen. */
+  lastRobot?: number;
 }
 
 /** Fricción de la espuma: no se da. SUPUESTO 0.8 (cubo de espuma sobre alfombra). */
@@ -63,13 +65,17 @@ export class Pieces {
   }
 
   /** Pone una pieza en la cancha (cuerpo habilitado) en la pose y velocidad dadas. */
-  place(p: Piece, x: number, y: number, z: number, yaw = 0, vel?: { x: number; y: number; z: number }): void {
+  place(p: Piece, x: number, y: number, z: number, yaw = 0, vel?: { x: number; y: number; z: number }, pitch = 0): void {
     p.body.setEnabled(true);
     p.body.setTranslation({ x, y, z }, true);
-    p.body.setRotation({ x: 0, y: Math.sin(yaw / 2), z: 0, w: Math.cos(yaw / 2) }, true);
+    // `pitch`: giro sobre el eje lateral del robot (la Muestra que sale de una caja inclinada sale igual de inclinada,
+    // si no queda atravesada entre las placas de la caja y se atora). q = giro en y (yaw) · giro en z (pitch)
+    const cy = Math.cos(yaw / 2), sy = Math.sin(yaw / 2), cp = Math.cos(pitch / 2), sp = Math.sin(pitch / 2);
+    p.body.setRotation({ x: sy * sp, y: sy * cp, z: cy * sp, w: cy * cp }, true);
     p.body.setLinvel(vel ?? { x: 0, y: 0, z: 0 }, true);
     p.body.setAngvel({ x: 0, y: 0, z: 0 }, true);
     p.state = { at: 'field' };
+    p.lastRobot = undefined;
   }
 
   /** Saca una pieza de la cancha (guardada en un robot o en la reserva del HP). */
