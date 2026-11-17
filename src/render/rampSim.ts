@@ -8,6 +8,8 @@
  * adelante se recargan hacia el pie), tope en la boca y choques entre vecinas. Además cabecean (`rot`) con los golpes.
  */
 
+import { Pid } from './pid';
+
 export interface RampBody {
   /** Posición sobre la rampa en lados de Muestra (negativa = todavía afuera, detrás del pie, rodando por el piso). */
   s: number;
@@ -16,19 +18,24 @@ export interface RampBody {
   rot: number;
   w: number;
   alive: boolean;
+  /** PID de los rodillos que la llevan a su lugar. */
+  pid: Pid;
 }
 
 export interface RampParams {
-  /** Rigidez / amortiguamiento del resorte que la lleva a su lugar (1/s², 1/s). */
+  /** Ganancias PID de los rodillos hacia su lugar: proporcional (1/s²), integral (1/s³) y derivativa (1/s). */
   k: number;
+  ki: number;
   c: number;
+  /** Aceleración máxima que pueden dar los rodillos (lados de Muestra/s²): límite del motor. */
+  maxAcc: number;
   /** Gravedad a lo largo de la rampa, en lados de Muestra/s² (positiva = hacia el pie). */
   gravity: number;
   /** Rebote de los choques (0 = pegajoso, 1 = elástico). */
   restitution: number;
 }
 
-export const RAMP_DEFAULTS: RampParams = { k: 110, c: 13, gravity: 14, restitution: 0.25 };
+export const RAMP_DEFAULTS: RampParams = { k: 110, ki: 12, c: 13, maxAcc: 220, gravity: 14, restitution: 0.25 };
 
 /** Donde entra una Muestra nueva (lados de Muestra detrás del pie) y con qué cabeceo (rad). */
 export const ENTRY_S = -0.9;
@@ -42,7 +49,11 @@ export class RampSim {
     readonly cap: number,
     readonly p: RampParams = RAMP_DEFAULTS,
   ) {
-    for (let i = 0; i < cap; i++) this.bodies.push({ s: ENTRY_S, v: 0, rot: 0, w: 0, alive: false });
+    for (let i = 0; i < cap; i++) this.bodies.push({ s: ENTRY_S, v: 0, rot: 0, w: 0, alive: false, pid: this.mkPid() });
+  }
+
+  private mkPid(): Pid {
+    return new Pid(this.p.k, this.p.ki, this.p.c, this.p.maxAcc);
   }
 
   /** Lugar de la rampa de la Muestra `i` (0 = la más vieja, junto a la boca). */
@@ -60,7 +71,7 @@ export class RampSim {
     if (have < this.prevHave) {
       const gone = this.prevHave - have;
       bodies.splice(0, gone);
-      for (let i = 0; i < gone; i++) bodies.push({ s: ENTRY_S, v: 0, rot: 0, w: 0, alive: false });
+      for (let i = 0; i < gone; i++) bodies.push({ s: ENTRY_S, v: 0, rot: 0, w: 0, alive: false, pid: this.mkPid() });
     }
     this.prevHave = have;
     for (let i = 0; i < cap; i++) {
@@ -71,6 +82,7 @@ export class RampSim {
         b.v = 0;
         b.rot = ENTRY_ROT;
         b.w = 0;
+        b.pid.reset();
       } else if (i >= have) b.alive = false;
     }
     const n = Math.max(1, Math.ceil(dt / (1 / 240)));
@@ -79,9 +91,10 @@ export class RampSim {
       for (let i = 0; i < have; i++) {
         const b = bodies[i];
         const t = this.target(i);
-        // Resorte a su lugar (los rodillos la empujan), amortiguado, menos la inercia del robot. La gravedad cuesta abajo solo se
-        // nota mientras se acomoda: con los rodillos agarrando la Muestra no resbala hacia el pie.
-        let a = p.k * (t - b.s) - p.c * b.v - ax;
+        // PID a su lugar (los rodillos la empujan, con tope de motor), menos la inercia del robot. La integral vence la
+        // inercia sostenida; la gravedad cuesta abajo solo se nota mientras se acomoda: con los rodillos agarrando la
+        // Muestra no resbala hacia el pie.
+        let a = b.pid.update(t - b.s, b.v, h) - ax;
         if (t - b.s > 0.4) a -= p.gravity;
         b.v += a * h;
         b.s += b.v * h;

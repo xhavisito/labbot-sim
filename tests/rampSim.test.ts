@@ -56,3 +56,24 @@ describe('RampSim (Muestras guardadas de Phoenix, solo dibujo)', () => {
     expect(ENTRY_S).toBeLessThan(0);
   });
 });
+
+import { Pid } from '../src/render/pid';
+
+describe('Pid (rodillos de la rampa)', () => {
+  it('lleva una masa a la meta y la integral vence una fuerza constante', () => {
+    const pid = new Pid(110, 12, 13, 220);
+    let x = 0, v = 0;
+    for (let t = 0; t < 6; t += 1 / 240) {
+      v += (pid.update(2 - x, v, 1 / 240) - 8) * (1 / 240); // 8 = carga constante (inercia/gravedad)
+      x += v / 240;
+    }
+    expect(Math.abs(x - 2)).toBeLessThan(0.04); // sin integral quedaría ~0.07 abajo (8/110)
+  });
+
+  it('respeta el límite del motor y no acumula integral saturado', () => {
+    const pid = new Pid(100, 50, 0, 30);
+    for (let i = 0; i < 600; i++) expect(Math.abs(pid.update(5, 0, 1 / 60))).toBeLessThanOrEqual(30);
+    // al llegar a la meta la salida se libera pronto (sin windup)
+    expect(pid.update(-0.5, 0, 1 / 60)).toBeLessThan(0);
+  });
+});
