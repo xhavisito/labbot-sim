@@ -17,6 +17,7 @@ import { FieldAudio } from '../audio/FieldAudio';
 import { ROBOT_PRESETS, type MechanismKind, type RobotSpec } from '../config/robot';
 import { robotStats } from '../replay/stats';
 import { robotSpec, type RobotId } from '../config/robotIds';
+import { preloadRobotModels } from '../render/RobotView';
 import { loadSettings, saveSettings, type Settings } from '../config/settings';
 import { bounds, formatTimer, timerSeconds } from '../core/clock';
 import { callForEvent, EndgameWatcher, type RefCall } from '../core/refCalls';
@@ -197,6 +198,8 @@ export class App {
   private touchForced = new URLSearchParams(location.search).get('touch') === '1';
 
   constructor(host: HTMLElement, ui: HTMLElement) {
+    // Los modelos de los robots se bajan desde el arranque: al elegir uno ya están listos
+    preloadRobotModels(allRobotIds().flatMap((id) => { const u = robotSpec(id).model?.url; return u ? [u] : []; }));
     this.renderer = new Renderer(host);
     this.cam = new CameraRig(this.renderer.renderer.domElement);
     this.cam2 = new CameraRig(this.renderer.renderer.domElement);
