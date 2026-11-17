@@ -1,5 +1,7 @@
 import { beforeAll, describe, expect, it } from 'vitest';
-import { segmentHitsRect } from '../src/ai/Bot';
+import { segmentHitsRect, type Bot } from '../src/ai/Bot';
+import { Team } from '../src/ai/Team';
+import { ROBOT_PRESETS } from '../src/config/robot';
 import { COLLECT_HOME, LEAVE_ZONE, SCORE_PRELOAD } from '../src/auto/AutoRoutine';
 import { GameSession } from '../src/game/GameSession';
 import { emptyInput } from '../src/input/InputManager';
@@ -61,4 +63,22 @@ describe('IA en un match completo', () => {
     expect(field).toEqual([]);
     expect(m.breakdown('red').samplesAuto).toBeGreaterThanOrEqual(18); // la Cámara está en la mitad rival: en 15 s alcanza para la precarga
   }, 120_000);
+});
+
+/** Bot mínimo para probar el reparto de papeles del Team (solo lo que lee `plan`). */
+const stubBot = (index: number, kind: keyof typeof ROBOT_PRESETS): Bot =>
+  ({ robot: { index, spec: ROBOT_PRESETS[kind] }, opts: { role: 'score' }, profile: { critical: true, teamwork: true } }) as unknown as Bot;
+
+describe('Team: quién lleva la Muestra Crítica', () => {
+  it('con pivote y elevador, la lleva el pivote (el elevador fallaba más al soltarla)', () => {
+    const t = new Team('red');
+    t.join(stubBot(0, 'elevator'));
+    t.join(stubBot(1, 'pivot'));
+    expect(t.critBy).toBe(1);
+  });
+  it('si solo hay un robot capaz, ese la lleva', () => {
+    const t = new Team('red');
+    t.join(stubBot(0, 'elevator'));
+    expect(t.critBy).toBe(0);
+  });
 });
