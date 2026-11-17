@@ -1036,7 +1036,7 @@ export class Menu {
    * `note`: aviso arriba de las acciones (p. ej. que se guardó el resultado). `cont`: match
    * del torneo, sin "Jugar de nuevo" (el resultado ya cuenta) y el botón principal es este.
    */
-  results(m: Match, onRestart: () => void, onMenu: () => void, onDownload: () => void, player: number, note = '', cont?: string, earned: string[] = [], vs?: VsResults): void {
+  results(m: Match, onRestart: () => void, onMenu: () => void, onDownload: () => void, player: number, note = '', cont?: string, earned: string[] = [], vs?: VsResults, teamNums: string[] = []): void {
     const b = { red: m.breakdown('red'), blue: m.breakdown('blue') };
     const rp = { red: m.rankingPoints('red'), blue: m.rankingPoints('blue') };
     const winner: Alliance | null = b.red.total === b.blue.total ? null : b.red.total > b.blue.total ? 'red' : 'blue';
@@ -1066,20 +1066,22 @@ export class Menu {
     const tiles = (a: Alliance): string =>
       [0, 1].map((n) => {
         const st = (a === 'red' ? 0 : 2) + n;
-        const tag = vs ? (vs.stations.indexOf(st) === 0 ? t('vs_p1short') : vs.stations.indexOf(st) === 1 ? t('vs_p2short') : t('vs_ai')) : st === player ? t('you') : 'IA';
-        return `<div class="rs-tile ${a}"><i>${a === 'red' ? 'R' : 'A'}${n + 1}</i><b>${tag}</b></div>`;
+        // Persona real (tú, o P1/P2 en pantalla dividida): ficha con marco
+        const real = vs ? vs.stations.includes(st) : st === player;
+        const num = teamNums[st] ?? '';
+        return `<div class="rs-tile ${a} ${real ? 'real' : ''}"><i>${a === 'red' ? 'R' : 'A'}${n + 1}</i><b>${esc(num)}</b></div>`;
       }).join('');
     this.open(
       `<div class="dialog results rs-full ${vs ? 'vs-results' : ''}">
         <div class="rs-head"><i class="logo" aria-hidden="true"></i><b>LabBot Rescue</b><span>LamBot 3478${player >= 0 && !vs ? ` · ${t('yourRobot')}: ${stationLabel(player)}` : ''}</span></div>
         <div class="rs-stage">
-          <div class="rs-cell rs-l1">${rpCell('red')}</div>
+          <div class="rs-cell rs-l1"></div>
           <div class="rs-cell rs-c1">
             <div class="rs-side red ${winner === 'red' ? 'win' : ''}"><small>${t('red')}${who('red')}</small><b>${b.red.total}</b></div>
             <div class="rs-side blue ${winner === 'blue' ? 'win' : ''}"><small>${t('blue')}${who('blue')}</small><b>${b.blue.total}</b></div>
           </div>
           <div class="rs-cell rs-r1"><div class="rs-win ${winner ?? 'tie'}">${winner ? ic.trophy : ''}<span>${title}</span></div></div>
-          <div class="rs-cell rs-l2"><div class="rs-tiles">${tiles('red')}</div></div>
+          <div class="rs-cell rs-l2">${rpCell('red')}<div class="rs-tiles">${tiles('red')}</div></div>
           <div class="rs-cell rs-c2">
             <div class="rs-table">
               ${rsRow('auto', 'head')}

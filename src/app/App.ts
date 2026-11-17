@@ -803,6 +803,7 @@ export class App {
       sc?.tour ? t('tr_continue') : undefined,
       this.achNew,
       this.vsResults(),
+      this.teamNumbers(),
     );
     this.revealRivals();
     const rep = this.lastReplay;
@@ -822,6 +823,18 @@ export class App {
   }
 
   /** Resultados de 2 jugadores: lo que hizo cada quien (de la repetición) y las revanchas. */
+  /** Número de equipo de cada estación (el de su robot; en el torneo, el nombre del equipo). */
+  private teamNumbers(): string[] {
+    const nums: Record<string, string> = { axiom: '2785', phoenix: '2378', psycho: '2548' };
+    const tour = this.choice.scout?.tour ? this.choice.scout.teams : null;
+    return this.session.robots.map((r, i) => {
+      if (tour?.[i]) return this.scoutData.teams.find((x) => x.id === tour[i])?.name ?? tour[i];
+      const label = robotLabel(r.spec);
+      const key = Object.keys(nums).find((k) => label.toLowerCase().includes(k));
+      return key ? nums[key] : label;
+    });
+  }
+
   private vsResults(): VsResults | undefined {
     const p2 = this.session.player2;
     if (this.choice.mode !== 'versus' || !p2) return undefined;

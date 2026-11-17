@@ -1977,3 +1977,9 @@ body.vs-stacked .touch.vs-touch.p1 .pad { bottom: 12px; }
 .adside > label:empty { display: none; }
 .adside .full { grid-column: 1 / -1; }
 .adside select { min-height: 38px; padding: 6px 8px; border: 1px solid var(--line-2); background: var(--bg-2); color: var(--text); font: 600 calc(13px * var(--ts)) var(--font); min-width: 0; }
+
+
+/* Resultados: ficha de persona real con marco; Ranking Points de las dos alianzas a la misma altura */
+.results .rs-tile b { font-size: 1.1em; letter-spacing: 0.02em; }
+.results .rs-tile.real { outline: 4px solid var(--brand-white); outline-offset: 2px; }
+.results .rs-l2 { display: flex; flex-direction: column; gap: 14px; }
