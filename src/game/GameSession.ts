@@ -330,6 +330,11 @@ export class GameSession {
     this.autoPath?.dispose();
     this.autoPath = null;
     const teams = { red: new Team('red', this.hps.red), blue: new Team('blue', this.hps.blue) };
+    const need = this.game.rp.dominanceSamples;
+    for (const a of ALLIANCES) teams[a].situation = () => {
+      const m = this.match;
+      return m ? { lead: m.score(a) - m.score(opponent(a)), samples: m.samplesIn(a), need } : { lead: 0, samples: 0, need };
+    };
     this.bots = [];
     for (const r of this.robots) this.bots[r.index] = ((): BotDriver | null => {
       const routine = this.autos[r.index].routine.bot;

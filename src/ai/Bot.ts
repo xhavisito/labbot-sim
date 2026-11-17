@@ -25,6 +25,7 @@ import { GAME } from '../config/game';
 import { canHoldCritical, critSeat, posDir, posTip, type ElevatorPos } from '../config/robot';
 import type { Phase } from '../core/clock';
 import { DAMAGE } from '../core/damage';
+import { rng } from '../core/rng';
 import { opponent, type Alliance, type Level } from '../core/types';
 import { cubePose } from '../game/Mechanisms';
 import { obstructZones } from '../referee/Referee';
@@ -33,7 +34,7 @@ import type { Pieces } from '../physics/Pieces';
 import { clawDir } from '../physics/RobotPhysics';
 import { pushTouch, touches } from './contact';
 import { planPath } from './grid';
-import { AI_PROFILES, type AiLevel, type AiProfile } from './difficulty';
+import { AI_LEVELS, AI_PROFILES, type AiLevel, type AiProfile } from './difficulty';
 import { applyPersona, type AiPersona } from './persona';
 import type { PlanDirective, PlanDriver } from './plan';
 import { Team } from './Team';
@@ -131,6 +132,14 @@ export class Bot {
   readonly profile: AiProfile;
   readonly team: Team;
   private targetPiece = -1;
+  /** Azar reproducible de este robot (dudas, error de puntería): mismos matches, mismos resultados. */
+  private readonly rand: () => number;
+  /** Error de puntería de la Muestra que persigue (rad) y cuánto lleva otra candidata esperando para sustituirla. */
+  private aimBias = 0;
+  private switchT = 0;
+  private switchTo = -1;
+  /** Muestras que traía el paso anterior (para pausar un momento al recoger una). */
+  private lastStored = 0;
   private backOff = 0;
   /** Hacia dónde se aparta al atorarse: al revés de como iba (−1 si iba de frente, +1 si de reversa). */
   private backDir = -1;
@@ -200,6 +209,7 @@ export class Bot {
   ) {
     this.opts = { auto: 'collect', teleop: true, role: 'score', ai: 'hard', ...opts };
     this.profile = applyPersona(AI_PROFILES[this.opts.ai], this.opts.persona);
+    this.rand = rng(0x5eed + robot.index * 7919 + AI_LEVELS.indexOf(this.opts.ai) * 104729);
     this.team = team ?? new Team(robot.alliance);
     this.team.join(this);
   }
@@ -535,7 +545,7 @@ export class Bot {
 
   /** Segundos que necesita desde `p` para quedar sobre la Plataforma. */
   private climbEta(p: { x: number; z: number }): number {
-    return this.eta(p, this.foot()) + CLIMB_TIME + this.profile.climbMargin;
+    return this.eta(p, this.foot()) + CLIMB_TIME + this.climbMargin();
   }
 
   // ------------------------------------------------------------------ decisión
@@ -563,8 +573,11 @@ export class Bot {
     // Dificultad: duda un momento al cambiar de plan
     if (this.mode !== this.lastMode) {
       this.lastMode = this.mode;
-      this.pause = this.profile.reaction;
+      this.pause = this.profile.reaction > 0 || this.profile.jitter > 0 ? this.profile.reaction + this.rand() * this.profile.jitter : 0;
     }
+    // Recogió una Muestra: confirma que la trae antes de seguir (un piloto no sale disparado al instante)
+    if (m.stored.length > this.lastStored && this.profile.pickPause > 0 && phase !== 'AUTO') this.pause = Math.max(this.pause, this.profile.pickPause * (0.6 + 0.8 * this.rand()));
+    this.lastStored = m.stored.length;
     if (this.pause > 0) {
       this.pause -= dt;
       out.intake = this.mode === 'collect' || this.mode === 'hp';
@@ -667,7 +680,7 @@ export class Bot {
         const stage = this.critStage();
         const endgameAt = GAME.times.endgame;
         // Lo último para tomarla y llegar a la Repisa (desde la Campana, con margen)
-        const latest = this.eta(stage, this.foot()) + 8 + this.profile.climbMargin;
+        const latest = this.eta(stage, this.foot()) + 8 + this.climbMargin();
         const goNow = timeLeft < endgameAt + this.eta(pos, stage) + 1;
         if (goNow) {
           // Si trae Muestras y le da tiempo, primero las anota
@@ -701,6 +714,12 @@ export class Bot {
       this.mode = 'score';
       return;
     }
+    // Dominio: le faltan pocas y el siguiente desvío ya no vale por puntos pero sí por el RP: anota lo que trae
+    const dom = this.situation();
+    if (dom && n > 0 && dom.need > 0 && n >= dom.need && this.clock < 90) {
+      this.mode = 'score';
+      return;
+    }
     // Recolectar (o esperar en el Human Player) mientras convenga
     const enough = (extra: number) => timeLeft - (extra + this.eta(home, home) + this.scoreTime(n + 1)) > reserve;
     if (n > 0 && !this.worthAnother(phase, timeLeft, enough)) {
@@ -716,7 +735,33 @@ export class Bot {
 
   /** Cuántas junta antes de ir a anotar. */
   private batchSize(): number {
-    return Math.min(this.robot.mech.capacity, this.opts.batch ?? this.profile.batch);
+    const cap = Math.min(this.robot.mech.capacity, this.opts.batch ?? this.profile.batch);
+    const sit = this.situation();
+    if (!sit) return cap;
+    let b = cap;
+    // Dominio de Cámara (+1 RP, §4.4): si con una tanda lo completa, la junta justa y la anota ya
+    if (sit.need > 0 && sit.need <= this.robot.mech.capacity) b = Math.min(b, sit.need);
+    // Ya al final del match: tandas cortas (cada Muestra anotada a tiempo cuenta, una en la garra no)
+    if (this.clock < 60) b = Math.min(b, Math.max(2, Math.ceil(b * (1 - 0.4 * this.profile.clutch))));
+    return Math.max(1, b);
+  }
+
+  /** Marcador y Dominio de su alianza (solo si la dificultad decide por el marcador y la sesión lo da). */
+  private situation(): { lead: number; samples: number; need: number } | null {
+    if (this.profile.clutch <= 0) return null;
+    const s = this.team.situation?.();
+    return s ? { ...s, need: Math.max(0, s.need - s.samples) } : null;
+  }
+
+  /** Margen (s) para subir a la Plataforma: más holgado si va ganando, más justo si va perdiendo. */
+  private climbMargin(): number {
+    const sit = this.situation();
+    const base = this.profile.climbMargin;
+    if (!sit) return base;
+    // Ganando por mucho: perder la Plataforma (10–20) no le cambia el resultado, pero un descuido sí
+    // (RP de victoria); perdiendo: se la juega hasta el último segundo para alcanzarlos
+    const adj = sit.lead > 30 ? 1.2 : sit.lead < -15 ? -0.8 : 0;
+    return Math.max(1.2, base + adj * this.profile.clutch);
   }
 
   /**
@@ -736,7 +781,9 @@ export class Bot {
     if (!c) return false;
     const via = c.eta + this.eta(c.at, home);
     const detour = via - direct;
-    if (detour > 3.5) return false;
+    const sit = this.situation();
+    const domPush = !!sit && sit.need > 0 && sit.need <= this.robot.mech.stored.length + 2;
+    if (detour > (domPush ? 5.5 : 3.5)) return false;
     if (phase === 'AUTO') {
       const autoLeft = timeLeft - GAME.times.teleop - GAME.times.autoToTeleopPause;
       return autoLeft > via + this.scoreTime(this.robot.mech.stored.length + 1) + 0.5;
@@ -787,6 +834,7 @@ export class Bot {
       const eta = this.eta(pos, at) + this.turnCost(at);
       let cost = eta + back * this.eta(at, home);
       cost += this.crowdCost(at);
+      cost += this.contestCost(at, eta);
       // Seguir con la que ya iba (no cambia por poquito)
       if (p.index === this.targetPiece) cost -= 0.6;
       if (!best || cost < best.cost) best = { i: p.index, at, eta, cost };
@@ -816,6 +864,23 @@ export class Bot {
       if (t && Math.hypot(t.x - at.x, t.z - at.z) < 0.8) c += 1.2;
     }
     return c;
+  }
+
+  /**
+   * Segundos extra de una Muestra a la que un rival llega antes que él: perder la carrera es dar la
+   * vuelta con las manos vacías (y quedarse pegado a un rival, §4.5). Solo Normal para arriba. SUPUESTO.
+   */
+  private contestCost(at: { x: number; z: number }, myEta: number): number {
+    const k = this.profile.contest;
+    if (k <= 0) return 0;
+    let c = 0;
+    for (const o of this.others) {
+      if (o.alliance === this.robot.alliance) continue;
+      const q = o.phys.position();
+      const theirs = Math.hypot(q.x - at.x, q.z - at.z) / Math.max(0.4, o.spec.maxSpeed * 0.7);
+      if (theirs < myEta) c = Math.max(c, Math.min(6, (myEta - theirs) * 1.5 + 1));
+    }
+    return c * k;
   }
 
   /** ¿El que apartó esa Muestra sigue jugando? (el robot del jugador deja de correr la IA al acabar el AUTO) */
@@ -908,7 +973,22 @@ export class Bot {
       this.team.claim(-1, this.robot.index);
       return null;
     }
+    // Otra candidata mejor: un piloto tarda un momento en cambiar de idea (sigue a la que llevaba)
+    if (c.i !== this.targetPiece && this.targetPiece >= 0 && this.profile.reaction + this.profile.jitter > 0 && this.pieces.list[this.targetPiece]?.state.at === 'field') {
+      if (this.switchTo !== c.i) {
+        this.switchTo = c.i;
+        this.switchT = this.profile.reaction + this.rand() * this.profile.jitter;
+      }
+      this.switchT -= dt;
+      if (this.switchT > 0) {
+        const t = this.pieces.list[this.targetPiece].body.translation();
+        this.team.claim(this.targetPiece, this.robot.index);
+        return { x: t.x, z: t.z, i: this.targetPiece };
+      }
+    }
+    this.switchTo = -1;
     if (c.i !== this.targetPiece) {
+      this.aimBias = (this.rand() * 2 - 1) * this.profile.aim;
       this.bestDist = Infinity;
       this.progressT = 0;
       this.targetPiece = c.i;
@@ -980,7 +1060,7 @@ export class Bot {
     const side = rx * dz - rz * dx;
     // Con la garra atrás la ve de espaldas y entra de reversa (girar el chasis gira igual el sentido
     // de avance, así que la corrección lateral no cambia de signo)
-    const herr = wrap(h + (pd < 0 ? Math.PI : 0) - r.phys.heading());
+    const herr = wrap(h + (pd < 0 ? Math.PI : 0) - r.phys.heading() + this.aimBias * Math.min(1, Math.max(0, dist - grab) / 0.6));
     // Como lo haría un piloto con tanque: se para detrás de la Muestra, gira en su lugar hasta verla
     // de frente y entra derecho y despacio (la garra cierra en ~0.2 s; se resbala si llega rápido)
     const onLine = behind > grab - 0.08 && Math.abs(side) < 0.12;
@@ -1101,7 +1181,8 @@ export class Bot {
     const pos = r.phys.position();
     const near = Math.hypot(pose.x - pos.x, pose.z - pos.z) < 1.6;
     if (level === 3 && near) this.team.n3By = r.index;
-    out.elevator = near ? level : 0;
+    // Lejos de la Cámara con la Muestra en la garra: la lleva a media altura, no en el piso (rasparía y levantaría el chasis al avanzar)
+    out.elevator = near ? level : m.inClaw ? 2 : 0;
     const st = this.dock(pose, -this.side, posDir(this.robot.spec, level), out, phase, { stage: this.robot.spec.intake?.shooter ? 0.2 : this.profile.dockStage, tol: 0.1 + this.profile.sloppy, edge: EDGE_CLEAR });
     // Ya se está arrimando: se queda con ese nivel hasta soltar todo
     if (st === 'creep' || st === 'docked') this.lockedLevel = level;

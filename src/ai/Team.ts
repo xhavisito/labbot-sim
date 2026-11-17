@@ -29,6 +29,8 @@ export class Team {
   critPending: number | null = null;
   /** Robot frente al Nivel 3 de la Cámara (anotando), o null. */
   n3By: number | null = null;
+  /** Marcador y Dominio de la alianza ahora (lo pone la sesión; sin él la IA no mira el marcador). */
+  situation?: () => { lead: number; samples: number; need: number };
 
   constructor(
     readonly alliance: Alliance,
