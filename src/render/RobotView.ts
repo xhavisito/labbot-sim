@@ -506,6 +506,20 @@ export class RobotView {
     for (const w of this.wheels) w.mesh.rotation.z = (w.flip ? 1 : -1) * this.spin[w.side];
     const m = this.robot.mech;
     this.criticalMesh.visible = m.critical !== null;
+    // Garrita: la Crítica viene jalada desde donde estaba hasta el asiento (ease-out), girando a su lugar
+    const cseat = critSeat(this.robot.spec);
+    if (cseat) {
+      const pull = m.critPull;
+      if (pull && m.critical) {
+        const k = Math.min(1, m.critPullAge / Math.max(0.01, m.critPullDur));
+        const e = 1 - (1 - k) * (1 - k);
+        this.criticalMesh.position.set(pull.x + (cseat.x - pull.x) * e, pull.y + (cseat.y - pull.y) * e, pull.z * (1 - e));
+        this.criticalMesh.rotation.y = pull.yaw * (1 - e);
+      } else {
+        this.criticalMesh.position.set(cseat.x, cseat.y, 0);
+        this.criticalMesh.rotation.y = 0;
+      }
+    }
     if (this.critFingers.length) {
       const nowC = performance.now() / 1000;
       this.animateCritClaw(Math.min(0.1, nowC - (this.critT || nowC)));

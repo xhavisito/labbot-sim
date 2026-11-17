@@ -198,11 +198,16 @@ export const INTAKE_KINDS: readonly IntakeKind[] = ['compliant', 'pinza'];
 export interface CritClaw {
   /** Centro del cubo ya tomado (sistema del robot: x al frente, y desde la base del chasis). */
   seat: { x: number; y: number };
-  /** Cuánto se aleja (m) el centro de la Crítica del asiento, hacia adelante y hacia atrás, y de lado, para que la tome al cerrar. */
-  reachX: number;
+  /**
+   * Alcance de la garra (SUPUESTO, Xhavi 17-nov: "agarrarla de donde sea si tienes garra"): la toma cuando el centro de la Crítica está
+   * dentro de esta caja alrededor del asiento, sin tener que tocarla: `reachBack` hacia atrás y `reachFront` hacia adelante (m),
+   * `reachZ` de lado (±), y `reachDown` / `reachUp` de altura. La garra la jala al asiento (`Mechanisms.critPull`).
+   */
+  reachBack: number;
+  reachFront: number;
   reachZ: number;
-  /** Cuánto más arriba o abajo (m) del centro del asiento puede estar el centro de la Crítica (la rendija queda más abajo que la garra). */
-  reachY: number;
+  reachDown: number;
+  reachUp: number;
   /** Ejes de los dedos (x, z locales; dos, uno por lado) y cuánto giran al cerrar sobre la Crítica (°). Solo para el dibujo. */
   shafts: Array<{ x: number; z: number }>;
   /** Giro (°) con la Crítica adentro: los dedos quedan apretándola. */

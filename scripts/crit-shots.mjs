@@ -52,22 +52,34 @@ for (const hb of [false, true]) {
   await view(0.5, 1.1, -1.2);
   await page.waitForTimeout(800);
   await page.screenshot({ path: `shots/crit-${hb ? 'hitbox-' : ''}1-abierta.png` });
-  // Se acerca y la toma (el mismo paso que da el botón de la garra)
-  await page.evaluate(() => {
-    const g = window.app.session;
-    const r = g.player;
-    const c = g.pieces.critical(r.alliance);
-    const at = r.phys.localToWorld(0.42, 0, 0);
-    g.pieces.place(c, at.x, 0.71, at.z, 0);
-    r.mech.grabCritical([]);
-  });
-  await page.waitForTimeout(1500);
-  await view(0.5, 1.1, -1.2);
-  await page.waitForTimeout(800);
-  await page.screenshot({ path: `shots/crit-${hb ? 'hitbox-' : ''}2-tomada.png` });
-  await view(-0.3, 0.9, -1.5);
-  await page.waitForTimeout(800);
-  await page.screenshot({ path: `shots/crit-${hb ? 'hitbox-' : ''}3-lado.png` });
+  // La toma desde distintos lugares dentro del alcance (sin tocarla): distancia, lado, altura. Una captura a mitad del jalón y otra ya tomada.
+  const cases = [[0.42, 0, 0.71], [0.62, 0.15, 0.75], [0.72, -0.2, 0.9]];
+  for (const [i, [d, side, y]] of cases.entries()) {
+    await page.evaluate(([d, side, y]) => {
+      const g = window.app.session;
+      const r = g.player;
+      r.mech.toggleCritClaw([]); // abre (suelta lo que hubiera)
+      if (r.mech.critClawClosed) r.mech.toggleCritClaw([]);
+      const c = g.pieces.critical(r.alliance);
+      const at = r.phys.localToWorld(d, 0, side);
+      g.pieces.place(c, at.x, y, at.z, 0.4);
+      c.body.setBodyType?.(1, true); // quieta en el aire (como en la rendija) hasta que la garra la toma
+    }, [d, side, y]);
+    await page.waitForTimeout(150);
+    await view(0.5, 1.1, -1.2);
+    await page.waitForTimeout(500);
+    await page.screenshot({ path: `shots/crit-${hb ? 'hitbox-' : ''}${i + 2}a-antes.png` });
+    await page.evaluate(() => window.app.session.player.mech.toggleCritClaw([]));
+    await page.waitForTimeout(110);
+    await page.screenshot({ path: `shots/crit-${hb ? 'hitbox-' : ''}${i + 2}b-jalando.png` });
+    await page.waitForTimeout(1200);
+    await page.screenshot({ path: `shots/crit-${hb ? 'hitbox-' : ''}${i + 2}c-tomada.png` });
+    if (i === 0) {
+      await view(-0.3, 0.9, -1.5);
+      await page.waitForTimeout(800);
+      await page.screenshot({ path: `shots/crit-${hb ? 'hitbox-' : ''}${i + 2}d-lado.png` });
+    }
+  }
   await page.close();
 }
 console.log(errors.length ? `Errores de consola:\n${errors.join('\n')}` : 'Sin errores de consola.');

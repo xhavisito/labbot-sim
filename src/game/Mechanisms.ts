@@ -202,6 +202,10 @@ export class Mechanisms {
    * sin mover el brazo. Cierra sin saber si hay Crítica: si el cubo está en la ventana la toma; si no, queda cerrada vacía. Abrir la suelta.
    */
   critClawClosed = false;
+  /** Solo dibujo: de dónde viene la Crítica que la Garrita jala al asiento (sistema del robot; yaw respecto al chasis) y cuánto lleva jalándola. */
+  critPull: { x: number; y: number; z: number; yaw: number } | null = null;
+  critPullAge = 0;
+  critPullDur = 0;
   /** Segundos que le quedan a la Garrita recién cerrada para tomar la Crítica (SUPUESTO: lo que tarda en cerrar). */
   private critWindow = 0;
   readonly stored: Piece[] = [];
@@ -311,6 +315,10 @@ export class Mechanisms {
           this.inClaw = task === 'fetch';
         }
       } else this.transferT = 0;
+    }
+    if (this.critPull) {
+      this.critPullAge += dt;
+      if (this.critPullAge >= this.critPullDur || !this.critical) this.critPull = null;
     }
     if (this.critClawClosed && this.critWindow > 0) {
       this.critWindow = Math.max(0, this.critWindow - dt);
@@ -651,7 +659,15 @@ export class Mechanisms {
     const t = c.body.translation();
     const { lx, lz } = p.worldToLocalFlat(t.x, t.z);
     const dy = t.y - (p.position().y + cc.seat.y);
-    if (Math.abs(lx - cc.seat.x) > cc.reachX || Math.abs(lz) > cc.reachZ || Math.abs(dy) > cc.reachY) return false;
+    if (lx < cc.seat.x - cc.reachBack || lx > cc.seat.x + cc.reachFront || Math.abs(lz) > cc.reachZ || dy < -cc.reachDown || dy > cc.reachUp) return false;
+    // La garra la jala al asiento: el dibujo la lleva desde donde estaba (giro respecto al chasis en cuartos de vuelta: el cubo es simétrico)
+    const q = c.body.rotation();
+    const yaw = Math.atan2(2 * (q.w * q.y + q.x * q.z), 1 - 2 * (q.y * q.y + q.z * q.z)) - p.heading();
+    const rel = ((((yaw + Math.PI / 4) % (Math.PI / 2)) + Math.PI / 2) % (Math.PI / 2)) - Math.PI / 4;
+    const dist = Math.hypot(lx - cc.seat.x, lz, dy);
+    this.critPull = { x: lx, y: t.y - p.position().y, z: lz, yaw: rel };
+    this.critPullAge = 0;
+    this.critPullDur = Math.min(0.4, 0.15 + dist * 0.6);
     this.pieces.stash(c, { at: 'robot', robot: p.index });
     this.critical = c;
     events.push({ type: 'grabCritical', robot: p.index, piece: c.index });
@@ -684,8 +700,10 @@ export class Mechanisms {
     // Muestras en la rampa del lanzador al tirar (la que sale cuenta): más cargado, más débil el tiro
     const loaded = this.stored.length;
     const slot = Math.max(0, this.inClawCount - 1);
-    if (kind === 'critical') this.critical = null;
-    else {
+    if (kind === 'critical') {
+      this.critical = null;
+      this.critPull = null;
+    } else {
       this.stored.pop();
       this.inClaw = this.phys.spec.arm.holdsTwo === true && this.stored.length > 0;
     }
@@ -818,6 +836,7 @@ export class Mechanisms {
     this.finishLeaving();
     this.stored.length = 0;
     this.critical = null;
+    this.critPull = null;
     this.inClaw = false;
     this.intakeOn = false;
     this.clawClosed = false;

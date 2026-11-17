@@ -46,7 +46,8 @@ describe('Psycho: garra de la Crítica', () => {
     const xs = plate.filter((_, k) => k % 3 === 0);
     const ys = plate.filter((_, k) => k % 3 === 1);
     expect(Math.max(...xs)).toBeCloseTo(s.length / 2, 2);
-    expect(Math.max(...ys)).toBeCloseTo(critSeat(s)!.bottom, 2);
+    // El cubo descansa sobre los dedos cerrados (6 cm arriba de la placa): sin atravesarlos (17-nov)
+    expect(critSeat(s)!.bottom - Math.max(...ys)).toBeGreaterThan(0.03);
     const cc = intakeOf(s).critClaw!;
     expect(cc.shafts).toHaveLength(2);
     expect(Math.sign(cc.shafts[0].z)).toBe(-Math.sign(cc.shafts[1].z));
@@ -77,8 +78,21 @@ describe('Psycho: garra de la Crítica', () => {
     expect(t.y).toBeCloseTo(seat.y, 6);
   });
 
+  it('la toma desde cualquier lugar dentro del alcance de la garra, sin tocarla (Xhavi, 17-nov)', () => {
+    for (const [d, y, side] of [[0.42, 0.71, 0], [0.6, 0.71, 0.15], [0.7, 0.75, -0.2], [0.55, 0.9, 0.1], [0.5, 0.55, -0.1]] as const) {
+      const { r, c } = setup(d, y, side);
+      expect(r.mech.grabCritical([]), `${d} ${y} ${side}`).toBe(true);
+      expect(r.mech.critical).toBe(c);
+      // La garra la jala al asiento: el dibujo parte de donde estaba y llega en menos de medio segundo
+      expect(r.mech.critPull).not.toBeNull();
+      expect(r.mech.critPullDur).toBeLessThanOrEqual(0.4);
+      for (let i = 0; i < 60; i++) r.mech.step(1 / 120, []);
+      expect(r.mech.critPull).toBeNull();
+    }
+  });
+
   it('no la toma lejos, de lado, en el piso ni detrás', () => {
-    for (const [d, y, side] of [[0.8, 0.71, 0], [0.42, 0.71, 0.35], [0.42, 0.1, 0], [-0.4, 0.71, 0]] as const) {
+    for (const [d, y, side] of [[1.0, 0.71, 0], [0.42, 0.71, 0.35], [0.42, 0.1, 0], [-0.4, 0.71, 0]] as const) {
       const { r } = setup(d, y, side);
       expect(r.mech.grabCritical([]), `${d} ${y} ${side}`).toBe(false);
       expect(r.mech.critical).toBeNull();

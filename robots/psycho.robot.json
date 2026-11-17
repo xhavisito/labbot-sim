@@ -82,12 +82,14 @@
       "rollers": true,
       "critClaw": {
         "seat": {
-          "x": 0.38,
-          "y": 0.798
+          "x": 0.4,
+          "y": 0.858
         },
-        "reachX": 0.06,
-        "reachZ": 0.1,
-        "reachY": 0.14,
+        "reachBack": 0.1,
+        "reachFront": 0.35,
+        "reachZ": 0.25,
+        "reachDown": 0.36,
+        "reachUp": 0.15,
         "shafts": [
           {
             "x": 0.264,
