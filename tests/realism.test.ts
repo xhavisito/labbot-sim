@@ -8,7 +8,7 @@ import { DO_NOTHING } from '../src/auto/AutoRoutine';
 import * as F from '../src/config/field';
 import { fieldSolids } from '../src/config/fieldLayout';
 import { CLAW, CLAW_GAP, DEFAULT_ROBOT, PIVOT_180_ROBOT, posDir } from '../src/config/robot';
-import { DAMAGE, faultChance, ImpactMeter, impactSide, pickFault, sanitizeDamage } from '../src/core/damage';
+import { DAMAGE, faultChance, ImpactMeter, impactSide, NO_CLAW_BLOCKED, pickFault, sanitizeDamage } from '../src/core/damage';
 import { rng } from '../src/core/rng';
 import { Damage } from '../src/game/Damage';
 import { GameSession, type SessionOptions } from '../src/game/GameSession';
@@ -273,6 +273,19 @@ describe('fallas por golpes (lógica pura)', () => {
     expect(seen.has('armSlow')).toBe(false);
     expect(seen.size).toBe(2);
     expect(pickFault(rand, 'side', new Set(['clawJam', 'armSlow', 'motorWeak']))).toBeNull();
+  });
+
+  it('Phoenix no tiene garra ni brazo que se mueva: nunca sale «garra atascada» ni «brazo lento»', () => {
+    const rand = rng(9);
+    for (const side of ['front', 'back', 'side'] as const) {
+      const seen = new Set<string>();
+      for (let i = 0; i < 300; i++) seen.add(pickFault(rand, side, new Set(), NO_CLAW_BLOCKED) ?? 'nada');
+      expect([...seen]).toEqual(['motorWeak']);
+    }
+    // Sin la lista, un golpe de frente sí atasca la garra (los demás robots)
+    const all = new Set<string>();
+    for (let i = 0; i < 300; i++) all.add(pickFault(rand, 'front', new Set())!);
+    expect(all.has('clawJam')).toBe(true);
   });
 
   it('ajustes guardados raros vuelven a los de por defecto', () => {

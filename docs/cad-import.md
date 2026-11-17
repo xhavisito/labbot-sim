@@ -105,3 +105,5 @@ toma la Crítica al llegar de frente (centro entre 32 y 44 cm del robot, ±10 cm
 El Human Player desliza la Crítica hacia el robot que va de frente a la rendija (como con la garra a su altura de los demás). La IA la toma y la deja en la Repisa subiendo de frente a la Plataforma (`posDir/posTip(…, 4)` apuntan al asiento).
 
 **Phoenix y el agarre «Preciso» (16-nov):** con el ajuste Agarre = Preciso (cubo centrado a ±4.5 cm, derecho y casi parado, `GRIP`) Phoenix no agarraba nada manejando con control; como sus compliants jalan el cubo al canal rodando, ahí cuenta como Compliants (`Mechanisms.runClaw`, SUPUESTO). «Fácil» y «Compliants» no cambian.
+
+**Phoenix, sin ruedas verdes ni falla de garra (17-nov):** se quitó el dibujo de los rodillos verdes que giraban (`RobotView.buildShooterRollers`, ruedas `am-3945`/`am-3949`): las ruedas vuelven a los colores del CAD y quietas; las flechas siguen negras. Phoenix no tiene garra ni brazo que se mueva, así que no sufre «garra atascada» ni «brazo lento» (`NO_CLAW_BLOCKED` en `core/damage.ts`); solo puede quedar con la transmisión débil.

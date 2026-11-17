@@ -84,14 +84,22 @@ export function impactSide(dvx: number, dvz: number): ImpactSide {
   return 'side';
 }
 
+const NO_FAULTS: ReadonlySet<FaultKind> = new Set();
+
+/**
+ * Fallas que no le pasan a un robot sin garra ni brazo que se mueva (el lanzador Phoenix: intake fijo al piso, Xhavi 16-nov:
+ * «Phoenix no tiene garra»): solo le queda la transmisión débil.
+ */
+export const NO_CLAW_BLOCKED: ReadonlySet<FaultKind> = new Set<FaultKind>(['clawJam', 'armSlow']);
+
 /**
  * Qué se daña con un golpe. La garra (al frente) sufre los golpes de frente; la transmisión, los de
  * lado y atrás. Ya dañado algo permanente, no se repite.
  */
-export function pickFault(rand: () => number, side: ImpactSide, active: ReadonlySet<FaultKind>): FaultKind | null {
+export function pickFault(rand: () => number, side: ImpactSide, active: ReadonlySet<FaultKind>, blocked: ReadonlySet<FaultKind> = NO_FAULTS): FaultKind | null {
   const w: Record<FaultKind, number> =
     side === 'front' ? { clawJam: 4, armSlow: 2.5, motorWeak: 1 } : side === 'back' ? { clawJam: 0.5, armSlow: 1.5, motorWeak: 3 } : { clawJam: 1, armSlow: 1.5, motorWeak: 3 };
-  const options = FAULT_KINDS.filter((k) => !active.has(k));
+  const options = FAULT_KINDS.filter((k) => !active.has(k) && !blocked.has(k));
   const total = options.reduce((s, k) => s + w[k], 0);
   if (total <= 0) return null;
   let x = rand() * total;

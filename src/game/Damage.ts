@@ -10,6 +10,7 @@ import {
   faultDuration,
   ImpactMeter,
   impactSide,
+  NO_CLAW_BLOCKED,
   pickFault,
   randomFaultChance,
   type DamageSettings,
@@ -103,12 +104,12 @@ export class Damage {
           // Cambio de velocidad en el sistema del robot (x adelante)
           const lx = dvx * Math.cos(h) - dvz * Math.sin(h);
           const lz = dvx * Math.sin(h) + dvz * Math.cos(h);
-          const kind = pickFault(this.rand, impactSide(lx, lz), new Set(st.faults.keys()));
+          const kind = pickFault(this.rand, impactSide(lx, lz), new Set(st.faults.keys()), r.spec.intake?.shooter ? NO_CLAW_BLOCKED : undefined);
           if (kind) this.add(r, st, kind, 'impact', out);
         }
       } else if (this.settings.random && this.rand() < randomFaultChance(dt, level)) {
         // Al azar solo lo que pasa sin golpe: la garra que se atora sola
-        if (!st.faults.has('clawJam')) this.add(r, st, 'clawJam', 'random', out);
+        if (!st.faults.has('clawJam') && !r.spec.intake?.shooter) this.add(r, st, 'clawJam', 'random', out);
       }
       for (const [k, left] of st.faults) {
         if (left === Infinity) continue;
