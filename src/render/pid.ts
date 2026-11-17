@@ -13,6 +13,8 @@ export class Pid {
     public kd: number,
     /** Salida máxima (en valor absoluto); también acota la integral. */
     public limit = Infinity,
+    /** Zona de integración: solo integra con |error| menor a esto (evita que se cargue de integral en un recorrido largo y rebase la meta). */
+    public iZone = Infinity,
   ) {}
 
   reset(): void {
@@ -24,7 +26,8 @@ export class Pid {
     const raw = this.kp * error + this.ki * this.integral - this.kd * vel;
     const out = Math.max(-this.limit, Math.min(this.limit, raw));
     // Anti-windup: solo integra si no está saturado, o si el error ayuda a salir de la saturación
-    if (out === raw || Math.sign(error) !== Math.sign(raw)) {
+    if (Math.abs(error) > this.iZone) this.integral = 0;
+    else if (out === raw || Math.sign(error) !== Math.sign(raw)) {
       const cap = this.ki > 0 ? this.limit / this.ki : 0;
       this.integral = Math.max(-cap, Math.min(cap, this.integral + error * dt));
     }

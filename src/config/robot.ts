@@ -286,6 +286,11 @@ export interface ShooterSpec {
    */
   spin?: number;
   spinSigma?: number;
+  /**
+   * Giro alrededor de la vertical (rad/s, 1σ, con signo al azar por tiro): la pieza no sale perfectamente alineada con las ruedas y
+   * además de girar hacia atrás gira como trompo. SUPUESTO (Xhavi, 17-nov: «también deberían girar en vertical»).
+   */
+  spinYaw?: number;
 }
 
 /** ¿Puede tomar la Crítica para pasarla (no para anotarla)? Necesita la apertura de 20 cm (§4.1.1). */

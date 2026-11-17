@@ -303,7 +303,7 @@ describe('Phoenix agarra la Crítica con el intake, como una Muestra', () => {
 });
 
 describe('Phoenix: la pieza sale girando', () => {
-  it('gira hacia atrás a ~30 rad/s al salir (antes salía tiesa) y sigue anotando de cerca', () => {
+  it('gira hacia atrás a ~12 rad/s al salir (antes salía tiesa y luego a 30, exagerado) y sigue anotando de cerca', () => {
     const g = new GameSession({ player: 0, preload: false, specs: [robotSpec('cad:phoenix')], seed: 2 });
     for (const p of g.pieces.list) if (p.state.at === 'field' && p.kind === 'sample') g.pieces.stash(p, { at: 'hp', alliance: 'red' });
     const a = g.player.alliance;
@@ -319,11 +319,35 @@ describe('Phoenix: la pieza sale girando', () => {
     const spin = Math.hypot(w0.x, w0.y, w0.z);
     const v = piece.body.linvel();
     // Eje lateral al avance: ω · v ≈ 0, y atrás (ω × arriba apunta contra el avance → ω = avance × arriba)
-    expect(spin).toBeGreaterThan(15);
-    expect(spin).toBeLessThan(50);
-    expect(Math.abs(w0.x * v.x + w0.z * v.z)).toBeLessThan(0.05 * spin * Math.hypot(v.x, v.z));
+    expect(spin).toBeGreaterThan(5);
+    expect(spin).toBeLessThan(22);
+    // Casi todo el giro es hacia atrás (lateral al avance); el trompo y el cabeceo del eje son chicos
+    expect(Math.abs(w0.x * v.x + w0.z * v.z)).toBeLessThan(0.3 * spin * Math.hypot(v.x, v.z));
     for (let i = 0; i < 360; i++) { g.setInput({ ...emptyInput(), elevator: 3 }); g.step(); }
     expect(g.sensors.scored.get(piece.index)?.level).toBe(3);
+  });
+});
+
+describe('Phoenix: la pieza también gira en vertical al salir', () => {
+  it('cada tiro sale con su giro de trompo (eje vertical), de signo y tamaño distintos y moderado', () => {
+    const ys: number[] = [];
+    for (let seed = 1; seed <= 6; seed++) {
+      const g = new GameSession({ player: 0, preload: false, specs: [robotSpec('cad:phoenix')], seed });
+      for (const p of g.pieces.list) if (p.state.at === 'field' && p.kind === 'sample') g.pieces.stash(p, { at: 'hp', alliance: 'red' });
+      const a = g.player.alliance;
+      const w = F.camaraWells()[3];
+      const c = F.forCamara(a, { x: (w.x0 + w.x1) / 2, z: (w.z0 + w.z1) / 2 - 1.2 });
+      g.player.phys.teleport(c.x, c.z, F.camaraHeading(a));
+      const piece = g.pieces.list.find((p) => p.kind === 'sample')!;
+      g.player.mech.load(piece);
+      for (let i = 0; i < 120; i++) { g.setInput({ ...emptyInput(), elevator: 3 }); g.step(); }
+      g.setInput({ ...emptyInput(), elevator: 3, releaseSample: true });
+      g.step();
+      ys.push(piece.body.angvel().y);
+    }
+    expect(ys.some((y) => Math.abs(y) > 0.5)).toBe(true);
+    expect(ys.some((y) => y > 0) && ys.some((y) => y < 0)).toBe(true);
+    for (const y of ys) expect(Math.abs(y)).toBeLessThan(15);
   });
 });
 

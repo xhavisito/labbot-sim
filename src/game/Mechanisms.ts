@@ -804,7 +804,11 @@ export class Mechanisms {
       // Giro hacia atrás sobre el eje lateral: ω = avance × arriba (la Muestra gira "tiesa" sin él; al aire sigue girando)
       const sp = shooter.spin * (1 + (shooter.spinSigma ?? 0) * (this.rand() + this.rand() + this.rand() - 1.5) / 0.7071);
       const hs = Math.hypot(vx, vz) || 1;
-      piece.body.setAngvel({ x: (-vz / hs) * sp, y: 0, z: (vx / hs) * sp }, true);
+      const g = () => (this.rand() + this.rand() + this.rand() - 1.5) / 0.7071;
+      // Además del giro hacia atrás (eje lateral), un giro de trompo (vertical) y un cabeceo del eje (el otro horizontal): salen distintos en cada tiro
+      const yaw = (shooter.spinYaw ?? 0) * g();
+      const wob = sp * 0.12 * g();
+      piece.body.setAngvel({ x: (-vz / hs) * sp + (vx / hs) * wob, y: yaw, z: (vx / hs) * sp + (vz / hs) * wob }, true);
     }
     if (tilt !== 0 || shooter || pinza) {
       this.finishLeaving();
