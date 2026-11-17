@@ -149,15 +149,12 @@ function adoptRobot(s: Settings, id: RobotId): void {
   s.maxSpeed = Math.min(SETTINGS_RANGE.maxSpeed.max, Math.round(spec.maxSpeed * 4) / 4);
 }
 
-export type GoId = 'strategies' | 'autoPaths' | 'autoDesigner' | 'achievements' | 'compare' | 'replays' | 'matchHistory' | 'editor' | 'settings' | 'controls' | 'rules' | 'tournament';
+export type GoId = 'strategies' | 'autoDesigner' | 'achievements' | 'replays' | 'matchHistory' | 'settings' | 'controls' | 'rules' | 'tournament';
 export type HubId = 'workshop' | 'progress';
 interface HubItem { go: GoId; icon: string; label: Key; desc: Key; hero?: boolean }
 /** Destinos del menú en grupos (Taller y Mi progreso); lo de competir vive en el menú Jugar (`PLAY_LINKS`). */
 const HUBS: { id: HubId; icon: string; title: Key; desc: Key; items: HubItem[] }[] = [
   { id: 'workshop', icon: ic.cube, title: 'hub_workshop', desc: 'hub_workshop_d', items: [
-    { go: 'editor', icon: ic.cube, label: 'editor', desc: 'editorDesc', hero: true },
-    { go: 'compare', icon: ic.cube, label: 'compare', desc: 'compareDesc' },
-    { go: 'autoPaths', icon: ic.route, label: 'autoPaths', desc: 'autoPathsDesc' },
     { go: 'autoDesigner', icon: ic.route, label: 'ad_title', desc: 'ad_desc' },
     { go: 'strategies', icon: ic.field, label: 'strategies', desc: 'strategiesDesc' },
   ] },
@@ -188,7 +185,6 @@ export class Menu {
   onReplays: () => void = () => undefined;
   /** Texto del perfil de rendimiento para Ajustes (lo da App; null = sin datos). */
   perfInfo: (() => string | null) | null = null;
-  onEditor: () => void = () => undefined;
   readonly root: HTMLElement;
   player = DEFAULT_PLAYER;
   /** Abre el modo torneo (lo conecta App). */
@@ -196,12 +192,10 @@ export class Menu {
   /** Abre la lista de retos del entrenamiento (la conecta App). */
   onStrategies: () => void = () => undefined;
   /** Abre el desafío semanal (lo conecta App). */
-  onAutoPaths: () => void = () => undefined;
   /** Abre el Auto Designer (lo conecta App). */
   onAutoDesigner: () => void = () => undefined;
   /** Abre la pantalla de logros (la conecta App). */
   onAchievements: () => void = () => undefined;
-  onCompare: () => void = () => undefined;
 
   constructor(
     host: HTMLElement,
@@ -487,13 +481,10 @@ export class Menu {
   private go(id: GoId): void {
     switch (id) {
       case 'strategies': return this.onStrategies();
-      case 'autoPaths': return this.onAutoPaths();
       case 'autoDesigner': return this.onAutoDesigner();
       case 'achievements': return this.onAchievements();
-      case 'compare': return this.onCompare();
       case 'replays': return this.onReplays();
       case 'matchHistory': return this.matchHistoryPanel();
-      case 'editor': return this.onEditor();
       case 'settings': return this.settingsPanel();
       case 'controls': return this.controlsPanel(() => this.main());
       case 'rules': return this.rulesPanel();
@@ -502,25 +493,26 @@ export class Menu {
   }
 
   /** Pantalla de un grupo del menú: tarjetas grandes con su descripción (pocas opciones, claras). */
-  hub(id: HubId): void {
+  hub(id: HubId, sel?: GoId): void {
     const h = HUBS.find((x) => x.id === id)!;
+    const cur = h.items.find((x) => x.go === sel) ?? h.items[0]!;
     // Mismo estilo que Ajustes: pestañas (los 4 grupos) y un panel con filas "nombre | descripción + Abrir"
     this.open(
       `${brandbar(t(h.title))}
       <h1>${t(h.title)}</h1>
       <p class="sub">${t(h.desc)}</p>
-      <div class="seg tabs" role="tablist">${HUBS.map((x) => `<button class="${x.id === id ? 'on' : ''}" role="tab" data-hub="${x.id}">${t(x.title)}</button>`).join('')}</div>
+      <div class="seg tabs" role="tablist">${h.items.map((x) => `<button class="${x === cur ? 'on' : ''}" role="tab" data-tab="${x.go}">${t(x.label)}</button>`).join('')}</div>
       <div class="panel narrow">
         <div class="form hubform">
-          <h3>${t(h.title)}</h3>
-          ${h.items.map((it) => `<label>${it.icon.replace('class="ic"', 'class="mi"')}<b>${t(it.label)}</b></label><div class="hub-ctl"><small>${t(it.desc)}</small><button class="btn ${it.hero ? 'primary' : ''}" data-go="${it.go}">${t('mo_hubOpen')}</button></div>`).join('')}
+          <h3>${t(cur.label)}</h3>
+          <label>${cur.icon.replace('class="ic"', 'class="mi"')}<b>${t(cur.label)}</b></label><div class="hub-ctl"><small>${t(cur.desc)}</small><button class="btn primary" data-go="${cur.go}">${t('mo_hubOpen')}</button></div>
         </div>
       </div>
       <div class="actionbar">${backBtn('data-act="back"')}<div class="grow"></div></div>`,
       'screen solid',
     );
     this.on('[data-act="back"]', () => this.main());
-    this.on('[data-hub]', (el) => this.hub(el.dataset.hub as HubId));
+    this.on('[data-tab]', (el) => this.hub(id, el.dataset.tab as GoId));
     this.on('[data-go]', (el) => this.go(el.dataset.go as GoId));
     (this.root.querySelector('.hubform .btn.primary') as HTMLElement | null)?.focus({ preventScroll: true });
   }
