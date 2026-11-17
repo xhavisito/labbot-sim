@@ -218,14 +218,23 @@ export class RobotView {
           // Valeros en las placas de abajo y de arriba
           for (const y of [y0 + 0.008, y1 - 0.008]) add(new THREE.CylinderGeometry(0.014, 0.014, 0.012, 16), bearingMat, 0, y, 0, axis);
           for (const y of [0.3, 0.72]) {
-            const wheel = new THREE.Mesh(new THREE.CylinderGeometry(R, R, 0.03, 24), rollerMat);
+            // Rueda compliant como las del lanzador de Phoenix (`am-3945`): llanta ancha verde, cubo hex más oscuro que
+            // sobresale y seis huecos del rin en cada cara (con ellos se nota el giro). Solo dibujo (Xhavi, 17-nov).
+            const W = 0.04;
+            const wheel = new THREE.Mesh(new THREE.CylinderGeometry(R, R, W, 28), rollerMat);
             wheel.position.y = y * sz;
             wheel.castShadow = true;
             axis.add(wheel);
-            // Rayo del rin (se nota el giro)
-            const spoke = new THREE.Mesh(new THREE.BoxGeometry(R * 1.6, 0.032, 0.006), hubMat);
-            spoke.position.y = y * sz;
-            axis.add(spoke);
+            const hub = new THREE.Mesh(new THREE.CylinderGeometry(R * 0.36, R * 0.36, W + 0.012, 6), hubMat);
+            wheel.add(hub);
+            for (const f of [1, -1]) {
+              for (let k = 0; k < 6; k++) {
+                const a = (k / 6) * Math.PI * 2;
+                const hole = new THREE.Mesh(new THREE.CylinderGeometry(R * 0.15, R * 0.15, 0.004, 12), hubMat);
+                hole.position.set(Math.cos(a) * R * 0.64, f * (W / 2 + 0.0005), Math.sin(a) * R * 0.64);
+                wheel.add(hole);
+              }
+            }
           }
           this.clawRollers.push({ mesh: axis, row: side });
         }
