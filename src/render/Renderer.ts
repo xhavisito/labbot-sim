@@ -8,6 +8,7 @@ import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer
 import { FXAAPass } from 'three/examples/jsm/postprocessing/FXAAPass.js';
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
 import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
+import './matte';
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 
@@ -31,9 +32,9 @@ export interface QualityPreset {
 }
 
 export const QUALITY: Record<Quality, QualityPreset> = {
-  low: { maxPixelRatio: 1, renderScale: 0.8, shadows: false, shadowMapSize: 512, softShadows: false, bloom: false, aa: 'none', ibl: true, particles: 0.4 },
-  medium: { maxPixelRatio: 1.5, renderScale: 0.9, shadows: true, shadowMapSize: 1024, softShadows: false, bloom: true, aa: 'fxaa', ibl: true, particles: 0.7 },
-  high: { maxPixelRatio: 2, renderScale: 1, shadows: true, shadowMapSize: 2048, softShadows: true, bloom: true, aa: 'msaa', ibl: true, particles: 1 },
+  low: { maxPixelRatio: 1, renderScale: 0.8, shadows: false, shadowMapSize: 512, softShadows: false, bloom: false, aa: 'none', ibl: false, particles: 0.4 },
+  medium: { maxPixelRatio: 1.5, renderScale: 0.9, shadows: true, shadowMapSize: 1024, softShadows: false, bloom: false, aa: 'fxaa', ibl: false, particles: 0.7 },
+  high: { maxPixelRatio: 2, renderScale: 1, shadows: true, shadowMapSize: 2048, softShadows: true, bloom: false, aa: 'msaa', ibl: false, particles: 1 },
 };
 
 /** Calidad inicial para "Automática": media en celulares y tabletas, alta en computadora. */
@@ -74,7 +75,7 @@ export class Renderer {
     pmrem.dispose();
     this.scene.environmentIntensity = 0.38;
 
-    this.hemi = new THREE.HemisphereLight(0xdfe8ff, 0x2a2622, 0.45);
+    this.hemi = new THREE.HemisphereLight(0xdfe8ff, 0x2a2622, 1.0);
     this.scene.add(this.hemi);
     // Luz principal (focos del techo) con sombras
     this.sun = new THREE.DirectionalLight(0xfff4e6, 2.1);
