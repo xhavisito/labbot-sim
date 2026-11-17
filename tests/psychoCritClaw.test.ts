@@ -74,8 +74,8 @@ describe('Psycho: garra de la Crítica', () => {
     // El colisionador del cubo va fijo en el asiento
     const t = r.phys.armColliders.critical.translationWrtParent()!;
     const seat = critSeat(r.spec)!;
-    expect(t.x).toBeCloseTo(seat.x, 6);
-    expect(t.y).toBeCloseTo(seat.y + r.mech.critHoldDy, 6); // a la altura en que la tomó
+    expect(t.x).toBeCloseTo(seat.x + r.mech.critHold.dx, 6); // donde la tomó
+    expect(t.y).toBeCloseTo(seat.y + r.mech.critHold.dy, 6); // a la altura en que la tomó
   });
 
   it('la toma desde cualquier lugar dentro del alcance de la garra, sin tocarla (Xhavi, 17-nov)', () => {
@@ -85,7 +85,7 @@ describe('Psycho: garra de la Crítica', () => {
       expect(r.mech.critical).toBe(c);
       // La toma a la altura en que está (no siempre en la misma pose): el cubo queda a ese nivel, dentro del alcance
       const seatY = critSeat(r.spec)!.y;
-      expect(r.phys.armColliders.critical.translationWrtParent()!.y).toBeCloseTo(seatY + r.mech.critHoldDy, 6);
+      expect(r.phys.armColliders.critical.translationWrtParent()!.y).toBeCloseTo(seatY + r.mech.critHold.dy, 6);
       // La garra la jala al asiento: el dibujo parte de donde estaba y llega en menos de medio segundo
       expect(r.mech.critPull).not.toBeNull();
       expect(r.mech.critPullDur).toBeLessThanOrEqual(0.4);
@@ -94,18 +94,19 @@ describe('Psycho: garra de la Crítica', () => {
     }
   });
 
-  it('la toma a la altura en que está: más abajo o más arriba queda a otro nivel, y al soltarla sale de ahí', () => {
+  it('el cubo queda donde la garra lo tomó (altura, adelante y de lado) y la garra no se mueve; al soltarla sale de ahí', () => {
     const lo = setup(0.5, 0.55);
     const hi = setup(0.5, 0.95);
     for (const { r } of [lo, hi]) expect(r.mech.grabCritical([])).toBe(true);
-    expect(lo.r.mech.critHoldDy).toBeLessThan(-0.2);
-    expect(hi.r.mech.critHoldDy).toBeGreaterThan(0.05);
+    // La garra (dedos) no se mueve: solo el cubo queda donde lo tomó
+    expect(lo.r.mech.critHold.dy).toBeLessThan(-0.2);
+    expect(hi.r.mech.critHold.dy).toBeGreaterThan(0.05);
     const seatY = critSeat(lo.r.spec)!.y;
-    expect(lo.r.phys.armColliders.critical.translationWrtParent()!.y).toBeCloseTo(seatY + lo.r.mech.critHoldDy, 6);
-    const yBefore = lo.r.phys.position().y + seatY + lo.r.mech.critHoldDy;
+    expect(lo.r.phys.armColliders.critical.translationWrtParent()!.y).toBeCloseTo(seatY + lo.r.mech.critHold.dy, 6);
+    const yBefore = lo.r.phys.position().y + seatY + lo.r.mech.critHold.dy;
     expect(lo.r.mech.release('critical', [], true)).toBe(true);
     expect(lo.c.body.translation().y).toBeCloseTo(yBefore, 1);
-    expect(lo.r.mech.critHoldDy).toBe(0);
+    expect(lo.r.mech.critHold.dy).toBe(0);
   });
 
   it('no la toma lejos, de lado, en el piso ni detrás', () => {
