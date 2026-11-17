@@ -317,6 +317,7 @@ export class RobotView {
     if (arm && dl > 0) this.stretchArm(arm, m.stowAngle ?? 0, dl);
     if (arm && intakeOf(this.robot.spec).kind === 'pinza') this.findFingers(arm, m.stowAngle ?? 0, Math.max(0, dl));
     // Flechas (ejes) del CAD: negras en todos los robots
+    // Antes de colgarla del robot: los centros se miden en el sistema del modelo (la sesión ya movió `this.group` a su lugar)
     this.group.add(scene);
     this.group.traverse((o) => {
       if (o instanceof THREE.Mesh && /flecha/i.test(nodeName(o))) o.material = SHAFT_MAT; // incluye el brazo (`this.arm`)
