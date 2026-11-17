@@ -36,7 +36,6 @@ import {
   seriesState,
   simulateMatch,
   standings,
-  tournamentEntries,
   tournamentSummaries,
   type BracketSrc,
   type PlayoffFormat,
@@ -45,11 +44,11 @@ import {
   type Tournament,
 } from '../core/tournament';
 import { loadHistory, saveHistory } from '../game/historyStore';
-import { saveScout, type ScoutData } from '../game/scoutStore';
+import type { ScoutData } from '../game/scoutStore';
 import type { CameraMode } from '../render/CameraRig';
 import { backBtn, brandbar, ic } from './chrome';
 import { t, type Key } from './i18n';
-import type { ScoutPlay } from './Scouting';
+import type { ScoutPlay } from './scoutPlay';
 
 const KEY = 'labbot.tournament.v1';
 
@@ -104,7 +103,7 @@ export class TournamentScreen {
     private root: HTMLElement,
     private scout: ScoutData,
     private settings: Settings,
-    private cb: { back: () => void; play: (p: ScoutPlay, watch?: WatchMode) => void; scouting: () => void; history?: () => void },
+    private cb: { back: () => void; play: (p: ScoutPlay, watch?: WatchMode) => void },
   ) {}
 
   private on(sel: string, fn: (el: HTMLElement) => void, ev = 'click'): void {
@@ -140,8 +139,7 @@ export class TournamentScreen {
       <p class="sub">${t('tr_intro')}</p>
       <div class="panels"><div class="panel"><div class="form">
         <h3>${t('tr_setup')}</h3>
-        <label>${t('tr_teams')}</label><div>${teams.map((x) => `<span class="team">${esc(x.name)}</span>`).join('')}
-          <div class="row-actions"><button class="chipbtn" data-act="teams">${ic.clipboard}${t('tr_editTeams')}</button></div></div>
+        <label>${t('tr_teams')}</label><div>${teams.map((x) => `<span class="team">${esc(x.name)}</span>`).join('')}</div>
         <label>${t('tr_yourTeam')}</label><select data-player>${teams.map((x) => `<option value="${esc(x.id)}" ${x.id === this.cfg.player ? 'selected' : ''}>${esc(x.name)}</option>`).join('')}</select>
         <label>${t('yourRobot')}</label><div>${esc(spec.label ?? t(`type_${spec.mechanism}` as Key))} <span class="dim">· ${t('tr_robotNote')}</span></div>
         <label>${t('sc_qualsPerTeam')}</label>${seg('perTeam', this.cfg.perTeam, [3, 4, 5, 6, 8].map((v) => [v, String(v)]))}
@@ -152,7 +150,6 @@ export class TournamentScreen {
       <div class="actionbar">${backBtn('data-act="back"')}<div class="grow"></div>
         <button class="btn primary" data-act="create" ${n < 4 ? 'disabled' : ''}>${ic.trophy}<span>${t('tr_create')}</span></button></div>`);
     this.on('[data-act="back"]', () => this.cb.back());
-    this.on('[data-act="teams"]', () => this.cb.scouting());
     this.on('[data-player]', (el) => (this.cfg.player = (el as HTMLSelectElement).value), 'change');
     this.on('[data-cfg] button', (el) => {
       const k = (el.parentElement as HTMLElement).dataset.cfg!;
@@ -451,8 +448,6 @@ export class TournamentScreen {
           <h3 class="mt">Qualifications</h3><div class="scroll"><table class="stable sched">${quals}</table></div></div>
       </div>
       <div class="actionbar">${backBtn('data-act="back"')}<div class="grow"></div>
-        ${this.cb.history ? `<button class="btn" data-act="history">${ic.chart}<span>${t('tr_history')}</span></button>` : ''}
-        <button class="btn" data-act="toScout" ${tournamentEntries(tt).length ? '' : 'disabled'}>${ic.clipboard}<span>${t('tr_toScouting')}</span></button>
         <button class="btn" data-act="new">${ic.reset}<span>${t('tr_new')}</span></button></div>`);
     this.note = '';
     this.on('[data-act="back"]', () => this.cb.back());
@@ -463,11 +458,6 @@ export class TournamentScreen {
         this.root.scrollTop = 0;
         this.setup();
       } else (el.querySelector('span') as HTMLElement).textContent = t('tr_newConfirm');
-    });
-    this.on('[data-act="history"]', () => this.cb.history?.());
-    this.on('[data-act="toScout"]', (el) => {
-      this.exportToScouting(tt);
-      (el.querySelector('span') as HTMLElement).textContent = t('tr_exported', { n: tournamentEntries(tt).length });
     });
     this.on('[data-tabs] button', (el) => {
       this.tab = el.dataset.v as Tab;
@@ -512,18 +502,4 @@ export class TournamentScreen {
     saveHistory(next);
     return next.events.some((e) => e.id === tournamentEventId(tt));
   }
-
-  /**
-   * Pasa los registros del torneo al Scouting (match "T-Q3", "T-P1-2"…) para usar su tabla, sus
-   * alianzas sugeridas y el CSV. Reemplaza lo que se haya pasado antes.
-   */
-  private exportToScouting(tt: Tournament): void {
-    const known = new Set(this.scout.teams.map((x) => x.id));
-    const es = tournamentEntries(tt)
-      .filter((e) => known.has(e.team))
-      .map((e) => ({ ...e, id: `T-${e.match}-${e.team}`, match: `T-${e.match}`.slice(0, 20) }));
-    this.scout.entries = this.scout.entries.filter((e) => !e.match.startsWith('T-')).concat(es);
-    saveScout(this.scout);
-  }
 }
-

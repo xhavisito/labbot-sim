@@ -33,7 +33,7 @@ import { formatPlaytime } from '../core/playtime';
 import { loadPlaytime } from '../game/playtimeStore';
 import { legacyMark } from './MatchSetup';
 import { getLang, setLang, t, type Key } from './i18n';
-import type { ScoutPlay } from './Scouting';
+import type { ScoutPlay } from './scoutPlay';
 import { applyUpdate, isIos, isStandalone, promptInstall, pwa } from '../pwa/register';
 
 const esc = (v: string): string => v.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
@@ -148,7 +148,7 @@ function adoptRobot(s: Settings, id: RobotId): void {
   s.maxSpeed = Math.min(SETTINGS_RANGE.maxSpeed.max, Math.round(spec.maxSpeed * 4) / 4);
 }
 
-export type GoId = 'strategies' | 'autoPaths' | 'achievements' | 'compare' | 'replays' | 'matchHistory' | 'editor' | 'settings' | 'controls' | 'rules' | 'scouting' | 'tournament';
+export type GoId = 'strategies' | 'autoPaths' | 'achievements' | 'compare' | 'replays' | 'matchHistory' | 'editor' | 'settings' | 'controls' | 'rules' | 'tournament';
 export type HubId = 'workshop' | 'progress';
 interface HubItem { go: GoId; icon: string; label: Key; desc: Key; hero?: boolean }
 /** Destinos del menú en grupos (Taller y Mi progreso); lo de competir vive en el menú Jugar (`PLAY_LINKS`). */
@@ -157,6 +157,7 @@ const HUBS: { id: HubId; icon: string; title: Key; desc: Key; items: HubItem[] }
     { go: 'editor', icon: ic.cube, label: 'editor', desc: 'editorDesc', hero: true },
     { go: 'compare', icon: ic.cube, label: 'compare', desc: 'compareDesc' },
     { go: 'autoPaths', icon: ic.route, label: 'autoPaths', desc: 'autoPathsDesc' },
+    { go: 'strategies', icon: ic.field, label: 'strategies', desc: 'strategiesDesc' },
   ] },
   { id: 'progress', icon: ic.film, title: 'hub_progress', desc: 'hub_progress_d', items: [
     { go: 'replays', icon: ic.film, label: 'replays', desc: 'replaysDesc', hero: true },
@@ -164,11 +165,9 @@ const HUBS: { id: HubId; icon: string; title: Key; desc: Key; items: HubItem[] }
     { go: 'achievements', icon: ic.medal, label: 'ach_title', desc: 'achDesc' },
   ] },
 ];
-/** Lo que antes era Competir, ahora en el menú Jugar: torneo, scouting y estrategias. */
+/** Lo que antes era Competir, ahora en el menú Jugar: el torneo. */
 const PLAY_LINKS: { go: GoId; label: Key }[] = [
   { go: 'tournament', label: 'tournament' },
-  { go: 'scouting', label: 'scouting' },
-  { go: 'strategies', label: 'strategies' },
 ];
 /** Atajos de la barra superior: configuración y ayuda. */
 const SYS_LINKS: { go: GoId; icon: string; label: Key }[] = [
@@ -190,8 +189,6 @@ export class Menu {
   onEditor: () => void = () => undefined;
   readonly root: HTMLElement;
   player = DEFAULT_PLAYER;
-  /** Abre la pantalla de Scouting (la conecta App). */
-  onScouting: () => void = () => undefined;
   /** Abre el modo torneo (lo conecta App). */
   onTournament: () => void = () => undefined;
   /** Abre la lista de retos del entrenamiento (la conecta App). */
@@ -495,7 +492,6 @@ export class Menu {
       case 'settings': return this.settingsPanel();
       case 'controls': return this.controlsPanel(() => this.main());
       case 'rules': return this.rulesPanel();
-      case 'scouting': return this.onScouting();
       case 'tournament': return this.onTournament();
     }
   }
@@ -1031,7 +1027,7 @@ export class Menu {
 
   // ------------------------------------------------------------------ resultados
   /**
-   * `note`: aviso arriba de las acciones (p. ej. que el match se guardó en el scouting). `cont`: match
+   * `note`: aviso arriba de las acciones (p. ej. que se guardó el resultado). `cont`: match
    * del torneo, sin "Jugar de nuevo" (el resultado ya cuenta) y el botón principal es este.
    */
   results(m: Match, onRestart: () => void, onMenu: () => void, onDownload: () => void, player: number, note = '', cont?: string, earned: string[] = [], vs?: VsResults): void {
