@@ -205,6 +205,8 @@ export class Mechanisms {
   /** Solo dibujo: de dónde viene la Crítica que la Garrita jala al asiento (sistema del robot; yaw respecto al chasis) y cuánto lleva jalándola. */
   critPull: { x: number; y: number; z: number; yaw: number } | null = null;
   critPullAge = 0;
+  /** Altura del cubo tomado respecto a su asiento (m): la Garrita lo toma a la altura en que está, dentro de su alcance vertical. */
+  critHoldDy = 0;
   critPullDur = 0;
   /** Segundos que le quedan a la Garrita recién cerrada para tomar la Crítica (SUPUESTO: lo que tarda en cerrar). */
   private critWindow = 0;
@@ -668,6 +670,8 @@ export class Mechanisms {
     const yaw = Math.atan2(2 * (q.w * q.y + q.x * q.z), 1 - 2 * (q.y * q.y + q.z * q.z)) - p.heading();
     const rel = ((((yaw + Math.PI / 4) % (Math.PI / 2)) + Math.PI / 2) % (Math.PI / 2)) - Math.PI / 4;
     const dist = Math.hypot(lx - cc.seat.x, lz, dy);
+    this.critHoldDy = Math.max(-cc.reachDown, Math.min(cc.reachUp, dy));
+    p.setCritHeight(this.critHoldDy);
     this.critPull = { x: lx, y: t.y - p.position().y, z: lz, yaw: rel };
     this.critPullAge = 0;
     this.critPullDur = Math.min(0.4, 0.15 + dist * 0.6);
@@ -703,9 +707,12 @@ export class Mechanisms {
     // Muestras en la rampa del lanzador al tirar (la que sale cuenta): más cargado, más débil el tiro
     const loaded = this.stored.length;
     const slot = Math.max(0, this.inClawCount - 1);
+    const holdDy = this.critHoldDy;
     if (kind === 'critical') {
       this.critical = null;
       this.critPull = null;
+      this.critHoldDy = 0;
+      this.phys.setCritHeight(0);
     } else {
       this.stored.pop();
       this.inClaw = this.phys.spec.arm.holdsTwo === true && this.stored.length > 0;
@@ -745,7 +752,7 @@ export class Mechanisms {
     // Crítica de la garra fija: sale de su asiento, sin empujón (con el robot)
     const seat = kind === 'critical' ? critSeat(spec) : null;
     if (seat) {
-      loc = { x: seat.x, y: seat.y };
+      loc = { x: seat.x, y: seat.y + holdDy };
       vl = { x: 0, y: 0 };
     }
     // Lanzador (Phoenix): en N1–N3 la Muestra sale disparada hacia el pozo de ese nivel; sale de la boca del lanzador si el CAD la fija
@@ -840,6 +847,8 @@ export class Mechanisms {
     this.finishLeaving();
     this.stored.length = 0;
     this.critical = null;
+    this.critHoldDy = 0;
+    this.phys.setCritHeight(0);
     this.critPull = null;
     this.inClaw = false;
     this.intakeOn = false;

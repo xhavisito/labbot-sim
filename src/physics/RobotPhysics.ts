@@ -126,6 +126,11 @@ export class RobotPhysics {
   readonly centeredClaw: boolean;
   /** Pose fija del cubo en la garra de la Crítica pegada al chasis (`IntakeSpec.critClaw`); null si la toma el brazo. */
   private readonly critFixed: Pose | null;
+  /** Garrita (Psycho): sube o baja el cubo `dy` m respecto a su asiento: lo toma a la altura donde está (Xhavi, 17-nov). */
+  setCritHeight(dy: number): void {
+    const seat = critSeat(this.spec);
+    if (this.critFixed && seat) this.critFixed.t.y = seat.y + dy;
+  }
   /** Placas de arriba y de abajo de la caja (solo la garra-caja con rodillos). */
   private readonly boxPlates: boolean;
   private armTilted = false;
