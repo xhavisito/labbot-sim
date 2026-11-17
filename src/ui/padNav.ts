@@ -207,7 +207,7 @@ export class PadNav {
     return Math.abs(x) > Math.abs(y) ? (x > 0 ? 'right' : 'left') : y > 0 ? 'down' : 'up';
   }
 
-  /** La capa de arriba: un diálogo abierto encima de la pantalla (p. ej. elegir robot del Scouting). */
+  /** La capa de arriba: un diálogo abierto encima de la pantalla (p. ej. elegir un robot). */
   private layer(scope: HTMLElement): HTMLElement {
     const dialogs = [...scope.querySelectorAll<HTMLElement>('.overlay')].filter((d) => d.getClientRects().length);
     return dialogs[dialogs.length - 1] ?? scope;
@@ -324,7 +324,7 @@ export class PadNav {
     }
   }
 
-  /** LB/RB: la pestaña anterior/siguiente (Scouting, tablas del torneo). */
+  /** LB/RB: la pestaña anterior/siguiente (tablas del torneo). */
   private tab(layer: HTMLElement, k: number): void {
     const group = layer.querySelector<HTMLElement>('.seg.tabs, [data-tabs]');
     if (!group) return;

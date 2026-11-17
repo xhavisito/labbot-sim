@@ -130,19 +130,6 @@ await shot('pad-controles');
 await press(B.B);
 ok(!!(await page.$('.mm-hero')), 'B regresa al menú desde Controles');
 
-// Scouting: LB/RB cambian de pestaña
-await page.evaluate(() => window.app.scouting.show());
-await page.waitForTimeout(200);
-const tab = () => page.evaluate(() => document.querySelector('[data-tab].on')?.dataset.tab);
-const t0 = await tab();
-await press(B.RB);
-const t1 = await tab();
-ok(t0 && t1 && t0 !== t1, `RB cambia de pestaña (${t0} → ${t1})`);
-await press(B.LB);
-ok((await tab()) === t0, 'LB regresa a la pestaña anterior');
-await press(B.B);
-ok(!!(await page.$('.mm-hero')), 'B regresa al menú desde el Scouting');
-
 // Entrenamiento: en las instrucciones A empieza el reto; corriendo, el control maneja
 await page.evaluate(() => window.app.start({ mode: 'training', player: 0, drill: 'line' }));
 await page.waitForTimeout(300);
