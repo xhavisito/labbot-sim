@@ -1966,3 +1966,8 @@ body.vs-stacked .touch.vs-touch.p1 .pad { bottom: 12px; }
 .hubform .hub-ctl .btn.primary { background: var(--accent-fill); color: #fff; }
 .hubform .hub-ctl .btn.primary:hover, .hubform .hub-ctl .btn.primary:focus-visible { background: var(--brand-purple); }
 @media (max-width: 700px) { .hubform { grid-template-columns: 1fr; } .hubform .hub-ctl { flex-direction: column; align-items: stretch; } }
+
+/* Resultados: ficha de persona real con marco; Ranking Points de las dos alianzas a la misma altura */
+.results .rs-tile b { font-size: 1.1em; letter-spacing: 0.02em; }
+.results .rs-tile.real { outline: 4px solid var(--brand-white); outline-offset: 2px; }
+.results .rs-l2 { display: flex; flex-direction: column; gap: 14px; }
