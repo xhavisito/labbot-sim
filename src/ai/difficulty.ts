@@ -52,15 +52,26 @@ export interface AiProfile {
    * (más holgura si va ganando, menos si va perdiendo).
    */
   clutch: number;
+  /**
+   * Manejo humano: segundos que tarda el mando de avance en subir de 0 a 1 (un piloto no pega el
+   * stick de golpe) y lo mismo para el giro. Frenar es varias veces más rápido. SUPUESTO de diseño.
+   */
+  ramp: number;
+  turnRamp: number;
+  /**
+   * Distancia (m, entre contornos) a la que empieza a soltar el acelerador al acercarse a otro robot
+   * por donde va: llega despacio (menos golpes, §4.5) en vez de frenar hasta tocarlo.
+   */
+  courtesy: number;
 }
 
 export const AI_PROFILES: Record<AiLevel, AiProfile> = {
   // Fácil: lento, anota en N2, no va por la Crítica ni se coordina; sube temprano a la Plataforma
-  easy: { speed: 0.55, level: 2, critical: false, teamwork: false, reaction: 0.9, climbMargin: 14, batch: 2, sloppy: 0.06, steal: false, dockSpeed: 1, dockStage: 0.55, jitter: 0.4, aim: 0.12, pickPause: 0.5, contest: 0, clutch: 0 },
+  easy: { speed: 0.55, level: 2, critical: false, teamwork: false, reaction: 0.9, climbMargin: 14, batch: 2, sloppy: 0.06, steal: false, dockSpeed: 1, dockStage: 0.55, jitter: 0.4, aim: 0.12, pickPause: 0.5, contest: 0, clutch: 0, ramp: 0.4, turnRamp: 0.22, courtesy: 0.5 },
   // Normal: N3 y la Crítica, con algo de duda y margen
-  normal: { speed: 0.8, level: 3, critical: true, teamwork: true, reaction: 0.35, climbMargin: 6, batch: 4, sloppy: 0.02, steal: false, dockSpeed: 1, dockStage: 0.55, jitter: 0.15, aim: 0.05, pickPause: 0.25, contest: 0.5, clutch: 0.5 },
+  normal: { speed: 0.8, level: 3, critical: true, teamwork: true, reaction: 0.35, climbMargin: 6, batch: 4, sloppy: 0.02, steal: false, dockSpeed: 1, dockStage: 0.55, jitter: 0.15, aim: 0.05, pickPause: 0.25, contest: 0.5, clutch: 0.5, ramp: 0.28, turnRamp: 0.15, courtesy: 0.6 },
   // Difícil: todo lo que da el robot, y se arrima a la Cámara más rápido y desde más cerca
-  hard: { speed: 1, level: 3, critical: true, teamwork: true, reaction: 0.15, climbMargin: 2.5, batch: 10, sloppy: 0, steal: false, dockSpeed: 1.5, dockStage: 0.4, jitter: 0.1, aim: 0.015, pickPause: 0.1, contest: 1, clutch: 1 },
+  hard: { speed: 1, level: 3, critical: true, teamwork: true, reaction: 0.15, climbMargin: 2.5, batch: 10, sloppy: 0, steal: false, dockSpeed: 1.5, dockStage: 0.4, jitter: 0.1, aim: 0.015, pickPause: 0.1, contest: 1, clutch: 1, ramp: 0.18, turnRamp: 0.1, courtesy: 0.7 },
   // Experto: como Difícil, más robar Muestras de la Campana rival y margen justo en la Plataforma
-  expert: { speed: 1, level: 3, critical: true, teamwork: true, reaction: 0.1, climbMargin: 1.8, batch: 10, sloppy: 0, steal: true, dockSpeed: 1.5, dockStage: 0.4, jitter: 0.05, aim: 0, pickPause: 0.05, contest: 1, clutch: 1 },
+  expert: { speed: 1, level: 3, critical: true, teamwork: true, reaction: 0.1, climbMargin: 1.8, batch: 10, sloppy: 0, steal: true, dockSpeed: 1.5, dockStage: 0.4, jitter: 0.05, aim: 0, pickPause: 0.05, contest: 1, clutch: 1, ramp: 0.14, turnRamp: 0.08, courtesy: 0.7 },
 };

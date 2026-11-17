@@ -59,6 +59,16 @@ export class Team {
     this.hpBy = hp ? hp.robot.index : null;
   }
 
+  /**
+   * Franja de la cancha de este robot cuando juntan dos de IA: +1 o −1 (lado de `side·z`); 0 si es
+   * el único que junta (o su compañero no recolecta). El de índice menor toma +1.
+   */
+  lane(b: Bot): number {
+    const mates = this.members.filter((m) => m.opts.role === 'score' && m.opts.teleop && m.profile.teamwork);
+    if (mates.length < 2 || !mates.includes(b)) return 0;
+    return mates.every((m) => m.robot.index >= b.robot.index) ? 1 : -1;
+  }
+
   /** ¿La Muestra la apartó otro robot de la alianza? */
   claimedByOther(piece: number, robot: number): boolean {
     const c = this.claims.get(piece);
