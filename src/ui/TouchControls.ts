@@ -15,6 +15,8 @@ const BUTTONS: Array<{ action: Action; label: Key | string; cls: string }> = [
 ];
 /** Botones que se mantienen presionados (no de un toque). */
 const HOLD = new Set<Action>(['intake']);
+/** Además de tocarse, se anota mientras el dedo sigue encima (disparo continuo del lanzador de Phoenix). */
+const ALSO_HELD = new Set<Action>(['releaseSample']);
 
 /** ¿El equipo es táctil? (pantalla de dedo, sin mouse fino) */
 export const isTouchDevice = (): boolean =>
@@ -57,9 +59,15 @@ export class TouchControls {
           this.state.held.add(a);
           return;
         }
+        if (ALSO_HELD.has(a)) {
+          b.setPointerCapture(e.pointerId);
+          this.state.held.add(a);
+        }
         this.state.pressed.add(a);
         setTimeout(() => b.classList.remove('on'), 150);
       });
+      if (ALSO_HELD.has(a))
+        for (const ev of ['pointerup', 'pointercancel', 'lostpointercapture'] as const) b.addEventListener(ev, () => this.state.held.delete(a));
       if (HOLD.has(a))
         for (const ev of ['pointerup', 'pointercancel', 'lostpointercapture'] as const)
           b.addEventListener(ev, () => {

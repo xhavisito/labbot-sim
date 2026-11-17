@@ -362,3 +362,43 @@ describe('Phoenix: sin falla de garra', () => {
     expect(seen.has('armSlow')).toBe(false);
   }, 120000);
 });
+
+describe('Phoenix: disparo continuo (Xhavi, 17-nov)', () => {
+  function setup(n: number): GameSession {
+    const g = new GameSession({ player: 0, preload: false, specs: [robotSpec('cad:phoenix')], seed: 3 });
+    for (const p of g.pieces.list) if (p.state.at === 'field' && p.kind === 'sample') g.pieces.stash(p, { at: 'hp', alliance: 'red' });
+    const a = g.player.alliance;
+    const w = F.camaraWells()[3];
+    const c = F.forCamara(a, { x: (w.x0 + w.x1) / 2, z: (w.z0 + w.z1) / 2 - 1.2 });
+    g.player.phys.teleport(c.x, c.z, F.camaraHeading(a));
+    for (const p of g.pieces.list.filter((q) => q.kind === 'sample').slice(0, n)) g.player.mech.load(p);
+    for (let i = 0; i < 120; i++) {
+      g.setInput({ ...emptyInput(), elevator: 3 });
+      g.step();
+    }
+    return g;
+  }
+  const run = (g: GameSession, secs: number, held: boolean, first = false): void => {
+    for (let i = 0; i < Math.round(secs * 120); i++) {
+      g.setInput({ ...emptyInput(), elevator: 3, releaseSample: first && i === 0, releaseHeld: held });
+      g.step();
+    }
+  };
+
+  it('manteniendo el botón salen todas solas', () => {
+    const g = setup(4);
+    expect(g.player.mech.stored.length).toBe(4);
+    run(g, 3, true, true);
+    expect(g.player.mech.stored.length).toBe(0);
+  });
+
+  it('al soltar el botón se detiene y quedan las demás', () => {
+    const g = setup(4);
+    run(g, 0.5, true, true);
+    const left = g.player.mech.stored.length;
+    expect(left).toBeLessThan(4);
+    expect(left).toBeGreaterThan(0);
+    run(g, 2, false);
+    expect(g.player.mech.stored.length).toBe(left);
+  });
+});

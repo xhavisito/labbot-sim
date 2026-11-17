@@ -430,6 +430,9 @@ export class GameSession {
     if (inp.releaseSample) {
       if (m.critical) a.releaseCritical = m.release('critical', this.stepMechEvents) || undefined;
       else a.release = m.release('sample', this.stepMechEvents) || undefined;
+    } else if (inp.releaseHeld && intakeOf(r.spec).shooter && !m.critical && m.inClaw) {
+      // Lanzador (Phoenix): mientras se mantiene el botón van saliendo todas las Muestras (una cada `EJECT_COOLDOWN`); al soltarlo se detiene
+      a.release = m.release('sample', this.stepMechEvents) || undefined;
     }
   }
 
