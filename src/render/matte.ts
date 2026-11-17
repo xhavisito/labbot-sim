@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 
 /**
- * Sin reflejos (Xhavi, 17-nov): todo material estándar queda mate. `metalness` siempre 0 y `roughness`
+ * Sin reflejos en los materiales (Xhavi, 17-nov): todo material estándar queda mate; la luz del entorno y el bloom no se tocan. `metalness` siempre 0 y `roughness`
  * al menos 0.9, así que ni el entorno ni las luces dejan brillos especulares. Se aplica al prototipo,
  * para que cubra también los materiales de los modelos del CAD (GLB). Importar una sola vez.
  */
