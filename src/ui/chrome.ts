@@ -28,6 +28,8 @@ export const ic = {
   reset: svg('<path d="M3.5 12a8.5 8.5 0 1 0 2.6-6.1"/><path d="M3.5 4v5h5"/>'),
   home: svg('<path d="M3.5 11 12 4l8.5 7"/><path d="M6 9.5V20h12V9.5"/>'),
   download: svg('<path d="M12 3.5v12M7 11l5 5 5-5M4.5 20.5h15"/>'),
+  upload: svg('<path d="M12 16.5v-13M7 8l5-5 5 5M4.5 20.5h15"/>'),
+  undo: svg('<path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/>'),
   camera: svg('<path d="M3 7.5h3l2-2.5h8l2 2.5h3v11.5H3z"/><circle cx="12" cy="13" r="3.5"/>'),
   gamepad: svg('<path d="M7 7h10a5 5 0 0 1 4.9 6l-.8 3.6a2.3 2.3 0 0 1-4 1L15 16H9l-2.1 1.6a2.3 2.3 0 0 1-4-1L2.1 13A5 5 0 0 1 7 7z"/><path d="M7.5 10.5v3M6 12h3M15.5 11h.01M17.5 13h.01"/>'),
   keyboard: svg('<rect x="2.5" y="6" width="19" height="12" rx="1.5"/><path d="M6 9.5h.01M9.5 9.5h.01M13 9.5h.01M16.5 9.5h.01M7.5 14.5h9"/>'),

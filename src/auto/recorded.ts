@@ -8,6 +8,7 @@
  */
 import { CAMARA_FRAME, frameOf } from '../core/autoPath';
 import { loadPaths, pathRoutine } from '../game/autoPathStore';
+import { designRoutine, loadDesigns } from './designed';
 import { AUTO_ROUTINES, type AutoAction, type AutoOutput, type AutoRoutine, type AutoTrack } from './AutoRoutine';
 
 export const ROUTE_PREFIX = 'rec:';
@@ -164,5 +165,5 @@ export function deleteRoute(id: string): void {
 export const newRouteId = (): string => Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
 
 /** Rutinas fijas + rutas grabadas (las de tu robot) + rutinas dibujadas en el editor. */
-export const allAutoRoutines = (): AutoRoutine[] => [...AUTO_ROUTINES, ...savedRoutes.map(routeRoutine), ...loadPaths().map(pathRoutine)];
+export const allAutoRoutines = (): AutoRoutine[] => [...AUTO_ROUTINES, ...savedRoutes.map(routeRoutine), ...loadPaths().map(pathRoutine), ...loadDesigns().map(designRoutine)];
 export const autoRoutineIds = (): string[] => allAutoRoutines().map((r) => r.id);
