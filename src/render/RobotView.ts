@@ -323,10 +323,20 @@ export class RobotView {
         for (const o of move) arm.attach(o);
       }
       arm.removeFromParent();
-      arm.position.set(0, 0, 0); // this.arm ya está en el pivote
-      arm.rotation.z = -(m.stowAngle ?? 0); // el CAD está en la pose de guardado
-      this.rigidClaw = -(m.stowAngle ?? 0); // la garra del CAD va fija al brazo (no se nivela)
-      this.arm.add(arm);
+      const sa0 = this.robot.spec;
+      const claw0 = this.arm.getObjectByName('claw');
+      if (sa0.arm.linear && claw0) {
+        // Elevador (Hazmat 704): el carro del CAD sube recto con la punta. El nodo `brazo` tiene el origen en el pivote y el CAD
+        // está con el carro abajo (punta a `elevatorHeights[0]`): el grupo `claw` está en la punta actual, así que se corre de vuelta.
+        arm.position.set(0, sa0.arm.pivotY - sa0.elevatorHeights[0], 0);
+        arm.rotation.z = 0;
+        claw0.add(arm);
+      } else {
+        arm.position.set(0, 0, 0); // this.arm ya está en el pivote
+        arm.rotation.z = -(m.stowAngle ?? 0); // el CAD está en la pose de guardado
+        this.rigidClaw = -(m.stowAngle ?? 0); // la garra del CAD va fija al brazo (no se nivela)
+        this.arm.add(arm);
+      }
     }
     const tint = m.tint ? new RegExp(m.tint, 'i') : null;
     const tinted = new THREE.MeshStandardMaterial({ color, roughness: 0.4, metalness: 0.2 });
