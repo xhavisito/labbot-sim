@@ -28,6 +28,20 @@ El build es estático (`base: './'`), así que funciona en cualquier hosting. **
 <https://xhavisito.github.io/labbot-sim/>. Lo publica `.github/workflows/deploy.yml` cada vez que algo
 entra a `main` (pruebas, build y copia de `dist/` a la rama `gh-pages`).
 
+### Versión de pruebas
+
+Para probar cosas sin que las vea todo el mundo hay una segunda versión, en otra URL:
+<https://xhavisito.github.io/labbot-sim/pruebas/>. Se actualiza sola cada vez que algo entra a la rama
+`pruebas`; la de `main` no cambia.
+
+1. Trabaja en la rama `pruebas` (o fusiona ahí tu rama: `git push origin mi-rama:pruebas`).
+2. Espera ~2 min a que termine el workflow *Deploy* y prueba en la URL de `/pruebas/`.
+3. Cuando quede bien, fusiona `pruebas` en `main` (PR). Eso publica la versión de todos.
+
+Cada despliegue reemplaza solo su parte (raíz o `/pruebas/`) y conserva la otra. La URL de pruebas
+no tiene enlaces desde el sitio y lleva `noindex`, pero **no es privada**: quien conozca la URL puede
+abrirla (GitHub Pages es público). Para algo realmente privado haría falta otro servicio.
+
 **Sin conexión / instalable (PWA):** después de la primera visita todo queda en caché (`sw.js`, lo
 genera `vite.config.ts` con la lista del build) y el simulador abre y juega sin internet; el menú
 muestra "Sin conexión" cuando ya está listo. Para instalarlo en el celular: en Android, el botón
