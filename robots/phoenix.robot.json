@@ -363,6 +363,7 @@
   ],
   "model": {
     "url": "robots/phoenix.glb",
-    "tint": "^Placa (frente|detras)$"
+    "tint": "^Placa (frente|detras)$",
+    "staticWheels": true
   }
 }
