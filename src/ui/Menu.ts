@@ -49,7 +49,7 @@ export interface MenuHooks {
 /** Logo de cada equipo en el selector de robots (public/logos). los que no tengan usan el boceto. */
 const ROBOT_LOGO: Record<string, string> = { 'cad:axiom': 'logos/axiom.png', 'cad:phoenix': 'logos/phoenix.png', 'cad:psycho': 'logos/psycho.png' };
 const robotIcon = (id: RobotId): string =>
-  ROBOT_LOGO[id] ? `<img class="logo-img" src="${ROBOT_LOGO[id]}" alt="" width="64" height="64">` : robotSilhouette(robotSpec(id).mechanism);
+  ROBOT_LOGO[id] ? `<img class="logo-img" src="${ROBOT_LOGO[id]}" alt="" width="64" height="64">` : '<span class="logo-img"></span>';
 
 export interface MenuChoice {
   /**

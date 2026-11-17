@@ -44,6 +44,9 @@ const SHAFT_MAT = new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0
 const SHOOTER_SPIN_SHOT = 38;
 /** GLB de robots del CAD, una sola descarga por archivo. */
 const modelCache = new Map<string, Promise<THREE.Group>>();
+export function preloadRobotModels(urls: string[]): void {
+  for (const u of urls) loadModel(import.meta.env.BASE_URL + u).catch(() => undefined);
+}
 function loadModel(url: string): Promise<THREE.Group> {
   let p = modelCache.get(url);
   if (!p) {
@@ -261,7 +264,11 @@ export class RobotView {
           this.wheels.push({ mesh: spin, side: side > 0 ? 1 : 0, flip: side < 0 });
         }
     }
-    if (s.model) void this.useModel(s.model, color, W);
+    if (s.model) {
+      // Robot del CAD: nada del dibujo genérico mientras carga (solo aparece si el modelo falla)
+      for (const g of this.generic) g.visible = false;
+      void this.useModel(s.model, color, W);
+    }
   }
 
   /** Dibuja el robot del CAD: el chasis y la torre quietos, el brazo con la garra girando en el pivote. */
@@ -271,7 +278,8 @@ export class RobotView {
       scene = (await loadModel(import.meta.env.BASE_URL + m.url)).clone(true);
     } catch (e) {
       console.warn('[cad] no se pudo cargar el modelo', m.url, e);
-      return; // se queda el dibujo genérico
+      for (const g of this.generic) g.visible = true; // solo si falla: el dibujo genérico
+      return;
     }
     // Robot sin brazo que gira (Phoenix): el nodo `brazo` va vacío y todo el modelo es estático
     const arm0 = scene.getObjectByName('brazo');
