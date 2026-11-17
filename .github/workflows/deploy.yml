@@ -1,10 +1,12 @@
-# Publica el simulador en GitHub Pages (https://xhavisito.github.io/labbot-sim/) cada vez que algo
-# entra a main: pruebas, build y copia de dist/ a la rama gh-pages, que es la que sirve Pages.
+# Publica el simulador en GitHub Pages con dos versiones en la misma rama gh-pages:
+#  - main     -> https://xhavisito.github.io/labbot-sim/          (la que ve todo el mundo)
+#  - pruebas  -> https://xhavisito.github.io/labbot-sim/pruebas/  (versión de pruebas de Xhavi)
+# Cada despliegue reemplaza solo su parte y conserva la otra.
 name: Deploy
 
 on:
   push:
-    branches: [main]
+    branches: [main, pruebas]
   workflow_dispatch:
 
 permissions:
@@ -26,13 +28,27 @@ jobs:
       - run: npm ci
       - run: npm test
       - run: npm run build
-      - name: Publicar dist/ en gh-pages
+      - name: Publicar dist/ en gh-pages (main = raíz, pruebas = /pruebas/)
         env:
           TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          cd dist
+          REMOTE="https://x-access-token:${TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          mkdir site
+          git clone -q --depth 1 -b gh-pages "$REMOTE" site || true
+          rm -rf site/.git
+          if [ "${GITHUB_REF_NAME}" = "main" ]; then
+            find site -mindepth 1 -maxdepth 1 ! -name pruebas -exec rm -rf {} +
+            cp -r dist/. site/
+          else
+            rm -rf site/pruebas
+            mkdir -p site/pruebas
+            cp -r dist/. site/pruebas/
+            printf 'User-agent: *\nDisallow: /\n' > site/pruebas/robots.txt
+            sed -i 's#<head>#<head><meta name="robots" content="noindex,nofollow">#' site/pruebas/index.html
+          fi
+          cd site
           touch .nojekyll
           git init -q -b gh-pages
           git add -A
-          git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" commit -q -m "deploy ${GITHUB_SHA}"
-          git push -f "https://x-access-token:${TOKEN}@github.com/${GITHUB_REPOSITORY}.git" gh-pages
+          git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" commit -q -m "deploy ${GITHUB_REF_NAME} ${GITHUB_SHA}"
+          git push -f "$REMOTE" gh-pages
