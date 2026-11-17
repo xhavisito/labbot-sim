@@ -4,6 +4,7 @@
  */
 import { clearMatchHistory, filterMatchHistory, historyFacets, loadMatchHistory } from '../core/matchHistory';
 import { AUTO_ROUTINES } from '../auto/AutoRoutine';
+import { designRoutine, loadDesigns } from '../auto/designed';
 import { routeRoutine, savedRoutes } from '../auto/recorded';
 import { loadPaths, pathRoutine } from '../game/autoPathStore';
 import { customById } from '../config/customRobots';
@@ -148,7 +149,7 @@ function adoptRobot(s: Settings, id: RobotId): void {
   s.maxSpeed = Math.min(SETTINGS_RANGE.maxSpeed.max, Math.round(spec.maxSpeed * 4) / 4);
 }
 
-export type GoId = 'strategies' | 'autoPaths' | 'achievements' | 'compare' | 'replays' | 'matchHistory' | 'editor' | 'settings' | 'controls' | 'rules' | 'scouting' | 'tournament';
+export type GoId = 'strategies' | 'autoPaths' | 'autoDesigner' | 'achievements' | 'compare' | 'replays' | 'matchHistory' | 'editor' | 'settings' | 'controls' | 'rules' | 'scouting' | 'tournament';
 export type HubId = 'workshop' | 'progress';
 interface HubItem { go: GoId; icon: string; label: Key; desc: Key; hero?: boolean }
 /** Destinos del menú en grupos (Taller y Mi progreso); lo de competir vive en el menú Jugar (`PLAY_LINKS`). */
@@ -157,6 +158,7 @@ const HUBS: { id: HubId; icon: string; title: Key; desc: Key; items: HubItem[] }
     { go: 'editor', icon: ic.cube, label: 'editor', desc: 'editorDesc', hero: true },
     { go: 'compare', icon: ic.cube, label: 'compare', desc: 'compareDesc' },
     { go: 'autoPaths', icon: ic.route, label: 'autoPaths', desc: 'autoPathsDesc' },
+    { go: 'autoDesigner', icon: ic.route, label: 'ad_title', desc: 'ad_desc' },
   ] },
   { id: 'progress', icon: ic.film, title: 'hub_progress', desc: 'hub_progress_d', items: [
     { go: 'replays', icon: ic.film, label: 'replays', desc: 'replaysDesc', hero: true },
@@ -198,6 +200,8 @@ export class Menu {
   onStrategies: () => void = () => undefined;
   /** Abre el desafío semanal (lo conecta App). */
   onAutoPaths: () => void = () => undefined;
+  /** Abre el Auto Designer (lo conecta App). */
+  onAutoDesigner: () => void = () => undefined;
   /** Abre la pantalla de logros (la conecta App). */
   onAchievements: () => void = () => undefined;
   onCompare: () => void = () => undefined;
@@ -487,6 +491,7 @@ export class Menu {
     switch (id) {
       case 'strategies': return this.onStrategies();
       case 'autoPaths': return this.onAutoPaths();
+      case 'autoDesigner': return this.onAutoDesigner();
       case 'achievements': return this.onAchievements();
       case 'compare': return this.onCompare();
       case 'replays': return this.onReplays();
@@ -591,7 +596,8 @@ export class Menu {
       const fixed = AUTO_ROUTINES.map((r) => opt(r.id, t(`auto_${r.id}` as Key))).join('');
       const mine = routes ? savedRoutes.map((r) => opt(routeRoutine(r).id, esc(r.name) + legacyMark(r.frame))).join('') : '';
       const drawn = loadPaths().map((r) => opt(pathRoutine(r).id, esc(r.name) + legacyMark(r.frame))).join('');
-      return fixed + (mine ? `<optgroup label="${t('grp_routes')}">${mine}</optgroup>` : '') + (drawn ? `<optgroup label="${t('grp_paths')}">${drawn}</optgroup>` : '');
+      const designed = loadDesigns().map((d) => opt(designRoutine(d).id, esc(d.name))).join('');
+      return fixed + (mine ? `<optgroup label="${t('grp_routes')}">${mine}</optgroup>` : '') + (drawn ? `<optgroup label="${t('grp_paths')}">${drawn}</optgroup>` : '') + `<optgroup label="${t('ad_title')}">${designed}</optgroup>`;
     };
     const toggle = (k: 'ai' | 'hpEnabled' | 'hpSmart' | 'showFps' | 'showGhost' | 'rumble' | HudKey) => `<button class="toggle ${s[k] ? 'on' : ''}" data-tog="${k}"><i></i>${s[k] ? t('on_') : t('no_')}</button>`;
     const range = (k: keyof typeof SETTINGS_RANGE, unit: string) => {

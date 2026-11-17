@@ -119,6 +119,27 @@ tests/                    clock, scoring, fouls/cards, rp, match (casos borde), 
    la sesión ahora también avisa las Muestras anotadas en práctica, con 0 puntos), `game/trainingStore.ts`
    (localStorage `labbot.training.v1`) y `ui/Training.ts` (lista de retos y panel sobre la cancha).
    Tabla de retos y supuestos en el README.
+11. **Auto Designer** (pedido después, réplica de rebuilt-sim "idéntica") — entrada "Auto Designer" en el
+   Taller del menú. Vista superior de la cancha completa (la rutina se guarda en el marco azul y se gira
+   180° para rojo): waypoints con rumbo, curvas Bézier con manijas, ruta suave con perfil de velocidad o
+   punto a punto, línea de tiempo, ruta coloreada por velocidad, avisos de choques (Plataforma antes del
+   ENDGAME §4.6, Cámaras, barras de la Campana, bordes) y de tiempo contra los 15 s, deshacer/rehacer,
+   guardar, duplicar, borrar, exportar/importar JSON y "Probar" en un match (`ui/AutoDesigner.ts`).
+   En el match, `auto/AutoExecutor.ts` sigue la trayectoria (`auto/Trajectory.ts`: referencia + corrección,
+   vigilante de trabas, "event markers" de garra y brazo), aplica las acciones al llegar y, al terminar,
+   sigue jugando con la IA (`ai/Bot`); la ruta se dibuja en la alfombra (`render/AutoPathView.ts`).
+   Modelo, guardado y validación en `auto/designed.ts` (`labbot.autoDesigns.v1`; ids `design:<id>`); las
+   rutinas salen en las listas de AUTO (Ajustes y Preparar match). El editor "Rutinas de AUTO" de antes
+   (`core/autoPath.ts`) sigue igual: son dos herramientas independientes. SUPUESTOS de lo que cambia por el reto:
+   - Acciones por waypoint: garra (intake), brazo a una posición, **anotar en N1/N2/N3** (alinea el frente
+     —o la parte de atrás si el brazo suelta atrás— a la pared de la Cámara, sube y suelta; reemplaza
+     disparar y trepar de rebuilt), esperar y detenerse. Botón "Ir a la Cámara" lleva el punto al lugar de
+     anotación como la IA (`Bot.scoringPose`).
+   - Chasis tanque (§7.2): la ruta se sigue con avance + giro; el rumbo del waypoint solo se usa al anotar.
+   - Marco de la Cámara D51/D52: la rutina azul anota en la Cámara de +X/+Z; sin pared en la línea central
+     (el manual nuevo ya no limita la línea en AUTO, §4.2). La Plataforma cuenta como choque (PLATFORM_EARLY, §4.6).
+   - Incluidas: "Anotar Nivel 3" (salida 1 y salida 2: la Zona de Inicio de cada robot de la alianza).
+     "Se adapta a su lado" refleja en z si el robot sale de la otra zona.
 
 Cada hito: `npm test`, `npm run build` y captura con Playwright; resumen corto al terminar.
 

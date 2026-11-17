@@ -80,6 +80,7 @@ import { CompareScreen } from '../ui/CompareScreen';
 import { allRobotIds } from '../config/robotIds';
 import { AchievementsScreen } from '../ui/Achievements';
 import { StrategyScreen } from '../ui/StrategyScreen';
+import { AutoDesigner } from '../ui/AutoDesigner';
 import { AutoPathScreen } from '../ui/AutoPathScreen';
 import { PlanView } from '../render/PlanView';
 import * as THREE from 'three';
@@ -140,6 +141,7 @@ export class App {
   readonly boardBar: BoardBar;
   readonly strategies: StrategyScreen;
   readonly autoPaths: AutoPathScreen;
+  readonly designer: AutoDesigner;
   readonly settings: Settings = loadSettings(autoRoutineIds());
   /** Sonidos del campo (inicio, TELEOP, ENDGAME, fin). */
   readonly audio = new FieldAudio(this.settings.volume / 100);
@@ -280,6 +282,18 @@ export class App {
       },
     });
     this.menu.onAutoPaths = () => this.autoPaths.show();
+    this.designer = new AutoDesigner(this.menu.root, {
+      back: () => this.toMenu(),
+      spec: () => this.playerSpec(),
+      // "Probar": un match con la rutina como tu AUTO, saliendo de la Zona de Inicio elegida (estación del jugador en tu alianza)
+      test: (id, station) => {
+        this.settings.playerAuto = id;
+        saveSettings(this.settings);
+        this.menu.player = (this.menu.player < 2 ? 0 : 2) + station;
+        this.start({ mode: 'match', player: this.menu.player, ready: true });
+      },
+    });
+    this.menu.onAutoDesigner = () => this.designer.open(this.settings.playerAuto);
     this.renderer.scene.add(this.planView.group, this.boardView.group);
     this.boardBar = new BoardBar(ui, this.renderer.renderer.domElement, this.board, {
       pick: (x, y) => this.pickField(x, y),

@@ -5,6 +5,7 @@
  */
 import type { ElevatorPos } from '../config/robot';
 import type { AutoPath } from '../core/autoPath';
+import type { DesignedAuto } from './designed';
 import { PathFollower, type PathRobot } from './pathFollower';
 
 /**
@@ -30,6 +31,8 @@ export interface AutoRoutine {
   track?: AutoTrack;
   /** Rutina dibujada en el editor de rutinas (`core/autoPath.ts`): la sigue `PathFollower` con la pose real. */
   path?: AutoPath;
+  /** Rutina del Auto Designer (`auto/designed.ts`): la sigue `AutoExecutor` por una trayectoria suave. */
+  design?: DesignedAuto;
 }
 
 /** Acción de un solo disparo en el paso `i` de una ruta grabada. */

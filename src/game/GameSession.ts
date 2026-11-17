@@ -11,6 +11,7 @@ import { Bot, type AutoPlan, type BotOptions, type BotOutput } from '../ai/Bot';
 import type { AiLevel } from '../ai/difficulty';
 import type { AiPersona } from '../ai/persona';
 import { Team } from '../ai/Team';
+import { AutoExecutor } from '../auto/AutoExecutor';
 import { AUTO_REF_SPEED, AutoRunner, LEAVE_ZONE, type AutoOutput, type AutoRoutine } from '../auto/AutoRoutine';
 import * as F from '../config/field';
 import { GAME, type GameConfig } from '../config/game';
@@ -29,6 +30,7 @@ import { Pieces } from '../physics/Pieces';
 import { PhysicsWorld } from '../physics/PhysicsWorld';
 import { PracticeFouls } from '../core/practiceFouls';
 import { Referee } from '../referee/Referee';
+import { AutoPathView } from '../render/AutoPathView';
 import { buildFieldView } from '../render/FieldView';
 import { PieceView } from '../render/PieceView';
 import { RobotView } from '../render/RobotView';
@@ -155,6 +157,9 @@ export class GameSession {
   private critKeyHeld = new Set<number>();
   private ghostMesh: THREE.Group | null = null;
   private autos: AutoRunner[] = [];
+  /** Rutinas del Auto Designer (waypoints): las sigue `AutoExecutor` en lugar de `AutoRunner`. */
+  private designs: Array<AutoExecutor | null> = [];
+  private autoPath: AutoPathView | null = null;
   /** IA de cada robot (AUTO de IA y/o TELEOP), coordinada por alianza en un `Team`. */
   bots: Array<BotDriver | null> = [];
   private acc = 0;
@@ -316,7 +321,14 @@ export class GameSession {
     this.log.length = 0;
     // Los arreglos van por estación (`r.index`), no por posición: con 1 contra 1 faltan estaciones
     this.autos = [];
-    for (const r of this.robots) this.autos[r.index] = new AutoRunner(this.opts.autos?.[r.index] ?? LEAVE_ZONE);
+    this.designs = [];
+    for (const r of this.robots) {
+      const routine = this.opts.autos?.[r.index] ?? LEAVE_ZONE;
+      this.autos[r.index] = new AutoRunner(routine);
+      if (routine.design) this.designs[r.index] = new AutoExecutor(r, routine.design, this.pieces, this.robots);
+    }
+    this.autoPath?.dispose();
+    this.autoPath = null;
     const teams = { red: new Team('red', this.hps.red), blue: new Team('blue', this.hps.blue) };
     this.bots = [];
     for (const r of this.robots) this.bots[r.index] = ((): BotDriver | null => {
@@ -351,6 +363,7 @@ export class GameSession {
   practice(): void {
     this.match = null;
     this.bots = [];
+    this.designs = [];
     this.resetField();
   }
 
@@ -436,7 +449,15 @@ export class GameSession {
       // Sin match solo corre la IA del rival de la práctica 1 contra 1 (juega como en el TELEOP)
       const bot = !b ? null : !m ? (b.opts.teleop ? b : null) : phase === 'AUTO' ? (b.opts.auto !== 'none' ? b : null) : isTeleop(phase) && b.opts.teleop ? b : null;
       const runner = m && phase === 'AUTO' ? this.autos[r.index] : !m && r === this.player ? this.pilot : null;
-      if (bot) {
+      const design = m && phase === 'AUTO' ? this.designs[r.index] : null;
+      if (design) {
+        const o = design.update(dt, this.game.times.auto - m!.t);
+        forward = o.forward;
+        turn = o.turn;
+        if (o.elevator !== undefined) r.mech.target = o.elevator;
+        if (o.intake !== undefined) r.mech.intakeOn = o.intake;
+        if (o.release) r.mech.release('sample', this.stepMechEvents);
+      } else if (bot) {
         const o = bot.step(dt, m ? phase : 'TELEOP', m ? m.remaining : Infinity);
         forward = o.forward;
         turn = o.turn;
@@ -600,6 +621,7 @@ export class GameSession {
       this.acc -= this.pw.dt;
     }
     const alpha = this.acc / this.pw.dt;
+    this.updateAutoPath();
     this.pieceView.sync(alpha);
     for (const v of this.robotViews) v.sync(alpha);
     this.sinkView?.update(this.time);
@@ -610,7 +632,21 @@ export class GameSession {
     this.robotViews.forEach((rv, i) => (rv.group.visible = only ? this.robots[i] === only : v));
   }
 
+  /** Ruta planeada de AUTO del jugador (la del Auto Designer) sobre la alfombra, solo durante AUTO. */
+  private updateAutoPath(): void {
+    const ex = this.match && this.phase === 'AUTO' ? this.designs[this.player.index] : null;
+    if (ex?.preview.length && !this.autoPath) {
+      this.autoPath = new AutoPathView(ex.preview, this.player.alliance);
+      this.root.add(this.autoPath.group);
+    }
+    if (this.autoPath && !ex) {
+      this.autoPath.dispose();
+      this.autoPath = null;
+    } else this.autoPath?.update(ex?.reference ?? null);
+  }
+
   dispose(): void {
+    this.autoPath?.dispose();
     this.pw.free();
   }
 }

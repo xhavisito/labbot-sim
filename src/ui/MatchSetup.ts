@@ -14,6 +14,7 @@ import { AI_LEVELS, type AiLevel } from '../ai/difficulty';
 import { AI_PERSONAS, type AiPersona } from '../ai/persona';
 import { STRATEGIES, type StrategyId } from '../ai/strategy';
 import { AUTO_ROUTINES } from '../auto/AutoRoutine';
+import { designRoutine, loadDesigns } from '../auto/designed';
 import { routeRoutine, savedRoutes } from '../auto/recorded';
 import { loadPaths, pathRoutine } from '../game/autoPathStore';
 import { loadPlans } from '../game/planStore';
@@ -72,7 +73,9 @@ export function autoOptionsHtml(sel: string, mine: boolean): string {
     AUTO_ROUTINES.map((r) => opt(r.id, t(`auto_${r.id}` as Key), sel)).join('') +
     (mine && savedRoutes.length ? `<optgroup label="${t('grp_routes')}">${savedRoutes.map((r) => opt(routeRoutine(r).id, esc(r.name) + legacyMark(r.frame), sel)).join('')}</optgroup>` : '') +
     // Las dibujadas sirven para cualquier robot (corrigen con la pose real), también para tu compañero
-    (paths.length ? `<optgroup label="${t('grp_paths')}">${paths.map((r) => opt(pathRoutine(r).id, esc(r.name) + legacyMark(r.frame), sel)).join('')}</optgroup>` : '')
+    (paths.length ? `<optgroup label="${t('grp_paths')}">${paths.map((r) => opt(pathRoutine(r).id, esc(r.name) + legacyMark(r.frame), sel)).join('')}</optgroup>` : '') +
+    // Las del Auto Designer también corrigen con la pose real: sirven para cualquier robot
+    `<optgroup label="${t('ad_title')}">${loadDesigns().map((d) => opt(designRoutine(d).id, esc(d.name), sel)).join('')}</optgroup>`
   );
 }
 
