@@ -1954,3 +1954,15 @@ body.vs-stacked .touch.vs-touch.p1 .pad { bottom: 12px; }
 
 .card .logo-img { width: 112px; height: 112px; border-radius: 50%; object-fit: cover; background: none; border: 0; }
 @media (max-width: 900px), (max-height: 520px) { .card .logo-img { width: 56px; height: 56px; } }
+
+/* Entrenar / Competir / Taller / Mi progreso: como Ajustes (pestañas + panel de filas), paleta del equipo */
+.hubform { grid-template-columns: minmax(180px, 280px) minmax(0, 1fr); gap: 12px 16px; }
+.hubform > label { display: flex; align-items: center; gap: 10px; color: var(--text); font: 700 calc(14px * var(--ts)) var(--font); }
+.hubform > label .mi { width: 22px; height: 22px; flex: none; color: var(--brand-magenta); }
+.hubform .hub-ctl { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 10px 12px; border-radius: var(--radius-sm); background: rgba(255, 255, 255, 0.03); }
+.hubform .hub-ctl small { color: var(--muted); font-size: calc(12px * var(--ts)); line-height: 1.35; }
+.hubform .hub-ctl .btn { flex: none; min-width: 92px; justify-content: center; }
+.hubform .hub-ctl .btn:hover, .hubform .hub-ctl .btn:focus-visible { background: var(--brand-purple); color: #fff; }
+.hubform .hub-ctl .btn.primary { background: var(--accent-fill); color: #fff; }
+.hubform .hub-ctl .btn.primary:hover, .hubform .hub-ctl .btn.primary:focus-visible { background: var(--brand-purple); }
+@media (max-width: 700px) { .hubform { grid-template-columns: 1fr; } .hubform .hub-ctl { flex-direction: column; align-items: stretch; } }

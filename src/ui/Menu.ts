@@ -514,19 +514,25 @@ export class Menu {
   /** Pantalla de un grupo del menú: tarjetas grandes con su descripción (pocas opciones, claras). */
   hub(id: HubId): void {
     const h = HUBS.find((x) => x.id === id)!;
+    // Mismo estilo que Ajustes: pestañas (los 4 grupos) y un panel con filas "nombre | descripción + Abrir"
     this.open(
       `${brandbar(t(h.title))}
       <h1>${t(h.title)}</h1>
       <p class="sub">${t(h.desc)}</p>
-      <div class="hubgrid">
-        ${h.items.map((it) => `<button class="hubcard ${it.hero ? 'hero' : ''}" data-go="${it.go}">${it.icon.replace('class="ic"', 'class="mi"')}<span class="mt-txt"><b>${t(it.label)}</b><small>${t(it.desc)}</small></span><i class="chev">${ic.go}</i></button>`).join('')}
+      <div class="seg tabs" role="tablist">${HUBS.map((x) => `<button class="${x.id === id ? 'on' : ''}" role="tab" data-hub="${x.id}">${t(x.title)}</button>`).join('')}</div>
+      <div class="panel narrow">
+        <div class="form hubform">
+          <h3>${t(h.title)}</h3>
+          ${h.items.map((it) => `<label>${it.icon.replace('class="ic"', 'class="mi"')}<b>${t(it.label)}</b></label><div class="hub-ctl"><small>${t(it.desc)}</small><button class="btn ${it.hero ? 'primary' : ''}" data-go="${it.go}">${t('mo_hubOpen')}</button></div>`).join('')}
+        </div>
       </div>
       <div class="actionbar">${backBtn('data-act="back"')}<div class="grow"></div></div>`,
       'screen solid',
     );
     this.on('[data-act="back"]', () => this.main());
+    this.on('[data-hub]', (el) => this.hub(el.dataset.hub as HubId));
     this.on('[data-go]', (el) => this.go(el.dataset.go as GoId));
-    (this.root.querySelector('.hubcard') as HTMLElement | null)?.focus({ preventScroll: true });
+    (this.root.querySelector('.hubform .btn.primary') as HTMLElement | null)?.focus({ preventScroll: true });
   }
 
   /**
