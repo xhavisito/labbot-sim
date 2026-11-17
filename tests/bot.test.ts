@@ -82,3 +82,41 @@ describe('Team: quién lleva la Muestra Crítica', () => {
     expect(t.critBy).toBe(0);
   });
 });
+
+describe('IA en alianza y manejo humano', () => {
+  it('Team.lane reparte franjas opuestas a dos robots que juntan, y ninguna a uno solo', () => {
+    const mk = (index: number, teamwork = true) =>
+      ({ robot: { index, spec: ROBOT_PRESETS.pivot }, opts: { role: 'score', teleop: true }, profile: { critical: true, teamwork } }) as unknown as Bot;
+    const t = new Team('red');
+    const a = mk(0);
+    const b = mk(1);
+    t.join(a);
+    expect(t.lane(a)).toBe(0);
+    t.join(b);
+    expect(t.lane(a)).toBe(1);
+    expect(t.lane(b)).toBe(-1);
+  });
+
+  it('el mando sube con rampa y frena más rápido (no pega el stick de golpe)', () => {
+    const g = new GameSession({ player: 0, preload: true, ai: true });
+    g.startMatch();
+    const bot = g.bots.find((b) => b) as unknown as { humanize(o: object, dt: number): void; profile: { ramp: number } };
+    const dt = 1 / 120;
+    const out = { forward: 1, turn: 0, intake: false, elevator: 0, release: false };
+    const run = (n: number, want: number) => {
+      for (let i = 0; i < n; i++) {
+        out.forward = want;
+        bot.humanize(out, dt);
+      }
+      return out.forward;
+    };
+    // Tras la mitad de la rampa va a medias; tras la rampa completa, al tope
+    const half = run(Math.round((bot.profile.ramp / 2) * 120), 1);
+    expect(half).toBeGreaterThan(0.3);
+    expect(half).toBeLessThan(0.7);
+    expect(run(Math.round(bot.profile.ramp * 120), 1)).toBeCloseTo(1, 1);
+    // Frenar es ~3 veces más rápido que acelerar
+    const brake = run(Math.round((bot.profile.ramp / 3) * 120) + 1, 0);
+    expect(brake).toBeLessThan(0.05);
+  });
+});

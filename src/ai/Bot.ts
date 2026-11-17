@@ -95,6 +95,8 @@ const YIELD_TIME = 0.5;
 const WARY_TIME = 6;
 /** Segundos de más (sobre lo que tarda en llegar) para tomar la Muestra que persigue antes de dejarla. */
 const TARGET_SLACK = 6;
+/** Segundos extra de una Muestra de la franja de su compañero (`laneCost`). */
+const LANE_COST = 1.5;
 
 export interface BotOptions {
   /** Nivel al que anota (por defecto el de la dificultad: N3, el que más vale). */
@@ -285,6 +287,7 @@ export class Bot {
       out.turn = 0;
     }
     this.noPush(out, dt);
+    this.humanize(out, dt);
     out.forward *= this.profile.speed;
     this.guard(out, phase === 'ENDGAME');
     return out;
@@ -329,6 +332,50 @@ export class Bot {
   /** ¿Sigue recorriendo la ruta del paso del plan? */
   get onRoute(): boolean {
     return !!this.directive && this.routeIdx < this.directive.route.length;
+  }
+
+  /** Mandos que mandó en el paso anterior (ya suavizados), para limitar qué tan rápido cambian. */
+  private cmdF = 0;
+  private cmdT = 0;
+
+  /**
+   * Manejo de piloto, no de máquina: (1) suelta el acelerador al acercarse a otro robot por donde va
+   * (llega despacio en vez de frenar hasta tocarlo; al compañero le da más espacio y el de índice
+   * mayor cede primero), y (2) el avance y el giro suben con rampa (`profile.ramp`, `turnRamp`) y
+   * bajan más rápido, como un stick que se mueve a mano. Si `noPush` lo detuvo o se está echando para
+   * atrás, no hay rampa (frenar a tiempo es lo que evita el golpe). SUPUESTOS de diseño.
+   */
+  private humanize(out: BotOutput, dt: number): void {
+    const p = this.profile;
+    if (this.yieldT > 0 || (out.forward === 0 && out.turn === 0)) {
+      this.cmdF = out.forward;
+      this.cmdT = out.turn;
+      return;
+    }
+    if (p.courtesy > 0 && Math.abs(out.forward) > 0.05) {
+      const reach = p.courtesy;
+      const k = this.robot.phys.halfW + 0.35;
+      for (const t of touches(this.robot, this.others, reach + 0.3)) {
+        const ahead = out.forward > 0 ? t.lx > 0 : t.lx < 0;
+        if (!ahead || Math.abs(t.lz) > k) continue;
+        const mate = t.other.alliance === this.robot.alliance;
+        const zone = reach + (mate ? 0.3 : 0.1) * (this.robot.index > t.other.index || !mate ? 1 : 0);
+        const f = Math.max(0.3, Math.min(1, (t.gap - CONTACT_GAP) / (zone - CONTACT_GAP)));
+        out.forward *= f;
+      }
+    }
+    const step = (cur: number, want: number, ramp: number): number => {
+      // Subir (mismo signo, más magnitud) con rampa; bajar o invertir, 3 veces más rápido
+      const grows = Math.abs(want) > Math.abs(cur) && want * cur >= 0;
+      const rate = (grows ? 1 : 3) / Math.max(0.05, ramp);
+      return cur + Math.max(-rate * dt, Math.min(rate * dt, want - cur));
+    };
+    // En AUTO (15 s, cada décima cuenta, §4.4) solo frena al acercarse; la rampa es del TELEOP
+    const r = this.phase === 'AUTO' ? 0.05 : 1;
+    this.cmdF = step(this.cmdF, out.forward, p.ramp * r);
+    this.cmdT = step(this.cmdT, out.turn, p.turnRamp * r);
+    out.forward = this.cmdF;
+    out.turn = this.cmdT;
   }
 
   /**
@@ -394,7 +441,7 @@ export class Bot {
       .map((o) => {
         const q = o.phys.position();
         // Con un robot pegado, su disco no tapa el punto de salida (si no, no hay camino)
-        return { x: q.x, z: q.z, R: Math.min(0.64 + (this.isWary(o) ? 0.08 : 0), Math.hypot(q.x - pos.x, q.z - pos.z) - 0.05) };
+        return { x: q.x, z: q.z, R: Math.min(0.64 + (this.isWary(o) ? 0.08 : 0) + (o.alliance === this.robot.alliance ? 0.1 : 0), Math.hypot(q.x - pos.x, q.z - pos.z) - 0.05) };
       });
     // Casi todo el margen que el manejo normal no pisa (`PLATFORM_CLEAR`): media diagonal del chasis
     // y algo, para que a toda velocidad y girando no la roce (§4.6)
@@ -835,6 +882,7 @@ export class Bot {
       let cost = eta + back * this.eta(at, home);
       cost += this.crowdCost(at);
       cost += this.contestCost(at, eta);
+      cost += this.laneCost(at);
       // Seguir con la que ya iba (no cambia por poquito)
       if (p.index === this.targetPiece) cost -= 0.6;
       if (!best || cost < best.cost) best = { i: p.index, at, eta, cost };
@@ -864,6 +912,17 @@ export class Bot {
       if (t && Math.hypot(t.x - at.x, t.z - at.z) < 0.8) c += 1.2;
     }
     return c;
+  }
+
+  /**
+   * Segundos extra de una Muestra fuera de la franja de este robot: con dos robots de IA que juntan,
+   * cada uno trabaja su lado de la cancha (`Team.lane`) y no se cruzan. SUPUESTO de diseño.
+   */
+  private laneCost(at: { x: number; z: number }): number {
+    if (!this.profile.teamwork) return 0;
+    const lane = this.team.lane(this);
+    if (lane === 0) return 0;
+    return Math.sign(this.side * at.z || 1) === lane ? 0 : LANE_COST;
   }
 
   /**
