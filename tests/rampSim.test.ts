@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { RampSim, ENTRY_S } from '../src/render/rampSim';
+import { RampSim, ENTRY_S, MAX_ROT } from '../src/render/rampSim';
 
 const run = (sim: RampSim, secs: number, have: number, ax = 0, lat = 0) => {
   for (let t = 0; t < secs; t += 1 / 60) sim.step(1 / 60, have, ax, lat);
@@ -75,5 +75,27 @@ describe('Pid (rodillos de la rampa)', () => {
     for (let i = 0; i < 600; i++) expect(Math.abs(pid.update(5, 0, 1 / 60))).toBeLessThanOrEqual(30);
     // al llegar a la meta la salida se libera pronto (sin windup)
     expect(pid.update(-0.5, 0, 1 / 60)).toBeLessThan(0);
+  });
+});
+
+describe('RampSim: movimiento contenido', () => {
+  it('el cabeceo nunca pasa del tope aunque el golpe sea enorme', () => {
+    const sim = new RampSim(4);
+    run(sim, 3, 3);
+    for (let t = 0; t < 1; t += 1 / 60) {
+      sim.step(1 / 60, 3, 0, 500);
+      for (const b of sim.bodies) expect(Math.abs(b.rot)).toBeLessThanOrEqual(MAX_ROT + 1e-9);
+    }
+  });
+
+  it('con una aceleración fuerte del robot se corren menos de media Muestra', () => {
+    const sim = new RampSim(4);
+    run(sim, 3, 2);
+    let worst = 0;
+    for (let t = 0; t < 1; t += 1 / 60) {
+      sim.step(1 / 60, 2, 12, 0);
+      worst = Math.max(worst, 2 - sim.bodies[1].s);
+    }
+    expect(worst).toBeLessThan(0.5);
   });
 });

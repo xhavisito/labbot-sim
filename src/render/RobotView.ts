@@ -692,9 +692,10 @@ export class RobotView {
       const aF = dtA > 1e-4 ? (vF - this.fwdVel) / dtA : 0;
       this.fwdVel = vF;
       this.accF += (aF - this.accF) * Math.min(1, dtA * 12); // suavizado: los cuadros del render no coinciden con los pasos de la física
-      const accRamp = Math.max(-40, Math.min(40, this.accF)) * ux / SAMPLE_SIZE;
+      // Inercia amortiguada (×0.3, tope 12 m/s²): a escala real se veía exagerada
+      const accRamp = Math.max(-12, Math.min(12, this.accF * 0.3)) * ux / SAMPLE_SIZE;
       const sim = (this.rampSim ??= new RampSim(this.rampSamples.length));
-      sim.step(dtA, have, accRamp, Math.max(-60, Math.min(60, this.yawAcc)));
+      sim.step(dtA, have, accRamp, Math.max(-25, Math.min(25, this.yawAcc)));
       const rampRot = Math.atan2(uy, ux) - Math.PI / 2;
       this.rampSamples.forEach((mesh, i) => {
         const b = sim.bodies[i];
