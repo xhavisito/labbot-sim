@@ -41,9 +41,9 @@ for (const d of only) {
     await page.waitForTimeout(500);
   };
   await shot('0-menu');
-  await click('[data-hub="compete"]');
+  await click('[data-act="play"]');
   await shot('0b-hub');
-  await click('[data-go="versus"]');
+  await click('[data-act="split"]');
   await shot('1-setup');
   // Vista completa de la pantalla (scroll dentro de la pantalla)
   const h = await page.evaluate(() => document.querySelector('.screen .inner')?.scrollHeight ?? 0);

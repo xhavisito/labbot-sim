@@ -148,23 +148,11 @@ function adoptRobot(s: Settings, id: RobotId): void {
   s.maxSpeed = Math.min(SETTINGS_RANGE.maxSpeed.max, Math.round(spec.maxSpeed * 4) / 4);
 }
 
-export type GoId = 'versus' | 'practice1v1' | 'autoPractice' | 'training' | 'weekly' | 'strategies' | 'autoPaths' | 'achievements' | 'compare' | 'replays' | 'matchHistory' | 'editor' | 'settings' | 'controls' | 'rules' | 'scouting' | 'tournament';
-export type HubId = 'train' | 'compete' | 'workshop' | 'progress';
+export type GoId = 'strategies' | 'autoPaths' | 'achievements' | 'compare' | 'replays' | 'matchHistory' | 'editor' | 'settings' | 'controls' | 'rules' | 'scouting' | 'tournament';
+export type HubId = 'workshop' | 'progress';
 interface HubItem { go: GoId; icon: string; label: Key; desc: Key; hero?: boolean }
-/** Los 17 destinos del menú, en 4 grupos: así el menú principal solo muestra 2 modos + 4 grupos. */
+/** Destinos del menú en grupos (Taller y Mi progreso); lo de competir vive en el menú Jugar (`PLAY_LINKS`). */
 const HUBS: { id: HubId; icon: string; title: Key; desc: Key; items: HubItem[] }[] = [
-  { id: 'train', icon: ic.medal, title: 'hub_train', desc: 'hub_train_d', items: [
-    { go: 'training', icon: ic.medal, label: 'tn_title', desc: 'trainingDesc', hero: true },
-    { go: 'practice1v1', icon: ic.bolt, label: 'p1_title', desc: 'p1_desc' },
-    { go: 'autoPractice', icon: ic.route, label: 'autoPractice', desc: 'autoPracticeDesc' },
-    { go: 'weekly', icon: ic.trophy, label: 'weekly', desc: 'weeklyDesc' },
-  ] },
-  { id: 'compete', icon: ic.trophy, title: 'hub_compete', desc: 'hub_compete_d', items: [
-    { go: 'tournament', icon: ic.trophy, label: 'tournament', desc: 'tournamentDesc', hero: true },
-    { go: 'versus', icon: ic.gamepad, label: 'vs_title', desc: 'vs_desc' },
-    { go: 'scouting', icon: ic.clipboard, label: 'scouting', desc: 'scoutingDesc' },
-    { go: 'strategies', icon: ic.field, label: 'strategies', desc: 'strategiesDesc' },
-  ] },
   { id: 'workshop', icon: ic.cube, title: 'hub_workshop', desc: 'hub_workshop_d', items: [
     { go: 'editor', icon: ic.cube, label: 'editor', desc: 'editorDesc', hero: true },
     { go: 'compare', icon: ic.cube, label: 'compare', desc: 'compareDesc' },
@@ -175,6 +163,12 @@ const HUBS: { id: HubId; icon: string; title: Key; desc: Key; items: HubItem[] }
     { go: 'matchHistory', icon: ic.clipboard, label: 'mhTitle', desc: 'mhDesc' },
     { go: 'achievements', icon: ic.medal, label: 'ach_title', desc: 'achDesc' },
   ] },
+];
+/** Lo que antes era Competir, ahora en el menú Jugar: torneo, scouting y estrategias. */
+const PLAY_LINKS: { go: GoId; label: Key }[] = [
+  { go: 'tournament', label: 'tournament' },
+  { go: 'scouting', label: 'scouting' },
+  { go: 'strategies', label: 'strategies' },
 ];
 /** Atajos de la barra superior: configuración y ayuda. */
 const SYS_LINKS: { go: GoId; icon: string; label: Key }[] = [
@@ -201,10 +195,8 @@ export class Menu {
   /** Abre el modo torneo (lo conecta App). */
   onTournament: () => void = () => undefined;
   /** Abre la lista de retos del entrenamiento (la conecta App). */
-  onTraining: () => void = () => undefined;
   onStrategies: () => void = () => undefined;
   /** Abre el desafío semanal (lo conecta App). */
-  onWeekly: () => void = () => undefined;
   onAutoPaths: () => void = () => undefined;
   /** Abre la pantalla de logros (la conecta App). */
   onAchievements: () => void = () => undefined;
@@ -288,6 +280,7 @@ export class Menu {
           <span class="head">${t('mo_play')}</span>
           <button data-act="single">${t('mo_single')}</button>
           <button data-act="split">${t('mo_split')}</button>
+          ${PLAY_LINKS.map((l) => `<button data-go="${l.go}">${t(l.label)}</button>`).join('')}
           <button data-act="back">${t('mo_back')}</button>
         </nav>
       </div>`,
@@ -304,6 +297,7 @@ export class Menu {
       this.moEnter = true;
       this.robotSelect(true);
     });
+    this.on('[data-go]', (el) => this.go(el.dataset.go as GoId));
     this.on('[data-act="back"]', () => this.main());
     (this.root.querySelector('[data-act="single"]') as HTMLElement).focus({ preventScroll: true });
   }
@@ -491,11 +485,6 @@ export class Menu {
   /** Abre un destino (de una tarjeta de grupo o de los atajos de la barra). */
   private go(id: GoId): void {
     switch (id) {
-      case 'versus': return this.onStart({ mode: 'versus', player: this.player });
-      case 'practice1v1': return this.onStart({ mode: 'practice1v1', player: this.player });
-      case 'autoPractice': return this.onStart({ mode: 'auto', player: this.player });
-      case 'training': return this.onTraining();
-      case 'weekly': return this.onWeekly();
       case 'strategies': return this.onStrategies();
       case 'autoPaths': return this.onAutoPaths();
       case 'achievements': return this.onAchievements();

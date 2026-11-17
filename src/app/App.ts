@@ -31,7 +31,6 @@ import { evaluate, recordScenario, scenarioById, type Scenario, type ScenarioPro
 import { drillSessionOptions } from '../game/drills';
 import { addEntry, weeklyChallenge } from '../core/weekly';
 import { loadWeekly, saveWeekly } from '../game/weeklyStore';
-import { WeeklyScreen } from '../ui/Weekly';
 import { loadScenarios, loadTraining, saveScenarios } from '../game/trainingStore';
 import { addPlaytime } from '../core/playtime';
 import { loadPlaytime, savePlaytime } from '../game/playtimeStore';
@@ -68,7 +67,7 @@ import { DEFAULT_PLAYER, Menu, type MenuChoice, type PauseInfo, type VsResults }
 import { saveMatchEntries, ScoutingScreen, type ScoutPlay } from '../ui/Scouting';
 import { isTouchDevice, TouchControls } from '../ui/TouchControls';
 import { TournamentScreen, WATCH_CAMERA } from '../ui/TournamentScreen';
-import { TrainingRun, TrainingScreen, type TrainingRobot } from '../ui/Training';
+import { TrainingRun, type TrainingRobot } from '../ui/Training';
 import { Practice1v1 } from '../ui/Practice1v1';
 import { loadCycleBests } from '../game/cycleStore';
 import { loadGhosts } from '../game/ghostStore';
@@ -173,12 +172,10 @@ export class App {
   /** Tiempo realmente jugado (solo en estado `playing`); se guarda cada ~5 s y al ocultar la página. */
   private playtime = loadPlaytime();
   private playtimeDirty = 0;
-  readonly training: TrainingScreen;
   /** Resumen del escenario terminado (se muestra en los resultados). */
   private scenarioNote = '';
   trainingRun: TrainingRun | null = null;
   readonly weeklyBoard = loadWeekly();
-  readonly weekly: WeeklyScreen;
   /** Práctica 1 contra 1 en curso (`ui/Practice1v1.ts`). */
   practice1v1: Practice1v1 | null = null;
   readonly cycleBests = loadCycleBests();
@@ -252,17 +249,6 @@ export class App {
       history: () => this.scouting.show('history'),
     });
     this.menu.onTournament = () => this.tourney.open();
-    this.training = new TrainingScreen(this.menu.root, this.trainingProgress, this.scenarioProgress, () => this.trainingRobot(), {
-      back: () => this.toMenu(),
-      play: (drill) => this.start({ mode: 'training', player: this.menu.player, drill }),
-      playScenario: (scenario) => this.start({ mode: 'scenario', player: this.menu.player, scenario }),
-    });
-    this.menu.onTraining = () => this.training.show();
-    this.weekly = new WeeklyScreen(this.menu.root, this.weeklyBoard, () => robotLabel(this.playerSpec()), {
-      back: () => this.toMenu(),
-      play: () => this.start({ mode: 'training', player: this.menu.player, drill: weeklyChallenge().drill.id, weekly: true }),
-    });
-    this.menu.onWeekly = () => this.weekly.show();
     this.achievements = new AchievementsScreen(this.menu.root, () => this.ach, {
       back: () => this.toMenu(),
       reset: () => {
@@ -433,11 +419,7 @@ export class App {
               },
             }
           : undefined,
-        other: () => {
-          this.toMenu();
-          if (c.weekly) this.weekly.show();
-          else this.training.show();
-        },
+        other: () => this.toMenu(),
         exit: () => this.toMenu(),
       });
   }
@@ -1153,6 +1135,8 @@ export class App {
     this.hud.show(false);
     this.planView.set(null, 'red');
     this.cam.setMode('free');
+    // Cancha reiniciada: Muestras y Críticas en su lugar de inicio, sin restos del match anterior
+    this.previewRobot(Math.max(0, this.menu.player), false);
     this.menu.main();
   }
 
