@@ -1952,5 +1952,5 @@ body.vs-stacked .touch.vs-touch.p1 .pad { bottom: 12px; }
   .results .rs-stage { padding-top: 0; background: #1c0f26; }
 }
 
-.card .logo-img { width: 112px; height: 112px; border-radius: 50%; object-fit: cover; background: #fff; border: 2px solid rgba(255, 255, 255, 0.25); }
+.card .logo-img { width: 112px; height: 112px; border-radius: 50%; object-fit: cover; background: none; border: 0; }
 @media (max-width: 900px), (max-height: 520px) { .card .logo-img { width: 56px; height: 56px; } }

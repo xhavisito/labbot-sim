@@ -9,7 +9,7 @@ import * as F from '../config/field';
 import { fieldSolids, startTape, type FieldMaterial } from '../config/fieldLayout';
 import { ALLIANCES, type Alliance } from '../core/types';
 import { PALETTES } from '../config/palette';
-import { boxUV, carpetTexture, mdfTexture, textTexture } from './textures';
+import { boxUV, carpetTexture, mdfTexture } from './textures';
 
 /** Color de cada alianza; `ui/a11y.ts` lo cambia en el lugar (modo daltónico) antes de armar la escena. */
 export const ALLIANCE_COLOR: Record<Alliance, number> = { ...PALETTES.normal.alliance };
@@ -149,16 +149,13 @@ export function buildFieldView(): THREE.Group {
         g.add(leg);
       }
     // Faldón con el color de la alianza, laptop y control en cada mesa
-    const skirt = new THREE.Mesh(new THREE.BoxGeometry(0.01, 0.55, F.DRIVER_STATION_WIDTH), new THREE.MeshStandardMaterial({ color: ALLIANCE_COLOR[a], roughness: 0.8 }));
-    skirt.position.set(x - Math.sign(x) * (F.DRIVER_STATION_DEPTH / 2), 0.45, 0);
+    const skirt = new THREE.Mesh(new THREE.BoxGeometry(0.01, 0.66, F.DRIVER_STATION_WIDTH), new THREE.MeshStandardMaterial({ color: ALLIANCE_COLOR[a], roughness: 0.8 }));
+    skirt.position.set(x - Math.sign(x) * (F.DRIVER_STATION_DEPTH / 2), 0.38, 0);
     g.add(skirt);
-    const label = textTexture(a === 'red' ? 'RED' : 'BLUE', { w: 256, h: 64, bg: '#00000000', fg: '#ffffff' });
-    if (label) {
-      const sign = new THREE.Mesh(new THREE.PlaneGeometry(0.6, 0.15), new THREE.MeshBasicMaterial({ map: label, transparent: true }));
-      sign.position.set(x - Math.sign(x) * (F.DRIVER_STATION_DEPTH / 2 + 0.006), 0.55, 0);
-      sign.rotation.y = -Math.sign(x) * Math.PI / 2;
-      g.add(sign);
-    }
+    // Solo el color de la alianza (sin letrero) y una cinta clara en el borde de arriba
+    const trim = new THREE.Mesh(new THREE.BoxGeometry(0.014, 0.04, F.DRIVER_STATION_WIDTH + 0.02), tableMat);
+    trim.position.set(x - Math.sign(x) * (F.DRIVER_STATION_DEPTH / 2), 0.72, 0);
+    g.add(trim);
     for (const dz of [-0.3, 0.3]) {
       const base = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.015, 0.3), laptopMat);
       base.position.set(x, 0.775, dz);
