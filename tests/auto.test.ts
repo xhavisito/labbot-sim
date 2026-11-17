@@ -90,12 +90,28 @@ describe('AutoExecutor en el match', () => {
       expect(Math.abs(x)).toBeGreaterThan(2.3);
     }
   });
-  it('Ruta suave · Anotar Nivel 3: llega, sube el brazo y anota la precarga en AUTO (≥ 18) y sigue jugando', () => {
+  it('Ruta suave · Anotar Nivel 3: llega, sube el brazo y anota la precarga en AUTO (18) y se queda quieto', () => {
     for (const player of [2, 3, 0, 1]) {
       const g = run(player, designRoutine(player % 2 === 0 ? BUILTIN_DESIGNS[0] : BUILTIN_DESIGNS[1]), 14.9);
       const a = g.player.alliance;
-      expect(g.match!.breakdown(a).samplesAuto, `robot ${player}`).toBeGreaterThanOrEqual(18);
+      expect(g.match!.breakdown(a).samplesAuto, `robot ${player}`).toBe(18);
       expect(g.match!.fouls).toEqual([]);
+    }
+  });
+  it('al terminar la ruta el robot se queda quieto hasta el TELEOP (no juega por su cuenta)', () => {
+    const short: DesignedAuto = { id: 's', name: 's', spline: true, speed: 1, waypoints: [{ x: -2.7, z: 0.495, heading: null }] };
+    for (const r of [designRoutine(short), designRoutine({ id: 'e', name: 'e', waypoints: [] })]) {
+      const g = new GameSession({ player: 2, preload: true, ai: false, autos: [DO_NOTHING, DO_NOTHING, r, DO_NOTHING] });
+      g.startMatch();
+      const at: Array<{ x: number; z: number }> = [];
+      for (let i = 0; i < 14.9 * 120; i++) {
+        g.setInput(emptyInput());
+        g.step();
+        if (i === 6 * 120) at.push({ ...g.player.phys.position() });
+      }
+      const end = g.player.phys.position();
+      expect(Math.hypot(end.x - at[0].x, end.z - at[0].z), r.id).toBeLessThan(0.02);
+      expect(g.match!.breakdown('blue').samplesAuto).toBe(0);
     }
   });
   it('puede cruzar la línea central en AUTO (el manual nuevo ya no la limita, §4.2)', () => {
@@ -119,8 +135,8 @@ describe('AutoExecutor en el match', () => {
   });
   it('el ejecutor construye la vista previa para la alianza roja (rotada 180°)', () => {
     const g = new GameSession({ player: 0, preload: true, autos: [DO_NOTHING, DO_NOTHING, DO_NOTHING, DO_NOTHING] });
-    const red = new AutoExecutor(g.robots[0], BUILTIN_DESIGNS[0], g.pieces, g.robots);
-    const blue = new AutoExecutor(g.robots[2], BUILTIN_DESIGNS[0], g.pieces, g.robots);
+    const red = new AutoExecutor(g.robots[0], BUILTIN_DESIGNS[0], g.robots);
+    const blue = new AutoExecutor(g.robots[2], BUILTIN_DESIGNS[0], g.robots);
     expect(red.preview.length).toBeGreaterThan(5);
     const a = red.preview[red.preview.length - 1];
     const b = blue.preview[blue.preview.length - 1];

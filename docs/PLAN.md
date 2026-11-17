@@ -127,7 +127,7 @@ tests/                    clock, scoring, fouls/cards, rp, match (casos borde), 
    guardar, duplicar, borrar, exportar/importar JSON y "Probar" en un match (`ui/AutoDesigner.ts`).
    En el match, `auto/AutoExecutor.ts` sigue la trayectoria (`auto/Trajectory.ts`: referencia + corrección,
    vigilante de trabas, "event markers" de garra y brazo), aplica las acciones al llegar y, al terminar,
-   sigue jugando con la IA (`ai/Bot`); la ruta se dibuja en la alfombra (`render/AutoPathView.ts`).
+   **se queda quieto** hasta el TELEOP (como un autónomo programado de verdad: sin IA ni acciones libres, SUPUESTO); la ruta se dibuja en la alfombra (`render/AutoPathView.ts`).
    Modelo, guardado y validación en `auto/designed.ts` (`labbot.autoDesigns.v1`; ids `design:<id>`); las
    rutinas salen en las listas de AUTO (Ajustes y Preparar match). El editor "Rutinas de AUTO" de antes
    (`core/autoPath.ts`) sigue igual: son dos herramientas independientes. SUPUESTOS de lo que cambia por el reto:

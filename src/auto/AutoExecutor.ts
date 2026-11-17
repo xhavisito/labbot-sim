@@ -8,17 +8,16 @@
  *   waypoints por los que pasa sin detenerse son "event markers".
  * - A prueba de choques: cada waypoint tiene un vigilante; si en ~2 s no avanza (lo estorba un
  *   compañero, un rival o quedó trabado), hace su acción donde está o lo salta.
- * - Al terminar la rutina (o si se queda sin ella) sigue jugando (`ai/Bot`: junta Muestras y las anota).
+ * - Al terminar la rutina (o si se queda sin ella) el robot se queda quieto hasta el TELEOP, como un autónomo
+ *   programado de verdad que ya corrió todo: sin IA ni acciones libres (SUPUESTO, pedido de Xhavi). Frena y deja
+ *   la garra y el brazo como los dejó la rutina.
  * Diferencias con rebuilt-sim por el reto: el robot es tanque (se mueve solo hacia donde mira),
  * anotar reemplaza a disparar (alinea el frente a la pared de la Cámara, sube el brazo al nivel y
  * suelta), no hay TOWER/BUMP/TRENCH y el manual nuevo ya no limita la línea central en AUTO (§4.2).
  */
-import { Bot, type BotOutput } from '../ai/Bot';
 import * as F from '../config/field';
-import { GAME } from '../config/game';
 import { posDir, type ElevatorPos } from '../config/robot';
 import type { Robot } from '../game/Robot';
-import type { Pieces } from '../physics/Pieces';
 import { mirrorWaypointZ, toAlliance, type AutoWaypoint, type DesignedAuto } from './designed';
 import { buildTrajectory, constraintsFor, headingOf, isStop, sampleAt, type Trajectory } from './Trajectory';
 
@@ -31,7 +30,7 @@ export interface ExecOutput {
   release?: boolean;
 }
 
-type Stage = { kind: 'goto'; i: number } | { kind: 'act'; i: number; t: number; scored: boolean; armed?: boolean } | { kind: 'free' } | { kind: 'done' };
+type Stage = { kind: 'goto'; i: number } | { kind: 'act'; i: number; t: number; scored: boolean } | { kind: 'done' };
 
 const angDiff = (a: number, b: number): number => Math.atan2(Math.sin(a - b), Math.cos(a - b));
 /** Segundos máximos de la acción de anotar en un waypoint (alinear, subir, soltar). */
@@ -49,14 +48,12 @@ export class AutoExecutor {
   private legFrom = 0;
   /** Siguiente waypoint cuyo cambio de INTAKE ("event marker") falta aplicar. */
   private evNext = 0;
-  private free: Bot | null = null;
   /** Ruta completa planeada (marco de la alianza) para dibujarla en el campo. */
   readonly preview: Array<{ x: number; z: number }> = [];
 
   constructor(
     private r: Robot,
     readonly routine: DesignedAuto,
-    private pieces: Pieces,
     private robots: Robot[],
   ) {
     // Rutinas "de cualquier lado": si sale del lado contrario al de su primer waypoint se reflejan en z
@@ -66,7 +63,7 @@ export class AutoExecutor {
     const base = flip ? routine.waypoints.map(mirrorWaypointZ) : routine.waypoints;
     // Punto a punto = paradas en línea recta (igual que la vista previa del diseñador)
     this.wps = routine.spline ? base : base.map((w) => ({ ...w, stop: true, hin: undefined, hout: undefined }));
-    this.stage = this.wps.length ? { kind: 'goto', i: this.stopFrom(0) } : { kind: 'free' };
+    this.stage = this.wps.length ? { kind: 'goto', i: this.stopFrom(0) } : { kind: 'done' };
     if (this.wps.length) {
       const tr = buildTrajectory(this.bluePose(), this.wps, this.constraints());
       for (let k = 0; k < tr.samples.length; k += 3) {
@@ -103,7 +100,7 @@ export class AutoExecutor {
   }
 
   get done(): boolean {
-    return this.stage.kind === 'done' || this.stage.kind === 'free';
+    return this.stage.kind === 'done';
   }
 
   /** Giro proporcional suave hacia `want` (marco azul), con zona muerta y tope de 5 rad/s. */
@@ -114,8 +111,8 @@ export class AutoExecutor {
     return Math.max(-lim, Math.min(lim, d * 3.5));
   }
 
-  /** Mando de este paso. `autoLeft` = segundos de AUTO que quedan. */
-  update(dt: number, autoLeft = 15): ExecOutput {
+  /** Mando de este paso. Terminada la rutina devuelve un mando vacío: el robot frena y se queda quieto. */
+  update(dt: number): ExecOutput {
     const out: ExecOutput = { forward: 0, turn: 0 };
     const st = this.stage;
     switch (st.kind) {
@@ -125,9 +122,6 @@ export class AutoExecutor {
       case 'act':
         this.act(dt, st, out);
         break;
-      case 'free':
-        this.freePlay(dt, autoLeft, out);
-        return out;
       case 'done':
         break;
     }
@@ -137,17 +131,6 @@ export class AutoExecutor {
     this.pendIntake = undefined;
     this.pendArm = undefined;
     return out;
-  }
-
-  /** Al terminar la rutina sigue jugando: junta Muestras y las anota (IA de labbot). */
-  private freePlay(dt: number, autoLeft: number, out: ExecOutput): void {
-    if (!this.free) this.free = new Bot(this.r, this.pieces, this.robots, { ai: 'hard', auto: 'collect', teleop: false });
-    const o: BotOutput = this.free.step(dt, 'AUTO', autoLeft + GAME.times.teleop + GAME.times.autoToTeleopPause);
-    out.forward = o.forward;
-    out.turn = o.turn;
-    out.intake = o.intake;
-    out.elevator = o.elevator;
-    out.release = o.release;
   }
 
   /** Acciones al llegar a un waypoint: garra, brazo, anotar, esperar. */
@@ -167,7 +150,6 @@ export class AutoExecutor {
       out.turn = Math.max(-1, Math.min(1, this.omegaTo(want, 0.02) / (r.spec.maxOmega * 0.8)));
       const empty = m.stored.length === 0 && m.critical === null;
       if (Math.abs(err) < 0.06 && m.atTarget && m.target === w.score) {
-        st.armed ||= true;
         out.release = !empty;
       }
       if (empty || st.t >= SCORE_TIME) {
@@ -278,7 +260,7 @@ export class AutoExecutor {
     if (st.kind === 'act' || st.kind === 'goto') {
       this.legFrom = st.i + 1;
       this.evNext = Math.max(this.evNext, st.i + 1);
-      this.stage = st.i + 1 < n ? { kind: 'goto', i: this.stopFrom(st.i + 1) } : { kind: 'free' };
+      this.stage = st.i + 1 < n ? { kind: 'goto', i: this.stopFrom(st.i + 1) } : { kind: 'done' };
     }
     this.leg = null;
   }
