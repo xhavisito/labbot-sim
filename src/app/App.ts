@@ -53,7 +53,6 @@ import { storeReplay } from '../replay/store';
 import { AutoPractice } from '../ui/AutoPractice';
 import { ReplayBar } from '../ui/ReplayBar';
 import { ReplaysScreen } from '../ui/ReplaysScreen';
-import { RobotEditor } from '../ui/RobotEditor';
 import { StatsPanel } from '../ui/StatsPanel';
 import { Hud } from '../ui/Hud';
 import { t, type Key } from '../ui/i18n';
@@ -74,14 +73,12 @@ import { loadGhosts } from '../game/ghostStore';
 import { loadShotLog } from '../game/shotStore';
 import { matchFacts, recordMatch, emptyAch, type AchProgress } from '../core/achievements';
 import { loadAch, saveAch } from '../game/achievementStore';
-import { addPerf, summarize } from '../core/robotCompare';
+import { addPerf } from '../core/robotCompare';
 import { loadPerf, savePerf } from '../game/perfStore';
-import { CompareScreen } from '../ui/CompareScreen';
 import { allRobotIds } from '../config/robotIds';
 import { AchievementsScreen } from '../ui/Achievements';
 import { StrategyScreen } from '../ui/StrategyScreen';
 import { AutoDesigner } from '../ui/AutoDesigner';
-import { AutoPathScreen } from '../ui/AutoPathScreen';
 import { PlanView } from '../render/PlanView';
 import * as THREE from 'three';
 import { Board } from '../core/board';
@@ -140,7 +137,6 @@ export class App {
   private boardCam: CameraMode = 'free';
   readonly boardBar: BoardBar;
   readonly strategies: StrategyScreen;
-  readonly autoPaths: AutoPathScreen;
   readonly designer: AutoDesigner;
   readonly settings: Settings = loadSettings(autoRoutineIds());
   /** Sonidos del campo (inicio, TELEOP, ENDGAME, fin). */
@@ -162,7 +158,6 @@ export class App {
   private replayBack: () => void = () => this.toMenu();
   readonly replayBar: ReplayBar;
   readonly replays: ReplaysScreen;
-  readonly editor: RobotEditor;
   /** Práctica de AUTO abierta (panel y grabación sobre la sesión de práctica). */
   autoPractice: AutoPractice | null = null;
   readonly scoutData = loadScout();
@@ -185,7 +180,6 @@ export class App {
   readonly shotLog = loadShotLog();
   /** Rendimiento acumulado por robot (puntos por minuto y ciclos) para comparar robots. */
   readonly robotPerf = loadPerf();
-  readonly compare: CompareScreen;
   /** Logros y progreso (localStorage) y su pantalla; `achNew` = logros del último match. */
   private ach: AchProgress = loadAch();
   private achNew: string[] = [];
@@ -236,8 +230,6 @@ export class App {
     });
     this.menu.onReplays = () => this.openReplays();
     this.menu.perfInfo = () => this.perfText();
-    this.editor = new RobotEditor(this.menu.root, () => this.toMenu(), (id) => this.menu.useRobot(id));
-    this.menu.onEditor = () => this.editor.show(null);
     this.tourney = new TournamentScreen(this.menu.root, this.scoutData, this.settings, {
       back: () => this.toMenu(),
       play: (p, watch) => {
@@ -254,29 +246,8 @@ export class App {
       },
     });
     this.menu.onAchievements = () => this.achievements.show();
-    this.compare = new CompareScreen(
-      this.menu.root,
-      () => allRobotIds().map((id) => summarize(id, robotLabel(robotSpec(id)), this.cycleBests, this.shotLog, this.robotPerf)),
-      () => this.toMenu(),
-    );
-    this.menu.onCompare = () => this.compare.show();
     this.strategies = new StrategyScreen(this.menu.root);
     this.menu.onStrategies = () => this.strategies.show(() => this.toMenu());
-    this.autoPaths = new AutoPathScreen(this.menu.root, {
-      back: () => this.toMenu(),
-      spec: () => this.playerSpec(),
-      use: (id) => {
-        this.settings.playerAuto = id;
-        saveSettings(this.settings);
-      },
-      currentAuto: () => this.settings.playerAuto,
-      play: (id) => {
-        this.settings.playerAuto = id;
-        saveSettings(this.settings);
-        this.start({ mode: 'match', player: this.menu.player });
-      },
-    });
-    this.menu.onAutoPaths = () => this.autoPaths.show();
     this.designer = new AutoDesigner(this.menu.root, {
       back: () => this.toMenu(),
       spec: () => this.playerSpec(),

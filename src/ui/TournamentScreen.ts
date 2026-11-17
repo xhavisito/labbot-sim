@@ -4,7 +4,8 @@
  * simulan). Muestra rankings (general y por categoría), la selección de alianzas (§8.2.1: si eres
  * capitán invitas tú; cada equipo acepta o rechaza) y los PlayOffs (§8.2.2).
  */
-import { robotSpec } from '../config/robotIds';
+import { allRobotIds, isCadId, robotSpec, type RobotId } from '../config/robotIds';
+import { saveSettings, SETTINGS_RANGE } from '../config/settings';
 import { GAME } from '../config/game';
 import type { Settings } from '../config/settings';
 import type { Match } from '../core/match';
@@ -90,6 +91,8 @@ const catValue = (s: TeamSummary, c: Cat): number => (c === 'samples' ? s.sample
 export type WatchMode = 'broadcast' | 'stands';
 export const WATCH_CAMERA: Record<WatchMode, CameraMode> = { broadcast: 'top', stands: 'free' };
 
+const LOGOS: Record<string, string> = { 'cad:axiom': 'logos/axiom.png', 'cad:phoenix': 'logos/phoenix.png', 'cad:psycho': 'logos/psycho.png' };
+
 export class TournamentScreen {
   private cfg = { player: '', perTeam: 5, format: 'manual' as PlayoffFormat, others: 'ask' as 'ask' | 'skip' };
   private tab: Tab = 'overall';
@@ -124,13 +127,22 @@ export class TournamentScreen {
     else this.view(tt);
   }
 
+  /** Elegir robot en el lobby: igual que en el menú, la velocidad de los ajustes toma la suya. */
+  private pickRobot(id: RobotId): void {
+    const sp = robotSpec(id);
+    this.settings.robotType = id;
+    this.settings.maxSpeed = Math.min(SETTINGS_RANGE.maxSpeed.max, Math.round(sp.maxSpeed * 4) / 4);
+    saveSettings(this.settings);
+  }
+
   // ------------------------------------------------------------------ crear
   private setup(): void {
     this.current = null;
     const teams = this.scout.teams;
-    if (!teams.some((x) => x.id === this.cfg.player)) this.cfg.player = teams[0]?.id ?? '';
     const seg = (k: string, cur: string | number, opts: Array<[string | number, string]>) =>
       `<div class="seg" data-cfg="${k}">${opts.map(([v, l]) => `<button class="${v === cur ? 'on' : ''}" data-v="${v}">${l}</button>`).join('')}</div>`;
+    const robotIds = allRobotIds().filter(isCadId);
+    if (robotIds.length && !robotIds.includes(this.settings.robotType)) this.pickRobot(robotIds[0]!);
     const spec = robotSpec(this.settings.robotType);
     const n = teams.length;
     this.show(`
@@ -140,8 +152,8 @@ export class TournamentScreen {
       <div class="panels"><div class="panel"><div class="form">
         <h3>${t('tr_setup')}</h3>
         <label>${t('tr_teams')}</label><div>${teams.map((x) => `<span class="team">${esc(x.name)}</span>`).join('')}</div>
-        <label>${t('tr_yourTeam')}</label><select data-player>${teams.map((x) => `<option value="${esc(x.id)}" ${x.id === this.cfg.player ? 'selected' : ''}>${esc(x.name)}</option>`).join('')}</select>
-        <label>${t('yourRobot')}</label><div>${esc(spec.label ?? t(`type_${spec.mechanism}` as Key))} <span class="dim">· ${t('tr_robotNote')}</span></div>
+        <label>${t('tr_yourTeam')}</label><div class="dim">${t('tr_randomTeam')}</div>
+        <label>${t('yourRobot')}</label><div class="cards tr-robots">${robotIds.map((id) => `<button class="card ${id === this.settings.robotType ? 'sel' : ''}" data-rid="${id}" title="${esc(robotSpec(id).label ?? id)}" aria-label="${esc(robotSpec(id).label ?? id)}">${LOGOS[id] ? `<img class="logo-img" src="${LOGOS[id]}" alt="" width="64" height="64">` : `<span>${esc(robotSpec(id).label ?? id)}</span>`}</button>`).join('')}</div>
         <label>${t('sc_qualsPerTeam')}</label>${seg('perTeam', this.cfg.perTeam, [3, 4, 5, 6, 8].map((v) => [v, String(v)]))}
         <label>${t('tr_playoffs')}</label>${seg('format', this.cfg.format, [['manual', t('tr_fmt_manual')], ['doubleElim', t('tr_fmt_doubleElim')]])}
         <label>${t('tr_others')}</label>${seg('others', this.cfg.others, [['ask', t('tr_others_ask')], ['skip', t('tr_others_skip')]])}
@@ -150,7 +162,10 @@ export class TournamentScreen {
       <div class="actionbar">${backBtn('data-act="back"')}<div class="grow"></div>
         <button class="btn primary" data-act="create" ${n < 4 ? 'disabled' : ''}>${ic.trophy}<span>${t('tr_create')}</span></button></div>`);
     this.on('[data-act="back"]', () => this.cb.back());
-    this.on('[data-player]', (el) => (this.cfg.player = (el as HTMLSelectElement).value), 'change');
+    this.on('[data-rid]', (el) => {
+      this.pickRobot(el.dataset.rid as RobotId);
+      this.setup();
+    });
     this.on('[data-cfg] button', (el) => {
       const k = (el.parentElement as HTMLElement).dataset.cfg!;
       const v = el.dataset.v!;
@@ -162,6 +177,8 @@ export class TournamentScreen {
     this.on('[data-act="create"]', () => {
       const seed = (Math.random() * 2 ** 32) >>> 0;
       const rand = rng(seed);
+      // Equipo del jugador: al azar entre los de la lista
+      this.cfg.player = teams[Math.floor(rand() * teams.length)]?.id ?? '';
       const entries: TeamEntry[] = teams.map((x) => {
         const me = x.id === this.cfg.player;
         // Fuerza de la IA (SUPUESTO) para la simulación estadística; tu equipo juega con tu robot
