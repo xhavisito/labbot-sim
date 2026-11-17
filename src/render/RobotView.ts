@@ -195,8 +195,8 @@ export class RobotView {
     // 28 mm en la placa de abajo y la de arriba, Xhavi 13-nov), dos por costado: a 3 y a 17 cm de la boca
     // y a 10.6 cm del centro. Cada flecha lleva dos ruedas (abajo y arriba) que aprietan la Muestra ~1 cm
     // por los costados. Solo dibujo: la física de los rodillos está en `Mechanisms.runRollers`.
-    // Axiom (pinza) no lleva rodillos: su garra del CAD abre y cierra (`clawFingers`)
-    if ((s.model || intakeOf(s).rollers) && intakeOf(s).kind !== 'pinza') {
+    // Axiom (pinza) no lleva rodillos: su garra del CAD abre y cierra (`clawFingers`); Phoenix (lanzador) tampoco: sus rodillos son los horizontales del lanzador (Xhavi, 17-nov)
+    if ((s.model || intakeOf(s).rollers) && intakeOf(s).kind !== 'pinza' && !intakeOf(s).shooter) {
       const rollerMat = new THREE.MeshStandardMaterial({ color: 0x4fd13c, roughness: 0.55 });
       const hubMat = new THREE.MeshStandardMaterial({ color: 0x2f8f25, roughness: 0.6 });
       const axleMat = new THREE.MeshStandardMaterial({ color: 0x222222, roughness: 0.4, metalness: 0.6 });
