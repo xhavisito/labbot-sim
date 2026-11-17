@@ -111,6 +111,7 @@ export class RobotView {
   private critFingers: Array<{ g: THREE.Group; side: number }> = [];
   /** Cierre actual de esos dedos (0 = abiertos, la pose del CAD; 1 = sobre la Crítica). */
   private critNow = 0;
+  private critDy = 0;
   private critT = 0;
   /** Centro de los dedos de la pinza del CAD en el sistema de la garra (donde se dibuja la Muestra que aprieta). */
   private pocket: { x: number; y: number } | null = null;
@@ -518,7 +519,13 @@ export class RobotView {
     // Con la Crítica adentro cierra hasta tocarla; cerrada en vacío (interruptor, tecla 4) llega a 75 % (SUPUESTO)
     const want = this.robot.mech.critical !== null ? cc.closeDeg : this.robot.mech.critClawClosed ? cc.emptyDeg : 0;
     this.critNow += Math.max(-(cc.emptyDeg / 0.25) * dt, Math.min((cc.emptyDeg / 0.25) * dt, want - this.critNow));
-    for (const f of this.critFingers) f.g.rotation.y = f.side * ((this.critNow * Math.PI) / 180);
+    // Los dedos suben o bajan con la Crítica: la toman a la altura en que está (Xhavi, 17-nov)
+    const dyWant = this.robot.mech.critical !== null ? this.robot.mech.critHoldDy : 0;
+    this.critDy += Math.max(-1.5 * dt, Math.min(1.5 * dt, dyWant - this.critDy));
+    for (const f of this.critFingers) {
+      f.g.rotation.y = f.side * ((this.critNow * Math.PI) / 180);
+      f.g.position.y = this.critDy;
+    }
   }
 
   /** Grados que hay que girar cada dedo para que su rama quede a `zTarget` del centro (arcsin; tope 40°). */
@@ -588,10 +595,10 @@ export class RobotView {
       if (pull && m.critical) {
         const k = Math.min(1, m.critPullAge / Math.max(0.01, m.critPullDur));
         const e = 1 - (1 - k) * (1 - k);
-        this.criticalMesh.position.set(pull.x + (cseat.x - pull.x) * e, pull.y + (cseat.y - pull.y) * e, pull.z * (1 - e));
+        this.criticalMesh.position.set(pull.x + (cseat.x - pull.x) * e, pull.y + (cseat.y + m.critHoldDy - pull.y) * e, pull.z * (1 - e));
         this.criticalMesh.rotation.y = pull.yaw * (1 - e);
       } else {
-        this.criticalMesh.position.set(cseat.x, cseat.y, 0);
+        this.criticalMesh.position.set(cseat.x, cseat.y + m.critHoldDy, 0);
         this.criticalMesh.rotation.y = 0;
       }
     }

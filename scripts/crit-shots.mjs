@@ -53,7 +53,7 @@ for (const hb of [false, true]) {
   await page.waitForTimeout(800);
   await page.screenshot({ path: `shots/crit-${hb ? 'hitbox-' : ''}1-abierta.png` });
   // La toma desde distintos lugares dentro del alcance (sin tocarla): distancia, lado, altura. Una captura a mitad del jalón y otra ya tomada.
-  const cases = [[0.42, 0, 0.71], [0.62, 0.15, 0.75], [0.72, -0.2, 0.9]];
+  const cases = [[0.42, 0, 0.71], [0.62, 0.15, 0.55], [0.72, -0.2, 0.95]];
   for (const [i, [d, side, y]] of cases.entries()) {
     await page.evaluate(([d, side, y]) => {
       const g = window.app.session;
