@@ -150,16 +150,18 @@ function adoptRobot(s: Settings, id: RobotId): void {
 }
 
 export type GoId = 'strategies' | 'autoDesigner' | 'achievements' | 'replays' | 'matchHistory' | 'settings' | 'controls' | 'rules' | 'tournament';
-export type HubId = 'workshop' | 'progress';
+export type HubId = 'workshop' | 'replays' | 'progress';
 interface HubItem { go: GoId; icon: string; label: Key; desc: Key; hero?: boolean }
 /** Destinos del menú en grupos (Taller y Mi progreso); lo de competir vive en el menú Jugar (`PLAY_LINKS`). */
-const HUBS: { id: HubId; icon: string; title: Key; desc: Key; items: HubItem[] }[] = [
+const HUBS: { id: HubId; icon: string; title: Key; desc: Key; items: HubItem[]; tabOnly?: boolean }[] = [
   { id: 'workshop', icon: ic.cube, title: 'hub_workshop', desc: 'hub_workshop_d', items: [
     { go: 'autoDesigner', icon: ic.route, label: 'ad_title', desc: 'ad_desc' },
     { go: 'strategies', icon: ic.field, label: 'strategies', desc: 'strategiesDesc' },
   ] },
-  { id: 'progress', icon: ic.film, title: 'hub_progress', desc: 'hub_progress_d', items: [
+  { id: 'replays', icon: ic.film, title: 'replays', desc: 'replaysDesc', tabOnly: true, items: [
     { go: 'replays', icon: ic.film, label: 'replays', desc: 'replaysDesc', hero: true },
+  ] },
+  { id: 'progress', icon: ic.film, title: 'hub_progress', desc: 'hub_progress_d', items: [
     { go: 'matchHistory', icon: ic.clipboard, label: 'mhTitle', desc: 'mhDesc' },
     { go: 'achievements', icon: ic.medal, label: 'ach_title', desc: 'achDesc' },
   ] },
@@ -244,7 +246,7 @@ export class Menu {
         <div class="mo-top"><span class="pwa-chips" data-pwa></span>${SYS_LINKS.map((l) => `<button class="chipbtn icon-only" data-go="${l.go}" title="${t(l.label)}" aria-label="${t(l.label)}">${l.icon}</button>`).join('')}${langChips()}${fs ? `<button class="chipbtn" data-fs title="${t('fullscreen')}">${ic.expand}</button>` : ''}</div>
         <nav class="mo-menu">
           <button data-act="play">${t('mo_play')}</button>
-          ${HUBS.map((h) => `<button class="sm" data-hub="${h.id}">${t(h.title)}</button>`).join('')}
+          ${HUBS.filter((h) => !h.tabOnly).map((h) => `<button class="sm" data-hub="${h.id}">${t(h.title)}</button>`).join('')}
         </nav>
       </div>`,
       'screen mo',
