@@ -39,7 +39,9 @@ export const RAMP_DEFAULTS: RampParams = { k: 110, ki: 12, c: 13, maxAcc: 220, g
 
 /** Donde entra una Muestra nueva (lados de Muestra detrás del pie) y con qué cabeceo (rad). */
 export const ENTRY_S = -0.9;
-export const ENTRY_ROT = -0.7;
+/** Cabeceo máximo (rad) de una Muestra en la rampa. */
+export const MAX_ROT = 0.3;
+export const ENTRY_ROT = -0.3;
 
 export class RampSim {
   readonly bodies: RampBody[] = [];
@@ -99,8 +101,13 @@ export class RampSim {
         b.v += a * h;
         b.s += b.v * h;
         // Cabeceo: vuelve a 0 con su resorte; los golpes (aceleración lateral y choques) lo excitan
-        b.w += (-70 * b.rot - 9 * b.w + lat * 0.35) * h;
+        b.w += (-70 * b.rot - 9 * b.w + lat * 0.12) * h;
         b.rot += b.w * h;
+        // Tope del cabeceo: una Muestra en la rampa no da vueltas (±0.3 rad)
+        if (b.rot > MAX_ROT || b.rot < -MAX_ROT) {
+          b.rot = Math.sign(b.rot) * MAX_ROT;
+          b.w = 0;
+        }
       }
       // Tope en la boca y choques con la vecina de adelante (la más vieja va primero)
       for (let i = 0; i < have; i++) {
@@ -116,9 +123,9 @@ export class RampSim {
               const o = bodies[i - 1];
               b.v -= j / 2;
               o.v += j / 2;
-              o.w += j * 1.2;
+              o.w += j * 0.5;
             }
-            b.w -= vel * 1.5;
+            b.w -= vel * 0.6;
           }
         }
       }
