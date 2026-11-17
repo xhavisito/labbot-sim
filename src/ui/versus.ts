@@ -15,6 +15,9 @@ export type VsRole = 'p1' | 'p2' | 'ai';
 /** En 1 contra 1 las otras dos estaciones no existen. */
 export const isDuel = (team: VsTeam): boolean => team === 'duel';
 
+/** ¿La IA llena los puestos sin persona? Siempre no en 1 contra 1; si no, lo decide el botón de la pantalla dividida. */
+export const fillsAi = (team: VsTeam, fillAi: boolean): boolean => team !== 'duel' && fillAi;
+
 /** Estación del jugador 2 según el equipo: la contraria (+2) o la compañera de la misma alianza. */
 export function partnerStation(player: number, team: VsTeam): number {
   return team === 'same' ? player ^ 1 : (player + 2) % 4;

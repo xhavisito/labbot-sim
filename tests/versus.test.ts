@@ -97,3 +97,18 @@ describe('multijugador local: entrada', () => {
     expect(im.poll2().forward).toBe(0);
   });
 });
+
+import { fillsAi } from '../src/ui/versus';
+import { sanitizeVersus } from '../src/config/settings';
+describe('rellenar con IA (pantalla dividida)', () => {
+  it('solo rellena si el botón está activo y no es 1 contra 1', () => {
+    expect(fillsAi('opp', true)).toBe(true);
+    expect(fillsAi('same', true)).toBe(true);
+    expect(fillsAi('opp', false)).toBe(false);
+    expect(fillsAi('duel', true)).toBe(false);
+  });
+  it('por defecto está activo y se conserva apagado', () => {
+    expect(sanitizeVersus({}, ['leave']).fillAi).toBe(true);
+    expect(sanitizeVersus({ fillAi: false }, ['leave']).fillAi).toBe(false);
+  });
+});

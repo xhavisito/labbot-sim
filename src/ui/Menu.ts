@@ -359,6 +359,7 @@ export class Menu {
         <aside class="mo-panel bottom"><h2>${t('mo_matchSettings')}<span class="tri">▾</span></h2>
           ${this.moRow(t('mo_p1'), this.moSelect('a1', allianceOpts, alliance(1) ? 'red' : 'blue'))}
           ${this.moRow(t('mo_p2'), this.moSelect('a2', allianceOpts, alliance(2) ? 'red' : 'blue'))}
+          ${this.moRow(t('mo_fillAi'), `<button class="tog ${v.team !== 'duel' && v.fillAi ? 'on' : ''}" data-act="fillai" aria-pressed="${v.fillAi}" aria-label="${t('mo_fillAi')}" ${v.team === 'duel' ? 'disabled' : ''}><i></i></button>`)}
           <button class="mo-start" data-act="start">${t('mo_start')}</button></aside>`
       : `<aside class="mo-panel full"><h2>${t('mo_matchSettings')}</h2>
           ${this.moRow(t('mo_mode'), this.moSelect('mode', [['match', t('match')], ['practice', t('practice')]], this.moMode))}
@@ -414,6 +415,11 @@ export class Menu {
     this.on('[data-act="toggle"]', () => {
       this.moActive = this.moActive === 1 ? 2 : 1;
       this.previewActive(split);
+      this.robotSelect(split);
+    });
+    this.on('[data-act="fillai"]', () => {
+      v.fillAi = !v.fillAi;
+      this.onSettings(s);
       this.robotSelect(split);
     });
     this.on('[data-act="spawn"]', () => this.spawnScreen(() => this.robotSelect(split)));
