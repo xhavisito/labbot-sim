@@ -160,6 +160,8 @@ export interface VersusSettings {
   duration: number;
   p1: VersusSide;
   p2: VersusSide;
+  /** Rellenar con IA los puestos que no juega una persona. Apagado: el match es solo de quienes están en la pantalla dividida (SUPUESTO). */
+  fillAi: boolean;
 }
 
 /** Sonido de los avisos del árbitro: silbato y voz, solo silbato, o nada. */
@@ -208,6 +210,7 @@ export const DEFAULT_SETTINGS: Settings = {
   textScale: 1,
   versus: {
     team: 'opp',
+    fillAi: true,
     duration: DEFAULT_DURATION,
     p1: { robot: DEFAULT_ROBOT_ID, auto: 'leave', start: { ...CENTER_SPOT }, device: 'keys1', camera: 'follow' },
     p2: { robot: DEFAULT_ROBOT_ID, auto: 'leave', start: { ...CENTER_SPOT }, device: 'keys2', camera: 'follow' },
@@ -265,6 +268,7 @@ export function sanitizeVersus(raw: unknown, autoIds: readonly string[]): Versus
     duration: MATCH_DURATIONS.find((x) => x === o.duration) ?? DEFAULT_DURATION,
     p1: side(o.p1, 0),
     p2: side(o.p2, 1),
+    fillAi: typeof o.fillAi === 'boolean' ? o.fillAi : true,
   };
 }
 

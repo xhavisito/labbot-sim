@@ -59,7 +59,7 @@ import { t, type Key } from '../ui/i18n';
 import { ic } from '../ui/chrome';
 import { MatchSetup } from '../ui/MatchSetup';
 import { VersusSetup } from '../ui/VersusSetup';
-import { DEVICE_LABEL, deviceHelp, partnerStation, swapStations } from '../ui/versus';
+import { DEVICE_LABEL, deviceHelp, fillsAi, partnerStation, swapStations } from '../ui/versus';
 import type { VersusSide } from '../config/settings';
 import { PadNav } from '../ui/padNav';
 import { DEFAULT_PLAYER, Menu, type MenuChoice, type PauseInfo, type VsResults } from '../ui/Menu';
@@ -432,7 +432,7 @@ export class App {
     // 1 contra 1: solo existen los dos robots; el reloj puede durar lo que se eligió (SUPUESTO, `gameWithDuration`)
     const game = gameWithDuration(v.duration);
     this.endgameWatch.cfg = game;
-    return { ...o, player2: p2, specs, autos, bots, starts, game, ...(v.team === 'duel' ? { stations: [player, p2], ai: false } : {}) };
+    return { ...o, player2: p2, specs, autos, bots, starts, game, ...(!fillsAi(v.team, v.fillAi) ? { stations: [player, p2], ai: false } : {}) };
   }
 
   /** Enciende o apaga el modo de 2 jugadores en la entrada y la pantalla dividida. */
