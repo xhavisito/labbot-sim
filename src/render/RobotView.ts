@@ -98,6 +98,7 @@ export class RobotView {
   /** Entrada animada de las Muestras al almacén del lanzador (Phoenix): posición dibujada de cada lugar (0 = en la garra, k = en la rampa). */
   private slotAnim: Array<{ x: number; y: number; rot: number; shown: boolean }> = [];
   private slotT = 0;
+  private prevHave = 0;
   /** Velocidad angular actual de los rodillos del lanzador (rad/s; solo dibujo). */
   private shooterT = 0;
   private fingerT = 0;
@@ -246,7 +247,7 @@ export class RobotView {
     this.clawSample2.visible = false;
     const shooterSpec = this.robot.spec.intake?.shooter;
     if (shooterSpec?.muzzle) {
-      for (let i = 1; i < this.robot.spec.capacity; i++) {
+      for (let i = 0; i < this.robot.spec.capacity; i++) {
         const mesh = add(new THREE.BoxGeometry(sz, sz, sz), sampleMat, 0, 0, 0, this.group);
         mesh.visible = false;
         this.rampSamples.push(mesh);
@@ -681,11 +682,16 @@ export class RobotView {
         mesh.position.set(st.x, st.y, 0);
         mesh.rotation.z = st.rot;
       };
+      // Las Muestras se juntan hacia la boca (la más vieja arriba, `i = 0`); al tirar sale la de arriba y las demás suben un lugar,
+      // y la que entra se forma abajo de la fila. Todas se dibujan en el sistema del robot (no en el de la garra).
+      const cap = this.rampSamples.length;
+      if (have < this.prevHave) this.slotAnim.splice(0, this.prevHave - have);
+      this.prevHave = have;
       this.rampSamples.forEach((mesh, i) => {
-        place(i + 1, mesh, i + 1 < have, x0 + ux * SAMPLE_SIZE * (i + 1), y0 + uy * SAMPLE_SIZE * (i + 1), Math.atan2(uy, ux) - Math.PI / 2);
+        const q = cap - 1 - i; // lugar de la rampa (0 = pie, cap−1 = boca)
+        place(i, mesh, i < have, x0 + ux * SAMPLE_SIZE * q, y0 + uy * SAMPLE_SIZE * q, q === 0 ? 0 : Math.atan2(uy, ux) - Math.PI / 2);
       });
-      if (n >= 1) place(0, this.clawSample, true, this.pocket?.x ?? seat(0), this.pocket?.y ?? SAMPLE_SIZE * 0.475, 0);
-      else place(0, this.clawSample, false, 0, 0, 0);
+      this.clawSample.visible = false;
     }
     this.clawSample2.position.set(seat(1), rollers ? SAMPLE_SIZE * 0.475 : SAMPLE_SIZE * 1.45, 0);
     // Rodillos: con la garra prendida giran jalando hacia adentro (hacia la placa); al soltar, hacia afuera

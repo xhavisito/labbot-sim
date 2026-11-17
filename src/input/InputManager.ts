@@ -22,6 +22,8 @@ export interface PlayerInput {
   elevator: ElevatorPos | null;
   /** Suelta lo que trae en la garra (Muestra o Crítica). */
   releaseSample: boolean;
+  /** El botón de soltar sigue presionado (nivel, no un toque): el lanzador de Phoenix sigue disparando mientras se mantiene. */
+  releaseHeld: boolean;
 }
 
 export const emptyInput = (): PlayerInput => ({
@@ -32,6 +34,7 @@ export const emptyInput = (): PlayerInput => ({
   intake: false,
   elevator: null,
   releaseSample: false,
+  releaseHeld: false,
 });
 
 /** Estado de los controles touch (lo escribe `ui/TouchControls`). */
@@ -232,6 +235,7 @@ export class InputManager {
     this.touch2.pressed.clear();
     inp.fieldCentric = this.bindings.fieldCentric;
     inp.releaseSample = acts.has('releaseSample');
+    inp.releaseHeld = this.touch2.held.has('releaseSample');
     for (const [a, pos] of ELEVATOR_ACTIONS) if (acts.has(a)) inp.elevator = this.elevatorPos2 = pos;
     if (acts.has('elevatorUp')) inp.elevator = this.elevatorPos2 = Math.min(4, this.elevatorPos2 + 1) as ElevatorPos;
     if (acts.has('elevatorDown')) inp.elevator = this.elevatorPos2 = Math.max(0, this.elevatorPos2 - 1) as ElevatorPos;
@@ -257,6 +261,7 @@ export class InputManager {
     for (const a of ACTIONS) if (this.hit(a)) hit.add(a);
     this.input2 = this.versus ? this.readP2(this.pressed) : emptyInput();
     this.pressed.clear();
+    this.padRelease = false;
     this.pollPad(inp, hit);
     // Touch
     if (Math.abs(this.touch.forward) > Math.abs(inp.forward)) inp.forward = this.touch.forward;
@@ -265,6 +270,7 @@ export class InputManager {
     this.touch.pressed.clear();
 
     inp.releaseSample = hit.has('releaseSample');
+    inp.releaseHeld = this.held('releaseSample') || this.touch.held.has('releaseSample') || this.padHold('releaseSample');
     for (const [a, pos] of ELEVATOR_ACTIONS) if (hit.has(a)) inp.elevator = this.elevatorPos = pos;
     if (hit.has('elevatorUp')) inp.elevator = this.elevatorPos = Math.min(4, this.elevatorPos + 1) as ElevatorPos;
     if (hit.has('elevatorDown')) inp.elevator = this.elevatorPos = Math.max(0, this.elevatorPos - 1) as ElevatorPos;
@@ -286,6 +292,12 @@ export class InputManager {
   }
 
   /** Suma el primer gamepad conectado: ejes según `padDrive` y botones según la asignación. */
+  /** Botón del control para soltar, presionado en este cuadro. */
+  private padRelease = false;
+  private padHold(_a: Action): boolean {
+    return this.padRelease;
+  }
+
   private pollPad(inp: PlayerInput, hit: Set<Action>): void {
     const pad = this.padDev(this.versus ? this.layout.p1 : null);
     if (!pad) return;
@@ -306,6 +318,7 @@ export class InputManager {
     if (dpadT && !inp.turn) inp.turn = dpadT;
     if (hold('slow')) inp.slow = true;
     if (hold('intake')) inp.intake = true;
+    if (hold('releaseSample')) this.padRelease = true;
     for (const a of ACTIONS) if (btn(a)) hit.add(a);
     this.padPrev = now;
   }
