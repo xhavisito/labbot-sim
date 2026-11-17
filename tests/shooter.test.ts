@@ -344,3 +344,21 @@ describe('Phoenix come con cualquier ajuste de agarre', () => {
     });
   }
 });
+
+describe('Phoenix: sin falla de garra', () => {
+  it('chocado a golpes y con fallas al azar nunca queda con la garra atascada', () => {
+    const g = new GameSession({ player: 0, preload: false, specs: [robotSpec('cad:phoenix')], seed: 3, damage: { level: 'high', targets: 'all', random: true } });
+    const seen = new Set<string>();
+    for (let k = 0; k < 40; k++) {
+      // Golpe de frente contra la pared: antes atascaba la garra casi siempre
+      g.player.phys.teleport(3.0, 0, 0);
+      for (let i = 0; i < 90; i++) {
+        g.setInput({ ...emptyInput(), forward: 1 });
+        g.step();
+      }
+      for (const kind of g.damage.faults(g.player.index).keys()) seen.add(kind);
+    }
+    expect(seen.has('clawJam')).toBe(false);
+    expect(seen.has('armSlow')).toBe(false);
+  }, 120000);
+});
