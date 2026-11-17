@@ -1,5 +1,5 @@
 /** Menú principal, ajustes, pausa y resultados (DOM). */
-import { AUTO_ROUTINES } from '../auto/AutoRoutine';
+import { loadRoutines } from '../auto/AutoRoutine';
 import { MECHANISM_KINDS } from '../config/robot';
 import { DEFAULT_SETTINGS, SETTINGS_RANGE, type Settings } from '../config/settings';
 import { RULES } from '../core/fouls';
@@ -27,6 +27,7 @@ export class Menu {
     private settings: Settings,
     private onSettings: (s: Settings) => void,
     private input: InputManager,
+    private onDesigner: () => void = () => {},
   ) {
     this.root = document.createElement('div');
     this.root.className = 'overlay';
@@ -59,7 +60,7 @@ export class Menu {
         <button class="primary" data-act="match">${t('match')}</button>
         <button data-act="practice">${t('practice')}</button>
       </div>
-      <div class="row"><button data-act="settings">${t('settings')}</button><button data-act="controls">${t('controlsTitle')}</button></div>
+      <div class="row"><button data-act="settings">${t('settings')}</button><button data-act="controls">${t('controlsTitle')}</button><button data-act="designer">${t('ad_title')}</button></div>
       <button class="link" data-act="lang">${t('language')}</button>`);
     this.root.querySelectorAll<HTMLButtonElement>('[data-slot]').forEach((b) =>
       b.addEventListener('click', () => {
@@ -78,6 +79,7 @@ export class Menu {
     this.root.querySelector('[data-act="practice"]')!.addEventListener('click', () => this.onStart({ mode: 'practice', player: this.player }));
     this.root.querySelector('[data-act="settings"]')!.addEventListener('click', () => this.settingsPanel());
     this.root.querySelector('[data-act="controls"]')!.addEventListener('click', () => this.controlsPanel(() => this.main()));
+    this.root.querySelector('[data-act="designer"]')!.addEventListener('click', () => this.onDesigner());
     this.root.querySelector('[data-act="lang"]')!.addEventListener('click', () => {
       setLang(getLang() === 'es' ? 'en' : 'es');
       location.reload();
@@ -87,7 +89,10 @@ export class Menu {
   /** Ajustes: IA, rutinas de AUTO, tu robot y Human Player. Se guardan al volver. */
   settingsPanel(): void {
     const s = this.settings;
-    const autoOpts = (sel: string) => AUTO_ROUTINES.map((r) => `<option value="${r.id}" ${r.id === sel ? 'selected' : ''}>${t(`auto_${r.id}` as Key)}</option>`).join('');
+    const autoOpts = (sel: string) =>
+      loadRoutines()
+        .map((r) => `<option value="${r.id}" ${r.id === sel ? 'selected' : ''}>${r.builtin ? t(`auto_${r.id}` as Key) : r.name.replace(/[<>&"]/g, '')}</option>`)
+        .join('');
     const range = (k: keyof typeof SETTINGS_RANGE, unit: string) => {
       const r = SETTINGS_RANGE[k];
       return `<input type="range" data-k="${k}" min="${r.min}" max="${r.max}" step="${r.step}" value="${s[k]}"><output data-unit="${unit}">${s[k]} ${unit}</output>`;

@@ -7,7 +7,8 @@
  */
 import * as THREE from 'three';
 import { Bot } from '../ai/Bot';
-import { AutoRunner, LEAVE_ZONE, type AutoRoutine } from '../auto/AutoRoutine';
+import { AutoExecutor } from '../auto/AutoExecutor';
+import { LEAVE_ZONE, type AutoRoutine } from '../auto/AutoRoutine';
 import * as F from '../config/field';
 import { GAME, type GameConfig } from '../config/game';
 import { DEFAULT_ROBOT, type RobotSpec } from '../config/robot';
@@ -21,6 +22,7 @@ import { Pieces } from '../physics/Pieces';
 import { PhysicsWorld } from '../physics/PhysicsWorld';
 import { Referee } from '../referee/Referee';
 import { buildFieldView } from '../render/FieldView';
+import { AutoPathView } from '../render/AutoPathView';
 import { PieceView } from '../render/PieceView';
 import { RobotView } from '../render/RobotView';
 import { HumanPlayer } from './HumanPlayer';
@@ -64,7 +66,8 @@ export class GameSession {
   readonly practiceCount: Record<Alliance, number> = { red: 0, blue: 0 };
   private pieceView: PieceView;
   private robotViews: RobotView[] = [];
-  private autos: AutoRunner[] = [];
+  private autos: Array<AutoExecutor | null> = [];
+  private autoPath: AutoPathView | null = null;
   private autoBots: Array<Bot | null> = [];
   private bots: Array<Bot | null> = [];
   private acc = 0;
@@ -135,11 +138,15 @@ export class GameSession {
     this.resetField();
     this.match = new Match(this.game, F.ROBOTS_PER_ALLIANCE);
     this.log.length = 0;
-    this.autos = this.robots.map((r) => new AutoRunner(this.opts.autos?.[r.index] ?? LEAVE_ZONE));
+    const routines = this.robots.map((r) => this.opts.autos?.[r.index] ?? LEAVE_ZONE);
     this.autoBots = this.robots.map((r) => {
-      const b = this.autos[r.index].routine.bot;
+      const b = routines[r.index].bot;
       return b ? new Bot(r, this.pieces, this.robots, { scoreOnly: b.scoreOnly, stayHome: true }) : null;
     });
+    // Rutinas de waypoints (Auto Designer): las sigue el AutoExecutor; las de la IA, el Bot
+    this.autos = this.robots.map((r) => (routines[r.index].bot ? null : new AutoExecutor(r, routines[r.index], this.pieces, this.robots)));
+    this.autoPath?.dispose();
+    this.autoPath = null;
     this.bots = this.robots.map((r) => (this.opts.ai && r !== this.player ? new Bot(r, this.pieces, this.robots) : null));
     this.match.start();
   }
@@ -148,6 +155,10 @@ export class GameSession {
   practice(): void {
     this.match = null;
     this.bots = [];
+    this.autos = [];
+    this.autoBots = [];
+    this.autoPath?.dispose();
+    this.autoPath = null;
     this.resetField();
   }
 
@@ -189,12 +200,12 @@ export class GameSession {
         r.mech.intakeOn = o.intake;
         r.mech.target = o.elevator;
         if (o.release) r.mech.release('sample', this.stepMechEvents);
-      } else if (m && phase === 'AUTO') {
-        const o = this.autos[r.index].step(dt);
+      } else if (m && phase === 'AUTO' && this.autos[r.index]) {
+        const o = this.autos[r.index]!.update(dt, this.game.times.auto - m.t);
         forward = o.forward;
         turn = o.turn;
-        if (o.elevator !== undefined) r.mech.target = o.elevator;
-        if (o.intake !== undefined) r.mech.intakeOn = o.intake;
+        r.mech.target = o.elevator;
+        r.mech.intakeOn = o.intake;
         if (o.release) r.mech.release('sample', this.stepMechEvents);
       } else if (enabled && r === this.player && this.input) {
         forward = this.input.forward;
@@ -249,8 +260,22 @@ export class GameSession {
       this.acc -= this.pw.dt;
     }
     const alpha = this.acc / this.pw.dt;
+    this.updateAutoPath();
     this.pieceView.sync(alpha);
     for (const v of this.robotViews) v.sync(alpha);
+  }
+
+  /** Ruta planeada de AUTO del jugador (la del Auto Designer) sobre la alfombra, solo durante AUTO. */
+  private updateAutoPath(): void {
+    const ex = this.match && this.phase === 'AUTO' ? this.autos[this.opts.player] : null;
+    if (ex?.preview.length && !this.autoPath) {
+      this.autoPath = new AutoPathView(ex.preview, this.player.alliance);
+      this.root.add(this.autoPath.group);
+    }
+    if (this.autoPath && !ex) {
+      this.autoPath.dispose();
+      this.autoPath = null;
+    } else this.autoPath?.update(ex?.reference ?? null);
   }
 
   dispose(): void {

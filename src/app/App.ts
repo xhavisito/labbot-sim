@@ -2,7 +2,7 @@
  * Orquestador: renderer, cámara, entrada, sesión, HUD y menús; bucle principal.
  * Estados: menú (la cancha gira de fondo) → jugando ⇄ pausa → resultados.
  */
-import { AUTO_ROUTINES, LEAVE_ZONE } from '../auto/AutoRoutine';
+import { LEAVE_ZONE, loadRoutines } from '../auto/AutoRoutine';
 import { ROBOT_PRESETS } from '../config/robot';
 import { loadSettings, saveSettings, type Settings } from '../config/settings';
 import { buildMatchLog } from '../core/matchLog';
@@ -10,6 +10,7 @@ import { GameSession } from '../game/GameSession';
 import { InputManager } from '../input/InputManager';
 import { CAMERA_MODES, CameraRig, type CameraMode } from '../render/CameraRig';
 import { Renderer } from '../render/Renderer';
+import { AutoDesigner } from '../ui/AutoDesigner';
 import { Hud } from '../ui/Hud';
 import { keyboardHelp, padHelp } from '../ui/controlsHelp';
 import { Menu, type MenuChoice } from '../ui/Menu';
@@ -23,10 +24,11 @@ export class App {
   readonly input = new InputManager();
   readonly hud: Hud;
   readonly menu: Menu;
+  readonly designer: AutoDesigner;
   session: GameSession;
   state: State = 'menu';
   private choice: MenuChoice = { mode: 'match', player: 0 };
-  readonly settings: Settings = loadSettings(AUTO_ROUTINES.map((r) => r.id));
+  readonly settings: Settings = loadSettings(loadRoutines().map((r) => r.id));
   private last = performance.now();
   readonly touch: TouchControls;
   /** `?touch=1` fuerza los controles touch (para probar en escritorio). */
@@ -38,7 +40,12 @@ export class App {
     this.session = new GameSession();
     this.renderer.scene.add(this.session.root);
     this.hud = new Hud(ui);
-    this.menu = new Menu(ui, (c) => this.start(c), this.settings, (s) => saveSettings(s), this.input);
+    this.menu = new Menu(ui, (c) => this.start(c), this.settings, (s) => saveSettings(s), this.input, () => this.openAutoDesigner());
+    this.designer = new AutoDesigner(
+      this.menu.root,
+      () => this.toMenu(),
+      (id, station) => this.testAuto(id, station),
+    );
     this.touch = new TouchControls(ui, this.input, () => this.cycleCamera(), () => this.togglePause());
     this.toMenu();
     const onResize = () => this.renderer.resize(this.cam.camera);
@@ -48,6 +55,20 @@ export class App {
     });
     onResize();
     requestAnimationFrame(this.loop);
+  }
+
+  /** Auto Designer: editar rutinas de AUTO (el menú de fondo queda debajo). */
+  openAutoDesigner(): void {
+    const id = this.settings.playerAuto;
+    this.designer.open(id, this.settings.robotType);
+  }
+
+  /** "Probar" del Auto Designer: un match con esa rutina para tu robot, saliendo de la Zona de Inicio elegida. */
+  private testAuto(id: string, station: 0 | 1): void {
+    this.settings.playerAuto = id;
+    saveSettings(this.settings);
+    this.menu.player = (this.menu.player < 2 ? 0 : 2) + station;
+    this.start({ mode: 'match', player: this.menu.player });
   }
 
   /** Empieza un match o una práctica con el robot elegido. */
@@ -69,7 +90,8 @@ export class App {
   /** Opciones de la sesión según los ajustes: IA, rutinas de AUTO, tu robot y Human Player. */
   private sessionOptions(player: number): ConstructorParameters<typeof GameSession>[0] {
     const s = this.settings;
-    const auto = (id: string) => AUTO_ROUTINES.find((r) => r.id === id) ?? LEAVE_ZONE;
+    const all = loadRoutines();
+    const auto = (id: string) => all.find((r) => r.id === id) ?? LEAVE_ZONE;
     return {
       player,
       preload: true,

@@ -79,6 +79,23 @@ tests/                    clock, scoring, fouls/cards, rp, match (casos borde), 
    *Hecho:* `RobotSpec.mechanism` + presets en `config/robot.ts`; `Mechanisms` saca las piezas al
    frente, atrás o en la punta del brazo; la IA anota de reversa con el elevador.
 
+7. **Auto Designer** (pedido después del plan; réplica de rebuilt-sim) — botón "Auto Designer" en el
+   menú principal. Vista superior de la mitad azul (la rutina se refleja para rojo): waypoints con
+   rumbo, curvas Bézier con manijas, punto a punto o ruta suave con perfil de velocidad, línea de
+   tiempo, avisos de choques (Plataforma antes del ENDGAME §4.6, Cámara, línea central §4.2, bordes) y
+   tiempo contra los 15 s, deshacer, guardar, duplicar, exportar/importar JSON y "Probar" en un match.
+   En el match, `auto/AutoExecutor.ts` sigue la trayectoria (`auto/Trajectory.ts`), aplica las acciones
+   al llegar y al terminar sigue jugando con la IA sin salir de su mitad; la ruta se dibuja en la alfombra
+   (`render/AutoPathView.ts`). Portado de `rebuilt-sim`; lo adaptado, con SUPUESTO:
+   - Acciones por waypoint: INTAKE, **anotar en N1/N2/N3** (alinea el frente —o la parte de atrás con el
+     elevador— a la pared de la Cámara, sube y suelta; reemplaza disparar y trepar), esperar y detenerse.
+   - Sin precarga que "disparar": la precarga se anota con un waypoint de anotar. Sin TOWER/BUMP/TRENCH.
+   - Chasis tanque (§7.2): la ruta se sigue con avance + giro; el rumbo del waypoint solo se usa al anotar.
+   - Pared virtual en la línea central (D7) como en rebuilt; la Plataforma cuenta como choque en AUTO.
+   - Incluidas: Salir de la zona, Quedarse quieto, las dos de la IA y 4 rutas suaves (anotar N3 y recolectar
+     + anotar N2, una por Zona de Inicio porque la Cámara está fija en −Z).
+   - Las rutinas se guardan en `localStorage` (`labbot.autos.v1`); los AUTO de Ajustes las incluyen.
+
 Cada hito: `npm test`, `npm run build` y captura con Playwright; resumen corto al terminar.
 
 ## 5. Decisiones que necesito antes del Hito 3
