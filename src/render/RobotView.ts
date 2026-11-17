@@ -16,6 +16,7 @@ import { buildCadWheel } from './cadWheel';
 import { HitboxDebug, hitboxDebugOn } from './hitboxDebug';
 import { ALLIANCE_COLOR } from './FieldView';
 import { criticalMaterial, sampleMaterial } from './PieceView';
+import { RampSim } from './rampSim';
 import { brushedTexture, textTexture } from './textures';
 
 /** Giro (°) de cada dedo de la pinza de Axiom hasta tocar la Muestra: el ángulo de intake del CAD (Xhavi, 16-nov). */
@@ -96,9 +97,18 @@ export class RobotView {
   /** Rodillos del lanzador del CAD (Phoenix): `side` = signo del giro (+1 / −1) para que ambas filas empujen la Muestra por la rampa. */
   private shooterRollers: Array<{ mesh: THREE.Object3D; side: number; bottom: boolean; w: number }> = [];
   /** Entrada animada de las Muestras al almacén del lanzador (Phoenix): posición dibujada de cada lugar (0 = en la garra, k = en la rampa). */
-  private slotAnim: Array<{ x: number; y: number; rot: number; shown: boolean }> = [];
+  private rampSim: RampSim | null = null;
   private slotT = 0;
-  private prevHave = 0;
+  /** Avance del robot hacia adelante en el último cuadro (m), su velocidad (m/s) y aceleración suavizada (m/s²); giro (rad/s²). */
+  private fwdStep = 0;
+  private fwdVel = 0;
+  private accF = 0;
+  private yawAcc = 0;
+  private yawRate = 0;
+  private yawT = 0;
+  private critJx = 0;
+  private critJv = 0;
+  private critJT = 0;
   /** Velocidad angular actual de los rodillos del lanzador (rad/s; solo dibujo). */
   private shooterT = 0;
   private fingerT = 0;
@@ -579,8 +589,15 @@ export class RobotView {
     if (dy < -Math.PI) dy += 2 * Math.PI;
     this.spin[0] += (ds - dy * this.halfW) / WHEEL_R;
     this.spin[1] += (ds + dy * this.halfW) / WHEEL_R;
+    this.fwdStep = ds;
     this.lastP.copy(this.group.position);
     this.lastYaw = yaw;
+    const nowY = performance.now() / 1000;
+    const dtY = Math.min(0.1, nowY - (this.yawT || nowY));
+    this.yawT = nowY;
+    const rate = dtY > 1e-4 ? dy / dtY : 0;
+    this.yawAcc += ((dtY > 1e-4 ? (rate - this.yawRate) / dtY : 0) - this.yawAcc) * Math.min(1, dtY * 12);
+    this.yawRate = rate;
     if (!this.hitDebug && hitboxDebugOn()) {
       this.hitDebug = new HitboxDebug(this.robot.phys);
       this.group.add(this.hitDebug.group);
@@ -599,7 +616,16 @@ export class RobotView {
         this.criticalMesh.position.set(pull.x + (cseat.x - pull.x) * e, pull.y + (cseat.y + m.critHoldDy - pull.y) * e, pull.z * (1 - e));
         this.criticalMesh.rotation.y = pull.yaw * (1 - e);
       } else {
-        this.criticalMesh.position.set(cseat.x, cseat.y + m.critHoldDy, 0);
+        // Lanzador (Phoenix): la Crítica va suelta en su lugar de la rampa y se mece un poco con la inercia (solo dibujo, ±2 cm)
+        let jx = 0;
+        if (this.robot.spec.intake?.shooter) {
+          const dtJ = Math.min(0.05, Math.max(0, performance.now() / 1000 - (this.critJT || performance.now() / 1000)));
+          this.critJT = performance.now() / 1000;
+          this.critJv += (-120 * this.critJx - 11 * this.critJv - this.accF * 0.6) * dtJ;
+          this.critJx = Math.max(-0.02, Math.min(0.02, this.critJx + this.critJv * dtJ));
+          jx = this.critJx;
+        }
+        this.criticalMesh.position.set(cseat.x + jx, cseat.y + m.critHoldDy, 0);
         this.criticalMesh.rotation.y = 0;
       }
     }
@@ -657,39 +683,27 @@ export class RobotView {
       const ux = (ramp.x - x0) / len;
       const uy = (ramp.y - y0) / len;
       const have = m.inClaw ? m.stored.length : 0;
-      // Entrada suave: la Muestra que se acaba de tomar viene del piso, por detrás de la boca del intake, y sube por la rampa
-      // hasta su lugar (se acomoda y se endereza) en vez de aparecer ahí de golpe. Solo dibujo (SUPUESTO ~0.4 s).
+      // Las Muestras guardadas son cuerpos ligeros (`RampSim`, solo dibujo): entran rodando por el piso y suben por la rampa, se
+      // recargan con la inercia del robot, chocan entre sí y con el tope de la boca; al tirar sale la de arriba y las demás suben.
       const nowA = performance.now() / 1000;
       const dtA = Math.min(0.1, nowA - (this.slotT || nowA));
       this.slotT = nowA;
-      const k = Math.min(1, dtA * 9);
-      const place = (idx: number, mesh: THREE.Object3D, show: boolean, tx: number, ty: number, trot: number): void => {
-        const st = (this.slotAnim[idx] ??= { x: tx, y: ty, rot: trot, shown: false });
-        mesh.visible = show;
-        if (!show) {
-          st.shown = false;
-          return;
-        }
-        if (!st.shown) {
-          st.shown = true;
-          st.x = tx - 0.22; // afuera, detrás de la boca
-          st.y = SAMPLE_SIZE * 0.5;
-          st.rot = trot - 0.7; // llega inclinada y se endereza
-        }
-        st.x += (tx - st.x) * k;
-        st.y += (ty - st.y) * k;
-        st.rot += (trot - st.rot) * k;
-        mesh.position.set(st.x, st.y, 0);
-        mesh.rotation.z = st.rot;
-      };
-      // Las Muestras se juntan hacia la boca (la más vieja arriba, `i = 0`); al tirar sale la de arriba y las demás suben un lugar,
-      // y la que entra se forma abajo de la fila. Todas se dibujan en el sistema del robot (no en el de la garra).
-      const cap = this.rampSamples.length;
-      if (have < this.prevHave) this.slotAnim.splice(0, this.prevHave - have);
-      this.prevHave = have;
+      const vF = dtA > 1e-4 ? this.fwdStep / dtA : 0;
+      const aF = dtA > 1e-4 ? (vF - this.fwdVel) / dtA : 0;
+      this.fwdVel = vF;
+      this.accF += (aF - this.accF) * Math.min(1, dtA * 12); // suavizado: los cuadros del render no coinciden con los pasos de la física
+      const accRamp = Math.max(-40, Math.min(40, this.accF)) * ux / SAMPLE_SIZE;
+      const sim = (this.rampSim ??= new RampSim(this.rampSamples.length));
+      sim.step(dtA, have, accRamp, Math.max(-60, Math.min(60, this.yawAcc)));
+      const rampRot = Math.atan2(uy, ux) - Math.PI / 2;
       this.rampSamples.forEach((mesh, i) => {
-        const q = cap - 1 - i; // lugar de la rampa (0 = pie, cap−1 = boca)
-        place(i, mesh, i < have, x0 + ux * SAMPLE_SIZE * q, y0 + uy * SAMPLE_SIZE * q, q === 0 ? 0 : Math.atan2(uy, ux) - Math.PI / 2);
+        const b = sim.bodies[i];
+        mesh.visible = i < have;
+        if (!mesh.visible) return;
+        // Detrás del pie rueda por el piso (horizontal); en la rampa va inclinada como ella
+        const onRamp = Math.max(0, b.s);
+        mesh.position.set(x0 + (b.s < 0 ? b.s * SAMPLE_SIZE : ux * SAMPLE_SIZE * b.s), y0 + uy * SAMPLE_SIZE * onRamp, 0);
+        mesh.rotation.z = rampRot * Math.min(1, onRamp) + b.rot;
       });
       this.clawSample.visible = false;
     }
