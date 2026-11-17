@@ -325,7 +325,7 @@ export class GameSession {
     for (const r of this.robots) {
       const routine = this.opts.autos?.[r.index] ?? LEAVE_ZONE;
       this.autos[r.index] = new AutoRunner(routine);
-      if (routine.design) this.designs[r.index] = new AutoExecutor(r, routine.design, this.pieces, this.robots);
+      if (routine.design) this.designs[r.index] = new AutoExecutor(r, routine.design, this.robots);
     }
     this.autoPath?.dispose();
     this.autoPath = null;
@@ -451,7 +451,7 @@ export class GameSession {
       const runner = m && phase === 'AUTO' ? this.autos[r.index] : !m && r === this.player ? this.pilot : null;
       const design = m && phase === 'AUTO' ? this.designs[r.index] : null;
       if (design) {
-        const o = design.update(dt, this.game.times.auto - m!.t);
+        const o = design.update(dt);
         forward = o.forward;
         turn = o.turn;
         if (o.elevator !== undefined) r.mech.target = o.elevator;
