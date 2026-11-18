@@ -73,10 +73,7 @@ function campana(): Solid[] {
   add(box(xb - t, xb, 0, h, zf - F.CAMPANA_DEPTH - t, zf - t));
   // Barra lateral de obstáculo, perpendicular a la pared en el extremo de la Campana
   s.push({ part: 'barrier', material: 'mdf', points: box(xa - F.BARRIER_WIDTH, xa, 0, F.BARRIER_HEIGHT, -F.HALF_W, -F.HALF_W + F.BARRIER_LENGTH) });
-  // Soporte de la rendija deslizable de la Muestra Crítica (arriba de la pared)
-  const c = F.CRITICAL_HOLDER_RED;
-  const half = F.CRITICAL_SIZE / 2 + 0.03;
-  s.push({ part: 'criticalHolder', material: 'gray', points: box(c.x - half, c.x + half, c.y - t, c.y, zf - t, c.z + half) });
+  // La repisa de la Muestra Crítica es móvil (la desliza el HP): ver game/CriticalShelf.ts
   return s;
 }
 
@@ -130,4 +127,14 @@ export function fieldSolids(): Solid[] {
 /** Cinta de las Zonas de Inicio (segmentos en el piso) por alianza. */
 export function startTape(a: Alliance): Array<[number, number, number, number]> {
   return F.START_TAPE_RED.map(([x0, z0, x1, z1]) => (a === 'red' ? [x0, z0, x1, z1] : [-x0, -z0, -x1, -z1]));
+}
+
+/** Caja de la repisa de la Muestra Crítica (marco rojo), centrada en X=0: la forma que usan física y dibujo. */
+export function criticalShelfBox(): { hx: number; hy: number; hz: number; cy: number; cz: number } {
+  const c = F.CRITICAL_HOLDER_RED;
+  const t = STRUCT_THICKNESS;
+  const zf = -F.HALF_W;
+  const z0 = zf - t;
+  const z1 = c.z + F.CRITICAL_SIZE / 2 + 0.03;
+  return { hx: F.CRITICAL_SHELF_LENGTH / 2, hy: t / 2, hz: (z1 - z0) / 2, cy: c.y - t / 2, cz: (z0 + z1) / 2 };
 }

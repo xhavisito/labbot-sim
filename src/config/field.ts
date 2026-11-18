@@ -138,6 +138,18 @@ export const DRIVER_STATION_DEPTH = 0.8;
 // ---------------------------------------------------------------- Piezas (§4.1.1)
 export const SAMPLE_SIZE = mm(150); // cubo 150 mm ±5
 export const CRITICAL_SIZE = mm(200); // cubo 200 mm ±5
+/**
+ * Repisa (base) de la Muestra Crítica en la rendija (§3.2.4). El manual NO da sus medidas ni dice que
+ * sea móvil. SUPUESTO (pedido por el equipo): mide solo un poco más que la Muestra Crítica (200 mm +
+ * 40 mm), no todo el largo de la Zona de Alimentación, y el Human Player la desliza a lo largo de
+ * la pared para centrarla con su robot.
+ */
+export const CRITICAL_SHELF_LENGTH = CRITICAL_SIZE + 0.04;
+/** Velocidad y aceleración con que el HP desliza la repisa (m/s, m/s²). SUPUESTO. */
+export const CRITICAL_SHELF_SPEED = 0.8;
+export const CRITICAL_SHELF_ACCEL = 2.5;
+/** Recorrido de la repisa (centro, marco rojo): dentro de la pared de la Campana. */
+export const CRITICAL_SHELF_X_RANGE: readonly [number, number] = [CAMPANA_X_RED[0] + CRITICAL_SHELF_LENGTH / 2, CAMPANA_X_RED[1] - CRITICAL_SHELF_LENGTH / 2];
 /** Masa: no se da. SUPUESTO espuma ≈30 kg/m³. */
 export const SAMPLE_MASS = 0.1;
 export const CRITICAL_MASS = 0.24;

@@ -22,6 +22,8 @@ import { PhysicsWorld } from '../physics/PhysicsWorld';
 import { Referee } from '../referee/Referee';
 import { buildFieldView } from '../render/FieldView';
 import { PieceView } from '../render/PieceView';
+import { ShelfView } from '../render/ShelfView';
+import { CriticalShelf } from './CriticalShelf';
 import { RobotView } from '../render/RobotView';
 import { HumanPlayer } from './HumanPlayer';
 import type { MechEvent } from './Mechanisms';
@@ -63,6 +65,9 @@ export class GameSession {
   /** Muestras anotadas en práctica (sin match), por alianza. */
   readonly practiceCount: Record<Alliance, number> = { red: 0, blue: 0 };
   private pieceView: PieceView;
+  /** Repisas móviles de la Muestra Crítica (§3.2.4), una por alianza. */
+  readonly shelves: Record<Alliance, CriticalShelf>;
+  private shelfView: ShelfView;
   private robotViews: RobotView[] = [];
   private autos: AutoRunner[] = [];
   private autoBots: Array<Bot | null> = [];
@@ -77,6 +82,7 @@ export class GameSession {
     this.game = opts.game ?? GAME;
     buildFieldColliders(this.pw);
     this.pieces = new Pieces(this.pw);
+    this.shelves = { red: new CriticalShelf('red', this.pw), blue: new CriticalShelf('blue', this.pw) };
     this.sensors = new Sensors(this.pieces);
     this.hps = { red: new HumanPlayer('red', this.pieces), blue: new HumanPlayer('blue', this.pieces) };
     for (const a of ALLIANCES) {
@@ -86,6 +92,8 @@ export class GameSession {
     this.root.add(buildFieldView());
     this.pieceView = new PieceView(this.pieces);
     this.root.add(this.pieceView.group);
+    this.shelfView = new ShelfView([this.shelves.red, this.shelves.blue]);
+    this.root.add(this.shelfView.group);
     for (let i = 0; i < 2 * F.ROBOTS_PER_ALLIANCE; i++) {
       const r = new Robot(this.pw, this.pieces, i, i < 2 ? 'red' : 'blue', (i % 2) as 0 | 1, opts.specs?.[i] ?? DEFAULT_ROBOT);
       this.robots.push(r);
@@ -106,8 +114,23 @@ export class GameSession {
     return this.match?.phase ?? 'PRE';
   }
 
+  /** X (marco rojo) del robot aliado más cercano a la repisa y pegado a la pared de la Campana, o null. */
+  private shelfRobot(a: Alliance, shelfX: number): number | null {
+    const [xa, xb] = F.CAMPANA_X_RED;
+    let best: number | null = null;
+    for (const r of this.robots) {
+      if (r.alliance !== a) continue;
+      const pos = r.phys.position();
+      const p = F.forAlliance(a, { x: pos.x, z: pos.z });
+      if (p.z > -F.HALF_W + 1.2 || p.x < xa - 0.3 || p.x > xb + 0.3) continue;
+      if (best === null || Math.abs(p.x - shelfX) < Math.abs(best - shelfX)) best = p.x;
+    }
+    return best;
+  }
+
   /** Acomodo inicial (§4.1): piezas en su lugar, robots en su Zona de Inicio con su precarga. */
   resetField(): void {
+    for (const a of ALLIANCES) this.shelves[a].reset();
     this.pieces.reset();
     this.sensors.reset();
     this.referee.reset();
@@ -208,6 +231,12 @@ export class GameSession {
     }
     // Human Player: Muestras por la ranura durante todo el TeleOp (§3.2.4)
     if (m && isTeleop(phase)) for (const a of ALLIANCES) this.hps[a].step(dt);
+    // El HP desliza la repisa de la Crítica para centrarla con su robot (SUPUESTO, ver CriticalShelf)
+    for (const a of ALLIANCES) {
+      const sh = this.shelves[a];
+      const robot = m && isTeleop(phase) ? this.shelfRobot(a, sh.x) : null;
+      sh.step(dt, robot ?? sh.x);
+    }
     this.pw.step();
     this.time += dt;
     this.referee.drainCollisions();
@@ -250,6 +279,7 @@ export class GameSession {
     }
     const alpha = this.acc / this.pw.dt;
     this.pieceView.sync(alpha);
+    this.shelfView.sync(alpha);
     for (const v of this.robotViews) v.sync(alpha);
   }
 

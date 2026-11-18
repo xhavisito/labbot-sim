@@ -112,6 +112,17 @@ describe('match completo en la física', () => {
     expect(run(125)).toEqual([]);
   });
 
+  it('el HP centra la repisa de la Crítica con su robot (SUPUESTO)', () => {
+    const g = session();
+    g.startMatch();
+    skipTo(g, 100);
+    const x = F.CRITICAL_SHELF_X_RANGE[0] + 0.2;
+    g.player.phys.teleport(x, -F.HALF_W + DEFAULT_ROBOT.length / 2 + 0.05, Math.PI / 2);
+    steps(g, 6);
+    expect(g.shelves.red.x).toBeCloseTo(x, 1);
+    expect(g.pieces.critical('red').body.translation().x).toBeCloseTo(x, 1);
+  });
+
   it('el Human Player solo introduce Muestras en TELEOP y a lo más 10 (§3.2.4, §4.1.1)', () => {
     const g = session();
     g.startMatch();
