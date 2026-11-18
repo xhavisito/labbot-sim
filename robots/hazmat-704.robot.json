@@ -85,6 +85,7 @@
       "gap": 0.16,
       "fingerLength": 0.21,
       "rollers": true,
+      "spitSpeed": 1.1,
       "noCritical": true
     },
     "hitboxes": [

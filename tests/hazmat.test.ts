@@ -69,6 +69,25 @@ describe('Hazmat 704: juega', () => {
     }
   });
 
+  it('al soltar escupe la Muestra hacia adelante (no la deja caer en vertical)', () => {
+    const g = new GameSession({ player: 0, preload: true, specs: [H()] });
+    const m = g.player.mech;
+    g.player.phys.teleport(-1.5, 0, 0);
+    for (let i = 0; i < 4 * 120; i++) {
+      g.setInput({ ...emptyInput(), elevator: 2 });
+      g.step();
+    }
+    expect(m.inClaw).toBe(true);
+    const piece = m.stored[m.stored.length - 1];
+    g.setInput({ ...emptyInput(), elevator: 2, releaseSample: true });
+    g.step();
+    expect(m.inClaw).toBe(false);
+    const v = piece.body.linvel();
+    // Hacia adelante del robot (+x, rumbo 0) a la velocidad de salida del CAD; casi sin componente vertical
+    expect(v.x).toBeGreaterThan(0.9);
+    expect(Math.abs(v.y)).toBeLessThan(0.5);
+  });
+
   it('recoge una Muestra del piso con los compliants al frente y no la suelta al subir', () => {
     const g = new GameSession({ player: 0, preload: false, specs: [H()] });
     for (const p of g.pieces.list) if (p.state.at === 'field' && p.kind === 'sample') g.pieces.stash(p, { at: 'hp', alliance: 'red' });
