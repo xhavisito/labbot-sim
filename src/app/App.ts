@@ -1326,7 +1326,11 @@ export class App {
       const m = this.session.match;
       // Probar el AUTO: al acabar el periodo (y su gracia de 3 s) termina, sin jugar el TELEOP
       if (m && !m.finished && this.choice.autoTest && m.t >= bounds(this.session.game).teleopStart) this.session.endNow();
-      if (m?.finished) {
+      if (m?.finished && this.choice.autoTest) {
+        // Acabó el AUTO de la prueba: de vuelta al diseñador, con la misma rutina
+        this.toMenu();
+        this.designer.open(this.settings.playerAuto);
+      } else if (m?.finished) {
         this.state = 'results';
         this.updateTouch();
         const sc = this.choice.scout;
