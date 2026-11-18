@@ -29,7 +29,7 @@
  */
 import { camaraWells, inCamara, rectForCamara } from '../config/field';
 import { shotVelocity } from './shooter';
-import { CLAW_GAP, armTip, canHoldCritical, canPassCritical, clawOf, critSeat, intakeOf, posAngle, posDir, seatX, type ElevatorPos, type GripMode } from '../config/robot';
+import { CLAW_GAP, armTip, canHoldCritical, canTakeCriticalFromHolder, canPassCritical, clawOf, critSeat, intakeOf, posAngle, posDir, seatX, type ElevatorPos, type GripMode } from '../config/robot';
 import { CRITICAL_SIZE, SAMPLE_SIZE } from '../config/field';
 import { FLOOR_POSE, clawDir } from '../physics/RobotPhysics';
 import { GROUPS } from '../physics/PhysicsWorld';
@@ -641,6 +641,8 @@ export class Mechanisms {
     const carriage = p.position().y + this.height;
     // Phoenix (pase): los compliants jalan la Crítica de 20 cm aunque la espuma topa con los rodillos (a más de 18 cm de altura): alcanza hasta 30 cm de la punta (SUPUESTO)
     const reach = canPassCritical(this.phys.spec) ? 0.3 : 0.2;
+    // Axiom (`critFloorOnly`): solo del piso (centro del cubo a menos de 3 cm de su posición apoyado), no de la rendija ni de la Repisa (SUPUESTO)
+    if (!canTakeCriticalFromHolder(this.phys.spec) && t.y > CRITICAL_SIZE / 2 + 0.03) return false;
     const ok = Math.abs(lx - this.tipX()) < reach && Math.abs(lz) < 0.3 && t.y > carriage - 0.2 && t.y < carriage + 0.35;
     if (!ok) return false;
     this.pieces.stash(c, { at: 'robot', robot: p.index });

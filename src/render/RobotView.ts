@@ -702,6 +702,12 @@ export class RobotView {
         claw.rotation.z = this.rigidClaw ?? -m.angle;
       }
     }
+    // Garra del CAD a lo largo del brazo (Axiom): el sistema de la garra gira `angle − stow`, pero la pieza (como su colisionador) queda
+    // alineada con el brazo: se compensa el `stow` para que el cubo no se vea torcido respecto a los dedos
+    const tilt = this.robot.phys.centeredClaw && this.rigidClaw !== null ? -this.rigidClaw : 0;
+    this.clawSample.rotation.z = tilt;
+    this.clawSample2.rotation.z = tilt;
+    if (!cseat) this.criticalMesh.rotation.z = tilt;
     this.palm.position.x = -clawDir(m.angle, sa) * (this.claw.fingerLength / 2 + this.claw.palmThickness / 2);
     // Una o dos Muestras en la garra. Con rodillos van en fila sobre el eje de la boca (la primera en la
     // placa del fondo, la segunda detrás, `seatX`), en el sistema de la caja: con la garra del CAD (fija

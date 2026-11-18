@@ -252,6 +252,12 @@ export interface IntakeSpec {
    */
   noCritical?: boolean;
   /**
+   * La garra solo toma la Crítica si está en el piso (Axiom, Xhavi 18-nov: "no puede agarrar la critical piece desde donde la ponen,
+   * solo si está en el piso"): no la toma de la rendija de la Campana, de la Repisa ni de ningún otro lugar elevado. SUPUESTO de
+   * simulación (el manual no dice nada de mecanismos, §7.2). La IA no la va a buscar a la rendija.
+   */
+  critFloorOnly?: boolean;
+  /**
    * Garra de la Crítica fija al chasis, aparte de la caja del brazo (Psycho, la "Garrita" del CAD del 16-nov: placa con dos
    * dedos de eje vertical al frente). La Crítica se toma de la rendija de la Campana con el robot de frente a ella, queda
    * en `seat` y se suelta ahí mismo (la deja caer sobre la Repisa subiendo a la Plataforma). Va sola: la caja del brazo
@@ -344,6 +350,9 @@ export const canHoldCritical = (s: { intake?: IntakeSpec }): boolean => {
   const i = intakeOf(s);
   return i.noCritical !== true && (i.critClaw !== undefined || i.gap >= mm(200) - 1e-9);
 };
+
+/** ¿Toma la Crítica desde la rendija de la Campana (donde la ponen)? Falso si solo la toma del piso (`IntakeSpec.critFloorOnly`). */
+export const canTakeCriticalFromHolder = (s: { intake?: IntakeSpec }): boolean => intakeOf(s).critFloorOnly !== true;
 
 /**
  * Posición de la Crítica en la garra fija (`IntakeSpec.critClaw`): centro del cubo (x, y desde la base del chasis) y su cara de abajo.
