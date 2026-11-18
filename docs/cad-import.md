@@ -122,3 +122,12 @@ Opción nueva `--arm-max-h m`: con `--arm-parts`, solo cuentan como brazo las pi
 Elevador con modelo: el nodo `brazo` (el carro del intake) sube recto con la punta (`RobotView`, rama `arm.linear`).
 **Del CAD:** chasis 0.654 × 0.65 m contando los compliants; 4 llantas de 6 in (2 por lado); torre de 0.9 m con el carro por su cara de enfrente; 1.013 m de alto; 4 compliants de 3 in de eje vertical (claro de 0.127 m entre ruedas); recorrido del carro ≈ 0.8 m (sensores de límite inferior y superior). El CAD pasa de 65 cm de largo y de 100 cm de alto (§7.2): el menú lo marca con ⚠.
 **SUPUESTOS:** capacidad 1, sin Muestra Crítica, alturas N1/N2 (preset de elevador), N3 = 0.8 m (tope del recorrido), velocidad del carro, apertura 0.16 m y fondo 0.21 m de la garra, masa 40 kg, qué placas toman el color de la alianza y qué es "físico" para los hitboxes. Cada uno está en `supuestos` del JSON.
+
+## Axiom: componentes internos y colores (18-nov, solo visual)
+`ensamble comp interna.STEP` nuevo (534 sólidos): además del chasis y el brazo trae los componentes internos (cajas `Transmición CIM` con motores CIM, `MAXPlanetary 2-Stage`, `versa 90`, `REV-21-2120`, `flecha versa`, espaciadores de la garra).
+Solo se regeneró `public/robots/axiom.glb`: el envolvente (x −0.281…0.551, y −0.064…0.443, z ±0.326), el chasis, el brazo y la garra quedan en las mismas coordenadas, y `robots/axiom.robot.json` (huella, hitboxes, brazo, supuestos) **no cambia**: gameplay y física igual.
+```
+node scripts/cad/import.mjs "<STEP>" --name Axiom --mechanism pivot180 --up y --forward +z --floor 0.1066 --arm-above 0.2 --arm-parts '^garra' --min-diag 0.01 --max-tris 6000 --rules scripts/cad/rules/axiom.json
+```
+(y no se conserva el JSON nuevo: se restaura el de git; el importador reescribe el `.robot.json`.)
+**Colores:** el STEP solo exporta el gris por defecto de SolidWorks (no hay colores por pieza), así que `--rules` (`scripts/cad/rules/axiom.json`) pinta por nombre de pieza según las capturas del CAD: engranes `WCP-0783/0172` dorados, motores y cajas negros, poleas `HTD` azul oscuro, llantas y catarina negras. SUPUESTO: el color de cada familia; también fija un tope de triángulos para los internos (192 mil en total, 4.6 MB).
