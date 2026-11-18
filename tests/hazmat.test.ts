@@ -22,6 +22,8 @@ describe('Hazmat 704: robot del CAD', () => {
     expect(H().mechanism).toBe('elevator');
     expect(H().arm.linear).toBe(true);
     expect(H().model?.url).toBe('robots/hazmat-704.glb');
+    // Los compliants son los del STEP (verdes y girando): no se dibujan rodillos genéricos encima (Xhavi, 18-nov)
+    expect(H().model?.cadRollers).toBe(true);
   });
 
   it('medidas del CAD: 0.654 × 0.65 m, 4 llantas de 6 in y recorrido del carro de 0.8 m', () => {

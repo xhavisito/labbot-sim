@@ -207,6 +207,7 @@
   "model": {
     "url": "robots/hazmat-704.glb",
     "tint": "^(Placa trasera|Unión del chasis)$",
-    "staticWheels": true
+    "staticWheels": true,
+    "cadRollers": true
   }
 }
