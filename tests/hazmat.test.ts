@@ -69,23 +69,35 @@ describe('Hazmat 704: juega', () => {
     }
   });
 
-  it('al soltar escupe la Muestra hacia adelante (no la deja caer en vertical)', () => {
-    const g = new GameSession({ player: 0, preload: true, specs: [H()] });
-    const m = g.player.mech;
-    g.player.phys.teleport(-1.5, 0, 0);
-    for (let i = 0; i < 4 * 120; i++) {
-      g.setInput({ ...emptyInput(), elevator: 2 });
+  it('al soltar escupe la Muestra hacia adelante y cae fuera del chasis, en cada nivel', () => {
+    const P = H();
+    // Borde delantero del chasis (CAD) + medio lado de la Muestra: más cerca que esto cae sobre el robot o a sus pies
+    const clear = P.length / 2 + SAMPLE_SIZE / 2;
+    for (const level of [1, 2, 3] as const) {
+      const g = new GameSession({ player: 0, preload: true, specs: [P] });
+      const m = g.player.mech;
+      g.player.phys.teleport(1.0, -1.2, 0); // piso plano (en el centro del campo hay rampas)
+      for (let i = 0; i < 4 * 120; i++) {
+        g.setInput({ ...emptyInput(), elevator: level });
+        g.step();
+      }
+      expect(m.inClaw).toBe(true);
+      const piece = m.stored[m.stored.length - 1];
+      const x0 = g.player.phys.position().x;
+      g.setInput({ ...emptyInput(), elevator: level, releaseSample: true });
       g.step();
+      expect(m.inClaw).toBe(false);
+      const v = piece.body.linvel();
+      // Hacia adelante del robot (+x, rumbo 0) a 2.5 m/s: mucho más horizontal que vertical
+      expect(v.x).toBeGreaterThan(2.3);
+      expect(Math.abs(v.y)).toBeLessThan(0.5);
+      for (let i = 0; i < 3 * 120; i++) {
+        g.setInput({ ...emptyInput(), elevator: level });
+        g.step();
+      }
+      // Ya en reposo, la Muestra quedó delante del robot, fuera de su chasis
+      expect(piece.body.translation().x - x0).toBeGreaterThan(clear + 0.1);
     }
-    expect(m.inClaw).toBe(true);
-    const piece = m.stored[m.stored.length - 1];
-    g.setInput({ ...emptyInput(), elevator: 2, releaseSample: true });
-    g.step();
-    expect(m.inClaw).toBe(false);
-    const v = piece.body.linvel();
-    // Hacia adelante del robot (+x, rumbo 0) a la velocidad de salida del CAD; casi sin componente vertical
-    expect(v.x).toBeGreaterThan(0.9);
-    expect(Math.abs(v.y)).toBeLessThan(0.5);
   });
 
   it('recoge una Muestra del piso con los compliants al frente y no la suelta al subir', () => {
