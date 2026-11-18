@@ -45,7 +45,7 @@ export interface AutoDesignerHost {
   /** Tu robot (la vista previa lo usa por defecto). */
   spec: () => RobotSpec;
   /** "Probar": un match con la rutina como tu AUTO, saliendo de la Zona de Inicio `station` (0 o 1). */
-  test: (routineId: string, station: 0 | 1) => void;
+  test: (routineId: string, station: 0 | 1, robot?: RobotId) => void;
 }
 
 const robotName = (s: RobotSpec): string => s.label ?? t(`type_${s.mechanism}` as Key);
@@ -373,7 +373,7 @@ export class AutoDesigner {
       if (!this.readonly) this.save();
       this.stop();
       document.removeEventListener('keydown', this.keyHandler);
-      this.h.test(DESIGN_PREFIX + this.cur.id, this.station);
+      this.h.test(DESIGN_PREFIX + this.cur.id, this.station, this.robotSel === 'me' ? undefined : (this.robotSel as RobotId));
     });
   }
 

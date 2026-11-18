@@ -1,4 +1,4 @@
-/** Axiom (Xhavi, 18-nov): solo toma la Muestra Crítica si está en el piso; no de la rendija de la Campana ni de la Repisa (SUPUESTO, `IntakeSpec.critFloorOnly`). */
+/** Axiom (Xhavi, 18-nov): toma la Muestra Crítica de la base (la rendija de la Campana, donde la ponen) y del piso. Reemplaza el «solo del piso» anterior (`IntakeSpec.critFloorOnly` ya no se usa en Axiom). */
 import { beforeAll, describe, expect, it } from 'vitest';
 import { canHoldCritical, canTakeCriticalFromHolder, intakeOf } from '../src/config/robot';
 import { robotSpec } from '../src/config/robotIds';
@@ -25,13 +25,12 @@ function setup(y: number) {
   return { g, r, m, c };
 }
 
-describe('Axiom: la Crítica solo desde el piso', () => {
-  it('lo declara su ficha: sigue pudiendo llevarla, pero no la toma de la rendija', () => {
+describe('Axiom: la Crítica desde la base y desde el piso', () => {
+  it('su ficha ya no limita el agarre al piso', () => {
     const s = robotSpec('cad:axiom');
-    expect(intakeOf(s).critFloorOnly).toBe(true);
+    expect(intakeOf(s).critFloorOnly).toBeUndefined();
     expect(canHoldCritical(s)).toBe(true);
-    expect(canTakeCriticalFromHolder(s)).toBe(false);
-    expect(canTakeCriticalFromHolder(robotSpec('cad:psycho'))).toBe(true);
+    expect(canTakeCriticalFromHolder(s)).toBe(true);
   });
 
   it('la toma si está en el piso', () => {
@@ -40,21 +39,21 @@ describe('Axiom: la Crítica solo desde el piso', () => {
     expect(m.critical).toBe(c);
   });
 
-  it('no la toma a la altura de la rendija de la Campana (donde la ponen) aunque tenga la garra a su nivel', () => {
-    const { m, r } = setup(CRITICAL_HOLDER_RED.y + CRITICAL_SIZE / 2);
-    // La garra a esa altura: antes la tomaba si quedaba entre los dedos
+  it('la toma de la base (la rendija de la Campana) con la garra a su nivel', () => {
+    const { g, r, m, c } = setup(CRITICAL_HOLDER_RED.y + CRITICAL_SIZE / 2);
     m.target = 4;
-    expect(m.grabCritical([])).toBe(false);
-    expect(m.critical).toBeNull();
-    expect(r.mech.critical).toBeNull();
+    for (let i = 0; i < 4 * 120 && !m.atTarget; i++) m.step(1 / 120, []);
+    // El brazo se movió: se vuelve a poner el cubo entre los dedos
+    const at = r.phys.localToWorld(m.tipX(), 0, 0);
+    g.pieces.place(c, at.x, CRITICAL_HOLDER_RED.y + CRITICAL_SIZE / 2, at.z, 0);
+    expect(m.grabCritical([])).toBe(true);
+    expect(m.critical).toBe(c);
   });
 
-  it('no la toma si está elevada unos centímetros (en la Repisa o sobre algo)', () => {
-    const { m } = setup(CRITICAL_SIZE / 2 + 0.15);
+  it('no la toma si el cubo queda lejos de la garra', () => {
+    const { g, r, m, c } = setup(CRITICAL_SIZE / 2);
+    const at = r.phys.localToWorld(m.tipX() + 1, 0, 0);
+    g.pieces.place(c, at.x, CRITICAL_SIZE / 2, at.z, 0);
     expect(m.grabCritical([])).toBe(false);
-  });
-
-  it('un robot que la toma de la rendija (Psycho) no cambia', () => {
-    expect(intakeOf(robotSpec('cad:psycho')).critFloorOnly).toBeUndefined();
   });
 });
