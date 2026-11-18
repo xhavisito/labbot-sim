@@ -176,7 +176,7 @@ export interface CadModel {
   clawAlongArm?: boolean;
   /**
    * El CAD ya trae los compliants del intake (Hazmat 704: 4 ruedas de 3 in con eje vertical, dos apiladas por lado, en el carro):
-   * se pintan de verde y giran con el intake, y el simulador no les dibuja unos rodillos genéricos encima (Xhavi, 18-nov).
+   * se pintan de negro (como en el CAD) y giran con el intake, y el simulador no les dibuja unos rodillos genéricos encima (Xhavi, 18-nov).
    */
   cadRollers?: boolean;
 }

@@ -374,7 +374,7 @@ export class RobotView {
 
   /**
    * Compliants del CAD (Hazmat 704): las piezas del carro con forma de rueda de 3 in (disco de ~7.6 cm con el eje vertical) a
-   * los costados, y su cubo (el disco chico en el mismo centro). Se pintan de verde, se agrupan por eje y giran con el intake
+   * los costados, y su cubo (el disco chico en el mismo centro). Se pintan de negro (como en el CAD de Xhavi, 18-nov), se agrupan por eje y giran con el intake
    * como los rodillos genéricos (`clawRollers`). Los centros se miden en el sistema del brazo, así que no importa dónde esté el robot.
    */
   private buildCadRollers(arm: THREE.Object3D): void {
@@ -392,8 +392,8 @@ export class RobotView {
       if (sz.x > 0.07 && sz.x < 0.085 && sz.z > 0.07 && sz.z < 0.085 && sz.y > 0.015 && sz.y < 0.035) wheels.push({ mesh: o, c });
       else if (sz.x > 0.015 && sz.x < 0.025 && sz.z > 0.015 && sz.z < 0.025 && sz.y > 0.015 && sz.y < 0.035) hubs.push({ mesh: o, c });
     });
-    const rollerMat = new THREE.MeshStandardMaterial({ color: 0x4fd13c, roughness: 0.55 });
-    const hubGreen = new THREE.MeshStandardMaterial({ color: 0x2f8f25, roughness: 0.6 });
+    const rollerMat = new THREE.MeshStandardMaterial({ color: 0x0d0d0f, roughness: 0.7 });
+    const hubBlack = new THREE.MeshStandardMaterial({ color: 0x1c1c20, roughness: 0.6 });
     for (const w of wheels) {
       const pivot = new THREE.Group();
       pivot.position.copy(w.c);
@@ -402,7 +402,7 @@ export class RobotView {
       pivot.attach(w.mesh);
       for (const h of hubs) {
         if (Math.hypot(h.c.x - w.c.x, h.c.z - w.c.z) > 0.012 || Math.abs(h.c.y - w.c.y) > 0.02) continue;
-        h.mesh.material = hubGreen;
+        h.mesh.material = hubBlack;
         pivot.attach(h.mesh);
       }
       this.clawRollers.push({ mesh: pivot, row: Math.sign(w.c.z) || 1 });

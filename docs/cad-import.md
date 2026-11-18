@@ -131,3 +131,11 @@ node scripts/cad/import.mjs "<STEP>" --name Axiom --mechanism pivot180 --up y --
 ```
 (y no se conserva el JSON nuevo: se restaura el de git; el importador reescribe el `.robot.json`.)
 **Colores:** el STEP solo exporta el gris por defecto de SolidWorks (no hay colores por pieza), así que `--rules` (`scripts/cad/rules/axiom.json`) pinta por nombre de pieza según las capturas del CAD: engranes `WCP-0783/0172` dorados, motores y cajas negros, poleas `HTD` azul oscuro, llantas y catarina negras. SUPUESTO: el color de cada familia; también fija un tope de triángulos para los internos (192 mil en total, 4.6 MB).
+
+## Hazmat 704: ensamble nuevo y colores (18-nov, solo visual)
+`Ensamble del robot 2.STEP` (164 piezas): mismo robot, con los componentes internos (motores CIM y cajas `Toughbox` de la transmisión, poleas, llantas con su `tread`, motor del carro). Solo se regeneró `public/robots/hazmat-704.glb`; `robots/hazmat-704.robot.json` **no cambia** (gameplay, física, reglas e hitboxes igual; el modelo es ~1.2 cm más ancho por lado que la huella).
+```
+node scripts/cad/import.mjs "<STEP>" --name "Hazmat 704" --mechanism elevator --up y --forward -x --floor -0.138 --mass 40 --arm-parts '^(Intake|WCP-0764|Iman Magnetic)' --arm-max-h 0.2 --set arm.pivotX=0.202 --set arm.pivotY=0.4 --set arm.length=0.4 --set arm.speed=3.8 --set arm.stowAngle=-1.5708 --set floorHeight=0.02 --min-diag 0.01 --max-tris 2500 --rules scripts/cad/rules/hazmat-704.json
+git checkout robots/hazmat-704.robot.json   # el importador reescribe el JSON: se restaura el de git
+```
+**Colores:** el STEP no trae colores por pieza, así que `--rules` pinta por nombre (ahora también por el nombre del sólido, `meshNames` en `glb.mjs`): motores CIM, cajas `Toughbox`, `TM Housing`, banda de las llantas, poleas y motor del carro en negro (como en las capturas del CAD de Xhavi). Los 4 compliants (rodillos) son piezas sin nombre dentro de `Intake`: los pinta `RobotView.buildCadRollers` en negro y los anima. SUPUESTO: el tono de cada familia. No se pudo colorear el motor del elevador (arriba de la torre): va dentro de la pieza `Lateral del elevador con motor`.
