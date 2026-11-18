@@ -732,7 +732,10 @@ export class Mechanisms {
     // Pinza (Axiom): la Muestra sale por la boca con el empujón de siempre y sin chocar con el brazo hasta que se aleja
     // (antes caía en el sitio sobre la viga y la placa de la garra y se quedaba trabada, Xhavi 16-nov)
     const pinza = kind === 'sample' && !force && intake.kind === 'pinza';
-    const push = kind === 'sample' && !force && ((intake.kind === 'compliant' && this.grip !== 'precise') || pinza);
+    // Con `spitSpeed` (Hazmat 704) los compliants siempre escupen, aun con el agarre "Preciso" de Ajustes: ese ajuste solo cambia cómo se agarra,
+    // y sin esto la Muestra caía en vertical (Xhavi, 18-nov: "otra vez dispara verticalmente")
+    const spits = intake.spitSpeed !== undefined && intake.kind === 'compliant';
+    const push = kind === 'sample' && !force && ((intake.kind === 'compliant' && (this.grip !== 'precise' || spits)) || pinza);
     const spit = intake.spitSpeed ?? (rollers ? OUTTAKE.spit : intake.rollerSpeed);
     // Garra-caja fija al brazo (Psycho): la Muestra sale de la boca REAL de la caja, donde esté en ese
     // instante, y lleva la velocidad de la boca (robot + giro del chasis + giro del brazo) más la escupida
