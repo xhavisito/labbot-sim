@@ -46,6 +46,8 @@ export class AutoExecutor {
   /** Tramo actual (de `legFrom` a la parada `stage.i`), su reloj y su vigilante. */
   private leg: { traj: Trajectory; t: number; stall: number; over: number } | null = null;
   private legFrom = 0;
+  /** π si el intake va atrás del chasis (Psycho): el frente de la rutina es ese lado. */
+  private readonly back: number;
   /** Siguiente waypoint cuyo cambio de INTAKE ("event marker") falta aplicar. */
   private evNext = 0;
   /** Ruta completa planeada (marco de la alianza) para dibujarla en el campo. */
@@ -56,6 +58,7 @@ export class AutoExecutor {
     readonly routine: DesignedAuto,
     private robots: Robot[],
   ) {
+    this.back = r.spec.arm.pickBack ? Math.PI : 0;
     // Rutinas "de cualquier lado": si sale del lado contrario al de su primer waypoint se reflejan en z
     const zb = r.alliance === 'blue' ? r.phys.position().z : -r.phys.position().z;
     const first = routine.waypoints.find((w) => Math.abs(w.z) > 0.3);
@@ -87,7 +90,9 @@ export class AutoExecutor {
   /** Pose del robot en el marco azul de la rutina. */
   private bluePose(): { x: number; z: number; heading: number } {
     const p = this.r.phys.position();
-    const h = this.r.phys.heading();
+    // El "frente" de la rutina (la flecha del diseñador) es el lado del intake: con el intake atrás
+    // (`ArmSpec.pickBack`, Psycho) es el lado opuesto al del chasis, igual que al manejar (GameSession)
+    const h = this.r.phys.heading() + this.back;
     return this.r.alliance === 'blue' ? { x: p.x, z: p.z, heading: h } : { x: -p.x, z: -p.z, heading: h - Math.PI };
   }
 
@@ -145,7 +150,8 @@ export class AutoExecutor {
       out.intake = false;
       out.elevator = w.score;
       const face = w.heading ?? F.camaraHeading('blue');
-      const want = posDir(r.spec, w.score) > 0 ? face : face + Math.PI;
+      // Anotar: el lado de la punta del brazo (en el chasis) mira a la pared; `+ back` lo pasa al marco del intake
+      const want = (posDir(r.spec, w.score) > 0 ? face : face + Math.PI) + this.back;
       const err = angDiff(want, this.bluePose().heading);
       out.turn = Math.max(-1, Math.min(1, this.omegaTo(want, 0.02) / (r.spec.maxOmega * 0.8)));
       const empty = m.stored.length === 0 && m.critical === null;
@@ -221,7 +227,7 @@ export class AutoExecutor {
     const omega = Math.max(-lim, Math.min(lim, this.omegaTo(want)));
     // Marco azul → mando de tanque: avance = componente sobre el rumbo
     const fwd = vx * Math.cos(me.heading) - vz * Math.sin(me.heading);
-    out.forward = Math.max(-1, Math.min(1, fwd / r.spec.maxSpeed));
+    out.forward = Math.max(-1, Math.min(1, (this.back ? -fwd : fwd) / r.spec.maxSpeed));
     out.turn = Math.max(-1, Math.min(1, omega / (r.spec.maxOmega * 0.8)));
     // ¿Llegó a la parada?
     const w = this.wps[i];
