@@ -22,7 +22,7 @@
  */
 import * as F from '../config/field';
 import { GAME } from '../config/game';
-import { canHoldCritical, critSeat, posDir, posTip, type ElevatorPos } from '../config/robot';
+import { canHoldCritical, canTakeCriticalFromHolder, critSeat, posDir, posTip, type ElevatorPos } from '../config/robot';
 import type { Phase } from '../core/clock';
 import { DAMAGE } from '../core/damage';
 import { rng } from '../core/rng';
@@ -230,6 +230,8 @@ export class Bot {
   private get critDuty(): boolean {
     // Una garra que no abre 20 cm no toma la Crítica (§4.1.1); el constructor de robots lo permite
     if (!canHoldCritical(this.robot.spec)) return false;
+    // La IA solo la busca en la rendija de la Campana: un robot que la toma solo del piso (Axiom) no la intenta
+    if (!canTakeCriticalFromHolder(this.robot.spec)) return false;
     if (this.opts.endgame === 'critical') return true;
     if (this.opts.endgame !== undefined) return false;
     return this.team.critBy === this.robot.index;
