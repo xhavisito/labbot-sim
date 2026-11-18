@@ -116,7 +116,7 @@ export class RobotView {
    * Dedos de la pinza del CAD (Axiom): las piezas `garra`, `side` = costado (+1 = +z, −1 = −z). Se separan o se juntan
    * en z para abrir y cerrar: apertura = `gap` del INTAKE; cerrada = la Muestra (0.15 m) o la Crítica (0.20 m, §4.1.1).
    */
-  private clawFingers: Array<{ group: THREE.Group; q: THREE.Quaternion; dir: number; zHorn: number; r: number }> = [];
+  private clawFingers: Array<{ group: THREE.Group; q: THREE.Quaternion; dir: number; /** Vértices de la rama que aprieta respecto a la flecha (a lo largo del brazo, a lo ancho hacia afuera) y su distancia al centro. */ pz: number; horn: Array<[number, number]> }> = [];
   private qTmp = new THREE.Quaternion();
   /** Dedos de la garra fija de la Crítica (Psycho): cada uno gira sobre su eje vertical; `side` = costado (+1 = +z). */
   private critFingers: Array<{ g: THREE.Group; side: number }> = [];
@@ -470,12 +470,12 @@ export class RobotView {
    * en el CAD; se pone detrás de la rama para que 23° la lleven a la cara de la Muestra y apretarla).
    */
   private stretchArm(arm: THREE.Object3D, stow: number, dl: number): void {
-    const isClaw = (o: THREE.Object3D) => /^garra(_\d+)?$/i.test(o.name);
+    const isClaw = (o: THREE.Object3D) => /^(garra|spacers[_ ]garra)(_\d+)?$/i.test(o.name);
     const U = new THREE.Vector3(Math.cos(stow), Math.sin(stow), 0);
     // Donde empieza la garra a lo largo del brazo (fin del brazo en el CAD)
     let uEnd = Infinity;
     for (const o of arm.children) {
-      if (!(o instanceof THREE.Mesh) || !isClaw(o)) continue;
+      if (!(o instanceof THREE.Mesh) || !/^garra(_\d+)?$/i.test(o.name)) continue;
       const a = o.geometry.getAttribute('position');
       for (let k = 0; k < a.count; k++) uEnd = Math.min(uEnd, new THREE.Vector3().fromBufferAttribute(a, k).dot(U));
     }
@@ -505,39 +505,63 @@ export class RobotView {
     // Ejes de la garra en el sistema del brazo: U a lo largo del brazo, V perpendicular (arriba con el brazo a `stow`), Z a lo ancho
     const U = new THREE.Vector3(Math.cos(stow), Math.sin(stow), 0);
     const V = new THREE.Vector3(-Math.sin(stow), Math.cos(stow), 0);
-    const P0 = new THREE.Vector3();
     const verts = (m: THREE.Mesh): THREE.Vector3[] => {
       const a = m.geometry.getAttribute('position');
       return Array.from({ length: a.count }, (_, k) => new THREE.Vector3().fromBufferAttribute(a, k));
     };
+    // Flechas (ejes verticales) en las que giran los dedos y los separadores que los unen: del CAD (Xhavi, 18-nov)
+    const shafts: THREE.Mesh[] = [];
+    const spacers: THREE.Mesh[] = [];
+    arm.traverse((o) => {
+      if (!(o instanceof THREE.Mesh)) return;
+      if (/^flecha[_ ]posterior/i.test(o.name)) shafts.push(o);
+      else if (/^spacers[_ ]garra/i.test(o.name)) spacers.push(o);
+    });
+    const zMid = (m: THREE.Mesh) => {
+      m.geometry.computeBoundingBox();
+      return (m.geometry.boundingBox!.min.z + m.geometry.boundingBox!.max.z) / 2;
+    };
+    const center = (m: THREE.Mesh) => m.geometry.boundingBox!.getCenter(new THREE.Vector3());
     for (const side of [1, -1]) {
-      const mine = meshes.filter((m) => Math.sign((m.geometry.boundingBox!.min.z + m.geometry.boundingBox!.max.z) / 2) === side);
+      const mine = meshes.filter((m) => Math.sign(zMid(m)) === side);
       if (!mine.length) return;
       const vs = mine.flatMap(verts);
       const horn = vs.filter((v) => Math.abs(v.z) > 0.1); // la rama que aprieta (las otras son la base)
-      const zHorn = Math.min(...horn.map((v) => Math.abs(v.z)));
-      const uTip = Math.max(...horn.map((v) => v.dot(U)));
       const vMid = vs.reduce((acc, v) => acc + v.dot(V), 0) / vs.length;
-      // Radio para que PINZA_DEG lleve la rama de zHorn a la cara de la Muestra (SAMPLE_SIZE / 2)
-      const r = (zHorn - SAMPLE_SIZE / 2) / Math.sin((PINZA_DEG * Math.PI) / 180);
-      const pivot = P0.copy(U).multiplyScalar(uTip - r).addScaledVector(V, vMid).add(new THREE.Vector3(0, 0, side * zHorn)).clone();
+      // La bisagra es la flecha del CAD de ese costado que cae dentro de los dedos (la más cercana a la rama): así los dedos
+      // giran sobre su flecha y no se salen de ella. Sin flecha en el modelo, una bisagra detrás de la rama (SUPUESTO).
+      const uMin = Math.min(...vs.map((v) => v.dot(U)));
+      const uMax = Math.max(...vs.map((v) => v.dot(U)));
+      const cands = shafts.filter((m) => Math.sign(zMid(m)) === side && center(m).dot(U) >= uMin - 0.03 && center(m).dot(U) <= uMax);
+      const sh = cands.sort((a, b) => Math.abs(center(b).z) - Math.abs(center(a).z))[0]; // la más afuera
+      const pivot = new THREE.Vector3();
+      if (sh) {
+        const c = center(sh);
+        pivot.copy(U).multiplyScalar(c.dot(U)).addScaledVector(V, vMid).add(new THREE.Vector3(0, 0, c.z));
+      } else {
+        const uTip = Math.max(...horn.map((v) => v.dot(U)));
+        const zHorn = Math.min(...horn.map((v) => Math.abs(v.z)));
+        const r = (zHorn - SAMPLE_SIZE / 2) / Math.sin((PINZA_DEG * Math.PI) / 180);
+        pivot.copy(U).multiplyScalar(uTip - r).addScaledVector(V, vMid).add(new THREE.Vector3(0, 0, side * zHorn));
+      }
       const q = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), V);
       const qInv = q.clone().invert();
       const group = new THREE.Group();
       group.position.copy(pivot).addScaledVector(U, dl); // la garra recorrida `dl` a lo largo del brazo
       group.quaternion.copy(q);
       arm.add(group);
-      for (const m of mine) {
+      // Los dedos y sus separadores (SPACERS GARRA, entre las placas) giran juntos: antes los separadores se quedaban flotando
+      for (const m of [...mine, ...spacers.filter((m) => Math.sign(zMid(m)) === side)]) {
         // Que la pieza siga en su sitio: pos_local = q⁻¹ (pos_brazo − P)
         m.position.copy(pivot).negate().applyQuaternion(qInv);
         m.quaternion.copy(qInv);
         group.add(m);
       }
-      // Signo del giro hacia adentro: el que acerca la punta de la rama al centro
-      const tip = new THREE.Vector3().copy(U).multiplyScalar(uTip).addScaledVector(V, vMid).add(new THREE.Vector3(0, 0, side * zHorn));
+      // Signo del giro hacia adentro: el que acerca la rama al centro
+      const tip = horn.reduce((best, v) => (v.dot(U) > best.dot(U) ? v : best), horn[0]);
       const rot = (ang: number) => tip.clone().sub(pivot).applyAxisAngle(V, ang).add(pivot);
       const dir = Math.abs(rot(0.2).z) < Math.abs(rot(-0.2).z) ? 1 : -1;
-      this.clawFingers.push({ group, q, dir, zHorn, r });
+      this.clawFingers.push({ group, q, dir, pz: Math.abs(pivot.z), horn: horn.map((v) => [v.clone().sub(pivot).dot(U), (v.z - pivot.z) * side] as [number, number]) });
     }
     // La Muestra va entre los dedos: el centro de las piezas `garra` (con el eje del brazo en el origen) en el sistema de
     // la garra, que está a `arm.length` del eje (`claw.position`) y gira con el brazo: p − L·(cos, sin)(ángulo del CAD)
@@ -580,11 +604,17 @@ export class RobotView {
     for (const f of this.critFingers) f.g.rotation.y = f.side * ((this.critNow * Math.PI) / 180);
   }
 
-  /** Grados que hay que girar cada dedo para que su rama quede a `zTarget` del centro (arcsin; tope 40°). */
+  /** Grados que hay que girar cada dedo sobre su flecha para que su rama quede a `zTarget` del centro (tope 40°). */
   private fingerDeg(zTarget: number): number {
     const f = this.clawFingers[0];
     if (!f) return 0;
-    return Math.min(40, (Math.asin(Math.max(0, Math.min(1, (f.zHorn - zTarget) / f.r))) * 180) / Math.PI);
+    for (let d = 0; d <= 40; d += 0.25) {
+      const a = (d * Math.PI) / 180;
+      const c = Math.cos(a);
+      const sn = Math.sin(a);
+      if (Math.min(...f.horn.map(([du, dz]) => f.pz + dz * c - du * sn)) <= zTarget) return d;
+    }
+    return 40;
   }
 
   /**
