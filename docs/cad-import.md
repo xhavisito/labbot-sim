@@ -139,3 +139,10 @@ node scripts/cad/import.mjs "<STEP>" --name "Hazmat 704" --mechanism elevator --
 git checkout robots/hazmat-704.robot.json   # el importador reescribe el JSON: se restaura el de git
 ```
 **Colores:** el STEP no trae colores por pieza, así que `--rules` pinta por nombre (ahora también por el nombre del sólido, `meshNames` en `glb.mjs`): motores CIM, cajas `Toughbox`, `TM Housing`, banda de las llantas, poleas y motor del carro en negro (como en las capturas del CAD de Xhavi). Los 4 compliants (rodillos) son piezas sin nombre dentro de `Intake`: los pinta `RobotView.buildCadRollers` en negro y los anima. SUPUESTO: el tono de cada familia. No se pudo colorear el motor del elevador (arriba de la torre): va dentro de la pieza `Lateral del elevador con motor`.
+
+## Psycho: componentes internos y colores (18-nov, solo visual)
+`EnsambleGeneral 3.STEP` nuevo (149 piezas): trae lo mismo de antes más los componentes internos (motores `Kraken X60`, cajas `Versa5-1`/`VersaInput`/`VersaOuput`). El envolvente (x −0.491…0.32, y hasta 0.975, z ±0.33), el chasis, el brazo y la garra quedan en las mismas coordenadas: solo se regeneró `public/robots/psycho.glb`; `robots/psycho.robot.json` (huella, hitboxes, brazo, supuestos) **no cambia** (el importador lo reescribe: se restaura el de git). Los rodillos verdes los dibuja el simulador (no están en el GLB) y siguen igual.
+```
+node scripts/cad/import.mjs "<STEP>" --name Psycho --up y --forward +x --mechanism pivot --mass 40 --floor -0.09525 --skip '^(6 wheel|Llanta)' --arm-parts '^(Brazo|Garra|Soporte-BrazoGarra|Sprocket|Flecha 25|CosadelSprocket)' --rules scripts/cad/rules/psycho.json
+```
+**Colores:** el STEP solo trae el gris por defecto de SolidWorks; `scripts/cad/rules/psycho.json` pinta por nombre según las capturas del CAD: motores Kraken y cajas CIM negros, cajas Versa gris oscuro; las placas quedan grises. SUPUESTO: el tono de cada familia.
