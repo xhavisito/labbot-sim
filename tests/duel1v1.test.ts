@@ -82,7 +82,7 @@ describe('1 contra 1: match con dos robots', () => {
     run(g, 60); // pasa de 60 s en total
     expect(g.match!.finished).toBe(true);
     expect(g.match!.t).toBeLessThan(62);
-  });
+  }, 60000); // simula 76 s de match: con el CI cargado pasaba de los 5 s por defecto
 
   it('también con las estaciones 1 y 3 (en 2 contra 2 siguen los 4)', () => {
     const g = make([1, 3]);
