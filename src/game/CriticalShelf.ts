@@ -2,7 +2,7 @@
  * Repisa (base) de la Muestra Crítica en la rendija de la Zona de Alimentación (§3.2.4).
  * Mide solo un poco más que la Muestra Crítica (SUPUESTO, ver CRITICAL_SHELF_LENGTH) y el Human
  * Player la desliza a lo largo de la pared (D39) para centrarla con su robot: la repisa va con la pieza.
- * Cuerpo cinemático de Rapier.
+ * Cuerpo fijo de Rapier que se reubica (teleport) junto con la pieza.
  */
 import * as F from '../config/field';
 import { criticalShelfBox } from '../config/fieldLayout';
@@ -23,7 +23,7 @@ export class CriticalShelf {
   ) {
     const b = criticalShelfBox();
     const p = this.worldPos();
-    this.body = pw.world.createRigidBody(RAPIER.RigidBodyDesc.kinematicPositionBased().setTranslation(p.x, b.cy, p.z));
+    this.body = pw.world.createRigidBody(RAPIER.RigidBodyDesc.fixed().setTranslation(p.x, b.cy, p.z));
     const c = pw.world.createCollider(RAPIER.ColliderDesc.cuboid(b.hx, b.hy, b.hz).setFriction(MDF_FRICTION + 0.4).setCollisionGroups(GROUPS.field), this.body);
     pw.tag(c, { kind: 'field', part: 'criticalHolder', alliance });
   }
@@ -53,6 +53,6 @@ export class CriticalShelf {
 
   private sync(): void {
     const p = this.worldPos();
-    this.body.setNextKinematicTranslation({ x: p.x, y: criticalShelfBox().cy, z: p.z });
+    this.body.setTranslation({ x: p.x, y: criticalShelfBox().cy, z: p.z }, true);
   }
 }
