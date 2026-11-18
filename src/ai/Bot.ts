@@ -730,7 +730,7 @@ export class Bot {
         const endgameAt = GAME.times.endgame;
         // Lo último para tomarla y llegar a la Repisa (desde la Campana, con margen)
         const latest = this.eta(stage, this.foot()) + 8 + this.climbMargin();
-        const goNow = timeLeft < endgameAt + this.eta(pos, stage) + 1;
+        const goNow = timeLeft < endgameAt + this.eta(pos, stage) + 11;
         if (goNow) {
           // Si trae Muestras y le da tiempo, primero las anota
           const scoreFirst = n > 0 && timeLeft - (this.eta(pos, home) + this.scoreTime(n) + this.eta(home, stage)) > latest;
@@ -747,7 +747,7 @@ export class Bot {
     // ¿Le alcanza el tiempo para seguir anotando antes de subir?
     const climbFromHome = this.climbs ? this.climbEta(home) : 0;
     const critBusy = this.critDuty && !this.criticalDone;
-    const reserve = critBusy ? GAME.times.endgame + this.eta(home, this.critStage()) + 1 : climbFromHome;
+    const reserve = critBusy ? GAME.times.endgame + this.eta(home, this.critStage()) + 11 : climbFromHome;
     if (this.climbs && !critBusy && timeLeft < this.climbEta(pos) + (n > 0 && this.mode === 'score' ? 0 : 0.5)) {
       this.mode = 'climb';
       return;
