@@ -311,6 +311,14 @@ export class GameSession {
     }
   }
 
+  /** Termina el match ya (la prueba de AUTO acaba al terminar el periodo, sin evaluar la Plataforma). */
+  endNow(): void {
+    const m = this.match;
+    if (!m || m.finished) return;
+    m.finish({ red: 0, blue: 0 }, { red: false, blue: false });
+    this.record(m, m.tick(0));
+  }
+
   /** Empieza un match nuevo de 150 s desde el acomodo inicial. */
   startMatch(): void {
     if (this.opts.solo) throw new Error('una sesión solo es de práctica: el match necesita los 4 robots');
