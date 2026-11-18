@@ -69,8 +69,12 @@ export async function stepToGlb(stepPath, o) {
   const { ex, ey, ez, origin } = o.frame;
   const minDiag = o.minDiag ?? 0.035;
   const maxTris = o.maxTrisPerPart ?? 2500;
+  const rules = (o.rules ?? []).map((r) => ({ re: new RegExp(r.match, 'i'), color: r.color, maxTris: r.maxTris }));
   const mats = new Map();
-  const matOf = (c) => {
+  const matOf = (c, name) => {
+    // `rules`: color por nombre de pieza cuando el STEP no trae color (SolidWorks solo exporta el gris por defecto)
+    const rule = rules.find((r) => r.re.test(name));
+    if (rule?.color) c = rule.color;
     // El gris azulado por defecto de SolidWorks (0.59, 0.64, 0.85) se vuelve gris claro neutro
     const isDefault = c && Math.abs(c[0] - 0.59) < 0.02 && Math.abs(c[1] - 0.64) < 0.02 && Math.abs(c[2] - 0.855) < 0.02;
     const col = c && !isDefault ? c.map((v) => Math.round(v * 255) / 255) : [0.78, 0.79, 0.8];
@@ -113,15 +117,16 @@ export async function stepToGlb(stepPath, o) {
     if (diag < minDiag && !isArm) return; // tornillos, rondanas…
     // Las placas (estructura) no se simplifican: con huecos se deforman; solo motores, engranes y demás
     const structural = /^(chasis|pivote|brazo|garra|soporte|flecha)/i.test(names[i]);
-    if (!structural && idx.length / 3 > maxTris) {
+    const partMax = rules.find((r) => r.maxTris !== undefined && r.re.test(names[i]))?.maxTris ?? maxTris;
+    if (!structural && idx.length / 3 > partMax) {
       let cell = diag / 40;
       for (let k = 0; k < 12; k++) {
         const c = cluster(posA, idx, cell);
-        if (c.idx.length / 3 <= maxTris) { posA = c.pos; idx = c.idx; nrmA = null; break; }
+        if (c.idx.length / 3 <= partMax) { posA = c.pos; idx = c.idx; nrmA = null; break; }
         cell *= 1.35;
       }
     }
-    parts.push({ name: names[i], arm: isArm, nrm: nrmA, pos: Float32Array.from(posA), idx, mat: matOf(m.color), tris: idx.length / 3, mn, mx });
+    parts.push({ name: names[i], arm: isArm, nrm: nrmA, pos: Float32Array.from(posA), idx, mat: matOf(m.color, names[i]), tris: idx.length / 3, mn, mx });
   });
 
   // El brazo se guarda con el origen en el pivote
