@@ -46,24 +46,10 @@ describe('física de cancha y piezas', () => {
     expect(t.x).toBeCloseTo(F.CRITICAL_HOLDER_RED.x, 1);
   });
 
-  it('la repisa de la Crítica mide poco más que la pieza y la lleva al deslizarse', () => {
+  it('la repisa de la Crítica mide poco más que la pieza (no todo el largo de la Campana)', () => {
     expect(F.CRITICAL_SHELF_LENGTH).toBeGreaterThan(F.CRITICAL_SIZE);
     expect(F.CRITICAL_SHELF_LENGTH).toBeLessThan(F.CRITICAL_SIZE + 0.1);
     expect(F.CRITICAL_SHELF_LENGTH).toBeLessThan(F.CAMPANA_LENGTH / 4);
-    const pw = new PhysicsWorld(120);
-    buildFieldColliders(pw);
-    const shelf = new CriticalShelf('red', pw);
-    const pieces = new Pieces(pw);
-    pieces.reset();
-    const target = F.CRITICAL_SHELF_X_RANGE[0] + 0.1;
-    for (let i = 0; i < 6 * 120; i++) {
-      shelf.step(1 / 120, target);
-      pw.step();
-    }
-    expect(shelf.x).toBeCloseTo(target, 2);
-    const t = pieces.critical('red').body.translation();
-    expect(t.y).toBeGreaterThan(F.CAMPANA_HEIGHT);
-    expect(t.x).toBeCloseTo(target, 1);
   });
 
   it('una Muestra soltada sobre el Nivel 3 cae dentro del pozo, abajo de la apertura', () => {

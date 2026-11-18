@@ -1,0 +1,11 @@
+[
+  {"match": "^CIM Motor", "color": [0.07, 0.07, 0.08], "maxTris": 2500},
+  {"match": "^Toughbox", "color": [0.1, 0.1, 0.11], "maxTris": 2500},
+  {"match": "^TM Housing", "color": [0.1, 0.1, 0.11], "maxTris": 2500},
+  {"match": "^6 wheel tread", "color": [0.06, 0.06, 0.065], "maxTris": 3000},
+  {"match": "^Polea 42", "color": [0.08, 0.08, 0.09], "maxTris": 2500},
+  {"match": "^WCP-0764", "color": [0.07, 0.07, 0.08], "maxTris": 3000},
+  {"match": "^Case_BottomCover", "color": [0.08, 0.08, 0.09], "maxTris": 2500},
+  {"match": "^Elevador$", "box": [0.01, 0.97, 0.16, 0.03, 0.99, 0.18], "color": [0.07, 0.07, 0.08], "maxTris": 2500},
+  {"match": "^Elevador$", "box": [0.05, 0.95, 0.125, 0.07, 0.97, 0.14], "color": [0.86, 0.66, 0.18], "maxTris": 2500}
+]

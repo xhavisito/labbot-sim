@@ -49,6 +49,21 @@ export interface GameConfig {
   };
 }
 
+/**
+ * Duración total del match en 1 contra 1 / 2 jugadores (SUPUESTO del simulador: el manual fija 15 s
+ * + 135 s = 150 s, §2 y §4.3; aquí se puede acortar o alargar el TELEOP). El AUTO sigue en 15 s y el
+ * ENDGAME en los últimos 30 s. 150 s = el reglamento.
+ */
+export const MATCH_DURATIONS = [60, 90, 120, 150, 180, 240] as const;
+export const DEFAULT_DURATION = 150;
+
+/** Config del juego con otra duración total (el TELEOP es lo que cambia); 150 s devuelve `GAME` tal cual. */
+export function gameWithDuration(total: number, base: GameConfig = GAME): GameConfig {
+  const d = MATCH_DURATIONS.find((x) => x === total) ?? DEFAULT_DURATION;
+  if (d === base.times.auto + base.times.autoToTeleopPause + base.times.teleop) return base;
+  return { ...base, times: { ...base.times, teleop: d - base.times.auto - base.times.autoToTeleopPause } };
+}
+
 export const GAME: GameConfig = {
   times: { auto: 15, teleop: 135, endgame: 30, autoToTeleopPause: 0 },
   points: {

@@ -1,8 +1,8 @@
 /**
  * Repisa (base) de la Muestra Crítica en la rendija de la Zona de Alimentación (§3.2.4).
  * Mide solo un poco más que la Muestra Crítica (SUPUESTO, ver CRITICAL_SHELF_LENGTH) y el Human
- * Player la desliza a lo largo de la pared para centrarla con su robot, que solo puede tomar la
- * Crítica en el endgame (§4.1.1). Cuerpo cinemático de Rapier; la pieza viaja por fricción.
+ * Player la desliza a lo largo de la pared (D39) para centrarla con su robot: la repisa va con la pieza.
+ * Cuerpo cinemático de Rapier.
  */
 import * as F from '../config/field';
 import { criticalShelfBox } from '../config/fieldLayout';
@@ -15,7 +15,6 @@ export class CriticalShelf {
   x = F.CRITICAL_HOLDER_RED.x;
   /** Posición X anterior (para interpolar el dibujo). */
   prevX = this.x;
-  private vel = 0;
   private body: RAPIER.RigidBody;
 
   constructor(
@@ -41,23 +40,14 @@ export class CriticalShelf {
 
   reset(): void {
     this.x = this.prevX = F.CRITICAL_HOLDER_RED.x;
-    this.vel = 0;
     this.sync();
   }
 
-  /** Desliza la repisa hacia `targetX` (marco rojo), con aceleración y velocidad limitadas. */
-  step(dt: number, targetX: number): void {
+  /** Mueve la repisa junto con la pieza que el HP deslizó `dx` m en X del mundo (D39). */
+  shift(dx: number): void {
     this.prevX = this.x;
-    const [lo, hi] = F.CRITICAL_SHELF_X_RANGE;
-    const goal = Math.min(hi, Math.max(lo, targetX));
-    const err = goal - this.x;
-    // Velocidad deseada: frena a tiempo para llegar sin pasarse
-    const brake = Math.sqrt(2 * F.CRITICAL_SHELF_ACCEL * Math.abs(err));
-    const want = Math.sign(err) * Math.min(F.CRITICAL_SHELF_SPEED, brake);
-    const dv = F.CRITICAL_SHELF_ACCEL * dt;
-    this.vel += Math.max(-dv, Math.min(dv, want - this.vel));
-    if (Math.abs(err) < 1e-3 && Math.abs(this.vel) < dv) this.vel = 0;
-    this.x = Math.min(hi, Math.max(lo, this.x + this.vel * dt));
+    if (dx === 0) return;
+    this.x += this.alliance === 'red' ? dx : -dx;
     this.sync();
   }
 
