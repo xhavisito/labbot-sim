@@ -174,6 +174,11 @@ export interface CadModel {
    * los colisionadores de la garra giran con el brazo igual que el dibujo y la Muestra queda centrada en la punta.
    */
   clawAlongArm?: boolean;
+  /**
+   * El CAD ya trae los compliants del intake (Hazmat 704: 4 ruedas de 3 in con eje vertical, dos apiladas por lado, en el carro):
+   * se pintan de verde y giran con el intake, y el simulador no les dibuja unos rodillos genéricos encima (Xhavi, 18-nov).
+   */
+  cadRollers?: boolean;
 }
 
 /**
@@ -235,6 +240,12 @@ export interface IntakeSpec {
    * la segunda detrás de ella (`seatX`).
    */
   rollers?: boolean;
+  /**
+   * Velocidad (m/s, respecto al robot) con la que la garra escupe la Muestra al soltarla, en vez de la de `OUTTAKE.spit`.
+   * Hazmat 704 (Xhavi, 18-nov: "las suelta muy en vertical, se supone que las escupe"): los compliants la sacan hacia adelante.
+   * SUPUESTO de simulación (el manual no dice nada de mecanismos, §7.2).
+   */
+  spitSpeed?: number;
   /**
    * Sin mecanismo para la Muestra Crítica (Psycho no lo tenía, Xhavi 13-nov; desde el 16-nov tiene `critClaw`): no la toma, no la
    * cuenta como suya y la IA y el HUD lo tratan así. Quitar la bandera la vuelve a activar.

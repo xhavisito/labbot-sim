@@ -731,7 +731,7 @@ export class Mechanisms {
     // (antes caía en el sitio sobre la viga y la placa de la garra y se quedaba trabada, Xhavi 16-nov)
     const pinza = kind === 'sample' && !force && intake.kind === 'pinza';
     const push = kind === 'sample' && !force && ((intake.kind === 'compliant' && this.grip !== 'precise') || pinza);
-    const spit = rollers ? OUTTAKE.spit : intake.rollerSpeed;
+    const spit = intake.spitSpeed ?? (rollers ? OUTTAKE.spit : intake.rollerSpeed);
     // Garra-caja fija al brazo (Psycho): la Muestra sale de la boca REAL de la caja, donde esté en ese
     // instante, y lleva la velocidad de la boca (robot + giro del chasis + giro del brazo) más la escupida
     // a lo largo de la boca (Xhavi, 13-nov: "que las escupa desde la posición que se encuentre el gripper").

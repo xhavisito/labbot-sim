@@ -211,7 +211,7 @@ export class RobotView {
     // y a 10.6 cm del centro. Cada flecha lleva dos ruedas (abajo y arriba) que aprietan la Muestra ~1 cm
     // por los costados. Solo dibujo: la física de los rodillos está en `Mechanisms.runRollers`.
     // Axiom (pinza) no lleva rodillos: su garra del CAD abre y cierra (`clawFingers`); Phoenix (lanzador) tampoco: sus rodillos son los horizontales del lanzador (Xhavi, 17-nov)
-    if ((s.model || intakeOf(s).rollers) && intakeOf(s).kind !== 'pinza' && !intakeOf(s).shooter) {
+    if ((s.model || intakeOf(s).rollers) && !s.model?.cadRollers && intakeOf(s).kind !== 'pinza' && !intakeOf(s).shooter) {
       const rollerMat = new THREE.MeshStandardMaterial({ color: 0x4fd13c, roughness: 0.55 });
       const hubMat = new THREE.MeshStandardMaterial({ color: 0x2f8f25, roughness: 0.6 });
       const axleMat = new THREE.MeshStandardMaterial({ color: 0x222222, roughness: 0.4, metalness: 0.6 });
@@ -360,6 +360,7 @@ export class RobotView {
     // Flechas (ejes) del CAD: negras en todos los robots
     // Antes de colgarla del robot: los centros se miden en el sistema del modelo (la sesión ya movió `this.group` a su lugar)
     this.buildShooterRollers(scene);
+    if (m.cadRollers && arm) this.buildCadRollers(arm);
     this.group.add(scene);
     this.group.traverse((o) => {
       if (o instanceof THREE.Mesh && /flecha/i.test(nodeName(o))) o.material = SHAFT_MAT; // incluye el brazo (`this.arm`)
@@ -369,6 +370,43 @@ export class RobotView {
     for (const g of this.generic) g.visible = false;
     // Placas con la estación: pegadas a los costados del chasis real
     for (const p of this.numPlates) p.position.z = Math.sign(p.position.z) * (width / 2 + 0.002);
+  }
+
+  /**
+   * Compliants del CAD (Hazmat 704): las piezas del carro con forma de rueda de 3 in (disco de ~7.6 cm con el eje vertical) a
+   * los costados, y su cubo (el disco chico en el mismo centro). Se pintan de verde, se agrupan por eje y giran con el intake
+   * como los rodillos genéricos (`clawRollers`). Los centros se miden en el sistema del brazo, así que no importa dónde esté el robot.
+   */
+  private buildCadRollers(arm: THREE.Object3D): void {
+    arm.updateWorldMatrix(true, true);
+    const inv = new THREE.Matrix4().copy(arm.matrixWorld).invert();
+    const wheels: Array<{ mesh: THREE.Mesh; c: THREE.Vector3 }> = [];
+    const hubs: Array<{ mesh: THREE.Mesh; c: THREE.Vector3 }> = [];
+    arm.traverse((o) => {
+      if (!(o instanceof THREE.Mesh)) return;
+      o.geometry.computeBoundingBox();
+      const b = o.geometry.boundingBox!.clone().applyMatrix4(inv.clone().multiply(o.matrixWorld));
+      const sz = b.getSize(new THREE.Vector3());
+      const c = b.getCenter(new THREE.Vector3());
+      if (Math.abs(c.z) < 0.09) return; // solo los compliants de los costados (z ≈ ±0.10)
+      if (sz.x > 0.07 && sz.x < 0.085 && sz.z > 0.07 && sz.z < 0.085 && sz.y > 0.015 && sz.y < 0.035) wheels.push({ mesh: o, c });
+      else if (sz.x > 0.015 && sz.x < 0.025 && sz.z > 0.015 && sz.z < 0.025 && sz.y > 0.015 && sz.y < 0.035) hubs.push({ mesh: o, c });
+    });
+    const rollerMat = new THREE.MeshStandardMaterial({ color: 0x4fd13c, roughness: 0.55 });
+    const hubGreen = new THREE.MeshStandardMaterial({ color: 0x2f8f25, roughness: 0.6 });
+    for (const w of wheels) {
+      const pivot = new THREE.Group();
+      pivot.position.copy(w.c);
+      arm.add(pivot);
+      w.mesh.material = rollerMat;
+      pivot.attach(w.mesh);
+      for (const h of hubs) {
+        if (Math.hypot(h.c.x - w.c.x, h.c.z - w.c.z) > 0.012 || Math.abs(h.c.y - w.c.y) > 0.02) continue;
+        h.mesh.material = hubGreen;
+        pivot.attach(h.mesh);
+      }
+      this.clawRollers.push({ mesh: pivot, row: Math.sign(w.c.z) || 1 });
+    }
   }
 
   /**

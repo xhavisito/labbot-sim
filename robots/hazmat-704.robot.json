@@ -82,9 +82,10 @@
       0.615
     ],
     "intake": {
-      "gap": 0.16,
+      "gap": 0.24,
       "fingerLength": 0.21,
       "rollers": true,
+      "spitSpeed": 2.5,
       "noCritical": true
     },
     "hitboxes": [
@@ -195,7 +196,7 @@
     "DEL CAD: torre del elevador de 0.9 m de alto entre dos placas separadas 0.4 m, con el carro del intake corriendo por su cara de enfrente (placas contra el carrito, placas a cadena) y los motores arriba; el robot mide 1.013 m de alto (> 100 cm, §7.2: lo dice el CAD, el menú lo marca con ⚠)",
     "DEL CAD: intake = caja de 0.253 m de fondo y 0.41 m de ancho con 4 compliants de 3 in de eje vertical (2 por lado, apilados) a 0.2 m entre centros (claro entre ruedas 0.127 m, menos que la Muestra de 0.15 m: la aprietan); a 5.6–16.4 cm del piso en la pose del CAD, que es el carro abajo (el imán del carro frente al sensor de límite inferior)",
     "DEL CAD: recorrido del carro ≈ 0.80 m (distancia entre el sensor de límite inferior, y −0.043…−0.001 m, y el superior, y 0.757…0.799 m); en el simulador la punta va de 0 a 0.8 m del piso (`arm.linear`, pivotY 0.4 y largo 0.4)",
-    "SUPUESTO: la Muestra se recoge del piso al frente con los compliants (garra-caja con rodillos como la de Psycho, `intake.rollers`); apertura de la garra 0.16 m (el simulador necesita que quepa la Muestra de 0.15 m, no el claro de 0.127 m con el que aprietan las ruedas) y 0.21 m de fondo (las placas del CAD miden 0.253 m, pero el carro abraza los tubos de la torre: el fondo útil es hasta su cara de enfrente, a 0.091 m del centro) y centrada en x 0.202 m",
+    "SUPUESTO: la Muestra se recoge del piso al frente con los compliants (garra-caja con rodillos como la de Psycho, `intake.rollers`); apertura de la garra 0.24 m (antes 0.16 m: con 5 mm de holgura los dedos empujaban la Muestra si llegaba con 1 cm de desvío y era casi imposible recogerla, Xhavi 18-nov; el intake real mide 0.41 m de ancho y los compliants la centran; no es el claro de 0.127 m con el que aprietan las ruedas) y 0.21 m de fondo (las placas del CAD miden 0.253 m, pero el carro abraza los tubos de la torre: el fondo útil es hasta su cara de enfrente, a 0.091 m del centro) y centrada en x 0.202 m",
     "SUPUESTO: capacidad 1 (los compliants están solo en la boca del intake: el CAD no muestra dónde queda una segunda Muestra); sin mecanismo para la Muestra Crítica (el claro entre ruedas es de 0.127 m y no hay garra aparte en el CAD: `noCritical`)",
     "SUPUESTO: alturas de la punta (fondo de la Muestra) en N1 y N2 = 0.26 / 0.61 m (las del preset de elevador; el CAD no trae niveles) y en N3 = 0.80 m, el tope del recorrido del carro; la rendija de la Campana a 0.615 m; en el piso 0.02 m",
     "SUPUESTO: velocidad del carro 3.8 (la del preset de elevador, ≈0.97 m/s de recorrido); el elevador empieza abajo, con el intake dentro del perímetro (§4.1); el CAD no trae motores con rpm ni reducciones",
@@ -206,6 +207,7 @@
   "model": {
     "url": "robots/hazmat-704.glb",
     "tint": "^(Placa trasera|Unión del chasis)$",
-    "staticWheels": true
+    "staticWheels": true,
+    "cadRollers": true
   }
 }

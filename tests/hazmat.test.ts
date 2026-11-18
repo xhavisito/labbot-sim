@@ -22,6 +22,8 @@ describe('Hazmat 704: robot del CAD', () => {
     expect(H().mechanism).toBe('elevator');
     expect(H().arm.linear).toBe(true);
     expect(H().model?.url).toBe('robots/hazmat-704.glb');
+    // Los compliants son los del STEP (verdes y girando): no se dibujan rodillos genéricos encima (Xhavi, 18-nov)
+    expect(H().model?.cadRollers).toBe(true);
   });
 
   it('medidas del CAD: 0.654 × 0.65 m, 4 llantas de 6 in y recorrido del carro de 0.8 m', () => {
@@ -69,6 +71,37 @@ describe('Hazmat 704: juega', () => {
     }
   });
 
+  it('al soltar escupe la Muestra hacia adelante y cae fuera del chasis, en cada nivel', () => {
+    const P = H();
+    // Borde delantero del chasis (CAD) + medio lado de la Muestra: más cerca que esto cae sobre el robot o a sus pies
+    const clear = P.length / 2 + SAMPLE_SIZE / 2;
+    for (const level of [1, 2, 3] as const) {
+      const g = new GameSession({ player: 0, preload: true, specs: [P] });
+      const m = g.player.mech;
+      g.player.phys.teleport(1.0, -1.2, 0); // piso plano (en el centro del campo hay rampas)
+      for (let i = 0; i < 4 * 120; i++) {
+        g.setInput({ ...emptyInput(), elevator: level });
+        g.step();
+      }
+      expect(m.inClaw).toBe(true);
+      const piece = m.stored[m.stored.length - 1];
+      const x0 = g.player.phys.position().x;
+      g.setInput({ ...emptyInput(), elevator: level, releaseSample: true });
+      g.step();
+      expect(m.inClaw).toBe(false);
+      const v = piece.body.linvel();
+      // Hacia adelante del robot (+x, rumbo 0) a 2.5 m/s: mucho más horizontal que vertical
+      expect(v.x).toBeGreaterThan(2.3);
+      expect(Math.abs(v.y)).toBeLessThan(0.5);
+      for (let i = 0; i < 3 * 120; i++) {
+        g.setInput({ ...emptyInput(), elevator: level });
+        g.step();
+      }
+      // Ya en reposo, la Muestra quedó delante del robot, fuera de su chasis
+      expect(piece.body.translation().x - x0).toBeGreaterThan(clear + 0.1);
+    }
+  });
+
   it('recoge una Muestra del piso con los compliants al frente y no la suelta al subir', () => {
     const g = new GameSession({ player: 0, preload: false, specs: [H()] });
     for (const p of g.pieces.list) if (p.state.at === 'field' && p.kind === 'sample') g.pieces.stash(p, { at: 'hp', alliance: 'red' });
@@ -84,6 +117,19 @@ describe('Hazmat 704: juega', () => {
     expect(t).toBeLessThan(4);
     for (let i = 0; i < 3 * 120; i++) {
       g.setInput({ ...emptyInput(), elevator: 2 });
+      g.step();
+    }
+    expect(g.player.mech.inClaw).toBe(true);
+  });
+
+  it('recoge una Muestra aunque llegue con 6 cm de desvío lateral (la boca la centra)', () => {
+    const g = new GameSession({ player: 0, preload: false, specs: [H()] });
+    for (const p of g.pieces.list) if (p.state.at === 'field' && p.kind === 'sample') g.pieces.stash(p, { at: 'hp', alliance: 'red' });
+    g.player.phys.teleport(1.0, -1.2, 0);
+    const p = g.pieces.list.find((x) => x.kind === 'sample')!;
+    g.pieces.place(p, 2.6, SAMPLE_SIZE / 2 + 0.001, -1.2 + 0.06, 0);
+    for (let i = 0; i < 6 * 120 && !g.player.mech.inClaw; i++) {
+      g.setInput({ ...emptyInput(), forward: g.player.phys.position().x < 2.1 ? 0.8 : 0, intake: true });
       g.step();
     }
     expect(g.player.mech.inClaw).toBe(true);
