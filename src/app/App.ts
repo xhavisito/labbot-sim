@@ -8,6 +8,7 @@ import { aiLineup } from '../ai/lineup';
 import { planAutoRoutine, planBotOptions } from '../ai/plan';
 import { AI_PERSONAS, type AiPersona } from '../ai/persona';
 import { SECRET_AUTOS, SECRET_STRATEGIES, STRATEGY_OPTIONS, weighted, type StrategyId } from '../ai/strategy';
+import { FOV } from '../config/cameras';
 import { activeColorMode } from '../config/palette';
 import { applyAccessibility } from '../ui/a11y';
 import { allAutoRoutines, autoRoutineIds } from '../auto/recorded';
@@ -107,6 +108,8 @@ export class App {
   readonly cam: CameraRig;
   /** Segunda cámara de la pantalla dividida (multijugador local). */
   private cam2: CameraRig;
+  /** FOV guardado en Ajustes; solo se aplica dentro del match. */
+  private matchFov: number = FOV.default;
   private splitBar: HTMLElement;
   readonly input = new InputManager();
   /** Menús con el control: foco, A elige, B regresa (`ui/padNav.ts`). */
@@ -216,12 +219,10 @@ export class App {
       this.applyQuality();
       this.audio.setVolume(s.volume / 100);
       this.audio.setRefMode(s.refAudio);
-      this.cam.fovDefault = s.fov;
-      this.cam2.fovDefault = s.fov;
+      this.matchFov = s.fov;
     }, this.input, { view: (v) => this.setMenuView(v), preview: (p, r) => this.previewRobot(p, true, r), spawn: (c) => this.spawnCmd(c) });
     this.audio.setRefMode(this.settings.refAudio);
-    this.cam.fovDefault = this.settings.fov;
-    this.cam2.fovDefault = this.settings.fov;
+    this.matchFov = this.settings.fov;
     this.replayBar = new ReplayBar(ui, { camera: () => this.cycleCamera(), stats: () => this.replayStats(), exit: () => this.exitReplay() });
     this.replays = new ReplaysScreen(this.menu.root, {
       back: () => this.toMenu(),
@@ -1365,6 +1366,10 @@ export class App {
     const p = this.session.player.phys;
     const pt = p.position();
     const vr = this.replay ? this.replay.session.robots[this.replay.focus] : this.session.player;
+    // El FOV de Ajustes solo aplica dentro del match; en el menú/lobby la cámara usa el FOV por defecto
+    const fovNow = this.state === 'menu' ? FOV.default : this.matchFov;
+    this.cam.fovDefault = fovNow;
+    this.cam2.fovDefault = fovNow;
     this.cam.update(dt, this.replay?.focusPose ?? { x: pt.x, y: pt.y, z: pt.z, heading: p.heading() }, { alliance: vr.alliance, station: vr.station, spec: vr.spec });
     const p2 = this.state === 'menu' ? null : this.session.player2;
     if (p2) {
