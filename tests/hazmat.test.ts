@@ -102,6 +102,23 @@ describe('Hazmat 704: juega', () => {
     }
   });
 
+  it('escupe hacia adelante con cualquier agarre de Ajustes (Preciso, Compliants o Fácil)', () => {
+    for (const grip of ['precise', 'compliant', 'easy'] as const) {
+      const g = new GameSession({ player: 0, preload: true, specs: [H()], grip });
+      const m = g.player.mech;
+      g.player.phys.teleport(1.0, -1.2, 0);
+      for (let i = 0; i < 4 * 120; i++) {
+        g.setInput({ ...emptyInput(), elevator: 2 });
+        g.step();
+      }
+      expect(m.inClaw).toBe(true);
+      const piece = m.stored[m.stored.length - 1];
+      g.setInput({ ...emptyInput(), elevator: 2, releaseSample: true });
+      g.step();
+      expect(piece.body.linvel().x).toBeGreaterThan(2.3);
+    }
+  });
+
   it('recoge una Muestra del piso con los compliants al frente y no la suelta al subir', () => {
     const g = new GameSession({ player: 0, preload: false, specs: [H()] });
     for (const p of g.pieces.list) if (p.state.at === 'field' && p.kind === 'sample') g.pieces.stash(p, { at: 'hp', alliance: 'red' });
