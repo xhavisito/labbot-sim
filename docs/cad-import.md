@@ -131,3 +131,10 @@ node scripts/cad/import.mjs "<STEP>" --name Axiom --mechanism pivot180 --up y --
 ```
 (y no se conserva el JSON nuevo: se restaura el de git; el importador reescribe el `.robot.json`.)
 **Colores:** el STEP solo exporta el gris por defecto de SolidWorks (no hay colores por pieza), así que `--rules` (`scripts/cad/rules/axiom.json`) pinta por nombre de pieza según las capturas del CAD: engranes `WCP-0783/0172` dorados, motores y cajas negros, poleas `HTD` azul oscuro, llantas y catarina negras. SUPUESTO: el color de cada familia; también fija un tope de triángulos para los internos (192 mil en total, 4.6 MB).
+
+## Psycho: componentes internos y colores (18-nov, solo visual)
+`EnsambleGeneral 3.STEP` nuevo (149 piezas): trae lo mismo de antes más los componentes internos (motores `Kraken X60`, cajas `Versa5-1`/`VersaInput`/`VersaOuput`). El envolvente (x −0.491…0.32, y hasta 0.975, z ±0.33), el chasis, el brazo y la garra quedan en las mismas coordenadas: solo se regeneró `public/robots/psycho.glb`; `robots/psycho.robot.json` (huella, hitboxes, brazo, supuestos) **no cambia** (el importador lo reescribe: se restaura el de git). Los rodillos verdes los dibuja el simulador (no están en el GLB) y siguen igual.
+```
+node scripts/cad/import.mjs "<STEP>" --name Psycho --up y --forward +x --mechanism pivot --mass 40 --floor -0.09525 --skip '^(6 wheel|Llanta)' --arm-parts '^(Brazo|Garra|Soporte-BrazoGarra|Sprocket|Flecha 25|CosadelSprocket)' --rules scripts/cad/rules/psycho.json
+```
+**Colores:** el STEP solo trae el gris por defecto de SolidWorks; `scripts/cad/rules/psycho.json` pinta por nombre según las capturas del CAD: motores Kraken y cajas CIM negros, cajas Versa gris oscuro; las placas quedan grises. SUPUESTO: el tono de cada familia.

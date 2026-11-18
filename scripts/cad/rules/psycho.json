@@ -1,0 +1,5 @@
+[
+  { "match": "^Kraken", "color": [0.1, 0.1, 0.11], "maxTris": 800 },
+  { "match": "^Transmici", "color": [0.1, 0.1, 0.11], "maxTris": 600 },
+  { "match": "^Versa", "color": [0.14, 0.15, 0.17], "maxTris": 600 }
+]
