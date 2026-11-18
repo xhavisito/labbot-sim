@@ -62,8 +62,8 @@ await page.waitForTimeout(400);
 await page.screenshot({ path: 'shots/ad-match.png' });
 // el periodo AUTO (15 s + 3 s de gracia) acaba y termina la prueba, sin jugar el TELEOP
 await page.evaluate(() => { const s = window.app.session; for (let i = 0; i < 4000 && s.match.t < 18.5; i++) s.step(); });
-await page.waitForFunction(() => window.app.state === 'results', null, { timeout: 60000 });
-console.log('terminó en t =', await page.evaluate(() => window.app.session.match.t.toFixed(1)));
-await page.screenshot({ path: 'shots/ad-resultado.png' });
+await page.waitForFunction(() => window.app.state === 'menu' && !!document.querySelector('.designer canvas'), null, { timeout: 60000 });
+console.log('terminó en el diseñador');
+await page.screenshot({ path: 'shots/ad-regreso.png' });
 console.log(errors.length ? 'ERRORES:\n' + errors.join('\n') : 'Sin errores de consola.');
 await browser.close(); server.kill(); process.exit(errors.length ? 1 : 0);
