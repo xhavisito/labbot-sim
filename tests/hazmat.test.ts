@@ -108,6 +108,19 @@ describe('Hazmat 704: juega', () => {
     expect(g.player.mech.inClaw).toBe(true);
   });
 
+  it('recoge una Muestra aunque llegue con 6 cm de desvío lateral (la boca la centra)', () => {
+    const g = new GameSession({ player: 0, preload: false, specs: [H()] });
+    for (const p of g.pieces.list) if (p.state.at === 'field' && p.kind === 'sample') g.pieces.stash(p, { at: 'hp', alliance: 'red' });
+    g.player.phys.teleport(1.0, -1.2, 0);
+    const p = g.pieces.list.find((x) => x.kind === 'sample')!;
+    g.pieces.place(p, 2.6, SAMPLE_SIZE / 2 + 0.001, -1.2 + 0.06, 0);
+    for (let i = 0; i < 6 * 120 && !g.player.mech.inClaw; i++) {
+      g.setInput({ ...emptyInput(), forward: g.player.phys.position().x < 2.1 ? 0.8 : 0, intake: true });
+      g.step();
+    }
+    expect(g.player.mech.inClaw).toBe(true);
+  });
+
   it('4 Hazmat de la IA anotan en 100 s y no se levantan ni se inclinan', () => {
     const P = H();
     const g = new GameSession({ player: 0, preload: true, ai: true, specs: [P, P, P, P] });
