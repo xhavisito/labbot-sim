@@ -37,5 +37,6 @@ export default defineConfig({
   base: process.env.BASE_PATH ?? './',
   build: { target: 'es2022', chunkSizeWarningLimit: 6000 },
   plugins: [serviceWorkerPlugin()],
-  test: { environment: 'node', include: ['tests/**/*.test.ts'] },
+  // testTimeout: varias pruebas simulan decenas de segundos de match y con el CI cargado pasaban de los 5 s por defecto (tumbaban el Deploy)
+  test: { environment: 'node', include: ['tests/**/*.test.ts'], testTimeout: 60000 },
 });
