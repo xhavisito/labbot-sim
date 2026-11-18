@@ -49,12 +49,21 @@ await page.waitForTimeout(300);
 const saved = await page.evaluate(() => localStorage.getItem('labbot.autoDesigns.v1'));
 console.log('guardado:', saved && JSON.parse(saved).length, 'rutina(s)', saved && JSON.parse(saved)[0].waypoints.length, 'waypoints');
 // Probar: arranca un match con la rutina
+await page.selectOption('[data-sel="robot"]', 'cad:axiom');
 await page.click('[data-test]');
 await page.waitForTimeout(500);
+const probe = await page.evaluate(() => ({ n: window.app.session.robots.length, label: window.app.session.player.spec.label, mine: window.app.settings.robotType }));
+console.log('prueba:', JSON.stringify(probe));
+if (probe.n !== 1 || probe.label !== 'Axiom 2785' && !/axiom/i.test(String(probe.label))) { console.log('FALLA: la prueba no usa el robot elegido solo en la cancha'); process.exit(1); }
 console.log('estado:', await page.evaluate(() => window.app.state), 'auto:', await page.evaluate(() => window.app.settings.playerAuto));
 await page.waitForTimeout(6000);
 await page.evaluate(() => window.app.cam.setMode('top'));
 await page.waitForTimeout(400);
 await page.screenshot({ path: 'shots/ad-match.png' });
+// el periodo AUTO (15 s + 3 s de gracia) acaba y termina la prueba, sin jugar el TELEOP
+await page.evaluate(() => { const s = window.app.session; for (let i = 0; i < 4000 && s.match.t < 18.5; i++) s.step(); });
+await page.waitForFunction(() => window.app.state === 'results', null, { timeout: 60000 });
+console.log('terminó en t =', await page.evaluate(() => window.app.session.match.t.toFixed(1)));
+await page.screenshot({ path: 'shots/ad-resultado.png' });
 console.log(errors.length ? 'ERRORES:\n' + errors.join('\n') : 'Sin errores de consola.');
 await browser.close(); server.kill(); process.exit(errors.length ? 1 : 0);

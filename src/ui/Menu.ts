@@ -70,6 +70,10 @@ export interface MenuChoice {
   scout?: ScoutPlay;
   /** Ya pasó por "Preparar match" (o es una repetición de ese match): empieza directo. */
   ready?: boolean;
+  /** "Probar" del diseñador de AUTO: solo tu robot en la cancha y el match termina al acabar el AUTO. */
+  autoTest?: boolean;
+  /** Robot con el que se prueba (el que elegiste en el diseñador); por defecto el de tus ajustes. */
+  robot?: RobotId;
 }
 
 /** Lo que la pausa muestra y puede cambiar de la partida en curso. */

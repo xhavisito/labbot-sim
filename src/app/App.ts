@@ -253,11 +253,11 @@ export class App {
       back: () => this.toMenu(),
       spec: () => this.playerSpec(),
       // "Probar": un match con la rutina como tu AUTO, saliendo de la Zona de Inicio elegida (estación del jugador en tu alianza)
-      test: (id, station) => {
+      test: (id, station, robot) => {
         this.settings.playerAuto = id;
         saveSettings(this.settings);
         this.menu.player = (this.menu.player < 2 ? 0 : 2) + station;
-        this.start({ mode: 'match', player: this.menu.player, ready: true });
+        this.start({ mode: 'match', player: this.menu.player, ready: true, autoTest: true, robot });
       },
     });
     this.menu.onAutoDesigner = () => this.designer.open(this.settings.playerAuto);
@@ -302,6 +302,7 @@ export class App {
     if (c.mode === 'match' && !c.ready && c.player >= 0) return this.openSetup(c);
     if (c.mode === 'versus' && !c.ready) return this.openVersusSetup(c);
     this.choice = c;
+    this.testRobot = c.autoTest ? (c.robot ?? null) : null;
     this.closeAutoPractice();
     this.closeTraining();
     this.closePractice1v1();
@@ -328,7 +329,7 @@ export class App {
           ? o
           : scenario
           ? { ...o, ai: true }
-          : { ...o, solo: c.mode !== 'match', ...(c.mode === 'auto' ? { hp: { enabled: false, interval: 3 } } : {}) },
+          : { ...o, solo: c.mode !== 'match', ...(c.autoTest ? { stations: [c.player] } : {}), ...(c.mode === 'auto' ? { hp: { enabled: false, interval: 3 } } : {}) },
     );
     this.renderer.scene.add(this.session.root);
     if (scenario) this.session.startScenario(scenario);
@@ -339,7 +340,7 @@ export class App {
     this.hud.setPlan(plan);
     this.applyPlanBoard();
     // Cada match se graba para la repetición y las estadísticas
-    this.recorder = c.mode === 'match' || versus ? new Recorder(this.session, this.session.robots.map((r) => robotLabel(r.spec)), { duration: Math.round(bounds(this.session.game).teleopEnd) }) : null;
+    this.recorder = (c.mode === 'match' && !c.autoTest) || versus ? new Recorder(this.session, this.session.robots.map((r) => robotLabel(r.spec)), { duration: Math.round(bounds(this.session.game).teleopEnd) }) : null;
     this.session.tap = this.recorder;
     // Práctica 1 contra 1 con otra persona: pantalla dividida y entrada de dos jugadores, como 2 jugadores
     const duo = p1 && this.session.player2 !== null;
@@ -610,8 +611,13 @@ export class App {
   }
 
   /** Tu robot según los ajustes (tipo, velocidad y capacidad). */
+  /** Robot de la prueba de AUTO en curso (si la hay). */
+  private testRobot: RobotId | null = null;
+
   private playerSpec(): RobotSpec {
     const s = this.settings;
+    // "Probar" con el robot elegido en el diseñador (no cambia tus ajustes)
+    if (this.testRobot) return { ...robotSpec(this.testRobot), maxSpeed: s.maxSpeed };
     return { ...robotSpec(s.robotType), maxSpeed: s.maxSpeed };
   }
 
@@ -763,7 +769,7 @@ export class App {
     if (!m) return this.toMenu();
     this.state = 'results';
     this.clearBoard();
-    addMatchHistory(matchHistoryEntry(m, this.choice.player, this.settings.robotType, '', this.choice.mode));
+    if (!this.choice.autoTest) addMatchHistory(matchHistoryEntry(m, this.choice.player, this.settings.robotType, '', this.choice.mode));
     const sc = this.choice.scout;
     this.menu.results(
       m,
@@ -1318,6 +1324,8 @@ export class App {
       if (this.session.player2) this.touch2.setIntake(this.session.player2.mech.intakeOn);
       for (const f of this.session.scoreFx) this.effects.burst(f.x, f.y, f.z, f.alliance);
       const m = this.session.match;
+      // Probar el AUTO: al acabar el periodo (y su gracia de 3 s) termina, sin jugar el TELEOP
+      if (m && !m.finished && this.choice.autoTest && m.t >= bounds(this.session.game).teleopStart) this.session.endNow();
       if (m?.finished) {
         this.state = 'results';
         this.updateTouch();
@@ -1326,9 +1334,10 @@ export class App {
         this.tourNote = sc?.tour ? this.tourney.record(m, sc) : '';
         const scn = this.choice.mode === 'scenario' ? scenarioById(this.choice.scenario ?? '') : undefined;
         this.scenarioNote = scn ? this.finishScenario(m, scn) : '';
-        this.recordAchievements(m);
+        // Una prueba de AUTO no cuenta para logros, rendimiento ni historial
+        if (!this.choice.autoTest) this.recordAchievements(m);
         this.lastReplay = this.recorder?.build(this.session) ?? null;
-        this.recordPerf(m, this.lastReplay);
+        if (!this.choice.autoTest) this.recordPerf(m, this.lastReplay);
         if (this.lastReplay) void storeReplay(this.lastReplay);
         this.showResults();
       }
