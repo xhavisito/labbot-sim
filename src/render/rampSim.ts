@@ -37,13 +37,14 @@ export interface RampParams {
   restitution: number;
 }
 
-export const RAMP_DEFAULTS: RampParams = { k: 70, ki: 25, c: 11.5, maxAcc: 90, maxV: 5, gravity: 14, restitution: 0.25 };
+export const RAMP_DEFAULTS: RampParams = { k: 55, ki: 20, c: 14, maxAcc: 60, maxV: 4, gravity: 14, restitution: 0.05 };
 
 /** Donde entra una Muestra nueva (lados de Muestra detrás del pie) y con qué cabeceo (rad). */
 export const ENTRY_S = -0.9;
 /** Cabeceo máximo (rad) de una Muestra en la rampa. */
-export const MAX_ROT = 0.3;
-export const ENTRY_ROT = -0.3;
+// SUPUESTO (calmar la subida): cabeceo máximo reducido (0.3 → 0.12 rad) para que no parezca que se salen de la rampa
+export const MAX_ROT = 0.12;
+export const ENTRY_ROT = -0.1;
 
 export class RampSim {
   readonly bodies: RampBody[] = [];
@@ -105,7 +106,7 @@ export class RampSim {
         if (b.v > p.maxV) b.v = p.maxV;
         b.s += b.v * h;
         // Cabeceo: vuelve a 0 con su resorte; los golpes (aceleración lateral y choques) lo excitan
-        b.w += (-70 * b.rot - 9 * b.w + lat * 0.12) * h;
+        b.w += (-90 * b.rot - 16 * b.w + lat * 0.04) * h;
         b.rot += b.w * h;
         // Tope del cabeceo: una Muestra en la rampa no da vueltas (±0.3 rad)
         if (b.rot > MAX_ROT || b.rot < -MAX_ROT) {
@@ -116,7 +117,7 @@ export class RampSim {
       // Tope en la boca y choques con la vecina de adelante (la más vieja va primero)
       for (let i = 0; i < have; i++) {
         const b = bodies[i];
-        const lim = i === 0 ? cap - 1 + 0.04 : bodies[i - 1].s - 1;
+        const lim = i === 0 ? cap - 1 : bodies[i - 1].s - 1;
         if (b.s > lim) {
           const vel = b.v - (i === 0 ? 0 : bodies[i - 1].v);
           b.s = lim;
@@ -127,9 +128,9 @@ export class RampSim {
               const o = bodies[i - 1];
               b.v -= j / 2;
               o.v += j / 2;
-              o.w += j * 0.5;
+              o.w += j * 0.15;
             }
-            b.w -= vel * 0.6;
+            b.w -= vel * 0.2;
           }
         }
       }
