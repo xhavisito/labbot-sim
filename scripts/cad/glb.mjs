@@ -61,6 +61,8 @@ export async function stepToGlb(stepPath, o) {
   const r = occt.ReadStepFile(new Uint8Array(readFileSync(stepPath)), { linearUnit: 'millimeter', linearDeflectionType: 'bounding_box_ratio', linearDeflection: 0.002, angularDeflection: 0.5 });
   if (!r.success) throw new Error('occt-import-js no pudo leer el STEP');
   const names = [];
+  // Nombre del sólido (`meshNames`): dentro de un subensamble (`Transmición CIM`, `Rueda`) solo ahí viene el motor, la caja, la llanta…
+  const meshNames = r.meshes.map((m) => m.name ?? '');
   (function walk(n) {
     for (const m of n.meshes ?? []) names[m] = n.name;
     for (const c of n.children ?? []) walk(c);
@@ -71,9 +73,9 @@ export async function stepToGlb(stepPath, o) {
   const maxTris = o.maxTrisPerPart ?? 2500;
   const rules = (o.rules ?? []).map((r) => ({ re: new RegExp(r.match, 'i'), color: r.color, maxTris: r.maxTris }));
   const mats = new Map();
-  const matOf = (c, name) => {
+  const matOf = (c, name, mname = '') => {
     // `rules`: color por nombre de pieza cuando el STEP no trae color (SolidWorks solo exporta el gris por defecto)
-    const rule = rules.find((r) => r.re.test(name));
+    const rule = rules.find((r) => r.re.test(name) || r.re.test(mname));
     if (rule?.color) c = rule.color;
     // El gris azulado por defecto de SolidWorks (0.59, 0.64, 0.85) se vuelve gris claro neutro
     const isDefault = c && Math.abs(c[0] - 0.59) < 0.02 && Math.abs(c[1] - 0.64) < 0.02 && Math.abs(c[2] - 0.855) < 0.02;
@@ -117,7 +119,7 @@ export async function stepToGlb(stepPath, o) {
     if (diag < minDiag && !isArm) return; // tornillos, rondanas…
     // Las placas (estructura) no se simplifican: con huecos se deforman; solo motores, engranes y demás
     const structural = /^(chasis|pivote|brazo|garra|soporte|flecha)/i.test(names[i]);
-    const partMax = rules.find((r) => r.maxTris !== undefined && r.re.test(names[i]))?.maxTris ?? maxTris;
+    const partMax = rules.find((r) => r.maxTris !== undefined && (r.re.test(names[i]) || r.re.test(meshNames[i])))?.maxTris ?? maxTris;
     if (!structural && idx.length / 3 > partMax) {
       let cell = diag / 40;
       for (let k = 0; k < 12; k++) {
@@ -126,7 +128,7 @@ export async function stepToGlb(stepPath, o) {
         cell *= 1.35;
       }
     }
-    parts.push({ name: names[i], arm: isArm, nrm: nrmA, pos: Float32Array.from(posA), idx, mat: matOf(m.color, names[i]), tris: idx.length / 3, mn, mx });
+    parts.push({ name: names[i], arm: isArm, nrm: nrmA, pos: Float32Array.from(posA), idx, mat: matOf(m.color, names[i], meshNames[i]), tris: idx.length / 3, mn, mx });
   });
 
   // El brazo se guarda con el origen en el pivote
