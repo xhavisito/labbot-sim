@@ -48,6 +48,8 @@ describe('el Human Player centra la Muestra Crítica (D39)', () => {
     expect(Math.abs(c.x - claw.x)).toBeLessThan(0.03);
     // Sigue en la rendija
     expect(c.y).toBeGreaterThan(h.y);
+    // La repisa corta se movió con ella: la pieza sigue apoyada y centrada sobre la base
+    expect(Math.abs(g.shelves.red.x - c.x)).toBeLessThan(0.03);
   });
 
   it('no la mueve si la garra no está a la altura de la rendija', () => {

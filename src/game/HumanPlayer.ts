@@ -110,6 +110,14 @@ export class HumanPlayer {
    * garra, el HP la desliza hasta quedar justo frente a ella (D39). Así el robot no tiene que
    * alinearse de lado al centímetro.
    */
+  /** Lo que deslizó la Crítica (X mundo, m) desde la última vez que se leyó: la repisa la acompaña. */
+  slid = 0;
+  takeSlid(): number {
+    const v = this.slid;
+    this.slid = 0;
+    return v;
+  }
+
   private centerCritical(dt: number): void {
     const crit = this.pieces.critical(this.alliance);
     if (crit.state.at !== 'field') return;
@@ -142,6 +150,7 @@ export class HumanPlayer {
     const dx = goal - t.x;
     if (Math.abs(dx) < 0.003) return;
     const step = Math.sign(dx) * Math.min(Math.abs(dx), CRIT_SLIDE_SPEED * dt);
+    this.slid += step;
     crit.body.setTranslation({ x: t.x + step, y: t.y, z: t.z }, true);
     crit.body.setLinvel({ x: 0, y: 0, z: 0 }, true);
   }

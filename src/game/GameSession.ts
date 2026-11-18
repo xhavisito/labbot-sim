@@ -33,6 +33,8 @@ import { Referee } from '../referee/Referee';
 import { AutoPathView } from '../render/AutoPathView';
 import { buildFieldView } from '../render/FieldView';
 import { PieceView } from '../render/PieceView';
+import { ShelfView } from '../render/ShelfView';
+import { CriticalShelf } from './CriticalShelf';
 import { RobotView } from '../render/RobotView';
 import { SinkView } from '../render/SinkView';
 import { Damage, type DamageEvent } from './Damage';
@@ -151,6 +153,9 @@ export class GameSession {
   private sink = new Map<number, { t: number; alliance: Alliance }>();
   private sinkView: SinkView | null = null;
   private pieceView: PieceView;
+  /** Repisas móviles de la Muestra Crítica (§3.2.4), una por alianza. */
+  readonly shelves: Record<Alliance, CriticalShelf>;
+  private shelfView: ShelfView;
   private robotViews: RobotView[] = [];
   /** Robots de pinza cuyo botón de garra sigue presionado (para contar una sola pulsación). */
   private intakeHeld = new Set<number>();
@@ -181,6 +186,7 @@ export class GameSession {
     this.game = opts.game ?? GAME;
     buildFieldColliders(this.pw);
     this.pieces = new Pieces(this.pw);
+    this.shelves = { red: new CriticalShelf('red', this.pw), blue: new CriticalShelf('blue', this.pw) };
     this.sensors = new Sensors(this.pieces);
     this.hps = { red: new HumanPlayer('red', this.pieces), blue: new HumanPlayer('blue', this.pieces) };
     for (const a of ALLIANCES) {
@@ -196,6 +202,8 @@ export class GameSession {
     }
     this.pieceView = new PieceView(this.pieces);
     this.root.add(this.pieceView.group);
+    this.shelfView = new ShelfView([this.shelves.red, this.shelves.blue]);
+    this.root.add(this.shelfView.group);
     for (let i = 0; i < 2 * F.ROBOTS_PER_ALLIANCE; i++) {
       if (opts.solo && i !== opts.player && i !== this.rivalIndex) continue;
       if (opts.stations && !opts.stations.includes(i)) continue;
@@ -274,6 +282,7 @@ export class GameSession {
 
   /** Acomodo inicial (§4.1): piezas en su lugar, robots en su Zona de Inicio con su precarga. */
   resetField(): void {
+    for (const a of ALLIANCES) this.shelves[a].reset();
     this.pieces.reset();
     this.sensors.reset();
     this.referee.reset();
@@ -518,6 +527,8 @@ export class GameSession {
       if (this.bots.some(Boolean)) this.hps[opponent(this.player.alliance)].step(dt, true);
     }
     this.damage.beforeStep();
+    // La repisa de la Crítica acompaña a la pieza que el HP desliza (SUPUESTO, ver CriticalShelf)
+    for (const a of ALLIANCES) this.shelves[a].shift(this.hps[a].takeSlid());
     this.pw.step();
     this.time += dt;
     this.referee.drainCollisions();
@@ -639,6 +650,7 @@ export class GameSession {
     const alpha = this.acc / this.pw.dt;
     this.updateAutoPath();
     this.pieceView.sync(alpha);
+    this.shelfView.sync(alpha);
     for (const v of this.robotViews) v.sync(alpha);
     this.sinkView?.update(this.time);
   }

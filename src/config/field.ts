@@ -187,6 +187,13 @@ export const DRIVER_STATION_DEPTH = 0.8;
 // ---------------------------------------------------------------- Piezas (§4.1.1)
 export const SAMPLE_SIZE = mm(150); // cubo 150 mm ±5
 export const CRITICAL_SIZE = mm(200); // cubo 200 mm ±5
+/**
+ * Repisa (base) de la Muestra Crítica en la rendija (§3.2.4). El manual NO da sus medidas ni dice que
+ * sea móvil. SUPUESTO (pedido por el equipo): mide solo un poco más que la Muestra Crítica (200 mm +
+ * 40 mm), no todo el largo de la Zona de Alimentación, y el Human Player la desliza a lo largo de
+ * la pared (D39) para centrarla con su robot; la repisa se mueve con la pieza.
+ */
+export const CRITICAL_SHELF_LENGTH = CRITICAL_SIZE + 0.04;
 /** Masa: no se da. SUPUESTO espuma ≈30 kg/m³. */
 export const SAMPLE_MASS = 0.1;
 /** Xhavi, 16-nov: la Crítica tiene las mismas físicas que las Muestras normales (misma masa, fricción y rebote); solo cambia el tamaño (§4.1.1) y el puntaje. */
