@@ -983,6 +983,7 @@ export class App {
     this.renderer.scene.add(this.session.root);
     this.arrive = null;
     if (animate) this.startArrival();
+    else this.faceCamera();
   }
 
   // ------------------------------------------------------------------ llegada del robot (selección de robot)
@@ -1001,10 +1002,25 @@ export class App {
     return { cx, cz, rx: cz, rz: -cx };
   }
 
+  /** Rumbo con el que el robot queda en la selección: el intake (lado que recoge) mira a la cámara, para todos los robots. */
+  private pickHeading(p: { x: number; z: number }): number {
+    const cam = this.pickCam(p);
+    return Math.atan2(-cam.cz, cam.cx);
+  }
+
+  /** Sin animación (al volver de Personalizar): el robot se queda en su lugar, con el intake hacia la cámara. */
+  private faceCamera(): void {
+    if (this.menuView !== 'robot') return;
+    const pl = this.session.player;
+    const p = pl.phys.position();
+    pl.phys.teleport(p.x, p.z, this.pickHeading(p) + (pl.spec.arm.pickBack ? Math.PI : 0));
+  }
+
   private startArrival(): void {
     const pl = this.session.player;
     const p = pl.phys.position();
-    const h = pl.phys.heading();
+    // El rumbo de reposo apunta el intake a la cámara (antes quedaba mirando a la cancha, de espaldas al jugador)
+    const h = this.pickHeading(p);
     const cam = this.pickCam(p);
     const f = { x: Math.cos(h), z: -Math.sin(h) };
     // Entra por la izquierda de la pantalla; la esquina de la curva queda detrás del lugar final
