@@ -78,7 +78,6 @@
       "kind": "pinza",
       "gap": 0.29,
       "fingerLength": 0.113,
-    "critFloorOnly": true,
       "claw": {
         "height": 0.056,
         "thickness": 0.012,
