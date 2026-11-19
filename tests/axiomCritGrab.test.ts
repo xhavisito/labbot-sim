@@ -57,3 +57,40 @@ describe('Axiom: la Crítica desde la base y desde el piso', () => {
     expect(m.grabCritical([])).toBe(false);
   });
 });
+
+describe('Axiom: la Crítica queda donde la garra la toca', () => {
+  it('desplazada hacia un lado y adelante, se queda ahí entre los dedos (no se recentra)', () => {
+    const { g, r, m, c } = setup(CRITICAL_SIZE / 2);
+    const at = r.phys.localToWorld(m.tipX() + 0.04, 0, 0.03);
+    g.pieces.place(c, at.x, CRITICAL_SIZE / 2, at.z, 0);
+    expect(m.grabCritical([])).toBe(true);
+    expect(m.critGrip.x).toBeGreaterThan(0.02);
+    expect(m.critGrip.z).toBeGreaterThan(0.02);
+    // La del colisionador coincide con la que se dibuja: más adelante y a un lado de la punta
+    const l = r.phys.critGripLocal(m.angle);
+    expect(l.z).toBeCloseTo(m.critGrip.z, 3);
+    expect(l.x).toBeGreaterThan(m.tipX() + 0.02);
+  });
+
+  it('el agarre se limita a lo que cabe entre los dedos', () => {
+    const { g, r, m, c } = setup(CRITICAL_SIZE / 2);
+    const at = r.phys.localToWorld(m.tipX() + 0.18, 0, 0.25);
+    g.pieces.place(c, at.x, CRITICAL_SIZE / 2, at.z, 0);
+    expect(m.grabCritical([])).toBe(true);
+    expect(m.critGrip.x).toBeLessThanOrEqual(0.07);
+    expect(Math.abs(m.critGrip.z)).toBeLessThanOrEqual(0.04);
+  });
+
+  it('al soltar sale de donde la llevaba y el agarre se borra', () => {
+    const { g, r, m, c } = setup(CRITICAL_SIZE / 2);
+    const at = r.phys.localToWorld(m.tipX() + 0.04, 0, 0.03);
+    g.pieces.place(c, at.x, CRITICAL_SIZE / 2, at.z, 0);
+    m.grabCritical([]);
+    const l = r.phys.critGripLocal(m.angle);
+    const w = r.phys.localToWorld(l.x, l.y, l.z);
+    expect(m.release('critical', [], true)).toBe(true);
+    const t = c.body.translation();
+    expect(Math.hypot(t.x - w.x, t.z - w.z)).toBeLessThan(0.02);
+    expect(m.critGrip).toEqual({ x: 0, y: 0, z: 0 });
+  });
+});
