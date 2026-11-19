@@ -202,6 +202,8 @@ export class Mechanisms {
    * sin mover el brazo. Cierra sin saber si hay Crítica: si el cubo está en la ventana la toma; si no, queda cerrada vacía. Abrir la suelta.
    */
   critClawClosed = false;
+  /** Giro de los dedos de la Garrita (°; 0 = abiertos): cierran en 0.25 s (SUPUESTO) y su hitbox gira con ellos. */
+  critDeg = 0;
   /** Solo dibujo: de dónde viene la Crítica que la Garrita jala al asiento (sistema del robot; yaw respecto al chasis) y cuánto lleva jalándola. */
   critPull: { x: number; y: number; z: number; yaw: number } | null = null;
   critPullAge = 0;
@@ -214,6 +216,8 @@ export class Mechanisms {
   private critWindow = 0;
   readonly stored: Piece[] = [];
   critical: Piece | null = null;
+  /** Muestra normal tomada por la Garrita (Psycho, `critClaw.sample`): va en el asiento fijo del chasis, aparte de la caja; abre con la tecla 4. */
+  critSample: Piece | null = null;
   target: ElevatorPos = 0;
   /** Altura actual de la punta de la garra (fondo de la pieza, m sobre la base del robot). */
   height: number;
@@ -322,13 +326,21 @@ export class Mechanisms {
         }
       } else this.transferT = 0;
     }
+    const cc = intakeOf(s).critClaw;
+    if (cc) {
+      // Con una pieza adentro cierra hasta tocarla; cerrada en vacío llega a `emptyDeg` (los dedos chocan entre sí)
+      const want = this.critical || this.critSample ? cc.closeDeg : this.critClawClosed ? cc.emptyDeg : 0;
+      const sp = (cc.emptyDeg / 0.25) * dt;
+      this.critDeg += Math.max(-sp, Math.min(sp, want - this.critDeg));
+      this.phys.setCritFingers(this.critDeg);
+    }
     if (this.critPull) {
       this.critPullAge += dt;
       if (this.critPullAge >= this.critPullDur || !this.critical) this.critPull = null;
     }
     if (this.critClawClosed && this.critWindow > 0) {
       this.critWindow = Math.max(0, this.critWindow - dt);
-      if (!this.critical) this.grabCriticalFixed(events);
+      if (!this.critical && !this.critSample && !this.grabCriticalFixed(events)) this.grabSampleFixed(events);
     }
     this.cooldown = Math.max(0, this.cooldown - dt);
     this.ejectT = Math.max(0, this.ejectT - dt);
@@ -372,11 +384,12 @@ export class Mechanisms {
     if (!this.critClawClosed) {
       this.critClawClosed = true;
       this.critWindow = 0.45; // SUPUESTO: tarda ~0.45 s en cerrar
-      if (!this.critical) this.grabCriticalFixed(events);
+      if (!this.critical && !this.critSample && !this.grabCriticalFixed(events)) this.grabSampleFixed(events);
     } else {
       this.critClawClosed = false;
       this.critWindow = 0;
       if (this.critical) this.release('critical', events, true);
+      else if (this.critSample) this.releaseCritSample(events);
     }
     return this.critClawClosed;
   }
@@ -388,7 +401,7 @@ export class Mechanisms {
     const n = intakeOf(this.phys.spec).shooter ? Math.min(1, this.inClawCount) : this.inClawCount;
     // Garra fija de la Crítica (Psycho): el cubo va en el chasis aunque el brazo lleve Muestras
     const fixed = critSeat(this.phys.spec) !== null;
-    this.phys.setArmPose(this.angle, this.critical && !fixed ? 'critical' : this.inClaw ? 'sample' : null, n, fixed && this.critical !== null);
+    this.phys.setArmPose(this.angle, this.critical && !fixed ? 'critical' : this.inClaw ? 'sample' : null, n, fixed && this.critical !== null, this.critSample !== null);
   }
 
   /** Lugares de la rampa ocupados: las Muestras y, en Phoenix (`passCritical`), la Crítica, que mide 20 cm y ocupa 2 (SUPUESTO). */
@@ -676,7 +689,7 @@ export class Mechanisms {
   private grabCriticalFixed(events: MechEvent[]): boolean {
     const p = this.phys;
     const cc = p.spec.intake?.critClaw;
-    if (!cc || this.critical || this.jammed) return false;
+    if (!cc || this.critical || this.critSample || this.jammed) return false;
     const c = this.pieces.critical(this.alliance);
     if (c.state.at !== 'field') return false;
     const t = c.body.translation();
@@ -701,6 +714,65 @@ export class Mechanisms {
     this.pieces.stash(c, { at: 'robot', robot: p.index });
     this.critical = c;
     events.push({ type: 'grabCritical', robot: p.index, piece: c.index });
+    this.syncHitbox();
+    return true;
+  }
+
+  /**
+   * Garrita (`critClaw.sample`): toma una Muestra normal (N1–N3, de cualquier alianza) si su centro ya queda dentro de la ventana chica
+   * de la garra (ver `CritClaw.sample`): en la práctica solo una que cae, la pasan o queda en alto justo frente a ella. Sin Muestra
+   * dentro de la ventana no hace nada. La Crítica tiene prioridad (`grabCriticalFixed` va antes). SUPUESTO: cierra al instante.
+   */
+  private grabSampleFixed(events: MechEvent[]): boolean {
+    const p = this.phys;
+    const cc = p.spec.intake?.critClaw;
+    const w = cc?.sample;
+    if (!cc || !w || this.critical || this.critSample || this.jammed) return false;
+    const sy = cc.seat.y - (CRITICAL_SIZE - SAMPLE_SIZE) / 2; // la Muestra descansa sobre los dedos, no en el centro del cubo de 20 cm
+    let best: Piece | null = null;
+    let bestD = Infinity;
+    let bestPos = { lx: 0, lz: 0, dy: 0 };
+    for (const c of this.pieces.list) {
+      if (c.kind !== 'sample' || c.state.at !== 'field' || c === this.leaving) continue;
+      const t = c.body.translation();
+      const { lx, lz } = p.worldToLocalFlat(t.x, t.z);
+      const dy = t.y - (p.position().y + sy);
+      if (lx < cc.seat.x - w.reachBack || lx > cc.seat.x + w.reachFront || Math.abs(lz) > w.reachZ || dy < -w.reachDown || dy > w.reachUp) continue;
+      const d = Math.hypot(lx - cc.seat.x, lz, dy);
+      if (d < bestD) {
+        bestD = d;
+        best = c;
+        bestPos = { lx, lz, dy };
+      }
+    }
+    if (!best) return false;
+    // Se queda donde la garra la agarró (respecto al asiento del cubo, que es el que usan el colisionador y el dibujo)
+    this.critHold = { dx: bestPos.lx - cc.seat.x, dy: sy + bestPos.dy - cc.seat.y, dz: bestPos.lz };
+    p.setCritHold(this.critHold.dx, this.critHold.dy, this.critHold.dz);
+    this.pieces.stash(best, { at: 'robot', robot: p.index });
+    this.critSample = best;
+    events.push({ type: 'intake', robot: p.index, piece: best.index });
+    this.syncHitbox();
+    return true;
+  }
+
+  /** Abre la Garrita con una Muestra normal: la deja caer donde la tenía, sin empujón (va con el robot). */
+  releaseCritSample(events: MechEvent[]): boolean {
+    const piece = this.critSample;
+    const cc = this.phys.spec.intake?.critClaw;
+    if (!piece || !cc) return false;
+    const p = this.phys;
+    const hold = this.critHold;
+    this.critSample = null;
+    this.critHold = { dx: 0, dy: 0, dz: 0 };
+    p.setCritHold(0, 0, 0);
+    const at = p.localToWorld(cc.seat.x + hold.dx, cc.seat.y + hold.dy, hold.dz);
+    const v = p.body.linvel();
+    const wy = p.body.angvel().y;
+    const rp = p.position();
+    this.pieces.place(piece, at.x, at.y, at.z, p.heading(), { x: v.x + wy * (at.z - rp.z), y: 0, z: v.z - wy * (at.x - rp.x) });
+    piece.lastRobot = p.index;
+    events.push({ type: 'release', robot: p.index, piece: piece.index });
     this.syncHitbox();
     return true;
   }
@@ -887,6 +959,7 @@ export class Mechanisms {
     this.finishLeaving();
     this.stored.length = 0;
     this.critical = null;
+    this.critSample = null;
     this.critHold = { dx: 0, dy: 0, dz: 0 };
     this.phys.setCritHold(0, 0, 0);
     this.critGrip = { x: 0, y: 0, z: 0 };
@@ -898,6 +971,8 @@ export class Mechanisms {
     this.closeWindow = 0;
     this.critClawClosed = false;
     this.critWindow = 0;
+    this.critDeg = 0;
+    this.phys.setCritFingers(0);
     this.target = 0;
     this.height = this.phys.spec.elevatorHeights[0];
     this.closing = null;

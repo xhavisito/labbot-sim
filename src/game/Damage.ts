@@ -96,8 +96,9 @@ export class Damage {
         out.push({ type: 'impact', robot: r.index, speed: hit });
         const p = faultChance(hit, level);
         // La pieza en la garra puede salir volando
-        if ((r.mech.inClaw || r.mech.critical) && this.rand() < p * DAMAGE.dropFactor) {
-          if (r.mech.release(r.mech.critical ? 'critical' : 'sample', mechEvents, true)) out.push({ type: 'dropped', robot: r.index });
+        if ((r.mech.inClaw || r.mech.critical || r.mech.critSample) && this.rand() < p * DAMAGE.dropFactor) {
+          const dropped = r.mech.critSample && !r.mech.critical ? r.mech.releaseCritSample(mechEvents) : r.mech.release(r.mech.critical ? 'critical' : 'sample', mechEvents, true);
+          if (dropped) out.push({ type: 'dropped', robot: r.index });
         }
         if (this.rand() < p) {
           const h = r.phys.heading();
