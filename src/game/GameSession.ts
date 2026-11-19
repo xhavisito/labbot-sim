@@ -435,9 +435,12 @@ export class GameSession {
       // Garrita fija (Psycho): la tecla 4 es un interruptor de la garra de la Crítica; no sube el brazo (Xhavi, 16-nov)
       if (!this.critKeyHeld.has(r.index)) {
         const had = m.critical !== null;
+        const hadSample = m.critSample !== null;
         m.toggleCritClaw(this.stepMechEvents);
         if (!had && m.critical) a.grabCritical = true;
         else if (had && !m.critical) a.releaseCritical = true;
+        else if (!hadSample && m.critSample) a.intake = true;
+        else if (hadSample && !m.critSample) a.release = true;
       }
       this.critKeyHeld.add(r.index);
     } else {

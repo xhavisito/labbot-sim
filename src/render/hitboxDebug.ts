@@ -30,7 +30,7 @@ export class HitboxDebug {
 
   constructor(phys: RobotPhysics) {
     const arm = new Set<RAPIER.Collider>([phys.armColliders.beam, phys.armColliders.palm, ...phys.armColliders.fingers, ...phys.armColliders.plates]);
-    const held = new Set<RAPIER.Collider>([phys.armColliders.sample, phys.armColliders.sample2, phys.armColliders.critical]);
+    const held = new Set<RAPIER.Collider>([phys.armColliders.sample, phys.armColliders.sample2, phys.armColliders.critical, phys.armColliders.critSample]);
     for (let i = 0; i < phys.body.numColliders(); i++) {
       const c = phys.body.collider(i);
       const g = geometryOf(c.shape);

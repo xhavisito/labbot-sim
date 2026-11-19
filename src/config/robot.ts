@@ -213,6 +213,13 @@ export interface CritClaw {
   reachZ: number;
   reachDown: number;
   reachUp: number;
+  /**
+   * Alcance para una Muestra normal (N1–N3), SUPUESTO (Xhavi, 19-nov: "que pueda agarrar muestras normales también, aunque no sea diseñado
+   * para eso, en casos muy específicos y muy poco probables"): la Garrita está a 73 cm del piso y sus dedos están hechos para el cubo de
+   * 20 cm, así que solo toma una Muestra que ya queda entre ellos (centro a ±`reachZ` de lado, de `reachBack` atrás a `reachFront` adelante
+   * del asiento y de `reachDown` abajo a `reachUp` arriba de su centro apoyada en los dedos). Sin esto no toma Muestras.
+   */
+  sample?: { reachBack: number; reachFront: number; reachZ: number; reachDown: number; reachUp: number };
   /** Ejes de los dedos (x, z locales; dos, uno por lado) y cuánto giran al cerrar sobre la Crítica (°). Solo para el dibujo. */
   shafts: Array<{ x: number; z: number }>;
   /** Giro (°) con la Crítica adentro: los dedos quedan apretándola. */

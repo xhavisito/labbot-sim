@@ -117,6 +117,72 @@ describe('Psycho: garra de la Crítica', () => {
     }
   });
 
+  /** Sesión con Psycho y una Muestra normal puesta `frontDist` al frente de la garra, a la altura `y` (centro). */
+  function setupSample(frontDist: number, y: number, side = 0) {
+    const g = new GameSession({ player: 0, preload: false, specs: [spec()] });
+    const r = g.player;
+    r.phys.teleport(2.6, -1.2, 0);
+    const smp = g.pieces.list.find((p) => p.kind === 'sample' && p.state.at === 'field')!;
+    const at = r.phys.localToWorld(frontDist, 0, side);
+    g.pieces.place(smp, at.x, y, at.z, 0);
+    return { g, r, smp };
+  }
+
+  it('también toma una Muestra normal si ya queda entre los dedos, y la abre con la tecla 4 (Xhavi, 19-nov)', () => {
+    const seat = critSeat(spec())!;
+    const { r, smp } = setupSample(seat.x, 0.82);
+    const ev: Parameters<typeof r.mech.grabCritical>[0] = [];
+    expect(r.mech.toggleCritClaw(ev)).toBe(true);
+    expect(r.mech.critSample).toBe(smp);
+    expect(r.mech.critical).toBeNull();
+    expect(smp.state.at).toBe('robot');
+    expect(r.phys.armColliders.critSample.isEnabled()).toBe(true);
+    expect(r.phys.armColliders.critical.isEnabled()).toBe(false);
+    // Abrir la deja caer ahí mismo, como Muestra suelta del campo
+    expect(r.mech.toggleCritClaw(ev)).toBe(false);
+    expect(r.mech.critSample).toBeNull();
+    expect(smp.state.at).toBe('field');
+    expect(r.phys.armColliders.critSample.isEnabled()).toBe(false);
+  });
+
+  it('la Muestra normal es difícil: no la toma del piso, lejos ni de lado', () => {
+    const seat = critSeat(spec())!;
+    for (const [d, y, side] of [[seat.x, 0.075, 0], [1.0, 0.82, 0], [seat.x, 0.82, 0.3], [-0.4, 0.82, 0]] as const) {
+      const { r } = setupSample(d, y, side);
+      r.mech.toggleCritClaw([]);
+      expect(r.mech.critSample, `${d} ${y} ${side}`).toBeNull();
+    }
+  });
+
+  it('los dedos de la Garrita (hitbox) giran con el dibujo al cerrar y vuelven al abrir (Xhavi, 19-nov: la garra no tenía hitbox)', () => {
+    const { r } = setup(1.5);
+    expect(r.phys.critFingerCount).toBe(2);
+    const cc = intakeOf(r.spec).critClaw!;
+    r.mech.toggleCritClaw([]);
+    for (let i = 0; i < 60; i++) r.mech.step(1 / 120, []);
+    expect(r.mech.critDeg).toBeCloseTo(cc.emptyDeg, 3);
+    expect(r.phys.critFingerDeg).toBeCloseTo(cc.emptyDeg, 3);
+    r.mech.toggleCritClaw([]);
+    for (let i = 0; i < 60; i++) r.mech.step(1 / 120, []);
+    expect(r.mech.critDeg).toBeCloseTo(0, 3);
+    expect(r.phys.critFingerDeg).toBeCloseTo(0, 3);
+  });
+
+  it('la Crítica tiene prioridad y la tecla de soltar (K) no abre la Garrita con una Muestra', () => {
+    const seat = critSeat(spec())!;
+    const { r, smp } = setupSample(seat.x, 0.82);
+    r.mech.toggleCritClaw([]);
+    expect(r.mech.release('sample', [], true)).toBe(false);
+    expect(r.mech.critSample).toBe(smp);
+    const crit = setup(0.42);
+    const smp2 = crit.g.pieces.list.find((p) => p.kind === 'sample' && p.state.at === 'field')!;
+    const at = crit.r.phys.localToWorld(seat.x, 0, 0);
+    crit.g.pieces.place(smp2, at.x, 0.82, at.z, 0);
+    crit.r.mech.toggleCritClaw([]);
+    expect(crit.r.mech.critical).toBe(crit.c);
+    expect(crit.r.mech.critSample).toBeNull();
+  });
+
   it('lleva Muestras en la caja a la vez que la Crítica, y al soltar la deja sobre la Repisa si el robot está arriba', () => {
     const { g, r, c } = setup(0.4);
     // Una Muestra en la caja del brazo

@@ -115,6 +115,8 @@ export class RobotPhysics {
     sample: RAPIER.Collider;
     sample2: RAPIER.Collider;
     critical: RAPIER.Collider;
+    /** Muestra normal tomada por la Garrita (Psycho): va en el mismo lugar fijo del chasis que la Crítica. */
+    critSample: RAPIER.Collider;
   };
   /**
    * Garra del CAD fija al brazo (como la dibuja `RobotView`): ángulo del brazo en el que la caja queda
@@ -124,6 +126,27 @@ export class RobotPhysics {
   readonly rigidFloorAngle: number | null;
   /** Garra del CAD a lo largo del brazo con su centro en la punta (Axiom): dedos y Muestra centrados en la punta, sin placas de caja. */
   readonly centeredClaw: boolean;
+  /** Dedos de la Garrita (Psycho): colisionador de cada uno y su eje; giran con `setCritFingers`. */
+  private readonly critFingers: Array<{ col: RAPIER.Collider; side: number; shaft: { x: number; z: number } }> = [];
+  /** Giro actual de los dedos de la Garrita (°); 0 = la pose abierta del CAD. */
+  critFingerDeg = 0;
+  /** Cuántos dedos de la Garrita tienen hitbox propio (2 en Psycho). */
+  get critFingerCount(): number {
+    return this.critFingers.length;
+  }
+  /** Gira los dos dedos de la Garrita `deg` grados sobre su eje vertical, hacia adentro (el mismo sentido que el dibujo, `RobotView`). */
+  setCritFingers(deg: number): void {
+    if (!this.critFingers.length || Math.abs(deg - this.critFingerDeg) < 1e-4) return;
+    this.critFingerDeg = deg;
+    for (const { col, side, shaft } of this.critFingers) {
+      const a = side * ((deg * Math.PI) / 180);
+      const c = Math.cos(a);
+      const sn = Math.sin(a);
+      // Giro de `a` sobre y alrededor del eje (x, z) del dedo: el casco está en el sistema del robot, así que se mueve por R·(−eje) + eje
+      col.setRotationWrtParent({ x: 0, y: Math.sin(a / 2), z: 0, w: Math.cos(a / 2) });
+      col.setTranslationWrtParent({ x: shaft.x - (shaft.x * c + shaft.z * sn), y: 0, z: shaft.z - (-shaft.x * sn + shaft.z * c) });
+    }
+  }
   /** Pose fija del cubo en la garra de la Crítica pegada al chasis (`IntakeSpec.critClaw`); null si la toma el brazo. */
   private readonly critFixed: Pose | null;
   /** Garrita (Psycho): el cubo queda donde la garra lo tomó (`dx`, `dy`, `dz` m respecto a su asiento); la garra no se mueve. */
@@ -230,10 +253,26 @@ export class RobotPhysics {
         );
     // Hitbox literal de cada pieza fija del CAD (rampa, rieles, elevador, soportes...): sin masa, para no mover el
     // centro de masa. El CCD del cuerpo y de las Muestras evita que las placas de 1 cm se atraviesen.
+    const cc = spec.intake?.critClaw;
     for (const h of spec.hitboxes ?? []) {
       const d = RAPIER.ColliderDesc.convexHull(new Float32Array(h.pts));
-      if (d) add(d.setDensity(0).setFriction(0.3).setRestitution(0.05));
-      else console.warn(`[hitbox] ${spec.name}: "${h.name}" no forma un casco`);
+      if (!d) {
+        console.warn(`[hitbox] ${spec.name}: "${h.name}" no forma un casco`);
+        continue;
+      }
+      // Dedos de la Garrita (Psycho): giran sobre su eje al cerrar y su hitbox con ellos (`setCritFingers`); el CAD solo trae la pose abierta
+      if (cc && /^Garrita-Garrita/i.test(h.name)) {
+        const zs = h.pts.filter((_, k) => k % 3 === 2);
+        const side = Math.sign((Math.min(...zs) + Math.max(...zs)) / 2) || 1;
+        const shaft = cc.shafts.find((q) => Math.sign(q.z) === side);
+        if (shaft) {
+          const col = w.createCollider(d.setDensity(0).setFriction(0.3).setRestitution(0.05).setActiveEvents(RAPIER.ActiveEvents.COLLISION_EVENTS), this.body);
+          pw.tag(col, { kind: 'robot', robot: index });
+          this.critFingers.push({ col, side, shaft });
+          continue;
+        }
+      }
+      add(d.setDensity(0).setFriction(0.3).setRestitution(0.05));
     }
     // Ruedas: las del CAD (`RobotSpec.wheel`: cilindros del ancho de la llanta, 2 por lado) o 4 esferas genéricas
     const wr = spec.wheel;
@@ -301,6 +340,7 @@ export class RobotPhysics {
       sample: mech(RAPIER.ColliderDesc.cuboid(SAMPLE_SIZE / 2, SAMPLE_SIZE / 2, SAMPLE_SIZE / 2)),
       sample2: mech(RAPIER.ColliderDesc.cuboid(SAMPLE_SIZE / 2, SAMPLE_SIZE / 2, SAMPLE_SIZE / 2)),
       critical: mech(RAPIER.ColliderDesc.cuboid(CRITICAL_SIZE / 2, CRITICAL_SIZE / 2, CRITICAL_SIZE / 2)),
+      critSample: mech(RAPIER.ColliderDesc.cuboid(SAMPLE_SIZE / 2, SAMPLE_SIZE / 2, SAMPLE_SIZE / 2)),
     };
     this.setArmPose(spec.arm.stowAngle ?? 0, null);
   }
@@ -402,14 +442,14 @@ export class RobotPhysics {
    * Coloca los colisionadores del brazo y la garra con el brazo en el ángulo `a` (rad, 0 = horizontal
    * al frente) y prende el de la pieza que lleva en la garra. Llamar en cada paso, antes de la física.
    */
-  setArmPose(a: number, held: 'sample' | 'critical' | null, count = 1, critFixedHeld = false): void {
+  setArmPose(a: number, held: 'sample' | 'critical' | null, count = 1, critFixedHeld = false, critSampleHeld = false): void {
     const c = this.armColliders;
     // Robot volteado o muy inclinado: el brazo y la garra también chocan con la alfombra (normal: la rozan al recoger)
     const tilted = this.tilt() > TILT_FLOOR_ARM;
     if (tilted !== this.armTilted) {
       this.armTilted = tilted;
       const g = tilted ? GROUPS.armTilted : GROUPS.arm;
-      for (const col of [c.beam, ...c.fingers, c.palm, ...c.plates, c.sample, c.sample2, c.critical]) col.setCollisionGroups(g);
+      for (const col of [c.beam, ...c.fingers, c.palm, ...c.plates, c.sample, c.sample2, c.critical, c.critSample]) col.setCollisionGroups(g);
     }
     const p = this.armPoses(a);
     const put = (col: RAPIER.Collider, pose: Pose) => {
@@ -434,6 +474,9 @@ export class RobotPhysics {
     c.sample.setEnabled(held === 'sample');
     // La Crítica de la garra fija va en el chasis, a la vez que lo que lleve la caja
     c.critical.setEnabled(held === 'critical' || critFixedHeld);
+    // Muestra normal en la Garrita: en el mismo asiento fijo (el cubo del asiento ya no es la Crítica, sino una Muestra de 15 cm)
+    if (this.critFixed) put(c.critSample, this.critFixed);
+    c.critSample.setEnabled(critSampleHeld && this.critFixed !== null);
   }
 
   /**

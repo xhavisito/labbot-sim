@@ -90,6 +90,13 @@
         "reachZ": 0.25,
         "reachDown": 0.36,
         "reachUp": 0.15,
+        "sample": {
+          "reachBack": 0.08,
+          "reachFront": 0.12,
+          "reachZ": 0.12,
+          "reachDown": 0.18,
+          "reachUp": 0.08
+        },
         "shafts": [
           {
             "x": 0.264,

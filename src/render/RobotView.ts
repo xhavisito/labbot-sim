@@ -65,6 +65,8 @@ export class RobotView {
   readonly group = new THREE.Group();
   private arm = new THREE.Group();
   private criticalMesh: THREE.Mesh;
+  /** Muestra normal en la Garrita (Psycho): en el mismo asiento fijo del chasis. */
+  private critSampleMesh: THREE.Mesh | null = null;
   /** Segunda Muestra en la garra (garra con rodillos: en fila detrás de la primera, `seatX`). */
   private clawSample2: THREE.Mesh;
   /** Lanzador: las Muestras de más, en fila por la rampa (la primera es `clawSample`). */
@@ -123,7 +125,6 @@ export class RobotView {
   /** Cierre actual de esos dedos (0 = abiertos, la pose del CAD; 1 = sobre la Crítica). */
   private critNow = 0;
   private critGripView = { x: 0, y: 0, z: 0 };
-  private critT = 0;
   /** Centro de los dedos de la pinza del CAD en el sistema de la garra (donde se dibuja la Muestra que aprieta). */
   private pocket: { x: number; y: number } | null = null;
   /** Giro actual de los dedos hacia adentro (°); 0 = abiertos, la pose del CAD. */
@@ -273,6 +274,8 @@ export class RobotView {
       this.criticalMesh.removeFromParent();
       this.criticalMesh.position.set(seat.x, seat.y, 0);
       this.group.add(this.criticalMesh);
+      this.critSampleMesh = add(new THREE.BoxGeometry(sz, sz, sz), sampleMat, seat.x, seat.y, 0, this.group);
+      this.critSampleMesh.visible = false;
     }
     this.capture();
     this.capture();
@@ -596,12 +599,11 @@ export class RobotView {
   }
 
   /** Cierra o abre los dedos de la garra de la Crítica según lleve o no la pieza (0.25 s, SUPUESTO). */
-  private animateCritClaw(dt: number): void {
+  private animateCritClaw(): void {
     const cc = intakeOf(this.robot.spec).critClaw;
     if (!cc || !this.critFingers.length) return;
     // Con la Crítica adentro cierra hasta tocarla; cerrada en vacío (interruptor, tecla 4) llega a 75 % (SUPUESTO)
-    const want = this.robot.mech.critical !== null ? cc.closeDeg : this.robot.mech.critClawClosed ? cc.emptyDeg : 0;
-    this.critNow += Math.max(-(cc.emptyDeg / 0.25) * dt, Math.min((cc.emptyDeg / 0.25) * dt, want - this.critNow));
+    this.critNow = this.robot.mech.critDeg; // el mismo giro que usa el hitbox (`Mechanisms.step`)
     for (const f of this.critFingers) f.g.rotation.y = f.side * ((this.critNow * Math.PI) / 180);
   }
 
@@ -701,10 +703,13 @@ export class RobotView {
         this.criticalMesh.rotation.y = 0;
       }
     }
+    if (this.critSampleMesh) {
+      const hasS = m.critSample !== null;
+      this.critSampleMesh.visible = hasS;
+      if (hasS && cseat) this.critSampleMesh.position.set(cseat.x + m.critHold.dx, cseat.y + m.critHold.dy, m.critHold.dz);
+    }
     if (this.critFingers.length) {
-      const nowC = performance.now() / 1000;
-      this.animateCritClaw(Math.min(0.1, nowC - (this.critT || nowC)));
-      this.critT = nowC;
+      this.animateCritClaw();
     }
     const claw = this.arm.getObjectByName('claw');
     const sa = this.robot.spec.arm;
