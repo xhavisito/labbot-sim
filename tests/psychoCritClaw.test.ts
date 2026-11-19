@@ -212,4 +212,21 @@ describe('Psycho: la tecla 4 es un interruptor de la Garrita', () => {
     press(g);
     expect(r.mech.critClawClosed).toBe(false);
   });
+
+  it('la tecla de soltar (K) no abre la Garrita: la Crítica solo se suelta con la tecla 4', () => {
+    const g = new GameSession({ player: 0, preload: false, specs: [spec()] });
+    const r = g.player;
+    r.phys.teleport(2.6, -1.2, 0);
+    const c = g.pieces.critical(r.alliance);
+    const at = r.phys.localToWorld(0.42, 0, 0);
+    g.pieces.place(c, at.x, 0.71, at.z, 0);
+    press(g);
+    expect(r.mech.critical).toBe(c);
+    const base = { forward: 0, turn: 0, elevator: null, intake: false, releaseSample: true } as never as Parameters<GameSession['setInput']>[0];
+    g.setInput(base);
+    expect(r.mech.critical).toBe(c);
+    expect(r.mech.critClawClosed).toBe(true);
+    press(g);
+    expect(r.mech.critical).toBeNull();
+  });
 });

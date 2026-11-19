@@ -445,7 +445,8 @@ export class GameSession {
       if (inp.elevator !== null) a.elevator = m.target = inp.elevator;
     }
     if (inp.releaseSample) {
-      if (m.critical) a.releaseCritical = m.release('critical', this.stepMechEvents) || undefined;
+      // Con Garrita (Psycho) la Crítica solo se suelta con su interruptor (tecla 4), no con la tecla de soltar (Xhavi, 19-nov)
+      if (m.critical && !critSeat(r.spec)) a.releaseCritical = m.release('critical', this.stepMechEvents) || undefined;
       else a.release = m.release('sample', this.stepMechEvents) || undefined;
     } else if (inp.releaseHeld && intakeOf(r.spec).shooter && !m.critical && m.inClaw) {
       // Lanzador (Phoenix): mientras se mantiene el botón van saliendo todas las Muestras (una cada `EJECT_COOLDOWN`); al soltarlo se detiene
