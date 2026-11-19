@@ -147,3 +147,5 @@ node scripts/cad/import.mjs "<STEP>" --name Psycho --up y --forward +x --mechani
 ```
 **Colores:** el STEP solo trae el gris por defecto de SolidWorks; `scripts/cad/rules/psycho.json` pinta por nombre según las capturas del CAD: motores Kraken y cajas CIM negros, cajas Versa gris oscuro; las placas quedan grises. SUPUESTO: el tono de cada familia.
 **Motor del elevador (18-nov):** las reglas aceptan `box` ([x0,y0,z0,x1,y1,z1] en m, sistema del robot): la regla solo aplica si el centro de la pieza cae ahí (sirve para piezas sin nombre del CAD). `hazmat-704.json` pinta así el motor de arriba de la torre (negro) y su engrane (dorado, SUPUESTO por la captura del CAD).
+
+**Hazmat 704, más colores (19-nov, solo visual):** según las capturas de Xhavi, engranes `16t/48t` de la transmisión y `WCP-0578` en crema, y el motor del intake (pieza sin nombre, por caja) en negro; los CIM, cajas, poleas, llantas y el motor del elevador ya iban en negro. SUPUESTO: el tono crema; el logo azul y la raya verde del Kraken no se dibujan.
