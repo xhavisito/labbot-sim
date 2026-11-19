@@ -113,13 +113,42 @@ describe('RampSim: el PID se nota frente al resorte de antes', () => {
     }
     return { reach, peak };
   };
-  it('la Muestra sube rodando (≤ 5 lados/s) en ~0.85 s; el resorte la lanzaba a ~19 lados/s en 0.28 s', () => {
+  it('la Muestra sube rodando (≤ 4 lados/s) en ~1.2 s; el resorte la lanzaba a ~19 lados/s en 0.28 s', () => {
     const before = entry(OLD);
     const now = entry(undefined);
     expect(before.peak).toBeGreaterThan(15);
     expect(before.reach).toBeLessThan(0.4);
-    expect(now.peak).toBeLessThanOrEqual(5 + 1e-9);
+    expect(now.peak).toBeLessThanOrEqual(4 + 1e-9);
     expect(now.reach).toBeGreaterThan(0.6);
-    expect(now.reach).toBeLessThan(1.2);
+    expect(now.reach).toBeLessThan(1.6);
+  });
+});
+
+describe('RampSim: subida calmada y sin salirse', () => {
+  it('nunca pasa de la boca ni se sale con golpes fuertes y choques', () => {
+    const sim = new RampSim(4);
+    for (let n = 1; n <= 4; n++) run(sim, 0.2, n, -12, 25);
+    for (let t = 0; t < 4; t += 1 / 60) {
+      sim.step(1 / 60, 4, Math.sin(t * 9) * 5, Math.sin(t * 13) * 10);
+      for (let i = 0; i < 4; i++) {
+        expect(sim.bodies[i].s).toBeLessThanOrEqual(3 + 1e-9);
+        expect(Math.abs(sim.bodies[i].rot)).toBeLessThanOrEqual(MAX_ROT + 1e-9);
+      }
+    }
+  });
+
+  it('con una sacudida típica se mueven poco (< 0.25 lados y < 0.12 rad)', () => {
+    const sim = new RampSim(4);
+    run(sim, 3, 3);
+    let dx = 0, dr = 0;
+    for (let t = 0; t < 1; t += 1 / 60) {
+      sim.step(1 / 60, 3, 5, 10);
+      for (let i = 0; i < 3; i++) {
+        dx = Math.max(dx, Math.abs(sim.bodies[i].s - sim.target(i)));
+        dr = Math.max(dr, Math.abs(sim.bodies[i].rot));
+      }
+    }
+    expect(dx).toBeLessThan(0.25);
+    expect(dr).toBeLessThanOrEqual(0.12 + 1e-9);
   });
 });
