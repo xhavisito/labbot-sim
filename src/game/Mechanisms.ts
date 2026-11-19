@@ -207,6 +207,8 @@ export class Mechanisms {
   critPullAge = 0;
   /** Dónde queda el cubo tomado respecto a su asiento (m): donde la Garrita lo agarró, dentro de su alcance; la garra no se mueve. */
   critHold = { dx: 0, dy: 0, dz: 0 };
+  /** Garra centrada (Axiom): dónde quedó la Crítica entre los dedos, donde la tocó al cerrar (m, sistema de la garra; solo dibujo y colisionador). */
+  critGrip = { x: 0, y: 0, z: 0 };
   critPullDur = 0;
   /** Segundos que le quedan a la Garrita recién cerrada para tomar la Crítica (SUPUESTO: lo que tarda en cerrar). */
   private critWindow = 0;
@@ -645,6 +647,20 @@ export class Mechanisms {
     if (!canTakeCriticalFromHolder(this.phys.spec) && t.y > CRITICAL_SIZE / 2 + 0.03) return false;
     const ok = Math.abs(lx - this.tipX()) < reach && Math.abs(lz) < 0.3 && t.y > carriage - 0.2 && t.y < carriage + 0.35;
     if (!ok) return false;
+    if (p.centeredClaw) {
+      // Axiom: la garra la toma donde la tocó, sin recentrarla (Xhavi, 19-nov). Se mide en el sistema de la garra (el de los dedos, que gira
+      // con el brazo) y se limita a lo que cabe entre ellos: a lo largo de los dedos, a la altura de su placa y entre sus dos lados (SUPUESTO)
+      const tip = armTip(p.spec.arm, this.angle);
+      const d = this.angle;
+      const dxr = lx - tip.x;
+      const dyr = t.y - p.position().y - tip.y;
+      const gx = dxr * Math.cos(d) + dyr * Math.sin(d);
+      const gy = -dxr * Math.sin(d) + dyr * Math.cos(d);
+      const fl = clawOf(p.spec).fingerLength;
+      const clampTo = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
+      this.critGrip = { x: clampTo(gx, -0.02, fl / 2 + 0.01), y: clampTo(gy, -0.08, 0.08), z: clampTo(lz, -0.04, 0.04) };
+      p.setCritGrip(this.critGrip.x, this.critGrip.y, this.critGrip.z);
+    }
     this.pieces.stash(c, { at: 'robot', robot: p.index });
     this.critical = c;
     events.push({ type: 'grabCritical', robot: p.index, piece: c.index });
@@ -715,11 +731,14 @@ export class Mechanisms {
     const loaded = this.stored.length;
     const slot = Math.max(0, this.inClawCount - 1);
     const hold = this.critHold;
+    const gripped = kind === 'critical' && this.phys.centeredClaw ? this.phys.critGripLocal(this.angle) : null;
     if (kind === 'critical') {
       this.critical = null;
       this.critPull = null;
       this.critHold = { dx: 0, dy: 0, dz: 0 };
       this.phys.setCritHold(0, 0, 0);
+      this.critGrip = { x: 0, y: 0, z: 0 };
+      this.phys.setCritGrip(0, 0, 0);
     } else {
       this.stored.pop();
       this.inClaw = this.phys.spec.arm.holdsTwo === true && this.stored.length > 0;
@@ -759,6 +778,11 @@ export class Mechanisms {
       // Garra del CAD centrada en la punta (Axiom): la Muestra sale del centro de los dedos
       loc = { x: lx, y: p.centeredClaw ? this.height : this.height + size / 2 };
       vl = { x: push ? spit * dir : 0, y: 0 };
+    }
+    // Axiom: la Crítica sale de donde la lleva entre los dedos
+    if (gripped) {
+      loc = { x: gripped.x, y: gripped.y };
+      locZ = gripped.z;
     }
     // Crítica de la garra fija: sale de su asiento, sin empujón (con el robot)
     const seat = kind === 'critical' ? critSeat(spec) : null;
@@ -865,6 +889,8 @@ export class Mechanisms {
     this.critical = null;
     this.critHold = { dx: 0, dy: 0, dz: 0 };
     this.phys.setCritHold(0, 0, 0);
+    this.critGrip = { x: 0, y: 0, z: 0 };
+    this.phys.setCritGrip(0, 0, 0);
     this.critPull = null;
     this.inClaw = false;
     this.intakeOn = false;

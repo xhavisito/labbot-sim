@@ -122,6 +122,7 @@ export class RobotView {
   private critFingers: Array<{ g: THREE.Group; side: number }> = [];
   /** Cierre actual de esos dedos (0 = abiertos, la pose del CAD; 1 = sobre la Crítica). */
   private critNow = 0;
+  private critGripView = { x: 0, y: 0, z: 0 };
   private critT = 0;
   /** Centro de los dedos de la pinza del CAD en el sistema de la garra (donde se dibuja la Muestra que aprieta). */
   private pocket: { x: number; y: number } | null = null;
@@ -738,6 +739,17 @@ export class RobotView {
     this.clawSample.rotation.z = tilt;
     this.clawSample2.rotation.z = tilt;
     if (!cseat) this.criticalMesh.rotation.z = tilt;
+    // Axiom: la Crítica va donde la garra la tomó (m.critGrip, en el sistema del brazo): se pasa al sistema de la garra (girado `tilt`) y se suaviza
+    if (!cseat && this.pocket && this.robot.phys.centeredClaw) {
+      const g = m.critical ? m.critGrip : { x: 0, y: 0, z: 0 };
+      const k = m.critical ? 0.35 : 1;
+      this.critGripView.x += (g.x - this.critGripView.x) * k;
+      this.critGripView.y += (g.y - this.critGripView.y) * k;
+      this.critGripView.z += (g.z - this.critGripView.z) * k;
+      const ct = Math.cos(tilt);
+      const st = Math.sin(tilt);
+      this.criticalMesh.position.set(this.pocket.x + this.critGripView.x * ct - this.critGripView.y * st, this.pocket.y + this.critGripView.x * st + this.critGripView.y * ct, this.critGripView.z);
+    }
     this.palm.position.x = -clawDir(m.angle, sa) * (this.claw.fingerLength / 2 + this.claw.palmThickness / 2);
     // Una o dos Muestras en la garra. Con rodillos van en fila sobre el eje de la boca (la primera en la
     // placa del fondo, la segunda detrás, `seatX`), en el sistema de la caja: con la garra del CAD (fija

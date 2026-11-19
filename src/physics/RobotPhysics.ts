@@ -131,6 +131,16 @@ export class RobotPhysics {
     const seat = critSeat(this.spec);
     if (this.critFixed && seat) this.critFixed.t = { x: seat.x + dx, y: seat.y + dy, z: dz };
   }
+  /** Garra centrada (Axiom): dónde quedó la Crítica entre los dedos al tomarla (m, en el sistema de la garra); (0, 0, 0) si va al centro. */
+  private critGrip = { x: 0, y: 0, z: 0 };
+  setCritGrip(x: number, y: number, z: number): void {
+    this.critGrip = { x, y, z };
+  }
+  /** Posición local (robot) del centro de la Crítica agarrada por la garra centrada con el brazo en `a`. */
+  critGripLocal(a: number): { x: number; y: number; z: number } {
+    const t = this.armPoses(a).critical.t;
+    return { x: t.x, y: t.y, z: t.z };
+  }
   /** Placas de arriba y de abajo de la caja (solo la garra-caja con rodillos). */
   private readonly boxPlates: boolean;
   private armTilted = false;
@@ -343,7 +353,7 @@ export class RobotPhysics {
         base: at(0, -BOX_PLATE / 2),
         sample: at(rollers0 ? seatX(this.spec, 0, d0, 0) : 0, sy0),
         sample2: at(rollers0 ? seatX(this.spec, 0, d0, 1) : 0, rollers0 ? S / 2 : S * 1.5),
-        critical: this.critFixed ?? at(0, this.centeredClaw ? 0 : CRITICAL_SIZE / 2),
+        critical: this.critFixed ?? (this.centeredClaw ? at(this.critGrip.x, this.critGrip.y, this.critGrip.z) : at(0, CRITICAL_SIZE / 2)),
       };
     }
     const rollers = intakeOf(this.spec).rollers === true && tip.y < FLOOR_POSE;
