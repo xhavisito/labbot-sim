@@ -29,7 +29,7 @@
  */
 import { camaraWells, inCamara, rectForCamara } from '../config/field';
 import { shotVelocity } from './shooter';
-import { CLAW_GAP, armTip, canHoldCritical, canTakeCriticalFromHolder, canPassCritical, clawOf, critSeat, intakeOf, posAngle, posDir, seatX, type ElevatorPos, type GripMode } from '../config/robot';
+import { CLAW_GAP, armTip, canHoldCritical, canTakeCriticalFromHolder, clawOf, critSeat, intakeOf, posAngle, posDir, seatX, type ElevatorPos, type GripMode } from '../config/robot';
 import { CRITICAL_SIZE, SAMPLE_SIZE } from '../config/field';
 import { FLOOR_POSE, clawDir } from '../physics/RobotPhysics';
 import { GROUPS } from '../physics/PhysicsWorld';
@@ -177,13 +177,11 @@ const EXIT_MAX = 0.9;
 const SHOT_EXIT = 0.25;
 export const SHOT_AIM_ABOVE = 0.12;
 /**
- * Zona de entrega del pase de la Crítica (en el sistema del rojo, +X; el azul la espeja): la plataforma superior junto a la
- * Repisa, desde donde un compañero la sube a la Repisa. SUPUESTO (Xhavi, 16-nov). `PASS_MIN`: pase más corto que se lanza (m).
+ * Zona de entrega del pase de Muestras normales (en el sistema del rojo, +X; el azul la espeja): la plataforma junto a la
+ * Repisa, del lado de su alianza, su lugar de scoring. SUPUESTO (Xhavi, 20-nov: la Crítica no se pasa, solo las Muestras). `PASS_MIN`: pase más corto que se lanza (m).
  */
 export const PASS_TARGET = { x: 0.7, z: 0 };
 export const PASS_MIN = 0.6;
-/** Lugares de la rampa que ocupa la Crítica de 20 cm (la Muestra de 15 cm ocupa 1). */
-const CRITICAL_SLOTS = 2;
 
 export class Mechanisms {
   intakeOn = false;
@@ -404,9 +402,9 @@ export class Mechanisms {
     this.phys.setArmPose(this.angle, this.critical && !fixed ? 'critical' : this.inClaw ? 'sample' : null, n, fixed && this.critical !== null, this.critSample !== null);
   }
 
-  /** Lugares de la rampa ocupados: las Muestras y, en Phoenix (`passCritical`), la Crítica, que mide 20 cm y ocupa 2 (SUPUESTO). */
+  /** Lugares de la rampa ocupados: las Muestras (Phoenix no toma la Crítica). */
   get slotsUsed(): number {
-    return this.stored.length + (this.critical && canPassCritical(this.phys.spec) ? CRITICAL_SLOTS : 0);
+    return this.stored.length;
   }
 
   /** Muestras en la garra (con `holdsTwo` todas las guardadas; si no, 0 o 1). */
@@ -429,7 +427,7 @@ export class Mechanisms {
 
   /** Garra: con el brazo abajo y vacía, agarra la Muestra que queda entre sus dedos. */
   private runClaw(events: MechEvent[], dt: number): void {
-    if ((this.critical && !canPassCritical(this.phys.spec)) || (this.inClaw && !this.phys.spec.arm.holdsTwo) || this.height > FLOOR_POSE || this.cooldown > 0 || this.hopperTask()) {
+    if (this.critical || (this.inClaw && !this.phys.spec.arm.holdsTwo) || this.height > FLOOR_POSE || this.cooldown > 0 || this.hopperTask()) {
       this.closing = null;
       return;
     }
@@ -645,17 +643,15 @@ export class Mechanisms {
     // Garra fija (Psycho): no depende del brazo ni de lo que lleve la caja; la toma si el cubo llega a su asiento
     if (seat) return this.grabCriticalFixed(events);
     // La garra tiene que estar del lado donde toma la Crítica (no guardada ni volteada al otro)
-    if (!(canHoldCritical(this.phys.spec) || canPassCritical(this.phys.spec)) || this.critical || clawDir(this.angle, this.phys.spec.arm) !== posDir(this.phys.spec, 4)) return false;
-    // Phoenix: la Crítica entra por el intake como una Muestra, junto a las que ya lleve, si le caben sus 2 lugares de la rampa
-    if (canPassCritical(this.phys.spec) ? this.stored.length + CRITICAL_SLOTS > this.capacity : this.inClaw) return false;
+    if (!canHoldCritical(this.phys.spec) || this.critical || clawDir(this.angle, this.phys.spec.arm) !== posDir(this.phys.spec, 4)) return false;
+    if (this.inClaw) return false;
     const p = this.phys;
     const c = this.pieces.critical(this.alliance);
     if (c.state.at !== 'field') return false;
     const t = c.body.translation();
     const { lx, lz } = p.worldToLocalFlat(t.x, t.z);
     const carriage = p.position().y + this.height;
-    // Phoenix (pase): los compliants jalan la Crítica de 20 cm aunque la espuma topa con los rodillos (a más de 18 cm de altura): alcanza hasta 30 cm de la punta (SUPUESTO)
-    const reach = canPassCritical(this.phys.spec) ? 0.3 : 0.2;
+    const reach = 0.2;
     // Axiom (`critFloorOnly`): solo del piso (centro del cubo a menos de 3 cm de su posición apoyado), no de la rendija ni de la Repisa (SUPUESTO)
     if (!canTakeCriticalFromHolder(this.phys.spec) && t.y > CRITICAL_SIZE / 2 + 0.03) return false;
     const ok = Math.abs(lx - this.tipX()) < reach && Math.abs(lz) < 0.3 && t.y > carriage - 0.2 && t.y < carriage + 0.35;
@@ -864,9 +860,10 @@ export class Mechanisms {
       vl = { x: 0, y: 0 };
     }
     // Lanzador (Phoenix): en N1–N3 la Muestra sale disparada hacia el pozo de ese nivel; sale de la boca del lanzador si el CAD la fija
-    // Pase (Phoenix, `passCritical`): soltar con la Crítica la lanza hacia la zona de entrega, sin anotarla
-    const passing = kind === 'critical' && !force && intake.shooter?.passCritical === true;
-    const shooter = passing || (kind === 'sample' && !force && this.target >= 1 && this.target <= 3) ? intake.shooter : undefined;
+    // Pase (Phoenix, `passSpeed`): soltar una Muestra sin nivel elegido (N0) la lanza en arco hacia la zona de entrega desde donde esté el robot, sin anotarla
+    const passing = kind === 'sample' && !force && this.target === 0 && intake.shooter?.passSpeed !== undefined;
+    const shotAt = kind === 'sample' && !force && this.target >= 1 && this.target <= 3;
+    const shooter = passing ? { ...intake.shooter!, maxSpeed: intake.shooter!.passSpeed! } : shotAt ? intake.shooter : undefined;
     if (shooter?.muzzle) loc = { x: shooter.muzzle.x, y: shooter.muzzle.y };
     const at = p.localToWorld(loc.x, loc.y, locZ);
     const v = p.body.linvel();
@@ -884,7 +881,7 @@ export class Mechanisms {
         // Hacia donde apunta el robot, hasta la zona de entrega (o hasta donde alcance, `clipped`); cae a ras de piso
         const s = this.alliance === 'red' ? 1 : -1;
         dist = Math.max(PASS_MIN, Math.hypot(s * PASS_TARGET.x - at.x, PASS_TARGET.z - at.z));
-        dh = CRITICAL_SIZE / 2 - at.y;
+        dh = this.pieces.size(piece) / 2 - at.y;
       } else {
         const level = this.target as 1 | 2 | 3;
         const well = camaraWells()[level];
@@ -892,7 +889,7 @@ export class Mechanisms {
         dist = Math.max(0.3, (((r.x0 + r.x1) / 2 - at.x) * Math.cos(h)) - (((r.z0 + r.z1) / 2 - at.z) * Math.sin(h)));
         dh = well.rim + SHOT_AIM_ABOVE - at.y;
       }
-      const sh = shotVelocity(shooter, dist, dh, this.rand, loaded);
+      const sh = shotVelocity(shooter, dist, dh, this.rand, passing ? 1 : loaded);
       const hy = h + sh.yaw;
       vx = v.x + wy * (at.z - rp.z) + Math.cos(hy) * sh.speed * Math.cos(sh.pitch);
       vz = v.z - wy * (at.x - rp.x) - Math.sin(hy) * sh.speed * Math.cos(sh.pitch);
