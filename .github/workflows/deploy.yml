@@ -1,5 +1,5 @@
-# Publica el simulador en GitHub Pages (https://xhavisito.github.io/labbot-sim/) cada vez que algo
-# entra a main: pruebas, build y copia de dist/ a la rama gh-pages, que es la que sirve Pages.
+# Publica el simulador en GitHub Pages (rama gh-pages) desde main: https://xhavisito.github.io/labbot-sim/
+# Todo se fusiona directo a main; ya no hay versión de pruebas (Xhavi, 18-nov).
 name: Deploy
 
 on:
@@ -30,9 +30,16 @@ jobs:
         env:
           TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          cd dist
+          REMOTE="https://x-access-token:${TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          mkdir site
+          git clone -q --depth 1 -b gh-pages "$REMOTE" site || true
+          rm -rf site/.git
+          # Reemplaza todo el sitio (esto también borra la carpeta /pruebas/ de la versión de pruebas que ya no existe)
+          find site -mindepth 1 -maxdepth 1 -exec rm -rf {} +
+          cp -r dist/. site/
+          cd site
           touch .nojekyll
           git init -q -b gh-pages
           git add -A
-          git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" commit -q -m "deploy ${GITHUB_SHA}"
-          git push -f "https://x-access-token:${TOKEN}@github.com/${GITHUB_REPOSITORY}.git" gh-pages
+          git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" commit -q -m "deploy ${GITHUB_REF_NAME} ${GITHUB_SHA}"
+          git push -f "$REMOTE" gh-pages
