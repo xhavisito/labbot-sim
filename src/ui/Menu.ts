@@ -119,6 +119,10 @@ export interface VsResults {
 /** Medidas del chasis del robot (cm), para la vitrina del menú. */
 const chassisSize = (id: RobotId): string => `${Math.round(robotSpec(id).length * 100)} × ${Math.round(robotSpec(id).width * 100)} cm`;
 /** Nombre y descripción de un robot elegible (tipo de LabBot o robot propio). */
+/** Phoenix no tiene garra: su intake son rodillos y su tecla de soltar dispara (Xhavi, 17-nov). */
+const phoenixTip = (what: string): string =>
+  what === t('act_intake') ? t('tip_phoenix_intake') : what === t('act_releaseSample') ? t('tip_phoenix_shoot') : what;
+
 const robotName = (id: RobotId): string => robotSpec(id).label ?? t(`type_${id}` as Key);
 function robotDesc(id: RobotId): string {
   if (isCadId(id)) {
@@ -482,7 +486,8 @@ export class Menu {
       `${brandbar(t('mo_tips'))}
       <h1>${robotName(id)}</h1>
       <p class="sub">${robotDesc(id)}</p>
-      <div class="mo-tips">${keyboardHelp(this.input.bindings).map((h) => `<div>${kbds(h.keys)} <span>${h.what}</span></div>`).join('')}</div>
+      <div class="mo-tips">${keyboardHelp(this.input.bindings).map((h) => `<div>${kbds(h.keys)} <span>${id === 'cad:phoenix' ? phoenixTip(h.what) : h.what}</span></div>`).join('')}</div>
+      ${id === 'cad:phoenix' ? `<p class="sub">${t('tip_phoenix_ramp')}</p>` : ''}
       <div class="actionbar">${backBtn('data-act="back"')}<div class="grow"></div></div>`,
       'screen solid',
     );
