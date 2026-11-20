@@ -4,7 +4,7 @@ import * as F from '../src/config/field';
 import { robotSpec } from '../src/config/robotIds';
 import { GameSession } from '../src/game/GameSession';
 import { maxSpeedFor, solveSpeed } from '../src/game/shooter';
-import { canHoldCritical, canPassCritical, shooterCapacity } from '../src/config/robot';
+import { canHoldCritical, shooterCapacity } from '../src/config/robot';
 import { emptyInput } from '../src/input/InputManager';
 import type { Level } from '../src/core/types';
 import { initRapier } from '../src/physics/PhysicsWorld';
@@ -208,7 +208,7 @@ describe('Phoenix con varias Muestras', () => {
   });
 });
 
-describe('Phoenix pasa la Muestra Crítica', () => {
+describe('Phoenix pasa Muestras normales (no la Crítica)', () => {
   const P = () => robotSpec('cad:phoenix');
   function setup() {
     const g = new GameSession({ player: 0, preload: false, specs: [P()] });
@@ -216,46 +216,44 @@ describe('Phoenix pasa la Muestra Crítica', () => {
     return g;
   }
 
-  it('la toma del piso (de reversa) pero no cuenta como robot que anota Críticas', () => {
-    const s = P();
-    expect(canHoldCritical(s)).toBe(false);
-    expect(canPassCritical(s)).toBe(true);
+  it('no cuenta como robot que toma Críticas', () => {
+    expect(canHoldCritical(P())).toBe(false);
+  });
+
+  it('no toma la Crítica con el intake', () => {
     const g = setup();
     g.player.phys.teleport(1.2, 1.0, 0);
     const c = g.pieces.critical(g.player.alliance);
     g.pieces.place(c, 1.2 - 0.85, 0.1, 1.0);
-    for (let i = 0; i < 120 * 3 && !g.player.mech.critical; i++) {
+    for (let i = 0; i < 120 * 3; i++) {
       g.setInput({ ...emptyInput(), forward: -0.3, intake: true });
       g.step();
     }
-    expect(g.player.mech.critical).toBe(c);
+    expect(g.player.mech.critical).toBe(null);
   });
 
-  it('al soltar la lanza hacia la zona de entrega y no la anota', () => {
+  function pass(dx: number): { d: number; scored: boolean } {
     const g = setup();
     const a = g.player.alliance;
-    const c = g.pieces.critical(a);
     const side = a === 'red' ? 1 : -1;
-    // Parado a 1.5 m de la zona de entrega, apuntando a ella
-    g.player.phys.teleport(side * 2.2, 0, a === 'red' ? Math.PI : 0);
-    g.player.mech.critical = c;
-    g.pieces.stash(c, { at: 'robot', robot: g.player.index });
-    for (let i = 0; i < 60; i++) {
-      g.setInput({ ...emptyInput() });
-      g.step();
-    }
+    const piece = g.pieces.list.find((p) => p.kind === 'sample')!;
+    g.player.phys.teleport(side * (0.7 + dx), 0, a === 'red' ? Math.PI : 0);
+    g.player.mech.load(piece);
+    for (let i = 0; i < 60; i++) { g.setInput({ ...emptyInput() }); g.step(); }
     g.setInput({ ...emptyInput(), releaseSample: true });
     g.step();
-    for (let i = 0; i < 120 * 4; i++) {
-      g.setInput({ ...emptyInput() });
-      g.step();
+    for (let i = 0; i < 120 * 5; i++) { g.setInput({ ...emptyInput() }); g.step(); }
+    const t = piece.body.translation();
+    return { d: Math.hypot(t.x - side * 0.7, t.z), scored: g.sensors.scored.has(piece.index) };
+  }
+
+  it('sin nivel elegido, K la lanza hacia la zona de entrega desde 2 m y desde 6 m', () => {
+    for (const dx of [2, 6]) {
+      const r = pass(dx);
+      console.log('PASE', dx, r.d);
+      expect(r.d).toBeLessThan(1.5);
+      expect(r.scored).toBe(false);
     }
-    const t = c.body.translation();
-    console.log('PASE', JSON.stringify(t));
-    expect(c.state.at).toBe('field');
-    // Cayó cerca de la zona de entrega (a ≤ 0.7 m), a ras de plataforma o piso, no en la Repisa
-    expect(Math.hypot(t.x - side * 0.7, t.z)).toBeLessThan(0.9);
-    expect(g.sensors.criticalOnRepisa(a)).toBe(false);
   });
 });
 
@@ -267,39 +265,6 @@ describe('Phoenix: tiro flojo', () => {
   function shootLoaded3(range: number): boolean {
     return shoot(3, range, 4).level === 3;
   }
-});
-
-describe('Phoenix agarra la Crítica con el intake, como una Muestra', () => {
-  const P = () => robotSpec('cad:phoenix');
-  function grab(preload: number, extraSamples = 0) {
-    const g = new GameSession({ player: 0, preload: false, specs: [P()] });
-    for (const p of g.pieces.list) if (p.state.at === 'field' && p.kind === 'sample') g.pieces.stash(p, { at: 'hp', alliance: 'red' });
-    const m = g.player.mech;
-    const samples = g.pieces.list.filter((p) => p.kind === 'sample');
-    for (let i = 0; i < preload; i++) m.load(samples[i]);
-    g.player.phys.teleport(1.2, 1.0, 0);
-    const c = g.pieces.critical(g.player.alliance);
-    g.pieces.place(c, 1.2 - 0.85, 0.1, 1.0);
-    for (let k = 0; k < extraSamples; k++) g.pieces.place(samples[preload + k], 1.2 - 1.5 - k * 0.3, 0.076, 1.0);
-    for (let i = 0; i < 120 * 6; i++) {
-      g.setInput({ ...emptyInput(), forward: -0.3, intake: true });
-      g.step();
-    }
-    return { g, m, c };
-  }
-
-  it('con una Muestra de precarga ya en la rampa también la toma', () => {
-    const { m, c } = grab(1);
-    expect(m.critical).toBe(c);
-    expect(m.stored.length).toBe(1);
-  });
-
-  it('la Crítica ocupa 2 lugares de la rampa y las Muestras siguen entrando hasta llenarla', () => {
-    const { m, c } = grab(0, 3);
-    expect(m.critical).toBe(c);
-    // capacidad 4: la Crítica (2) + 2 Muestras
-    expect(m.stored.length).toBe(2);
-  });
 });
 
 describe('Phoenix: la pieza sale girando', () => {
