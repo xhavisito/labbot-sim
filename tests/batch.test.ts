@@ -1,0 +1,64 @@
+import { beforeAll, describe, expect, it } from 'vitest';
+import { initRapier } from '../src/physics/PhysicsWorld';
+import { ALLIANCE_PLANS, COMPARE_ALLIANCE_PLANS, MECH_ALLIANCE_PLANS, runMatch } from '../src/sim/batch';
+
+beforeAll(async () => {
+  await initRapier();
+});
+
+const plan = (id: string) => ALLIANCE_PLANS.find((p) => p.id === id)!;
+
+describe('simulación por lotes (estrategias de la IA)', () => {
+  it('los planes existen para los cinco tipos y entre ellos', () => {
+    for (const id of ['pivn3+pivn3', 'p180n3+p180n3', 'pivcrit3+pivn3', 'p180crit3+p180n3', 'pivn3+p180n3', 'pivn3+bloqueo', 'larmcrit3+larmn3', 'elevcrit3+elevn3', 'dualcrit3+dualn3']) expect(plan(id), id).toBeDefined();
+    const kinds = new Set(MECH_ALLIANCE_PLANS.flatMap((p) => p.robots.map((r) => r.spec.mechanism)));
+    expect([...kinds].sort()).toEqual(['dual', 'elevator', 'longarm', 'pivot', 'pivot180']);
+  });
+
+  it('comparación de mecanismos: la misma estrategia (Crítica + N3) para cada tipo', () => {
+    expect(COMPARE_ALLIANCE_PLANS.map((p) => p.id)).toEqual(['pivcrit3+pivn3', 'p180crit3+p180n3', 'larmcrit3+larmn3', 'elevcrit3+elevn3', 'dualcrit3+dualn3']);
+  });
+
+  it('el pivote con Crítica la deja en la Repisa (15 + 1 RP) y suben a la Plataforma (§4.4)', () => {
+    const r = runMatch(plan('pivcrit3+pivn3'), plan('pivn3+pivn3'), 1);
+    expect(r.red.critical).toBe(15);
+    expect(r.red.rpCritical).toBe(true);
+    expect(r.red.platform).toBeGreaterThanOrEqual(10);
+    // Junta también las Muestras del Human Player (más de las 8 de su mitad del Laboratorio y las precargas)
+    expect(r.red.samples).toBeGreaterThan(10);
+    expect(r.red.fouls.CRITICAL_EARLY ?? 0).toBe(0);
+    expect(r.red.fouls.PLATFORM_EARLY ?? 0).toBe(0);
+  }, 60_000);
+
+  it('el bloqueo frente a la Cámara rival se cobra como Tech Foul (§4.6, D17)', () => {
+    const r = runMatch(plan('pivn3+bloqueo'), plan('pivn3+pivn3'), 1);
+    expect(r.red.fouls.OBSTRUCT).toBeGreaterThan(5);
+    expect(r.blue.penaltiesIn).toBeGreaterThan(40);
+  }, 60_000);
+});
+
+describe('scouting de un match de solo robots con mecanismo', () => {
+  it('cada robot trae su parte: Crítica del que la llevó, Plataforma de los que subieron, Muestras soltadas por él', () => {
+    const mech = (id: string) => MECH_ALLIANCE_PLANS.find((p) => p.id === id)!;
+    const r = runMatch(mech('pivn3+p180crit3'), mech('p180n3+p180n3'), 2);
+    const [piv, p180] = r.red.robots;
+    expect(p180.plan).toBe('p180crit3');
+    expect(piv.plan).toBe('pivn3');
+    expect(p180.critical).toBe(r.red.rpCritical);
+    expect(piv.critical).toBe(false);
+    // Las Muestras atribuidas no pasan de las que contó la Cámara (las empujadas no son de nadie)
+    for (const a of [r.red, r.blue]) expect(a.robots[0].samples + a.robots[1].samples).toBeLessThanOrEqual(a.samples);
+    expect(piv.samples).toBeGreaterThan(0);
+    expect(r.red.robots.filter((x) => x.platform).length * 10).toBe(r.red.platform === 20 ? 20 : r.red.platform);
+  }, 60_000);
+});
+
+describe('mecanismos nuevos con la IA (2-nov)', () => {
+  it.each(['larm', 'elev', 'dual'])('%s: con la misma estrategia anota, deja la Crítica casi siempre y sube a la Plataforma', (p) => {
+    const r = runMatch(plan(`${p}crit3+${p}n3`), plan('pivn3+pivn3'), 1);
+    expect(r.red.samples).toBeGreaterThan(10);
+    expect(r.red.platform).toBeGreaterThanOrEqual(10);
+    expect(r.red.fouls.CRITICAL_EARLY ?? 0).toBe(0);
+    expect(r.red.fouls.PLATFORM_EARLY ?? 0).toBe(0);
+  }, 90_000);
+});

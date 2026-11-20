@@ -8,8 +8,8 @@ import * as F from './field';
 
 export type Vec3 = [number, number, number];
 
-export type FieldPart = 'camara' | 'campana' | 'barrier' | 'criticalHolder' | 'ramp' | 'platform' | 'repisa' | 'boundary';
-export type FieldMaterial = 'mdf' | 'mdfDark' | 'gray' | 'invisible';
+export type FieldPart = 'camara' | 'campana' | 'barrier' | 'criticalHolder' | 'ramp' | 'platform' | 'repisa' | 'wall' | 'boundary';
+export type FieldMaterial = 'mdf' | 'mdfDark' | 'gray' | 'wall' | 'invisible';
 
 export interface Solid {
   part: FieldPart;
@@ -73,10 +73,7 @@ function campana(): Solid[] {
   add(box(xb - t, xb, 0, h, zf - F.CAMPANA_DEPTH - t, zf - t));
   // Barra lateral de obstáculo, perpendicular a la pared en el extremo de la Campana
   s.push({ part: 'barrier', material: 'mdf', points: box(xa - F.BARRIER_WIDTH, xa, 0, F.BARRIER_HEIGHT, -F.HALF_W, -F.HALF_W + F.BARRIER_LENGTH) });
-  // Soporte de la rendija deslizable de la Muestra Crítica (arriba de la pared)
-  const c = F.CRITICAL_HOLDER_RED;
-  const half = F.CRITICAL_SIZE / 2 + 0.03;
-  s.push({ part: 'criticalHolder', material: 'gray', points: box(c.x - half, c.x + half, c.y - t, c.y, zf - t, c.z + half) });
+  // La repisa de la Muestra Crítica es móvil (la desliza el HP): ver game/CriticalShelf.ts
   return s;
 }
 
@@ -100,6 +97,19 @@ function platformRed(): Solid[] {
   ];
 }
 
+/**
+ * Pared perimetral baja (SUPUESTO: guardrail FRC de 20 in, `WALL_HEIGHT`) por fuera de la alfombra:
+ * la pared de la Driver Station roja (+X) y el lado −Z hasta la Campana roja (que cierra el resto);
+ * la otra mitad es la rotación de 180°.
+ */
+function wallsRed(): Solid[] {
+  const t = F.WALL_THICKNESS;
+  const h = F.WALL_HEIGHT;
+  const L = F.HALF_L;
+  const W = F.HALF_W;
+  return [box(L, L + t, 0, h, -W - t, W + t), box(-L - t, F.CAMPANA_X_RED[0], 0, h, -W - t, -W)].map((points) => ({ part: 'wall' as const, material: 'wall' as const, points }));
+}
+
 function boundary(): Solid[] {
   const m = F.OUT_OF_BOUNDS_MARGIN;
   const L = F.HALF_L + m;
@@ -116,6 +126,7 @@ function boundary(): Solid[] {
 
 /** Todos los sólidos estáticos de la cancha (ambas alianzas). */
 export function fieldSolids(): Solid[] {
+  // OJO: `alliance` es la mitad donde está la estructura; la Cámara de +X la usa el AZUL (`camaraOwnerFrame`)
   const red: Solid[] = [...camara(), ...campana(), ...platformRed()].map((s) => ({ ...s, alliance: 'red' }));
   const blue: Solid[] = red.map((s) => ({ ...s, alliance: 'blue', points: mirror(s.points) }));
   const hz = F.PLATFORM_WIDTH / 2;
@@ -124,10 +135,21 @@ export function fieldSolids(): Solid[] {
     material: 'mdfDark',
     points: box(-F.REPISA_DEPTH / 2, F.REPISA_DEPTH / 2, 0, F.REPISA_TOP, -hz, hz),
   };
-  return [...red, ...blue, repisa, ...boundary()];
+  const walls = wallsRed();
+  return [...red, ...blue, repisa, ...walls, ...walls.map((s) => ({ ...s, points: mirror(s.points) })), ...boundary()];
 }
 
 /** Cinta de las Zonas de Inicio (segmentos en el piso) por alianza. */
 export function startTape(a: Alliance): Array<[number, number, number, number]> {
   return F.START_TAPE_RED.map(([x0, z0, x1, z1]) => (a === 'red' ? [x0, z0, x1, z1] : [-x0, -z0, -x1, -z1]));
+}
+
+/** Caja de la repisa de la Muestra Crítica (marco rojo), centrada en X=0: la forma que usan física y dibujo. */
+export function criticalShelfBox(): { hx: number; hy: number; hz: number; cy: number; cz: number } {
+  const c = F.CRITICAL_HOLDER_RED;
+  const t = STRUCT_THICKNESS;
+  const zf = -F.HALF_W;
+  const z0 = zf - t;
+  const z1 = c.z + F.CRITICAL_SIZE / 2 + 0.03;
+  return { hx: F.CRITICAL_SHELF_LENGTH / 2, hy: t / 2, hz: (z1 - z0) / 2, cy: c.y - t / 2, cz: (z0 + z1) / 2 };
 }

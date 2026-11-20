@@ -10,17 +10,29 @@
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
+    "audit:manual": "node scripts/audit-manual.mjs",
     "typecheck": "tsc --noEmit",
     "shots": "node scripts/screenshot.mjs",
-    "director-check": "node scripts/director-check.mjs"
+    "e2e:auto": "node scripts/auto-designer.mjs",
+    "e2e": "node scripts/e2e.mjs",
+    "e2e:offline": "node scripts/offline.mjs",
+    "ui-shots": "node scripts/ui-shots.mjs",
+    "ui-hit": "node scripts/ui-hit.mjs",
+    "batch": "node scripts/batch.mjs",
+    "pad-nav": "node scripts/pad-nav.mjs",
+    "robot:import": "node scripts/cad/import.mjs"
   },
   "dependencies": {
     "@dimforge/rapier3d-compat": "0.21.0",
+    "@fontsource-variable/inter": "5.3.0",
+    "@fontsource-variable/league-spartan": "5.3.0",
+    "@fontsource/chakra-petch": "5.3.0",
     "three": "0.186.1"
   },
   "devDependencies": {
     "@types/node": "24.19.2",
     "@types/three": "0.186.0",
+    "occt-import-js": "0.0.23",
     "playwright": "1.64.0",
     "typescript": "6.0.3",
     "vite": "8.3.2",
