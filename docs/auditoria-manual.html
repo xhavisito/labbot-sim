@@ -1,0 +1,277 @@
+<title>Auditoría LabBot Rescue</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;700;800&family=Public+Sans:wght@400;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: una columna de lectura; resumen arriba, tabla de reglas filtrable, luego las preguntas para los organizadores. */
+:root {
+  --bg: #f5f7f8;
+  --surface: #ffffff;
+  --fg: #17212b;
+  --muted: #5a6875;
+  --line: #d9e0e5;
+  --accent: #0f7c86;
+  --ok: #2f7d4a;
+  --ok-bg: #e3f2e8;
+  --fix: #8a5a00;
+  --fix-bg: #fbefd2;
+  --sup: #2c5a9e;
+  --sup-bg: #e2ebf8;
+  --na: #66707a;
+  --na-bg: #eceff1;
+  --display: "Archivo", "Helvetica Neue", Arial, sans-serif;
+  --body: "Public Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #11181e; --surface: #18222a; --fg: #e4eaee; --muted: #93a2ae; --line: #2a3843; --accent: #4fc0c9;
+    --ok: #7fd09a; --ok-bg: #1b3326; --fix: #f0c060; --fix-bg: #3a2f14; --sup: #8db4ef; --sup-bg: #1c2a40; --na: #9aa5ae; --na-bg: #232d35;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #11181e; --surface: #18222a; --fg: #e4eaee; --muted: #93a2ae; --line: #2a3843; --accent: #4fc0c9;
+  --ok: #7fd09a; --ok-bg: #1b3326; --fix: #f0c060; --fix-bg: #3a2f14; --sup: #8db4ef; --sup-bg: #1c2a40; --na: #9aa5ae; --na-bg: #232d35;
+  color-scheme: dark;
+}
+body { background: var(--bg); color: var(--fg); font: 15px/1.55 var(--body); }
+.wrap { max-width: 980px; margin: 0 auto; padding-block: 32px 64px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); display: grid; gap: 36px; }
+h1, h2, h3 { font-family: var(--display); text-wrap: balance; margin: 0; }
+h1 { font-size: 2rem; font-weight: 800; letter-spacing: -0.01em; }
+h2 { font-size: 1.35rem; font-weight: 700; }
+h3 { font-size: 1rem; font-weight: 700; }
+p { margin: 0; max-width: 68ch; }
+.eyebrow { font: 500 0.75rem var(--mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--accent); }
+header { display: grid; gap: 10px; }
+.lede { color: var(--muted); }
+.sec { font-family: var(--mono); font-size: 0.82em; color: var(--accent); white-space: nowrap; }
+code { font-family: var(--mono); font-size: 0.88em; }
+.stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+@media (max-width: 640px) { .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.stat { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 14px 16px; display: grid; gap: 2px; }
+.stat b { font: 800 1.9rem/1 var(--display); font-variant-numeric: tabular-nums; }
+.stat span { color: var(--muted); font-size: 0.85rem; }
+.stat.ok b { color: var(--ok); } .stat.fix b { color: var(--fix); } .stat.sup b { color: var(--sup); } .stat.na b { color: var(--na); }
+section { display: grid; gap: 14px; min-width: 0; }
+.filters { display: flex; flex-wrap: wrap; gap: 8px; }
+.filters button { font: 600 0.82rem var(--body); border: 1px solid var(--line); background: var(--surface); color: var(--fg); padding: 6px 12px; border-radius: 999px; cursor: pointer; }
+.filters button[aria-pressed="true"] { background: var(--fg); color: var(--bg); border-color: var(--fg); }
+.filters button:focus-visible, summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.group { display: grid; gap: 6px; }
+.group h3 { padding-top: 8px; }
+.tbl { overflow-x: auto; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
+table { border-collapse: collapse; width: 100%; min-width: 640px; font-size: 0.9rem; }
+th, td { text-align: left; vertical-align: top; padding: 9px 12px; border-top: 1px solid var(--line); }
+thead th { border-top: 0; font: 500 0.72rem var(--mono); letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
+td:first-child { width: 28%; }
+td:nth-child(2) { width: 9%; }
+td:last-child { width: 15%; }
+.pill { display: inline-block; font: 600 0.75rem var(--body); padding: 2px 9px; border-radius: 999px; white-space: nowrap; }
+.pill.ok { color: var(--ok); background: var(--ok-bg); }
+.pill.fix { color: var(--fix); background: var(--fix-bg); }
+.pill.sup { color: var(--sup); background: var(--sup-bg); }
+.pill.na { color: var(--na); background: var(--na-bg); }
+.dref { font-family: var(--mono); font-size: 0.8em; color: var(--muted); }
+.qs { display: grid; gap: 10px; }
+.q { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 14px 16px; display: grid; grid-template-columns: 3.4rem minmax(0, 1fr); gap: 4px 14px; }
+.q .id { font: 700 1rem var(--mono); color: var(--sup); grid-row: span 3; }
+.q .ask { font-weight: 600; }
+.q .now { color: var(--muted); font-size: 0.9rem; }
+.q .now b { color: var(--fg); font-weight: 600; }
+.resolved { color: var(--muted); font-size: 0.9rem; }
+details { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 12px 16px; }
+summary { cursor: pointer; font-weight: 600; }
+details ul { margin: 10px 0 0; padding-left: 1.2em; display: grid; gap: 4px; color: var(--muted); font-size: 0.9rem; }
+footer { color: var(--muted); font-size: 0.85rem; border-top: 1px solid var(--line); padding-top: 16px; }
+</style>
+
+<div class="wrap">
+  <header>
+    <div class="eyebrow">LabBot Rescue 2026 · Robotics WinterFest · simulador</div>
+    <h1>Auditoría del simulador contra el manual</h1>
+    <p class="lede">Cada regla que el simulador aplica, comparada con el manual del reto (<code>game manual copy 2026.pdf</code>), con su sección, lo que hace el sim y si coincide. Al final, la lista de SUPUESTOS que necesitan confirmación de los organizadores. Revisado el 26 de octubre de 2026; auditoría automática añadida el 2 de noviembre de 2026.</p>
+  </header>
+
+  <div class="stats" id="stats"></div>
+
+  <section aria-labelledby="h-reglas">
+    <h2 id="h-reglas">Reglas, una por una</h2>
+    <div class="filters" role="group" aria-label="Filtrar por estado" id="filters"></div>
+    <div id="groups"></div>
+  </section>
+
+  <section aria-labelledby="h-sup">
+    <div class="eyebrow">Para los organizadores</div>
+    <h2 id="h-sup">SUPUESTOS por confirmar</h2>
+    <p class="lede">El manual no lo dice, o lo dice de dos formas. El simulador usa lo que aparece en “Hoy el sim”. Una respuesta en el formulario de Q&amp;A (§11.1) basta para fijarlo en el código.</p>
+    <div class="qs" id="qs"></div>
+    <p class="resolved"><b>Ya resueltos por Xhavi (24-oct):</b> D1 la línea de autónomo es la cinta de la Zona de Inicio · D4 las Muestras cuentan al depositarse, con el valor del periodo · D5 basta con estar en la rampa sin tocar la alfombra.</p>
+    <details>
+      <summary>SUPUESTOS de simulación que no son reglas (no hace falta preguntarlos)</summary>
+      <ul>
+        <li>Posiciones tomadas de la figura de §3.2 (≈14.5 mm/px): Zonas de Inicio, rejilla del Laboratorio, Cámara a 0.80 m de la Driver Station, ancho de la Plataforma 1.49 m. El CAD de §3.3 las daría exactas.</li>
+        <li>Masa de las piezas (espuma ≈30 kg/m³: 0.10 y 0.24 kg) y fricción 0.8.</li>
+        <li>Paredes de la Cámara: los 33 mm que faltan entre 2150 y 789+689+639 mm se reparten en 4 paredes.</li>
+        <li>Altura de la barra de la Campana: 200 mm. Grosor del MDF de la cancha: 18 mm.</li>
+        <li>Velocidad, aceleración y masa de los robots (el manual no pone límite de peso, §7.2).</li>
+        <li>Sin pared perimetral: barrera invisible a 0.6 m del límite.</li>
+      </ul>
+    </details>
+  </section>
+
+  <footer>Código: <code>xhavisito/labbot-sim</code> · números en <code>src/config/game.ts</code> y <code>src/config/field.ts</code> · faltas en <code>src/core/fouls.ts</code> y <code>src/referee/Referee.ts</code> · detalle de cada D en <code>docs/reglas-reto.md</code>. Corrección de esta auditoría: PR #18.</footer>
+</div>
+
+<script>
+const LABEL = { ok: 'Coincide', fix: 'Corregido', sup: 'SUPUESTO', na: 'No aplica' };
+const RULES = [
+  ['Auditoría automática (npm test / npm run audit:manual)', [
+    ['Tiempos, puntos §4.4, RP, faltas 4/8 y Red Card', '§2, §4.2–§4.6', '40 pruebas en tests/manual.test.ts: cada cláusula cita el manual, y 300 matches al azar comparan el marcador del sim contra uno de referencia escrito directo de la tabla.', 'ok'],
+    ['El manual cambia (§11.2)', '§11.2', 'npm run audit:manual -- "manual.pdf" falla si alguna cita ya no está en el manual.', 'ok'],
+    ['Todo número de config/game.ts', '§4.4', 'Una prueba exige que cada número tenga cita del manual; cada SUPUESTO citado debe existir en docs/reglas-reto.md.', 'ok'],
+    ['Faltas del catálogo sin clasificación del manual', '§4.5, §4.6', 'Las que no coinciden con §4.5/§4.6 deben llevar SUPUESTO (hoy AUTO_CENTER, D7).', 'ok'],
+    ['Dominio de Cámara cuenta Muestras de AUTO y TELEOP', '§4.4', 'El manual dice "al final del match": se cuentan todas las anotadas en la Cámara.', 'sup', 'D4'],
+    ['EndGame vale igual que TeleOp para Muestras', '§4.4', 'La tabla lo da igual (2/6/15); el sim usa un solo valor y la prueba lo exige.', 'ok'],
+  ]],
+  ['Tiempos del match', [
+    ['AUTO de 15 s', '§2, §4.2', '15 s; solo rutinas preprogramadas.', 'ok'],
+    ['TELEOP de 135 s', '§2, §4.3', '135 s; match de 150 s.', 'ok'],
+    ['ENDGAME = últimos 30 s del TELEOP', '§4.3.1', 'Desde 0:30 del TELEOP.', 'ok'],
+    ['Cambio de AUTO a TELEOP', '§4.2', 'Sin pausa (el manual solo menciona la señal de sonido).', 'sup', 'D9'],
+  ]],
+  ['Puntos', [
+    ['Línea de Autónomo: 5 c/u', '§4.4', '5 por cada robot que sale por completo de su Zona de Inicio en AUTO.', 'ok', 'D1, D2'],
+    ['Muestra N1 / N2 / N3 en AUTO: 5 / 10 / 18', '§4.4', 'Igual, al entrar al pozo del nivel.', 'ok'],
+    ['Muestra N1 / N2 / N3 en TELEOP y ENDGAME: 2 / 6 / 15', '§4.4', 'Igual.', 'ok'],
+    ['Robot en Plataforma 10; Alianza 20, no acumulable', '§4.4 (nota)', '1 robot = 10, 2 robots = 20, evaluado al sonar la bocina.', 'ok', 'D5, D28'],
+    ['Muestra Crítica en la Repisa: 15', '§4.4, §4.3.1', 'Si la Crítica propia está sobre la Repisa al sonar la bocina.', 'ok', 'D16, D29'],
+    ['Puntos de faltas al rival', '§4.5, §4.6', 'Se suman a la alianza contraria.', 'ok'],
+    ['Muestras después de la bocina', '—', 'No cuentan; tampoco hay gracia entre AUTO y TELEOP.', 'sup', 'D12'],
+    ['Muestra en la Cámara de la otra alianza', '§3.2.3', 'Cuenta para la dueña de la Cámara.', 'sup', 'D14'],
+  ]],
+  ['Ranking Points', [
+    ['Ambos robots cruzan la línea: 1 RP', '§4.4', 'Igual.', 'ok'],
+    ['Muestra Crítica: 1 RP', '§4.4', 'Igual.', 'ok'],
+    ['Dominio de Cámara (≥ 10 Muestras): 1 RP', '§4.4', 'Muestras anotadas en su Cámara al final.', 'ok'],
+    ['Empate 1 RP, victoria 2 RP', '§4.4', 'Igual; máximo 5 RP por match.', 'ok'],
+    ['RP en PlayOffs', '§8.2.2', 'No se dan.', 'ok'],
+    ['RP con Red Card', '§4.3.3', 'La alianza queda en 0 puntos y 0 RP.', 'sup', 'D10'],
+  ]],
+  ['Fouls: 4 puntos al contrario', [
+    ['Pinning', '§4.5, §6.1', 'Empujar a un rival casi quieto más de 3 s; otra falta cada 3 s más.', 'sup', 'D11'],
+    ['Entrar en contacto con un rival', '§4.5', 'Una falta por contacto nuevo al robot que se acerca más rápido (≥ 0.15 m/s); 2 s entre faltas del mismo par.', 'sup', 'D11, D15'],
+    ['Cruzar la línea central en AUTO', '§4.2', 'Foul cuando el chasis completo pasa al otro lado. El manual no le asigna falta.', 'sup', 'D7, D22'],
+    ['Manipular Muestras fuera de su área en AUTO', '§4.2', 'Sin falta propia; la IA solo toma de su mitad.', 'sup', 'D27'],
+    ['HP introduce Muestras fuera de zona / sale de su zona', '§4.5', 'El Human Player es automático y no comete estas faltas.', 'na'],
+    ['Dejar caer partes del robot', '§4.5', 'No se simula.', 'na'],
+    ['“En caso especial no se otorgarán los puntos”', '§4.5', 'Siempre se otorgan.', 'sup', 'D30'],
+  ]],
+  ['Tech Fouls: 8 puntos al contrario', [
+    ['Tocar a un robot en una zona del color contrario', '§4.6', 'Zonas de Inicio y frente de la Campana del rival; se cobra en lugar del Foul por contacto.', 'sup', 'D8, D23'],
+    ['El robot sale de los límites de la cancha', '§4.6', 'Una Tech Foul por cada salida (el manual lo lista dos veces).', 'ok', 'D30'],
+    ['Bloquear u obstruir las zonas del contrario', '§4.6, §6.1', 'Más de 3 s seguidos frente a la Cámara rival en el TELEOP; otra cada 5 s más.', 'sup', 'D17'],
+    ['Subir a la Plataforma antes del endgame', '§4.6', 'Una por cada vez que sube (se rearma tras 1 s fuera).', 'ok'],
+    ['Tomar la Muestra Crítica antes del endgame', '§4.6, §3.2.4', 'Igual.', 'ok'],
+    ['Tirar la Muestra Crítica rival de la Repisa', '§4.6', 'Faltaba. Ahora: Tech Foul al robot rival que la tocaba cuando sale de la Repisa. El sim no juzga intención.', 'fix', 'D21'],
+    ['HP coloca la Crítica después del inicio del AUTO', '§4.6, §4.1', 'La Crítica siempre está en la rendija antes del AUTO.', 'na'],
+    ['Seguridad, daño, Gracious Professionalism, drive team fuera de zona', '§4.6', 'Son de conducta; no se simulan.', 'na'],
+  ]],
+  ['Tarjetas', [
+    ['2 Yellow Cards = Red Card', '§4.3.3', 'Igual, contadas por match.', 'ok', 'D25'],
+    ['Red Card: pierde todos los puntos del match', '§4.3.3', 'La alianza entera queda en 0 (la pantalla de reglas ya lo marca como SUPUESTO).', 'sup', 'D10'],
+    ['Jugar sin sello de inspección: Red Card + Tech Foul', '§8.1', 'No aplica al simulador.', 'na'],
+  ]],
+  ['Cancha y piezas', [
+    ['Cancha 700 × 900 cm', '§3.1', '7 × 9 m (el “352 in” del manual es errata; 900 cm = 354.3 in).', 'ok', 'D13'],
+    ['Cámara: 2150 × 600 mm; niveles 789 / 689 / 639 mm con apertura a 200 / 500 / 800 mm', '§3.2.3', 'Igual.', 'ok'],
+    ['Campana: pared 2000 × 610 mm, ranura 1850.80 × 160 mm a 200 mm; barra 1250 × 50.80 mm', '§3.2.4', 'Igual.', 'ok'],
+    ['Rampa: 1800 mm, superficie de 1035.28 mm a 15°, plataforma de 800 mm', '§3.2.5', 'Igual (sube 268 mm).', 'ok'],
+    ['Repisa: escalón de 300 mm; ancho accesible ~689 mm', '§3.2.5', 'Escalón igual; fondo 0.40 m tomado de la figura porque 689 mm no cuadra.', 'sup', 'D6'],
+    ['Laboratorio: 16 Muestras simétricas', '§3.2.2', 'Rejilla 4 × 4 tomada de la figura.', 'ok'],
+    ['Muestra 150 mm, Crítica 200 mm', '§4.1.1', 'Igual.', 'ok'],
+    ['10 Muestras por HP; 1 Crítica por alianza; precarga de 1', '§4.1, §4.1.1', 'Igual; la precarga es extra y, si no se usa, va al HP.', 'ok', 'D3'],
+    ['HP mete Muestras durante todo el TeleOp', '§3.2.4', 'Solo en TELEOP, por la ranura inferior.', 'ok'],
+    ['Un Human Player por alianza', '§8.2.2', 'Uno en todos los matches (el manual solo lo dice para PlayOffs); una Muestra cada 3 s.', 'sup', 'D26'],
+  ]],
+  ['Robot', [
+    ['Chasis máximo 65 × 65 cm (perímetro 260 cm)', '§7.2', 'El editor lo revisa.', 'ok'],
+    ['Mecanismos hasta 40 cm fuera del perímetro', '§7.2', 'Intake, depósito, pala y garra (con la pieza) revisados.', 'ok'],
+    ['Altura máxima 100 cm', '§7.2', 'También con el elevador arriba y la pieza.', 'ok', 'D24'],
+    ['Chasis tanque obligatorio; sin bumpers', '§7.2', 'Todos los robots son tanque y sin bumpers.', 'ok'],
+    ['Motores: 6 CIM, 1 Kraken X44, 3 Kraken X60, 1 NEO', '§7.3', 'El editor marca error si se pasa.', 'ok'],
+    ['150 g de PLA; MDF de 5.5 mm; sin límite de peso', '§7.1, §7.1.1, §7.2', 'El editor lo revisa y estima la masa.', 'ok'],
+    ['Al inicio, todo dentro del perímetro y de la Zona de Inicio', '§4.1', 'Revisado (brazo guardado del pivote, pose inicial).', 'ok'],
+  ]],
+  ['Torneo', [
+    ['8 equipos, 4 alianzas de 2; 2 robots por alianza', '§8.2', 'Igual.', 'ok'],
+    ['Rotación equitativa en Qualifications', '§8.2', 'Calendario con el mismo número de matches por equipo.', 'ok'],
+    ['Ranking final de Qualifications', '§8.2.1', 'RP promedio; desempates: puntos sin faltas, AUTO, ENDGAME, azar.', 'sup', 'D18'],
+    ['Selección: empieza el Rank 1, por invitación; Rank 1 no elige a Rank 2', '§8.2.1', 'Igual.', 'ok'],
+    ['Detalles de la selección', '§8.2.1', 'Los 4 primeros son capitanes; se puede invitar a otro capitán y rechazar.', 'sup', 'D19'],
+    ['PlayOffs a 2 de 3, sin RP; puntos por robot y faltas', '§8.2.2', 'Igual.', 'ok'],
+    ['Todos contra todos: “cada alianza se enfrenta a las otras dos”', '§8.2.2', 'Con 4 alianzas, contra las otras 3; victorias = series ganadas.', 'sup', 'D20'],
+    ['Los dos primeros a la final; gana quien gane 2', '§8.2.2', 'Igual.', 'ok'],
+    ['Match empatado en PlayOffs', '§8.2.2', 'Puntos sin faltas, AUTO, ENDGAME; si sigue, se repite.', 'sup', 'D20'],
+    ['Timeouts y matches de práctica', '§8.4, §9.0', 'No se simulan.', 'na'],
+  ]],
+];
+
+const QS = [
+  ['D2', '¿La Línea de Autónomo da 5 puntos aunque solo cruce un robot?', 'La tabla dice “Ambos robots” y “5 c/u”.', '5 por cada robot que cruza; el RP solo si cruzan los dos.'],
+  ['D3', '¿De dónde sale la precarga y cuál es la “zona designada” si no se usa?', '§4.1 no dice si es de las 16 del Laboratorio, de las 10 del HP o extra.', 'Es extra; si no se precarga, se la queda el HP.'],
+  ['D6', '¿Cuánto mide la Repisa de Seguridad y qué ancho tiene la Plataforma?', '“~689 mm (344.50 por lado)” no cuadra con la figura.', 'Medidas de la figura: Repisa de 0.40 m de fondo, Plataforma de 1.49 m de ancho.'],
+  ['D7', '¿Qué falta es cruzar la línea central en AUTO?', '§4.2 lo prohíbe sin asignar falta.', 'Foul (4).'],
+  ['D22', '¿Cruzar la línea central es con cualquier parte del robot o con todo el robot?', '§4.2 no lo precisa.', 'Solo cuando el chasis completo pasa al otro lado.'],
+  ['D8', '¿Cuáles son las zonas “de la alianza contraria”?', '§4.3 y §4.6 dicen que están marcadas, pero no cuáles son.', 'Zonas de Inicio rivales y frente de la Campana rival.'],
+  ['D23', 'Si un robot toca a un rival dentro de la zona del rival, ¿se cobra Foul, Tech Foul o ambos?', '§4.5 y §4.6 describen el mismo hecho.', 'Solo la Tech Foul (8).'],
+  ['D9', '¿Hay pausa entre AUTO y TELEOP?', '§4.2 solo menciona la señal de sonido.', 'Sin pausa.'],
+  ['D10', 'Con una Red Card, ¿pierde los puntos toda la alianza o solo lo que aportó ese equipo? ¿Y sus RP?', '§4.3.3 dice “el equipo que la reciba”.', 'Toda la alianza queda en 0 puntos y 0 RP.'],
+  ['D25', '¿Las Yellow Cards se acumulan entre matches?', '“Acumular 2 Yellow Cards” sin periodo.', 'Se cuentan por match.'],
+  ['D11', '¿Cuánto dura un pinning y cada cuánto se vuelve a cobrar un contacto?', '§4.5 y §6.1 no dan tiempos.', 'Pinning de más de 3 s, otra cada 3 s; un contacto nuevo cada 2 s por par de robots.'],
+  ['D15', '¿Quién comete la falta de “entrar en contacto”?', 'Cualquier contacto es Foul (§4.5).', 'El robot que se acerca más rápido; dos robots quietos que se tocan no cometen falta.'],
+  ['D17', '¿Cuánto tiempo y dónde cuenta “bloquear u obstruir las zonas del contrario”?', '§4.6 y §6.1 (“no hay defensa”).', 'Más de 3 s frente a la Cámara rival en el TELEOP; otra cada 5 s.'],
+  ['D21', '¿Cómo se decide que se tiró la Crítica rival “intencionalmente”?', '§4.6 pide intención; el sim no la puede juzgar.', 'Tech Foul si un robot rival la tocaba cuando salió de la Repisa.'],
+  ['D27', '¿Qué falta es tomar Muestras del lado rival en AUTO?', '§4.2 dice “dentro de su propia área” sin falta.', 'Sin falta propia (la cubre la de cruzar la línea central).'],
+  ['D12', '¿Hay unos segundos de gracia para Muestras que caen justo después de la bocina?', 'No se menciona.', 'Sin gracia.'],
+  ['D14', 'Si una Muestra cae en la Cámara de la otra alianza, ¿para quién cuenta?', 'Solo dice “depositar en su Cámara”.', 'Para la dueña de la Cámara.'],
+  ['D16', '¿La Muestra Crítica debe seguir en la Repisa al sonar la bocina?', 'La tabla dice “durante el endgame”; §4.3.1 dice que se evalúa al sonar la bocina.', 'Cuenta si está en la Repisa al sonar la bocina.'],
+  ['D29', 'Si un robot toma la Crítica antes del endgame (Tech Foul), ¿la puede anotar después?', '§4.6 da la falta, no dice nada de los puntos.', 'Se cobra la falta y la Crítica cuenta si llega a la Repisa.'],
+  ['D28', '¿Estar en la rampa de la otra alianza cuenta como “sobre la Plataforma”?', 'La estructura es compartida (§3.2.5).', 'Sí: cualquier rampa, la plataforma superior o la Repisa.'],
+  ['D24', '¿Los 100 cm de altura máxima aplican con los mecanismos extendidos?', '§7.2 da 40 cm de extensión “en cualquier dirección”.', 'Sí, 100 cm todo el match; los 40 cm son solo horizontales.'],
+  ['D26', '¿Cuántos Human Players hay por alianza en Qualifications?', '§8.2.2 dice uno, pero solo para PlayOffs.', 'Uno por alianza en todos los matches.'],
+  ['D30', '¿Cuándo no se otorgan los puntos de un Foul, y salir de la cancha cuenta doble?', '§4.5 “en caso especial”; §4.6 lista salir de los límites dos veces.', 'Siempre se otorgan; una Tech Foul por salida.'],
+  ['D18', '¿Con qué criterio se ordena el ranking de Qualifications?', '§8.2.1 dice “ranking final” sin criterio.', 'RP promedio; desempates: puntos sin faltas, AUTO, ENDGAME.'],
+  ['D19', '¿Cuántos capitanes hay, se puede invitar a otro capitán y se puede rechazar?', '§8.2.1 solo fija el orden y Rank 1 ≠ Rank 2.', 'Los 4 primeros eligen 1→4; se puede invitar a un capitán de menor seed y rechazar.'],
+  ['D20', 'Con 4 alianzas, ¿cada una juega contra las otras tres? ¿Cómo se desempata?', '§8.2.2 dice “las otras dos”.', 'Contra las otras 3; desempate por matches ganados y puntos; un match empatado se repite.'],
+];
+
+const counts = { ok: 0, fix: 0, sup: 0, na: 0 };
+RULES.forEach(([, rows]) => rows.forEach((r) => counts[r[3]]++));
+const total = Object.values(counts).reduce((a, b) => a + b, 0);
+document.getElementById('stats').innerHTML = [
+  ['ok', 'reglas coinciden'], ['fix', 'corregida en esta auditoría'], ['sup', 'reglas con SUPUESTO'], ['na', 'no aplican al sim'],
+].map(([k, t]) => `<div class="stat ${k}"><b>${counts[k]}</b><span>${k === 'fix' && counts[k] !== 1 ? 'corregidas en esta auditoría' : t}</span></div>`).join('');
+
+const esc = (s) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;');
+function render(filter) {
+  document.getElementById('groups').innerHTML = RULES.map(([name, rows]) => {
+    const vis = rows.filter((r) => filter === 'all' || r[3] === filter);
+    if (!vis.length) return '';
+    return `<div class="group"><h3>${name}</h3><div class="tbl"><table><thead><tr><th>Regla</th><th>Sección</th><th>Qué hace el sim</th><th>Estado</th></tr></thead><tbody>${vis
+      .map((r) => `<tr><td>${esc(r[0])}</td><td><span class="sec">${r[1]}</span></td><td>${esc(r[2])}</td><td><span class="pill ${r[3]}">${LABEL[r[3]]}</span>${r[4] ? `<div class="dref">${r[4]}</div>` : ''}</td></tr>`)
+      .join('')}</tbody></table></div></div>`;
+  }).join('');
+}
+const fb = document.getElementById('filters');
+const opts = [['all', `Todas (${total})`], ['ok', `Coincide (${counts.ok})`], ['fix', `Corregido (${counts.fix})`], ['sup', `SUPUESTO (${counts.sup})`], ['na', `No aplica (${counts.na})`]];
+fb.innerHTML = opts.map(([k, t], i) => `<button type="button" id="f-${k}" data-k="${k}" aria-pressed="${i === 0}">${t}</button>`).join('');
+fb.addEventListener('click', (e) => {
+  const b = e.target.closest('button');
+  if (!b) return;
+  fb.querySelectorAll('button').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
+  render(b.dataset.k);
+});
+render('all');
+
+document.getElementById('qs').innerHTML = QS.map(([id, ask, why, now]) => `<div class="q"><div class="id">${id}</div><div class="ask">${esc(ask)}</div><div class="now">${esc(why)}</div><div class="now"><b>Hoy el sim:</b> ${esc(now)}</div></div>`).join('');
+</script>
