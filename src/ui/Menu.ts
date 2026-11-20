@@ -88,6 +88,9 @@ export interface PauseInfo {
   onRestart?: () => void;
   /** Abre la pizarra táctica (solo en el match). */
   onBoard?: () => void;
+  /** Modo Director: abre el Reveal Studio con los clips guardados (con 0 clips el botón está apagado). */
+  onDirector?: () => void;
+  directorClips?: number;
   onMenu: () => void;
   /** Texto del botón de salir (p. ej. volver al torneo). */
   menuLabel?: string;
@@ -987,6 +990,7 @@ export class Menu {
             <button class="primary" data-act="resume">${ic.play}<span>${t('resume')}</span>${key('pause')}</button>
             ${p.onRestart ? `<button data-act="restart">${ic.reset}<span>${t('restart')}</span></button>` : ''}
             ${p.onBoard ? `<button data-act="board">${ic.route}<span>${t('board_open')}</span></button>` : ''}
+            ${p.onDirector ? `<button data-act="director"${p.directorClips ? '' : ' disabled'} title="${t('dirOpenHint')}">${ic.film}<span>${t('dirOpen')} · ${t('dirClipsCount', { n: p.directorClips ?? 0 })}</span></button>` : ''}
             ${p.versus?.onSetup ? `<button data-act="setup">${ic.sliders}<span>${t('vs_editSetup')}</span></button>` : ''}
             <button data-act="controls">${ic.gamepad}<span>${t('controlsTitle')}</span></button>
             <button class="quit" data-act="menu">${ic.home}<span>${p.menuLabel ?? t('backToMenu')}</span></button>
@@ -1016,6 +1020,7 @@ export class Menu {
       this.root.querySelectorAll(`[data-vcam="${i}"]`).forEach((x) => x.classList.toggle('on', x === el));
     });
     if (p.versus?.onSetup) this.on('[data-act="setup"]', p.versus.onSetup);
+    if (p.onDirector) this.on('[data-act="director"]', p.onDirector);
     this.on('[data-act="controls"]', () => this.controlsPanel(() => this.pause(p)));
     if (p.onBoard) this.on('[data-act="board"]', p.onBoard);
     this.on('[data-act="resume"]', p.onResume);

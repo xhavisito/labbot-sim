@@ -54,6 +54,8 @@ export class Renderer {
   preset: QualityPreset = QUALITY.high;
   /** Se llama al cambiar la calidad (público, partículas…). */
   readonly onQuality: Array<(p: QualityPreset) => void> = [];
+  /** Resolución fija (píxeles por píxel CSS) mientras el Modo Director exporta video; null = la normal. */
+  pixelRatioOverride: number | null = null;
   /** Escala de resolución dinámica encima del preset (la ajusta App con `QualityGovernor`). */
   dynScale = 1;
   private composer: EffectComposer | null = null;
@@ -139,6 +141,7 @@ export class Renderer {
   }
 
   get pixelRatio(): number {
+    if (this.pixelRatioOverride !== null) return this.pixelRatioOverride;
     return Math.min(window.devicePixelRatio || 1, this.preset.maxPixelRatio) * this.preset.renderScale * this.dynScale;
   }
 

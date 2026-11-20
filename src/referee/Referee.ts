@@ -89,6 +89,11 @@ export class Referee {
     this.critOnRepisa.clear();
   }
 
+  /** ¿Los robots `i` y `j` (índices de robot) se están tocando ahora? (Modo Director) */
+  isTouching(i: number, j: number): boolean {
+    return this.contacts.has(i < j ? `${i}-${j}` : `${j}-${i}`);
+  }
+
   /** Lee los eventos de colisión del último paso (llamar después de `world.step`). */
   drainCollisions(): void {
     this.pw.events.drainCollisionEvents((h1, h2, started) => {

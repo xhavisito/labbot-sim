@@ -24,14 +24,14 @@ function qlerp(a: readonly number[], b: readonly number[], k: number): { x: numb
 
 export class ReplayPlayer {
   readonly session: GameSession;
-  readonly duration: number;
+  duration: number;
   t = 0;
   playing = true;
   speed = 1;
   /** Robot que sigue la cámara (posición en `header.robots`). */
   focus: number;
   /** Jugadas clave de todo el match (`moments.ts`). */
-  readonly moments: Moment[];
+  moments: Moment[];
   /** Qué jugadas recorren los saltos y el Resumen. */
   filter: MomentFilter = 'all';
   /** Resumen: al reproducir solo se ven los segundos alrededor de cada jugada (salta lo demás). */
@@ -39,7 +39,7 @@ export class ReplayPlayer {
   /** Última jugada a la que se saltó (para que "siguiente" no se quede en jugadas muy juntas). */
   private lastJump: Moment | null = null;
 
-  constructor(readonly replay: Replay) {
+  constructor(public replay: Replay) {
     const h = replay.header;
     this.session = new GameSession({ player: h.player, preload: false, ai: false, specs: Object.assign([] as RobotSpec[], ...h.robots.map((r) => ({ [r.index]: knownSpec(r.spec) }))), ...(h.robots.length < 4 ? { stations: h.robots.map((r) => r.index) } : {}), hp: { enabled: false, interval: 3 } });
     this.duration = replayDuration(replay);
@@ -51,7 +51,9 @@ export class ReplayPlayer {
   /** Cuadro anterior o igual a `t` (los cuadros van a 1/REPLAY_HZ, salvo el último). */
   private frameAt(t: number): number {
     const n = this.replay.header.frames;
-    let f = Math.max(0, Math.min(n - 1, Math.floor(t * REPLAY_HZ)));
+    // Los clips del Modo Director se graban a otra frecuencia (`meta.hz`)
+    const hz = Number(this.replay.header.meta.hz) || REPLAY_HZ;
+    let f = Math.max(0, Math.min(n - 1, Math.floor(t * hz)));
     while (f > 0 && frameTime(this.replay, f) > t) f--;
     while (f < n - 1 && frameTime(this.replay, f + 1) <= t) f++;
     return f;
@@ -69,6 +71,15 @@ export class ReplayPlayer {
       }
       if (this.t >= this.duration) this.playing = false;
     }
+    this.apply();
+  }
+
+  /** Cambia a otra repetición con los mismos robots y piezas (clips del Modo Director: no se rearma la sesión). */
+  load(replay: Replay): void {
+    this.replay = replay;
+    this.duration = replayDuration(replay);
+    this.moments = buildMoments(replay);
+    this.t = 0;
     this.apply();
   }
 
@@ -190,7 +201,7 @@ export class ReplayPlayer {
   /** Marcador, timer y fase en `this.t`. */
   get scoreboard(): { red: number; blue: number; timer: string; phase: string } {
     const sc = frameScore(this.replay, this.frameAt(this.t));
-    return { red: sc.red, blue: sc.blue, timer: formatTimer(timerSeconds(this.t, gameWithDuration(Number(this.replay.header.meta.duration), GAME))), phase: sc.phase };
+    return { red: sc.red, blue: sc.blue, timer: formatTimer(timerSeconds(this.t + (Number(this.replay.header.meta.t0) || 0), gameWithDuration(Number(this.replay.header.meta.duration), GAME))), phase: sc.phase };
   }
 
   /** Pose del robot enfocado (para la cámara). */

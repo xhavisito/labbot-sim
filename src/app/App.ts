@@ -49,6 +49,9 @@ import { PerfProfile, QualityGovernor } from '../render/perf';
 import { pwa } from '../pwa/register';
 import type { Replay } from '../replay/format';
 import { Recorder } from '../replay/Recorder';
+import { Director, tee } from '../director/Director';
+import { Studio } from '../director/Studio';
+import { StudioPanel } from '../ui/StudioPanel';
 import { ReplayPlayer } from '../replay/ReplayPlayer';
 import { storeReplay } from '../replay/store';
 import { AutoPractice } from '../ui/AutoPractice';
@@ -156,6 +159,11 @@ export class App {
   private stacked = false;
   /** Repetición: grabadora del match en curso, la del último match y el reproductor abierto. */
   private recorder: Recorder | null = null;
+  /** Modo Director: highlights del match en curso (siempre grabando) y el estudio abierto sobre el reproductor. */
+  readonly director = new Director();
+  private livePlan: Parameters<PlanView['set']>[0] = null;
+  private studio: Studio | null = null;
+  private studioPanel: StudioPanel | null = null;
   lastReplay: Replay | null = null;
   replay: ReplayPlayer | null = null;
   private replayBack: () => void = () => this.toMenu();
@@ -273,6 +281,7 @@ export class App {
     this.toMenu();
     const onResize = () => {
       this.renderer.resize(this.cam.camera);
+      this.studio?.resize();
       // 2 jugadores: al girar el celular la pantalla se parte del otro lado
       if (this.input.versus) this.applySplit();
     };
@@ -337,12 +346,14 @@ export class App {
     else if (c.mode === 'match' || c.mode === 'practice' || versus) this.session.startMatch();
     // La estrategia de alianza solo cuenta en el match (en práctica no hay compañero)
     const plan = (c.mode === 'match' || scenario) && !drill ? this.activePlan : null;
+    this.livePlan = plan;
     this.planView.set(plan, this.session.player.alliance);
     this.hud.setPlan(plan);
     this.applyPlanBoard();
     // Cada match se graba para la repetición y las estadísticas
     this.recorder = ((c.mode === 'match' || c.mode === 'practice') && !c.autoTest) || versus ? new Recorder(this.session, this.session.robots.map((r) => robotLabel(r.spec)), { duration: Math.round(bounds(this.session.game).teleopEnd) }) : null;
-    this.session.tap = this.recorder;
+    this.director.attach(this.session, this.session.robots.map((r) => robotLabel(r.spec)), Math.round(bounds(this.session.game).teleopEnd));
+    this.session.tap = tee(this.recorder, c.autoTest ? null : this.director);
     // Práctica 1 contra 1 con otra persona: pantalla dividida y entrada de dos jugadores, como 2 jugadores
     const duo = p1 && this.session.player2 !== null;
     this.setVersus(c.mode === 'versus' || duo);
@@ -788,7 +799,8 @@ export class App {
     const rep = this.lastReplay;
     const bar = this.menu.root.querySelector('.results .actions');
     if (!rep || !bar) return;
-    bar.insertAdjacentHTML('afterbegin', `<button class="btn" data-act="replay">${ic.play}<span>${t('rp_watch')}</span></button><button class="btn" data-act="stats">${ic.chart}<span>${t('st_title')}</span></button>`);
+    bar.insertAdjacentHTML('afterbegin', `<button class="btn" data-act="replay">${ic.play}<span>${t('rp_watch')}</span></button><button class="btn" data-act="stats">${ic.chart}<span>${t('st_title')}</span></button><button class="btn" data-act="director"${this.director.clips.length ? '' : ' disabled'}>${ic.film}<span>${t('dirOpen')} · ${t('dirClipsCount', { n: this.director.clips.length })}</span></button>`);
+    bar.querySelector('[data-act="director"]')!.addEventListener('click', () => this.openDirector(back));
     const back = () => this.showResults();
     bar.querySelector('[data-act="replay"]')!.addEventListener('click', () => this.watchReplay(rep, back));
     bar.querySelector('[data-act="stats"]')!.addEventListener('click', () => this.showStats(rep, back, () => this.watchReplay(rep, back)));
@@ -886,7 +898,54 @@ export class App {
     this.cam.setMode(focus?.alliance === 'blue' ? 'driverBlue' : 'driverRed');
   }
 
+  /** Desde la pausa: al salir del estudio se vuelve a la pausa (cámara, HUD y estrategia como estaban). */
+  private openDirectorFromPause(): void {
+    const cam = this.cam.mode;
+    this.openDirector(() => {
+      this.state = 'paused';
+      this.cam.setMode(cam);
+      this.planView.set(this.livePlan, this.session.player.alliance);
+      this.hud.show(true);
+      this.pauseMenu();
+      this.updateTouch();
+    });
+  }
+
+  /** Modo Director: abre el Reveal Studio sobre los clips guardados. `back` = adónde volver al salir. */
+  openDirector(back: () => void): void {
+    this.director.flush();
+    const clip = this.director.clips[this.director.clips.length - 1];
+    if (!clip) return;
+    this.watchReplay(clip.replay, back);
+    const player = this.replay;
+    if (!player) return;
+    // El reproductor trae su propia barra; el estudio usa la suya
+    this.replayBar.show(null);
+    this.cam.orbit.enabled = false;
+    const studio = new Studio(player, this.renderer, this.cam.camera);
+    studio.cam.fromCamera();
+    this.studio = studio;
+    studio.open(clip);
+    this.studioPanel = new StudioPanel(
+      document.getElementById('ui')!,
+      studio,
+      () => this.director.clips,
+      () => this.input.bindings.keys.highlight[0] ?? 'KeyH',
+      () => this.exitReplay(),
+      () => undefined,
+    );
+  }
+
+  private closeStudio(): void {
+    if (!this.studio) return;
+    this.studioPanel?.dispose();
+    this.studio.dispose();
+    this.studioPanel = null;
+    this.studio = null;
+  }
+
   private closeReplay(): void {
+    this.closeStudio();
     if (!this.replay) return;
     this.renderer.scene.remove(this.replay.session.root);
     this.replay.dispose();
@@ -1189,6 +1248,8 @@ export class App {
       onRestart: this.choice.scout?.tour ? undefined : () => this.start(this.choice),
       // En pantalla dividida la pizarra (cámara superior y trazos) no aplica
       onBoard: m && !this.input.versus ? () => this.openBoard() : undefined,
+      onDirector: () => this.openDirectorFromPause(),
+      directorClips: this.director.clips.length,
       onMenu: () => (this.choice.scout ? this.toTournament() : this.toMenu()),
       menuLabel: this.choice.scout?.tour ? t('tr_backTo') : undefined,
       versus: this.vsPause(),
@@ -1261,7 +1322,7 @@ export class App {
       return null;
     }
     if (this.menu.root.style.display !== 'none') return this.menu.root;
-    if (this.state === 'replay' && this.replay) return this.replayBar.root;
+    if (this.state === 'replay' && this.replay) return this.studioPanel?.root ?? this.replayBar.root;
     return null;
   }
 
@@ -1305,6 +1366,7 @@ export class App {
     if (this.state === 'playing') {
       this.trackPlaytime(dt);
       if (this.input.camera && !this.session.player2) this.cycleCamera();
+      if (this.input.highlight) this.director.markManual();
       this.session.setInput(this.autoPractice ? this.autoPractice.filter(inp) : this.trainingRun ? this.trainingRun.filter(inp) : this.practice1v1 ? this.practice1v1.filter(inp) : inp);
       if (this.session.player2) this.session.setInput2(this.practice1v1 ? this.practice1v1.filter2(this.input.poll2()) : this.input.poll2());
       this.session.update(dt);
@@ -1347,9 +1409,10 @@ export class App {
         this.showResults();
       }
     } else if (this.state === 'replay' && this.replay) {
-      if (this.input.camera) this.cycleCamera();
+      if (this.input.camera && !this.studio) this.cycleCamera();
       if (this.replayBar.root.style.display !== 'none') this.replay.update(dt);
       this.replayBar.update();
+      this.studioPanel?.update();
     } else if (this.state === 'menu') {
       if (this.menuView === 'spawn') {
         this.spawnFrame(dt, inp);
@@ -1400,7 +1463,8 @@ export class App {
     const fovNow = this.state === 'menu' ? FOV.default : this.matchFov;
     this.cam.fovDefault = fovNow;
     this.cam2.fovDefault = fovNow;
-    this.cam.update(dt, this.replay?.focusPose ?? { x: pt.x, y: pt.y, z: pt.z, heading: p.heading() }, { alliance: vr.alliance, station: vr.station, spec: vr.spec });
+    if (this.studio) this.studio.update(dt);
+    else this.cam.update(dt, this.replay?.focusPose ?? { x: pt.x, y: pt.y, z: pt.z, heading: p.heading() }, { alliance: vr.alliance, station: vr.station, spec: vr.spec });
     const p2 = this.state === 'menu' ? null : this.session.player2;
     if (p2) {
       const q = p2.phys.position();
@@ -1412,7 +1476,8 @@ export class App {
     if (!behind || now - this.lastBehind > 125) {
       this.lastBehind = now;
       const t1 = performance.now();
-      if (p2 && this.state !== 'replay') this.renderer.renderSplit(this.cam.camera, this.cam2.camera, this.stacked);
+      if (this.studio) this.studio.render(dt);
+      else if (p2 && this.state !== 'replay') this.renderer.renderSplit(this.cam.camera, this.cam2.camera, this.stacked);
       else this.renderer.render(this.cam.camera);
       const t2 = performance.now();
       this.perf.push(dt, t1 - t0, t2 - t1);

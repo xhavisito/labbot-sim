@@ -13,6 +13,7 @@
     "audit:manual": "node scripts/audit-manual.mjs",
     "typecheck": "tsc --noEmit",
     "shots": "node scripts/screenshot.mjs",
+    "director-check": "node scripts/director-check.mjs",
     "e2e:auto": "node scripts/auto-designer.mjs",
     "e2e": "node scripts/e2e.mjs",
     "e2e:offline": "node scripts/offline.mjs",
