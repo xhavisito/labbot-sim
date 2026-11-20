@@ -52,6 +52,11 @@ export class Referee {
     this.platformClear.clear();
   }
 
+  /** ¿Los robots `i` y `j` se están tocando ahora? (para el Modo Director) */
+  isTouching(i: number, j: number): boolean {
+    return this.contacts.has(i < j ? `${i}-${j}` : `${j}-${i}`);
+  }
+
   /** Lee los eventos de colisión del último paso (llamar después de `world.step`). */
   drainCollisions(): void {
     this.pw.events.drainCollisionEvents((h1, h2, started) => {

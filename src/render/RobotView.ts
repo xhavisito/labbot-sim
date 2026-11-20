@@ -100,6 +100,24 @@ export class RobotView {
     this.curQ.set(r.x, r.y, r.z, r.w);
   }
 
+  /** Modo Director: pone el robot en el estado grabado (`f` desde `o`; ver director/clipBuffer). */
+  showRecorded(f: Float32Array, o: number): void {
+    this.group.position.set(f[o], f[o + 1], f[o + 2]);
+    this.group.quaternion.set(f[o + 3], f[o + 4], f[o + 5], f[o + 6]);
+    this.carriage.position.y = f[o + 7];
+    const flags = f[o + 9];
+    const stored = f[o + 10];
+    if (this.intake) this.intake.visible = (flags & 1) !== 0;
+    this.storedMeshes.forEach((mesh, i) => (mesh.visible = i < stored));
+    this.criticalMesh.visible = (flags & 2) !== 0;
+    if (this.clawSample) {
+      this.arm.rotation.z = f[o + 8];
+      const claw = this.arm.getObjectByName('claw');
+      if (claw) claw.rotation.z = -f[o + 8];
+      this.clawSample.visible = stored > 0;
+    }
+  }
+
   sync(alpha: number): void {
     this.group.position.lerpVectors(this.prevP, this.curP, alpha);
     this.group.quaternion.slerpQuaternions(this.prevQ, this.curQ, alpha);

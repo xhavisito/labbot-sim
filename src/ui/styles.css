@@ -92,3 +92,43 @@ body.touch-on .hud .robot-status { left: auto; right: 12px; top: 108px; bottom: 
 .panel .bind.wait { border-color: var(--accent); color: var(--accent); }
 .panel .bind .chip { display: inline-block; background: rgba(255,255,255,.1); border-radius: 5px; padding: 1px 6px; margin-right: 4px; }
 .panel .x { border: none; background: none; color: var(--muted); cursor: pointer; font-size: 15px; }
+
+/* ---------- Modo Director / Reveal Studio (oscuro con acentos morado/rosa neón) */
+.dir { --neon: #b44dff; --pink: #ff3da6; --dbg: rgba(12, 8, 22, 0.86); position: absolute; inset: 0; pointer-events: none; font-size: 13px; }
+.dir > * { pointer-events: auto; }
+.dir button, .dir select { font: inherit; color: var(--text); background: rgba(40, 24, 64, .75); border: 1px solid rgba(180, 77, 255, .35); border-radius: 7px; padding: 5px 10px; cursor: pointer; }
+.dir button:hover { border-color: var(--pink); }
+.dir button.on, .dir .chip.on { background: linear-gradient(135deg, rgba(180, 77, 255, .85), rgba(255, 61, 166, .85)); border-color: transparent; color: #fff; box-shadow: 0 0 12px rgba(255, 61, 166, .45); }
+.dir button.ghost { background: rgba(0, 0, 0, .35); }
+.dir button.rec { border-color: var(--pink); color: var(--pink); font-weight: 700; }
+.dir button.rec:disabled { opacity: .5; }
+.dir button.small { padding: 3px 8px; font-size: 12px; }
+.dir button.rb.red { border-left: 3px solid var(--red); }
+.dir button.rb.blue { border-left: 3px solid var(--blue); }
+.dir-top { position: absolute; top: 10px; left: 10px; right: 10px; display: flex; gap: 8px; align-items: center; justify-content: flex-end; pointer-events: none !important; }
+.dir-top > * { pointer-events: auto; }
+.dir-title { margin-right: auto; font: 800 14px/1 system-ui; letter-spacing: .18em; color: var(--pink); text-shadow: 0 0 10px rgba(255, 61, 166, .7); background: var(--dbg); padding: 8px 12px; border-radius: 8px; border-left: 3px solid var(--neon); }
+.dir-side { position: absolute; left: 10px; top: 58px; width: 210px; max-height: 38vh; overflow: auto; background: var(--dbg); border: 1px solid rgba(180, 77, 255, .25); border-radius: 10px; padding: 8px; }
+.dir-h { font-weight: 700; letter-spacing: .1em; color: var(--neon); font-size: 11px; text-transform: uppercase; margin-bottom: 6px; }
+.dir-clips { display: grid; gap: 5px; }
+.dir-clip { display: grid; text-align: left; gap: 1px; }
+.dir-clip span { color: var(--muted); font-size: 11px; }
+.dir-clip.on { background: linear-gradient(135deg, rgba(180, 77, 255, .5), rgba(255, 61, 166, .35)); border-color: var(--pink); }
+.dir-bottom { position: absolute; left: 10px; right: 10px; bottom: 10px; background: var(--dbg); border: 1px solid rgba(180, 77, 255, .25); border-radius: 12px; padding: 10px 12px; display: grid; gap: 10px; backdrop-filter: blur(6px); }
+.dir-transport { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; }
+.dir-time { color: var(--muted); font-variant-numeric: tabular-nums; margin-right: auto; }
+.dir-track { position: relative; height: 34px; background: rgba(255, 255, 255, .06); border-radius: 6px; cursor: pointer; touch-action: none; }
+.dir-trim { position: absolute; top: 0; bottom: 0; background: rgba(180, 77, 255, .28); border: 1px solid var(--neon); border-radius: 6px; }
+.dir-handle { position: absolute; top: -3px; bottom: -3px; width: 10px; background: var(--neon); cursor: ew-resize; border-radius: 3px; }
+.dir-handle.in { left: -5px; } .dir-handle.out { right: -5px; }
+.dir-ramp { position: absolute; top: 0; bottom: 0; background: repeating-linear-gradient(45deg, rgba(255, 61, 166, .35) 0 6px, rgba(255, 61, 166, .15) 6px 12px); }
+.dir-marker { position: absolute; top: -4px; bottom: -4px; width: 2px; background: var(--accent); box-shadow: 0 0 8px var(--accent); }
+.dir-playhead { position: absolute; top: -6px; bottom: -6px; width: 3px; margin-left: -1px; background: #fff; box-shadow: 0 0 10px var(--pink); border-radius: 2px; }
+.dir-row { display: flex; flex-wrap: wrap; gap: 14px 22px; }
+.dir-group { display: grid; gap: 6px; align-content: start; }
+.dir-btns { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.dir-lbl { color: var(--muted); font-size: 12px; margin-right: 2px; }
+.dir-help { color: var(--muted); font-size: 11px; max-width: 280px; }
+.dir.clean .dir-top, .dir.clean .dir-side, .dir.clean .dir-bottom { display: none; }
+.dir.exporting .dir-side { opacity: .4; pointer-events: none; }
+@media (max-width: 760px) { .dir-side { width: 150px; max-height: 24vh; } .dir-bottom { padding: 8px; } }

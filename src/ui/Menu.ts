@@ -199,24 +199,26 @@ export class Menu {
     });
   }
 
-  pause(onResume: () => void, onRestart: () => void, onMenu: () => void): void {
+  pause(onResume: () => void, onRestart: () => void, onMenu: () => void, onDirector?: () => void, clips = 0): void {
     this.open(`
       <h2>${t('paused')}</h2>
       <div class="col">
         <button class="primary" data-act="resume">${t('resume')}</button>
         <button data-act="restart">${t('restart')}</button>
         <button data-act="controls">${t('controlsTitle')}</button>
+        ${onDirector ? `<button data-act="director">🎬 ${t('dirOpen')} · ${t('dirClipsCount', { n: clips })}</button>` : ''}
         <button data-act="menu">${t('backToMenu')}</button>
       </div>
       <p class="help">${keyboardHelp(this.input.bindings)}</p>
       <p class="help">${padHelp(this.input.bindings)}</p>`);
-    this.root.querySelector('[data-act="controls"]')!.addEventListener('click', () => this.controlsPanel(() => this.pause(onResume, onRestart, onMenu)));
+    this.root.querySelector('[data-act="controls"]')!.addEventListener('click', () => this.controlsPanel(() => this.pause(onResume, onRestart, onMenu, onDirector, clips)));
     this.root.querySelector('[data-act="resume"]')!.addEventListener('click', onResume);
     this.root.querySelector('[data-act="restart"]')!.addEventListener('click', onRestart);
     this.root.querySelector('[data-act="menu"]')!.addEventListener('click', onMenu);
+    this.root.querySelector('[data-act="director"]')?.addEventListener('click', () => onDirector?.());
   }
 
-  results(m: Match, onRestart: () => void, onMenu: () => void, onDownload: () => void): void {
+  results(m: Match, onRestart: () => void, onMenu: () => void, onDownload: () => void, onDirector?: () => void, clips = 0): void {
     const b = { red: m.breakdown('red'), blue: m.breakdown('blue') };
     const rp = { red: m.rankingPoints('red'), blue: m.rankingPoints('blue') };
     const row = (label: string, f: (a: Alliance) => string | number) => `<tr><th>${label}</th>${ALLIANCES.map((a) => `<td class="${a}">${f(a)}</td>`).join('')}</tr>`;
@@ -251,9 +253,11 @@ export class Menu {
         <button class="primary" data-act="restart">${t('restart')}</button>
         <button data-act="menu">${t('backToMenu')}</button>
         <button data-act="log">${t('downloadLog')}</button>
+        ${onDirector ? `<button data-act="director">🎬 ${t('dirOpen')} · ${t('dirClipsCount', { n: clips })}</button>` : ''}
       </div>`);
     this.root.querySelector('[data-act="restart"]')!.addEventListener('click', onRestart);
     this.root.querySelector('[data-act="menu"]')!.addEventListener('click', onMenu);
     this.root.querySelector('[data-act="log"]')!.addEventListener('click', onDownload);
+    this.root.querySelector('[data-act="director"]')?.addEventListener('click', () => onDirector?.());
   }
 }

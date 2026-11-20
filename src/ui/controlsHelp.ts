@@ -19,13 +19,14 @@ export function keyboardHelp(b: Bindings): string {
     [keys(b, 'releaseCritical'), ['releaseCritical']],
     [keys(b, 'camera'), ['camera']],
     [keys(b, 'pause'), ['pause']],
+    [keys(b, 'highlight'), ['highlight']],
   ];
   return parts.map(([k, what]) => `${k} ${typeof what === 'string' ? t(`help_${what}` as Key) : t(`act_${what[0]}` as Key).toLowerCase()}`).join(' · ');
 }
 
 /** Línea de ayuda del control. */
 export function padHelp(b: Bindings): string {
-  const acts: Action[] = ['slow', 'toggleIntake', 'releaseSample', 'grabCritical', 'releaseCritical', 'elevatorUp', 'elevatorDown', 'camera', 'pause'];
+  const acts: Action[] = ['slow', 'toggleIntake', 'releaseSample', 'grabCritical', 'releaseCritical', 'elevatorUp', 'elevatorDown', 'camera', 'pause', 'highlight'];
   const drive = b.padDrive === 'split' ? t('help_padSplit') : t('help_padLeft');
   return `${t('gamepad')}: ${drive} · ${acts.filter((a) => b.pad[a].length).map((a) => `${pads(b, a)} ${t(`act_${a}` as Key).toLowerCase()}`).join(' · ')}`;
 }

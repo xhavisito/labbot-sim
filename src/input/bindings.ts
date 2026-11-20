@@ -23,6 +23,7 @@ export const ACTIONS = [
   'elevator4',
   'camera',
   'pause',
+  'highlight',
 ] as const;
 export type Action = (typeof ACTIONS)[number];
 
@@ -63,6 +64,7 @@ export const DEFAULT_BINDINGS: Bindings = {
     elevator4: ['Digit4'],
     camera: ['KeyC'],
     pause: ['Escape'],
+    highlight: ['KeyH', 'F9'],
   },
   pad: {
     forward: [],
@@ -83,6 +85,7 @@ export const DEFAULT_BINDINGS: Bindings = {
     elevator4: [],
     camera: [PAD.BACK],
     pause: [PAD.START],
+    highlight: [PAD.RS],
   },
   padDrive: 'left',
   invertForward: false,

@@ -17,6 +17,7 @@ import type { TimedEvent } from '../core/matchLog';
 import { ALLIANCES, type Alliance } from '../core/types';
 import type { PlayerInput } from '../input/InputManager';
 import { buildFieldColliders } from '../physics/FieldColliders';
+import { layout, pieceOffset, robotOffset } from '../director/clipBuffer';
 import { Pieces } from '../physics/Pieces';
 import { PhysicsWorld } from '../physics/PhysicsWorld';
 import { Referee } from '../referee/Referee';
@@ -62,6 +63,10 @@ export class GameSession {
   readonly log: TimedEvent[] = [];
   /** Muestras anotadas en práctica (sin match), por alianza. */
   readonly practiceCount: Record<Alliance, number> = { red: 0, blue: 0 };
+  /** Eventos del match del último paso de física (para el Modo Director). */
+  readonly stepEvents: MatchEvent[] = [];
+  /** Gancho al final de cada paso (lo usa el Modo Director para grabar). */
+  tap: ((s: GameSession) => void) | null = null;
   private pieceView: PieceView;
   private robotViews: RobotView[] = [];
   private autos: AutoRunner[] = [];
@@ -173,6 +178,7 @@ export class GameSession {
 
   /** Un paso fijo de física. */
   step(): void {
+    this.stepEvents.length = 0;
     const dt = this.pw.dt;
     const m = this.match;
     const phase = this.phase;
@@ -234,10 +240,12 @@ export class GameSession {
     }
     this.pieceView.capture();
     for (const v of this.robotViews) v.capture();
+    this.tap?.(this);
   }
 
   private record(m: Match, evs: MatchEvent[]): void {
     this.matchEvents.push(...evs);
+    this.stepEvents.push(...evs);
     for (const e of evs) this.log.push({ ...e, t: Math.round(m.t * 1000) / 1000 });
   }
 
@@ -251,6 +259,17 @@ export class GameSession {
     const alpha = this.acc / this.pw.dt;
     this.pieceView.sync(alpha);
     for (const v of this.robotViews) v.sync(alpha);
+  }
+
+  /**
+   * Modo Director: dibuja un cuadro grabado (en vez de la física). Quien lo llama debe dejar de
+   * llamar a `update` mientras tanto. Formato del cuadro: ver `director/clipBuffer.ts`.
+   */
+  showFrame(frame: Float32Array, nRobots: number): void {
+    this.robotViews.forEach((v, i) => {
+      if (i < nRobots) v.showRecorded(frame, robotOffset(layout(nRobots, 0), i));
+    });
+    this.pieceView.showRecorded(frame, pieceOffset(layout(nRobots, 0), 0));
   }
 
   dispose(): void {

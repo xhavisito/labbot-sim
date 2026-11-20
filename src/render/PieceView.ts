@@ -38,6 +38,17 @@ export class PieceView {
     });
   }
 
+  /** Modo Director: pone las piezas como se grabaron (`f` desde `o`; ver director/clipBuffer). */
+  showRecorded(f: Float32Array, o: number): void {
+    this.meshes.forEach((m, i) => {
+      const k = o + i * 8;
+      m.visible = f[k] > 0;
+      if (!m.visible) return;
+      m.position.set(f[k + 1], f[k + 2], f[k + 3]);
+      m.quaternion.set(f[k + 4], f[k + 5], f[k + 6], f[k + 7]);
+    });
+  }
+
   /** Copia la pose interpolada (alpha 0–1 entre los dos últimos pasos) a las mallas. */
   sync(alpha: number): void {
     this.pieces.list.forEach((p, i) => {

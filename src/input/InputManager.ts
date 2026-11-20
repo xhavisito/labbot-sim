@@ -60,6 +60,8 @@ export class InputManager {
   /** Cámara y pausa en este cuadro (teclado, control o touch). */
   camera = false;
   pause = false;
+  /** Marca manual de highlight (Modo Director). */
+  highlight = false;
   /** Posición del elevador elegida con subir/bajar (paso a paso). */
   private elevatorPos = 0;
   readonly touch: TouchState = { forward: 0, turn: 0, pressed: new Set() };
@@ -79,6 +81,7 @@ export class InputManager {
         cb(e.code === 'Escape' ? null : { device: 'keys', code: e.code });
         return;
       }
+      if (e.code === 'F9') e.preventDefault();
       if (e.repeat) return;
       const tag = (e.target as HTMLElement | null)?.tagName;
       if (tag === 'INPUT' || tag === 'SELECT') return;
@@ -130,7 +133,7 @@ export class InputManager {
       this.pollCapture();
       this.pressed.clear();
       this.touch.pressed.clear();
-      this.camera = this.pause = false;
+      this.camera = this.pause = this.highlight = false;
       return inp;
     }
     inp.forward = (this.held('forward') ? 1 : 0) - (this.held('back') ? 1 : 0);
@@ -154,6 +157,7 @@ export class InputManager {
     if (hit.has('elevatorDown')) inp.elevator = this.elevatorPos = Math.max(0, this.elevatorPos - 1) as ElevatorPos;
     this.camera = hit.has('camera');
     this.pause = hit.has('pause');
+    this.highlight = hit.has('highlight');
     return inp;
   }
 

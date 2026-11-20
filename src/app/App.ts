@@ -5,17 +5,21 @@
 import { AUTO_ROUTINES, LEAVE_ZONE } from '../auto/AutoRoutine';
 import { ROBOT_PRESETS } from '../config/robot';
 import { loadSettings, saveSettings, type Settings } from '../config/settings';
+import { Director } from '../director/Director';
+import { Studio } from '../director/Studio';
 import { buildMatchLog } from '../core/matchLog';
 import { GameSession } from '../game/GameSession';
 import { InputManager } from '../input/InputManager';
 import { CAMERA_MODES, CameraRig, type CameraMode } from '../render/CameraRig';
 import { Renderer } from '../render/Renderer';
 import { Hud } from '../ui/Hud';
+import { StudioPanel } from '../ui/StudioPanel';
+import { t, type Key } from '../ui/i18n';
 import { keyboardHelp, padHelp } from '../ui/controlsHelp';
 import { Menu, type MenuChoice } from '../ui/Menu';
 import { isTouchDevice, TouchControls } from '../ui/TouchControls';
 
-type State = 'menu' | 'playing' | 'paused' | 'results';
+type State = 'menu' | 'playing' | 'paused' | 'results' | 'director';
 
 export class App {
   readonly renderer: Renderer;
@@ -29,6 +33,12 @@ export class App {
   readonly settings: Settings = loadSettings(AUTO_ROUTINES.map((r) => r.id));
   private last = performance.now();
   readonly touch: TouchControls;
+  /** Modo Director: grabación de highlights (siempre activa) y estudio de edición. */
+  readonly director = new Director();
+  private studio: Studio | null = null;
+  private studioPanel: StudioPanel | null = null;
+  private returnTo: 'paused' | 'results' = 'paused';
+  private prevCam: CameraMode = 'free';
   /** `?touch=1` fuerza los controles touch (para probar en escritorio). */
   private touchForced = new URLSearchParams(location.search).get('touch') === '1';
 
@@ -38,11 +48,15 @@ export class App {
     this.session = new GameSession();
     this.renderer.scene.add(this.session.root);
     this.hud = new Hud(ui);
+    this.director.onClip = (c) => this.hud.toast(t('clipSaved', { kind: t(`hl_${c.kind}` as Key) }), 'big');
     this.menu = new Menu(ui, (c) => this.start(c), this.settings, (s) => saveSettings(s), this.input);
     this.touch = new TouchControls(ui, this.input, () => this.cycleCamera(), () => this.togglePause());
     this.toMenu();
     const onResize = () => this.renderer.resize(this.cam.camera);
-    window.addEventListener('resize', onResize);
+    window.addEventListener('resize', () => {
+      onResize();
+      this.studio?.resize();
+    });
     window.addEventListener('keydown', (e) => {
       if (e.code === 'Backspace' && this.state === 'playing' && !this.session.match && !this.input.capturing) this.session.resetField();
     });
@@ -57,6 +71,7 @@ export class App {
     this.session.dispose();
     this.session = new GameSession(this.sessionOptions(c.player));
     this.renderer.scene.add(this.session.root);
+    this.director.attach(this.session);
     if (c.mode === 'match') this.session.startMatch();
     this.menu.hide();
     this.hud.show(true);
@@ -117,11 +132,7 @@ export class App {
   togglePause(): void {
     if (this.state === 'playing') {
       this.state = 'paused';
-      this.menu.pause(
-        () => this.togglePause(),
-        () => this.start(this.choice),
-        () => this.toMenu(),
-      );
+      this.openPauseMenu();
     } else if (this.state === 'paused') {
       this.state = 'playing';
       this.menu.hide();
@@ -129,6 +140,74 @@ export class App {
       this.hud.setHelp(keyboardHelp(this.input.bindings), padHelp(this.input.bindings));
     }
     this.updateTouch();
+  }
+
+  private openPauseMenu(): void {
+    this.menu.pause(
+      () => this.togglePause(),
+      () => this.start(this.choice),
+      () => this.toMenu(),
+      () => this.openDirector('paused'),
+      this.director.clips.length,
+    );
+  }
+
+  private openResults(): void {
+    const m = this.session.match;
+    if (!m) return;
+    this.menu.results(
+      m,
+      () => this.start(this.choice),
+      () => this.toMenu(),
+      () => this.downloadLog(),
+      () => this.openDirector('results'),
+      this.director.clips.length,
+    );
+  }
+
+  /** Abre el Reveal Studio sobre la sesión actual (desde la pausa o los resultados). */
+  openDirector(from: 'paused' | 'results'): void {
+    this.director.flush();
+    this.returnTo = from;
+    this.state = 'director';
+    this.menu.hide();
+    this.hud.show(false);
+    this.touch.show(false);
+    this.prevCam = this.cam.mode;
+    this.cam.orbit.enabled = false;
+    const studio = new Studio(this.session, this.renderer, this.cam.camera);
+    studio.cam.fromCamera();
+    this.studio = studio;
+    this.studioPanel = new StudioPanel(
+      document.getElementById('ui')!,
+      studio,
+      () => this.director.clips,
+      () => this.input.bindings.keys.highlight[0] ?? 'KeyH',
+      () => this.closeDirector(),
+      () => undefined,
+    );
+    const last = this.director.clips[this.director.clips.length - 1];
+    if (last) studio.open(last);
+  }
+
+  closeDirector(): void {
+    if (this.state !== 'director') return;
+    this.studioPanel?.dispose();
+    this.studio?.dispose();
+    this.studioPanel = null;
+    this.studio = null;
+    this.cam.camera.fov = 50;
+    this.cam.camera.updateProjectionMatrix();
+    this.cam.setMode(this.prevCam);
+    this.renderer.resize(this.cam.camera);
+    if (this.returnTo === 'results') {
+      this.state = 'results';
+      this.openResults();
+    } else {
+      this.state = 'paused';
+      this.hud.show(true);
+      this.openPauseMenu();
+    }
   }
 
   cycleCamera(): void {
@@ -144,9 +223,10 @@ export class App {
     const dt = Math.min(0.1, (now - this.last) / 1000);
     this.last = now;
     const inp = this.input.poll();
-    if (this.input.pause) this.togglePause();
+    if (this.input.pause) this.state === 'director' ? this.closeDirector() : this.togglePause();
     if (this.state === 'playing') {
       if (this.input.camera) this.cycleCamera();
+      if (this.input.highlight) this.director.markManual();
       this.session.setInput(inp);
       this.session.update(dt);
       this.hud.events(this.session.matchEvents);
@@ -155,12 +235,8 @@ export class App {
       if (m?.finished) {
         this.state = 'results';
         this.updateTouch();
-        this.menu.results(
-          m,
-          () => this.start(this.choice),
-          () => this.toMenu(),
-          () => this.downloadLog(),
-        );
+        this.director.flush();
+        this.openResults();
       }
     } else if (this.state === 'menu') {
       // Vista de fondo: la cámara libre gira despacio alrededor de la cancha
@@ -168,10 +244,16 @@ export class App {
       this.cam.camera.position.set(Math.cos(a) * 9, 6.5, Math.sin(a) * 7.5);
       this.cam.orbit.target.set(0, 0, 0);
     }
+    if (this.state === 'director' && this.studio) {
+      this.studio.tick(dt);
+      this.studioPanel?.update();
+      requestAnimationFrame(this.loop);
+      return;
+    }
     if (this.state !== 'paused') this.session.update(this.state === 'playing' ? 0 : dt);
     const p = this.session.player.phys;
-    const t = p.position();
-    this.cam.update(dt, { x: t.x, y: t.y, z: t.z, heading: p.heading() });
+    const pos = p.position();
+    this.cam.update(dt, { x: pos.x, y: pos.y, z: pos.z, heading: p.heading() });
     this.renderer.render(this.cam.camera);
     requestAnimationFrame(this.loop);
   };
