@@ -329,18 +329,19 @@ export class App {
           ? o
           : scenario
           ? { ...o, ai: true }
-          : { ...o, solo: c.mode !== 'match', ...(c.autoTest ? { stations: [c.player] } : {}), ...(c.mode === 'auto' ? { hp: { enabled: false, interval: 3 } } : {}) },
+          : { ...o, solo: c.mode !== 'match' && c.mode !== 'practice', ...(c.mode === 'practice' ? { stations: [c.player], ai: false } : {}), ...(c.autoTest ? { stations: [c.player] } : {}), ...(c.mode === 'auto' ? { hp: { enabled: false, interval: 3 } } : {}) },
     );
     this.renderer.scene.add(this.session.root);
     if (scenario) this.session.startScenario(scenario);
-    else if (c.mode === 'match' || versus) this.session.startMatch();
+    // Práctica libre = match normal (reloj, marcador, reglas, resultados) con tu robot solo en la cancha
+    else if (c.mode === 'match' || c.mode === 'practice' || versus) this.session.startMatch();
     // La estrategia de alianza solo cuenta en el match (en práctica no hay compañero)
     const plan = (c.mode === 'match' || scenario) && !drill ? this.activePlan : null;
     this.planView.set(plan, this.session.player.alliance);
     this.hud.setPlan(plan);
     this.applyPlanBoard();
     // Cada match se graba para la repetición y las estadísticas
-    this.recorder = (c.mode === 'match' && !c.autoTest) || versus ? new Recorder(this.session, this.session.robots.map((r) => robotLabel(r.spec)), { duration: Math.round(bounds(this.session.game).teleopEnd) }) : null;
+    this.recorder = ((c.mode === 'match' || c.mode === 'practice') && !c.autoTest) || versus ? new Recorder(this.session, this.session.robots.map((r) => robotLabel(r.spec)), { duration: Math.round(bounds(this.session.game).teleopEnd) }) : null;
     this.session.tap = this.recorder;
     // Práctica 1 contra 1 con otra persona: pantalla dividida y entrada de dos jugadores, como 2 jugadores
     const duo = p1 && this.session.player2 !== null;

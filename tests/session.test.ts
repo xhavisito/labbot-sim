@@ -292,3 +292,14 @@ describe('práctica libre: Muestras sin límite y Cámaras con vacío', () => {
     expect(g.hps.red.introduced).toBe(1);
   });
 });
+
+describe('práctica libre = match normal sin IAs', () => {
+  it('con solo tu estación y sin IA corre el match completo y llega a DONE', () => {
+    const g = new GameSession({ player: 0, preload: true, ai: false, stations: [0] });
+    g.startMatch();
+    expect(g.robots).toHaveLength(1);
+    skipTo(g, 150);
+    steps(g, 1);
+    expect(g.match!.finished).toBe(true);
+  });
+});
