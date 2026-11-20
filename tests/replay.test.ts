@@ -4,8 +4,8 @@ import { intakeOf, PIVOT_ROBOT } from '../src/config/robot';
 import { robotSpec } from '../src/config/robotIds';
 import { GameSession } from '../src/game/GameSession';
 import { initRapier } from '../src/physics/PhysicsWorld';
-import { decodeReplay, encodeReplay, frameScore, frameTime, REPLAY_HZ, robotFrame, type Replay } from '../src/replay/format';
-import { Recorder } from '../src/replay/Recorder';
+import { decodeReplay, encodeReplay, frameScore, frameSize, frameTime, pieceFrame, REPLAY_HZ, robotFrame, type Replay } from '../src/replay/format';
+import { buildHeader, Recorder, writeFrame } from '../src/replay/Recorder';
 import { ReplayPlayer } from '../src/replay/ReplayPlayer';
 import { buildMoments, matchesFilter, momentTotals } from '../src/replay/moments';
 import { frameAt, robotStats, totalSamples } from '../src/replay/stats';
@@ -187,6 +187,45 @@ describe('repeticiones: las garras', () => {
       expect(p.session.pieces.list.filter((x) => x.kind === 'critical' && x.owner === r.alliance && x.state.at === 'field')).toHaveLength(0);
       p.seek(0);
       expect(p.session.robots[0].mech.critDeg).toBe(0);
+    } finally {
+      p.dispose();
+    }
+  });
+  it('el cuadro limpia las piezas fuera de la cancha aunque la casilla venga sucia (búfer circular del Director)', () => {
+    const spec = robotSpec('cad:psycho');
+    const g = new GameSession({ player: 0, preload: false, specs: [spec] });
+    g.startMatch();
+    const h = buildHeader(g, ['P']);
+    const n = frameSize(h);
+    const dirty = new Int16Array(n).fill(7);
+    writeFrame(g, dirty, 0, 0);
+    const r: Replay = { header: { ...h, frames: 1 }, events: [], matchEvents: [], data: dirty };
+    g.pieces.list.forEach((p, i) => expect(pieceFrame(r, 0, i).onField).toBe(p.state.at === 'field'));
+    // Una Muestra guardada en el robot no deja su pose vieja
+    const held = g.pieces.list.find((p) => p.kind === 'sample' && p.state.at !== 'field')!;
+    expect(pieceFrame(r, 0, held.index)).toMatchObject({ x: 0, y: 0, z: 0, onField: false });
+  });
+
+  it('graba dónde sostiene la Crítica la Garrita y la reproducción lo restaura', () => {
+    const spec = robotSpec('cad:psycho');
+    const g = new GameSession({ player: 0, preload: false, specs: [spec] });
+    g.startMatch();
+    const rec = new Recorder(g, ['P']);
+    g.tap = rec;
+    for (let i = 0; i < 20; i++) g.step();
+    g.player.mech.critHold.dx = 0.021;
+    g.player.mech.critHold.dy = 0.134;
+    g.player.mech.critHold.dz = -0.017;
+    g.player.mech.critGrip.y = 0.05;
+    for (let i = 0; i < 20; i++) g.step();
+    const p = new ReplayPlayer(rec.build(g));
+    try {
+      p.seek(p.duration);
+      const m = p.session.robots[0].mech;
+      expect(m.critHold.dy).toBeCloseTo(0.134, 3);
+      expect(m.critHold.dx).toBeCloseTo(0.021, 3);
+      expect(m.critHold.dz).toBeCloseTo(-0.017, 3);
+      expect(m.critGrip.y).toBeCloseTo(0.05, 3);
     } finally {
       p.dispose();
     }

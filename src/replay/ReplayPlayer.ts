@@ -183,6 +183,10 @@ export class ReplayPlayer {
       m.clawClosed = near.latched;
       m.critClawClosed = near.critClaw;
       m.critSample = near.critSample ? spare : null;
+      // Dónde sostiene la Crítica la Garrita / la garra centrada (se graba; sin esto iba siempre en el asiento)
+      Object.assign(m.critHold, near.critHold);
+      Object.assign(m.critGrip, near.critGrip);
+      m.critPull = null;
       const cc = intakeOf(rb.spec).critClaw;
       if (cc) m.critDeg = near.critical || near.critSample ? cc.closeDeg : near.critClaw ? cc.emptyDeg : 0;
     });
