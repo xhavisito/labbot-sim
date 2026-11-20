@@ -15,6 +15,13 @@ export const REPLAY_HZ = 15;
 export const FRAME_HEAD = 4;
 /** Por robot: x, y, z (mm), cuaternión (×32767), altura del mecanismo (mm), ángulo del brazo (×10⁴ rad), banderas. */
 export const ROBOT_VALUES = 10;
+/**
+ * Repeticiones nuevas: 6 valores más por robot (mm) con dónde sostiene la Crítica la Garrita (`critHold`: dx, dy, dz) y la garra
+ * centrada (`critGrip`: x, y, z). Sin ellos la Crítica se dibujaba siempre en el asiento y no a la altura donde se tomó.
+ * El encabezado lo declara en `robotValues`; si falta (archivos viejos) valen `ROBOT_VALUES`.
+ */
+export const ROBOT_VALUES_EXT = 16;
+export const robotValues = (h: Pick<ReplayHeader, 'robotValues'>): number => h.robotValues ?? ROBOT_VALUES;
 /** Por pieza: x, y, z (mm), cuaternión (×32767), 1 si está en la cancha. */
 export const PIECE_VALUES = 8;
 export const PHASES = ['PRE', 'AUTO', 'PAUSE', 'TELEOP', 'ENDGAME', 'DONE'] as const;
@@ -57,6 +64,8 @@ export interface ReplayHeader {
   /** Tipo de cada pieza del pool (mismo orden que `Pieces.list`). */
   pieces: Array<{ kind: 'sample' | 'critical'; owner?: Alliance }>;
   frames: number;
+  /** Valores por robot en cada cuadro (por omisión `ROBOT_VALUES`, el formato anterior). */
+  robotValues?: number;
   final: Record<Alliance, number>;
   /** Robots en la Plataforma y Muestra Crítica al final (§4.3.1), y robots que cruzaron la línea (§4.4). */
   endgame: { platform: number[]; critical: Record<Alliance, boolean>; autoLine: number[] };
@@ -72,7 +81,7 @@ export interface Replay {
   data: Int16Array;
 }
 
-export const frameSize = (h: Pick<ReplayHeader, 'robots' | 'pieces'>): number => FRAME_HEAD + h.robots.length * ROBOT_VALUES + h.pieces.length * PIECE_VALUES;
+export const frameSize = (h: Pick<ReplayHeader, 'robots' | 'pieces' | 'robotValues'>): number => FRAME_HEAD + h.robots.length * robotValues(h) + h.pieces.length * PIECE_VALUES;
 
 const clamp16 = (v: number): number => Math.max(-32768, Math.min(32767, Math.round(v)));
 export const toMm = (m: number): number => clamp16(m * 1000);
@@ -99,6 +108,10 @@ export interface RobotFrame {
   critClaw: boolean;
   /** Muestra normal tomada por la Garrita (repeticiones viejas: false). */
   critSample: boolean;
+  /** Dónde sostiene la Crítica la Garrita (m; repeticiones viejas: 0, en el asiento). */
+  critHold: { dx: number; dy: number; dz: number };
+  /** Dónde quedó la Crítica entre los dedos de la garra centrada (m; repeticiones viejas: 0). */
+  critGrip: { x: number; y: number; z: number };
 }
 
 export function frameTime(r: Replay, f: number): number {
@@ -111,9 +124,11 @@ export function frameScore(r: Replay, f: number): { red: number; blue: number; p
 }
 
 export function robotFrame(r: Replay, f: number, i: number): RobotFrame {
-  const o = f * frameSize(r.header) + FRAME_HEAD + i * ROBOT_VALUES;
+  const rv = robotValues(r.header);
+  const o = f * frameSize(r.header) + FRAME_HEAD + i * rv;
   const d = r.data;
   const flags = d[o + 9];
+  const ext = rv >= ROBOT_VALUES_EXT;
   return {
     x: d[o] / 1000,
     y: d[o + 1] / 1000,
@@ -128,13 +143,15 @@ export function robotFrame(r: Replay, f: number, i: number): RobotFrame {
     latched: (flags & FLAG_LATCHED) !== 0,
     critClaw: (flags & FLAG_CRITCLAW) !== 0,
     critSample: (flags & FLAG_CRITSAMPLE) !== 0,
+    critHold: ext ? { dx: d[o + 10] / 1000, dy: d[o + 11] / 1000, dz: d[o + 12] / 1000 } : { dx: 0, dy: 0, dz: 0 },
+    critGrip: ext ? { x: d[o + 13] / 1000, y: d[o + 14] / 1000, z: d[o + 15] / 1000 } : { x: 0, y: 0, z: 0 },
   };
 }
 
 /** Pieza `i` en el cuadro `f`: posición, cuaternión y si está en la cancha. */
 export function pieceFrame(r: Replay, f: number, i: number): { x: number; y: number; z: number; q: [number, number, number, number]; onField: boolean } {
   const h = r.header;
-  const o = f * frameSize(h) + FRAME_HEAD + h.robots.length * ROBOT_VALUES + i * PIECE_VALUES;
+  const o = f * frameSize(h) + FRAME_HEAD + h.robots.length * robotValues(h) + i * PIECE_VALUES;
   const d = r.data;
   return { x: d[o] / 1000, y: d[o + 1] / 1000, z: d[o + 2] / 1000, q: [d[o + 3] / 32767, d[o + 4] / 32767, d[o + 5] / 32767, d[o + 6] / 32767], onField: d[o + 7] === 1 };
 }

@@ -5,7 +5,7 @@
  */
 import type { MechEvent } from '../game/Mechanisms';
 import type { GameSession, ScoredSample, SessionTap } from '../game/GameSession';
-import { FLAG_CLAW, FLAG_CRITCLAW, FLAG_CRITICAL, FLAG_CRITSAMPLE, FLAG_LATCHED, FLAG_INTAKE, FRAME_HEAD, frameSize, PHASES, PIECE_VALUES, REPLAY_HZ, ROBOT_VALUES, toAngle, toMm, toQ, type Replay, type ReplayEvent, type ReplayHeader } from './format';
+import { FLAG_CLAW, FLAG_CRITCLAW, FLAG_CRITICAL, FLAG_CRITSAMPLE, FLAG_LATCHED, FLAG_INTAKE, FRAME_HEAD, frameSize, PHASES, PIECE_VALUES, REPLAY_HZ, ROBOT_VALUES_EXT, toAngle, toMm, toQ, type Replay, type ReplayEvent, type ReplayHeader } from './format';
 
 /** Cuadros por bloque de memoria (≈ 20 s). */
 const CHUNK = 300;
@@ -94,6 +94,7 @@ export function buildHeader(s: GameSession, labels: string[], meta: Record<strin
     robots: s.robots.map((r, i) => ({ index: r.index, alliance: r.alliance, station: r.station, spec: r.spec, label: labels[i] ?? r.spec.name })),
     pieces: s.pieces.list.map((p) => (p.owner ? { kind: p.kind, owner: p.owner } : { kind: p.kind })),
     frames: 0,
+    robotValues: ROBOT_VALUES_EXT,
     final: { red: 0, blue: 0 },
     endgame: { platform: [], critical: { red: false, blue: false }, autoLine: [] },
     meta,
@@ -125,9 +126,17 @@ export function writeFrame(s: GameSession, d: Int16Array, o: number, tCs: number
       d[o + 7] = toMm(mc.height);
       d[o + 8] = toAngle(mc.angle);
       d[o + 9] = (mc.intakeOn ? FLAG_INTAKE : 0) | (mc.critical ? FLAG_CRITICAL : 0) | (mc.stored.length << 2) | (mc.inClaw ? FLAG_CLAW : 0) | (mc.latched && mc.clawClosed ? FLAG_LATCHED : 0) | (mc.critClawClosed ? FLAG_CRITCLAW : 0) | (mc.critSample ? FLAG_CRITSAMPLE : 0);
-      o += ROBOT_VALUES;
+      d[o + 10] = toMm(mc.critHold.dx);
+      d[o + 11] = toMm(mc.critHold.dy);
+      d[o + 12] = toMm(mc.critHold.dz);
+      d[o + 13] = toMm(mc.critGrip.x);
+      d[o + 14] = toMm(mc.critGrip.y);
+      d[o + 15] = toMm(mc.critGrip.z);
+      o += ROBOT_VALUES_EXT;
     }
     for (const p of s.pieces.list) {
+      // El búfer del Director reutiliza casillas: sin limpiar, una pieza en el robot dejaba su pose vieja con «en la cancha» = 1
+      d.fill(0, o, o + PIECE_VALUES);
       if (p.state.at === 'field') {
         const t = p.body.translation();
         const q = p.body.rotation();
