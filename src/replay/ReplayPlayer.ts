@@ -4,7 +4,7 @@
  * grabada, interpolando entre cuadros. Las vistas (`RobotView`, `PieceView`) dibujan igual que en vivo.
  */
 import { GAME, gameWithDuration } from '../config/game';
-import { knownSpec, type RobotSpec } from '../config/robot';
+import { intakeOf, knownSpec, type RobotSpec } from '../config/robot';
 import { formatTimer, timerSeconds } from '../core/clock';
 import { GameSession } from '../game/GameSession';
 import { frameScore, frameTime, pieceFrame, REPLAY_HZ, replayDuration, robotFrame, type Replay } from './format';
@@ -178,6 +178,13 @@ export class ReplayPlayer {
       for (let j = 0; j < near.stored; j++) m.stored.push(spare);
       m.critical = near.critical ? spare : null;
       m.inClaw = near.claw;
+      // Las garras que cierran con interruptor: sin esto se dibujaban siempre abiertas
+      m.latched = near.latched;
+      m.clawClosed = near.latched;
+      m.critClawClosed = near.critClaw;
+      m.critSample = near.critSample ? spare : null;
+      const cc = intakeOf(rb.spec).critClaw;
+      if (cc) m.critDeg = near.critical || near.critSample ? cc.closeDeg : near.critClaw ? cc.emptyDeg : 0;
     });
     s.pieces.list.forEach((p, i) => {
       const a = pieceFrame(r, f0, i);
