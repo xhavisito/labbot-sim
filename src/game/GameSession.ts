@@ -189,6 +189,8 @@ export class GameSession {
         r.mech.intakeOn = o.intake;
         r.mech.target = o.elevator;
         if (o.release) r.mech.release('sample', this.stepMechEvents);
+        if (o.grabCritical) r.mech.grabCritical(this.stepMechEvents);
+        if (o.releaseCritical) r.mech.release('critical', this.stepMechEvents);
       } else if (m && phase === 'AUTO') {
         const o = this.autos[r.index].step(dt);
         forward = o.forward;

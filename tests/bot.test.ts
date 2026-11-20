@@ -60,3 +60,57 @@ describe('IA en un match completo', () => {
     expect(m.breakdown('red').samplesAuto).toBeGreaterThan(18);
   }, 120_000);
 });
+
+describe('IA: sin vueltas a lo tonto ni atorones largos', () => {
+  /** Corre un match de IA midiendo, por robot de IA, el tiempo quieto o girando sin avanzar mientras hay trabajo. */
+  function watch(player: number, autos = [SCORE_PRELOAD, COLLECT_HOME, SCORE_PRELOAD, COLLECT_HOME]) {
+    const g = new GameSession({ player, preload: true, ai: true, autos });
+    g.startMatch();
+    const still = g.robots.map(() => 0);
+    const spin = g.robots.map(() => 0);
+    const longest = g.robots.map(() => 0);
+    const run = g.robots.map(() => 0);
+    for (let i = 0; i < 151 * 120 && !g.match!.finished; i++) {
+      g.setInput(emptyInput());
+      g.step();
+      const t = i / 120;
+      if (t < 20 || t > 108) continue; // TELEOP antes del ENDGAME, donde siempre hay Muestras que llevar
+      g.robots.forEach((r, k) => {
+        if (k === player) return;
+        const v = r.phys.body.linvel();
+        const w = Math.abs(r.phys.body.angvel().y);
+        const slow = Math.hypot(v.x, v.z) < 0.05;
+        if (slow && w < 0.1 && r.mech.stored.length === 0) still[k]++;
+        // Girar en el lugar de forma sostenida: la IA solo gira para alinearse, en ráfagas cortas
+        run[k] = slow && w > 1 ? run[k] + 1 : 0;
+        longest[k] = Math.max(longest[k], run[k]);
+        if (slow && w > 1) spin[k]++;
+      });
+    }
+    return { g, still, spin, longest };
+  }
+
+  it('ningún robot de IA gira en el lugar más de 4 s seguidos en TELEOP', () => {
+    for (const player of [0, 3]) {
+      const { longest } = watch(player);
+      for (const l of longest) expect(l / 120).toBeLessThan(4);
+    }
+  }, 240_000);
+
+  it('el equipo de IA anota la Muestra Crítica y sube los dos a la Plataforma (§4.4)', () => {
+    const { g } = watch(3);
+    const b = g.match!.breakdown('red');
+    expect(b.critical).toBe(15);
+    expect(b.platform).toBe(20);
+    expect(g.match!.fouls.filter((f) => f.rule === 'OUT_OF_BOUNDS' || f.rule === 'PLATFORM_EARLY')).toEqual([]);
+  }, 240_000);
+
+  it('dos aliados atorados entre sí se separan solos (no pasan un minuto trabados)', () => {
+    const { g } = watch(0);
+    for (const r of g.robots) {
+      const bot = (g as unknown as { bots: Array<{ recoverCount?: number } | null> }).bots[r.index];
+      if (bot) expect(bot.recoverCount ?? 0).toBeLessThan(60);
+    }
+    expect(g.match!.breakdown('blue').samplesTeleop).toBeGreaterThan(60);
+  }, 240_000);
+});
