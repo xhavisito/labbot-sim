@@ -22,18 +22,7 @@ export class Recorder implements SessionTap {
   private done = false;
 
   constructor(s: GameSession, labels: string[], meta: Record<string, unknown> = {}) {
-    this.header = {
-      format: 'labbot-rescue-replay',
-      version: 1,
-      createdAt: new Date().toISOString(),
-      player: s.opts.player,
-      robots: s.robots.map((r, i) => ({ index: r.index, alliance: r.alliance, station: r.station, spec: r.spec, label: labels[i] ?? r.spec.name })),
-      pieces: s.pieces.list.map((p) => (p.owner ? { kind: p.kind, owner: p.owner } : { kind: p.kind })),
-      frames: 0,
-      final: { red: 0, blue: 0 },
-      endgame: { platform: [], critical: { red: false, blue: false }, autoLine: [] },
-      meta,
-    };
+    this.header = buildHeader(s, labels, meta);
     this.size = frameSize(this.header);
   }
 
@@ -71,13 +60,57 @@ export class Recorder implements SessionTap {
     const m = s.match!;
     const k = this.frames % CHUNK;
     if (k === 0) this.chunks.push(new Int16Array(CHUNK * this.size));
-    const d = this.chunks[this.chunks.length - 1];
-    let o = k * this.size;
-    d[o] = Math.round(Math.max(0, m.t) * 100);
-    d[o + 1] = m.score('red');
-    d[o + 2] = m.score('blue');
-    d[o + 3] = PHASES.indexOf(m.phase);
-    o += FRAME_HEAD;
+    writeFrame(s, this.chunks[this.chunks.length - 1], k * this.size, Math.round(Math.max(0, m.t) * 100));
+    this.frames++;
+  }
+
+  /** Cierra la grabación con el resultado final (§4.3.1: Plataforma y Muestra Crítica al sonar la bocina). */
+  private finish(s: GameSession): void {
+    const m = s.match!;
+    this.done = true;
+    this.header.final = { red: m.score('red'), blue: m.score('blue') };
+    this.header.endgame = {
+      platform: s.robots.filter((r) => s.sensors.onPlatform(r)).map((r) => r.index),
+      critical: { red: m.state.red.critical, blue: m.state.blue.critical },
+      autoLine: [...m.state.red.autoLine, ...m.state.blue.autoLine].sort((a, b) => a - b),
+    };
+  }
+
+  /** La repetición hasta ahora (completa si el match terminó). */
+  build(s: GameSession): Replay {
+    const data = new Int16Array(this.frames * this.size);
+    this.chunks.forEach((c, i) => data.set(c.subarray(0, Math.min(CHUNK, this.frames - i * CHUNK) * this.size), i * CHUNK * this.size));
+    return { header: { ...this.header, frames: this.frames }, events: this.events.slice(), matchEvents: s.log.slice(), data };
+  }
+}
+
+/** Encabezado de una repetición para la sesión `s` (también lo usa el Modo Director para sus clips). */
+export function buildHeader(s: GameSession, labels: string[], meta: Record<string, unknown> = {}): ReplayHeader {
+  return {
+    format: 'labbot-rescue-replay',
+    version: 1,
+    createdAt: new Date().toISOString(),
+    player: s.opts.player,
+    robots: s.robots.map((r, i) => ({ index: r.index, alliance: r.alliance, station: r.station, spec: r.spec, label: labels[i] ?? r.spec.name })),
+    pieces: s.pieces.list.map((p) => (p.owner ? { kind: p.kind, owner: p.owner } : { kind: p.kind })),
+    frames: 0,
+    final: { red: 0, blue: 0 },
+    endgame: { platform: [], critical: { red: false, blue: false }, autoLine: [] },
+    meta,
+  };
+}
+
+/**
+ * Escribe un cuadro (tiempo en centésimas, marcador, fase, robots y piezas) en `d` desde `o`.
+ * Sin match (práctica) el marcador es el de Muestras anotadas y la fase es PRE.
+ */
+export function writeFrame(s: GameSession, d: Int16Array, o: number, tCs: number): void {
+  const m = s.match;
+  d[o] = tCs;
+  d[o + 1] = m ? m.score('red') : s.practiceCount.red;
+  d[o + 2] = m ? m.score('blue') : s.practiceCount.blue;
+  d[o + 3] = PHASES.indexOf(m ? m.phase : 'PRE');
+  o += FRAME_HEAD;
     for (const r of s.robots) {
       const p = r.phys.body.translation();
       const q = r.phys.body.rotation();
@@ -109,25 +142,4 @@ export class Recorder implements SessionTap {
       } // fuera de la cancha: ceros (comprime bien)
       o += PIECE_VALUES;
     }
-    this.frames++;
-  }
-
-  /** Cierra la grabación con el resultado final (§4.3.1: Plataforma y Muestra Crítica al sonar la bocina). */
-  private finish(s: GameSession): void {
-    const m = s.match!;
-    this.done = true;
-    this.header.final = { red: m.score('red'), blue: m.score('blue') };
-    this.header.endgame = {
-      platform: s.robots.filter((r) => s.sensors.onPlatform(r)).map((r) => r.index),
-      critical: { red: m.state.red.critical, blue: m.state.blue.critical },
-      autoLine: [...m.state.red.autoLine, ...m.state.blue.autoLine].sort((a, b) => a - b),
-    };
-  }
-
-  /** La repetición hasta ahora (completa si el match terminó). */
-  build(s: GameSession): Replay {
-    const data = new Int16Array(this.frames * this.size);
-    this.chunks.forEach((c, i) => data.set(c.subarray(0, Math.min(CHUNK, this.frames - i * CHUNK) * this.size), i * CHUNK * this.size));
-    return { header: { ...this.header, frames: this.frames }, events: this.events.slice(), matchEvents: s.log.slice(), data };
-  }
 }

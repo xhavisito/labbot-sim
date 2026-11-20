@@ -20,13 +20,14 @@ export function keyboardHelp(b: Bindings): HelpItem[] {
     { keys: elev.length > 1 ? [elev[0], '–', elev[elev.length - 1]] : keys(b, 'elevatorUp', 'elevatorDown'), what: t('help_elevatorHelp') },
     { keys: keys(b, 'releaseSample'), what: t('act_releaseSample').toLowerCase() },
     { keys: keys(b, 'slow'), what: t('act_slow').toLowerCase() },
+    { keys: keys(b, 'highlight'), what: t('act_highlight').toLowerCase() },
   ];
   return items.filter((i) => i.keys.length);
 }
 
 /** Línea de ayuda del control. */
 export function padHelp(b: Bindings): string {
-  const acts: Action[] = ['slow', 'intake', 'releaseSample', 'elevatorUp', 'elevatorDown', 'camera', 'pause'];
+  const acts: Action[] = ['slow', 'intake', 'releaseSample', 'elevatorUp', 'elevatorDown', 'camera', 'pause', 'highlight'];
   const drive = b.padDrive === 'split' ? t('help_padSplit') : t('help_padLeft');
   return `${drive} · ${acts
     .filter((a) => b.pad[a].length)
