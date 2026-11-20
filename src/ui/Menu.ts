@@ -56,8 +56,8 @@ export class Menu {
       <div class="row"><span class="lbl">${t('robotType')}</span>${types}</div>
       <p class="help">${t(`type_${this.settings.robotType}_desc` as Key)}</p>
       <div class="row">
-        <button class="primary" data-act="match">${t('match')}</button>
-        <button data-act="practice">${t('practice')}</button>
+        <button data-act="match">${t('match')}</button>
+        <button class="primary" data-act="practice">${t('practice')}</button>
       </div>
       <div class="row"><button data-act="settings">${t('settings')}</button><button data-act="controls">${t('controlsTitle')}</button></div>
       <button class="link" data-act="lang">${t('language')}</button>`);
