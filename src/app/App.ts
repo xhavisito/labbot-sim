@@ -55,9 +55,10 @@ export class App {
     this.choice = c;
     this.renderer.scene.remove(this.session.root);
     this.session.dispose();
-    this.session = new GameSession(this.sessionOptions(c.player));
+    this.session = new GameSession(this.sessionOptions(c.player, c.mode === 'practice'));
     this.renderer.scene.add(this.session.root);
-    if (c.mode === 'match') this.session.startMatch();
+    // Práctica libre = match normal (mismo reloj, marcador, reglas y resultados), pero sin IAs
+    this.session.startMatch();
     this.menu.hide();
     this.hud.show(true);
     this.hud.setHelp(keyboardHelp(this.input.bindings), padHelp(this.input.bindings));
@@ -67,11 +68,12 @@ export class App {
   }
 
   /** Opciones de la sesión según los ajustes: IA, rutinas de AUTO, tu robot y Human Player. */
-  private sessionOptions(player: number): ConstructorParameters<typeof GameSession>[0] {
+  private sessionOptions(player: number, solo = false): ConstructorParameters<typeof GameSession>[0] {
     const s = this.settings;
     const auto = (id: string) => AUTO_ROUTINES.find((r) => r.id === id) ?? LEAVE_ZONE;
     return {
       player,
+      solo,
       preload: true,
       ai: s.ai,
       autos: [0, 1, 2, 3].map((i) => auto(i === player ? s.playerAuto : s.botAuto)),

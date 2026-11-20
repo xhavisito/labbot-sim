@@ -180,3 +180,19 @@ describe('match completo en la física', () => {
     expect(g.match!.breakdown('red').platform).toBe(10);
   });
 });
+
+describe('práctica libre (match normal sin IAs)', () => {
+  it('corre el reloj y el marcador del match, pero los otros 3 robots no se mueven', () => {
+    const g = new GameSession({ player: 0, preload: true, ai: true, solo: true });
+    g.startMatch();
+    const before = g.robots.map((r) => ({ ...r.phys.body.translation() }));
+    steps(g, 20);
+    expect(g.match).not.toBeNull();
+    expect(g.match!.t).toBeGreaterThan(15);
+    g.robots.forEach((r, i) => {
+      if (r === g.player) return;
+      const p = r.phys.body.translation();
+      expect(Math.hypot(p.x - before[i].x, p.z - before[i].z)).toBeLessThan(0.05);
+    });
+  });
+});

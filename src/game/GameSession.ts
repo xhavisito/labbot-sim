@@ -41,6 +41,8 @@ export interface SessionOptions {
   game?: GameConfig;
   /** La IA maneja los robots que no son del jugador en el TELEOP. */
   ai?: boolean;
+  /** Práctica libre: match completo y normal, pero sin IAs; los otros robots se quedan quietos. */
+  solo?: boolean;
   /** Human Player automático: encendido y segundos entre Muestras (SUPUESTO, ver HumanPlayer). */
   hp?: { enabled: boolean; interval: number };
 }
@@ -137,10 +139,11 @@ export class GameSession {
     this.log.length = 0;
     this.autos = this.robots.map((r) => new AutoRunner(this.opts.autos?.[r.index] ?? LEAVE_ZONE));
     this.autoBots = this.robots.map((r) => {
+      if (this.opts.solo && r !== this.player) return null;
       const b = this.autos[r.index].routine.bot;
       return b ? new Bot(r, this.pieces, this.robots, { scoreOnly: b.scoreOnly, stayHome: true }) : null;
     });
-    this.bots = this.robots.map((r) => (this.opts.ai && r !== this.player ? new Bot(r, this.pieces, this.robots) : null));
+    this.bots = this.robots.map((r) => (this.opts.ai && !this.opts.solo && r !== this.player ? new Bot(r, this.pieces, this.robots) : null));
     this.match.start();
   }
 
@@ -189,7 +192,7 @@ export class GameSession {
         r.mech.intakeOn = o.intake;
         r.mech.target = o.elevator;
         if (o.release) r.mech.release('sample', this.stepMechEvents);
-      } else if (m && phase === 'AUTO') {
+      } else if (m && phase === 'AUTO' && !(this.opts.solo && r !== this.player)) {
         const o = this.autos[r.index].step(dt);
         forward = o.forward;
         turn = o.turn;
