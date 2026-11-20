@@ -120,3 +120,28 @@ describe('IA en alianza y manejo humano', () => {
     expect(brake).toBeLessThan(0.05);
   });
 });
+
+describe('IA: sin vueltas a lo tonto en TELEOP', () => {
+  it('ningún robot de IA se queda girando en su lugar más de 4 s seguidos mientras trabaja', () => {
+    const g = new GameSession({ player: 3, preload: true, ai: true, autos: [SCORE_PRELOAD, COLLECT_HOME, SCORE_PRELOAD, COLLECT_HOME] });
+    g.startMatch();
+    const run = g.robots.map(() => 0);
+    const longest = g.robots.map(() => 0);
+    for (let i = 0; i < 151 * 120 && !g.match!.finished; i++) {
+      g.setInput(emptyInput());
+      g.step();
+      const t = i / 120;
+      if (t < 20 || t > 118) continue;
+      g.robots.forEach((r, k) => {
+        if (k === 3) return;
+        const v = r.phys.body.linvel();
+        const spinning = Math.hypot(v.x, v.z) < 0.05 && Math.abs(r.phys.body.angvel().y) > 1;
+        run[k] = spinning ? run[k] + 1 : 0;
+        longest[k] = Math.max(longest[k], run[k]);
+      });
+    }
+    for (const l of longest) expect(l / 120).toBeLessThan(4);
+    // Y el equipo sigue anotando con la Crítica y la Plataforma (§4.4)
+    expect(g.match!.breakdown('red').critical).toBe(15);
+  }, 240_000);
+});

@@ -191,6 +191,8 @@ export class Bot {
   private giveUp: { mode: Mode; t: number } | null = null;
   /** Segundos que sigue rodeando por la rejilla (`planPath`) tras toparse, y el punto al que va. */
   private planT = 0;
+  /** Vigilante de avance: ventana de 5 s con la posición de inicio, lo recorrido y cuántas ventanas seguidas sin avanzar. */
+  private wd = { t: 0, x: 0, z: 0, len: 0, lx: 0, lz: 0, bad: 0 };
   private planCd = 0;
   private pathWp: { x: number; z: number } | null = null;
   /** Segundos esperando a que se abra el paso (no hay camino libre a su objetivo). */
@@ -598,6 +600,50 @@ export class Bot {
   }
 
   // ------------------------------------------------------------------ decisión
+  /**
+   * Si en 5 s de trabajo (recolectar, anotar, Human Player, Crítica) recorrió más de 3 m pero no se
+   * alejó ni 1 m de donde estaba, anda dando vueltas sin llegar (un robot parado le tapa el paso, una
+   * esquina…): rodea por la rejilla, que ve a los otros robots; si sigue igual, cambia de plan.
+   */
+  private progressWatch(dt: number, phase: Phase): void {
+    const w = this.wd;
+    const pos = this.robot.phys.position();
+    if (w.t === 0) {
+      w.x = pos.x;
+      w.z = pos.z;
+      w.lx = pos.x;
+      w.lz = pos.z;
+      w.len = 0;
+    }
+    w.len += Math.hypot(pos.x - w.lx, pos.z - w.lz);
+    w.lx = pos.x;
+    w.lz = pos.z;
+    w.t += dt;
+    const working = phase !== 'AUTO' && (this.mode === 'collect' || this.mode === 'score' || this.mode === 'hp' || this.mode === 'critical');
+    // Esperas con sentido: frente a la ranura del Human Player o arrimándose a la Cámara
+    const waiting = this.hpWait > 0.3 || this.dockT > 0.3 || this.pause > 0;
+    if (!working || waiting) {
+      w.t = 0;
+      w.bad = 0;
+      return;
+    }
+    if (w.t < 5) return;
+    const moved = Math.hypot(pos.x - w.x, pos.z - w.z);
+    w.t = 0;
+    if (moved > 1.0 || w.len < 3) {
+      w.bad = 0;
+      return;
+    }
+    w.bad++;
+    this.planT = Math.max(this.planT, 6);
+    if (w.bad >= 2) {
+      w.bad = 0;
+      if (this.mode === 'hp' || this.mode === 'score') this.giveUp = { mode: this.mode, t: 8 };
+      if (this.targetPiece >= 0) this.ignore.set(this.targetPiece, WARY_TIME);
+      this.targetPiece = -1;
+    }
+  }
+
   private decide(dt: number, phase: Phase, timeLeft: number): BotOutput {
     const r = this.robot;
     const m = r.mech;
@@ -608,6 +654,7 @@ export class Bot {
     else this.ignore.set(i, left - dt);
 
     this.plan(phase, timeLeft);
+    this.progressWatch(dt, phase);
     if (this.mode === 'critical' && !r.mech.critical) this.team.critPending = r.index;
     else if (this.team.critPending === r.index) this.team.critPending = null;
     if (this.mode !== 'score') {
