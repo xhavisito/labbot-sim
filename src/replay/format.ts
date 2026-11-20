@@ -19,10 +19,17 @@ export const ROBOT_VALUES = 10;
 export const PIECE_VALUES = 8;
 export const PHASES = ['PRE', 'AUTO', 'PAUSE', 'TELEOP', 'ENDGAME', 'DONE'] as const;
 
-/** Banderas del robot: intake desplegada, Muestra Crítica en el robot, Muestras guardadas (bits 2–11) y Muestra en la garra del pivote (bit 12). */
+/**
+ * Banderas del robot: intake desplegada, Muestra Crítica en el robot, Muestras guardadas (bits 2–11), Muestra en la garra del pivote (bit 12),
+ * pinza cerrada con el interruptor (bit 13), Garrita de la Crítica cerrada (bit 14) y Muestra normal tomada por la Garrita (bit 15).
+ * Los bits 13–15 no existían en las repeticiones viejas (valen 0 y la garra se dibuja abierta).
+ */
 export const FLAG_INTAKE = 1;
 export const FLAG_CRITICAL = 2;
 export const FLAG_CLAW = 1 << 12;
+export const FLAG_LATCHED = 1 << 13;
+export const FLAG_CRITCLAW = 1 << 14;
+export const FLAG_CRITSAMPLE = 1 << 15;
 
 /** Lo que pasó en el match, con el robot que lo hizo (las Muestras se atribuyen a quien las soltó). */
 export type ReplayEvent =
@@ -86,6 +93,12 @@ export interface RobotFrame {
   stored: number;
   /** Muestra en la garra (repeticiones viejas: no se grababa). */
   claw: boolean;
+  /** Pinza cerrada con el interruptor (repeticiones viejas: false). */
+  latched: boolean;
+  /** Garrita de la Crítica cerrada (repeticiones viejas: false). */
+  critClaw: boolean;
+  /** Muestra normal tomada por la Garrita (repeticiones viejas: false). */
+  critSample: boolean;
 }
 
 export function frameTime(r: Replay, f: number): number {
@@ -112,6 +125,9 @@ export function robotFrame(r: Replay, f: number, i: number): RobotFrame {
     critical: (flags & FLAG_CRITICAL) !== 0,
     stored: (flags >> 2) & 0x3ff,
     claw: (flags & FLAG_CLAW) !== 0,
+    latched: (flags & FLAG_LATCHED) !== 0,
+    critClaw: (flags & FLAG_CRITCLAW) !== 0,
+    critSample: (flags & FLAG_CRITSAMPLE) !== 0,
   };
 }
 

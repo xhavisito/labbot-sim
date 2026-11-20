@@ -1,6 +1,7 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 import { COLLECT_HOME } from '../src/auto/AutoRoutine';
-import { PIVOT_ROBOT } from '../src/config/robot';
+import { intakeOf, PIVOT_ROBOT } from '../src/config/robot';
+import { robotSpec } from '../src/config/robotIds';
 import { GameSession } from '../src/game/GameSession';
 import { initRapier } from '../src/physics/PhysicsWorld';
 import { decodeReplay, encodeReplay, frameScore, frameTime, REPLAY_HZ, robotFrame, type Replay } from '../src/replay/format';
@@ -153,6 +154,39 @@ describe('repeticiones', () => {
       expect(p.playing).toBe(false);
       p.stepFrame(-1);
       expect(p.t).toBeCloseTo(p.duration - 1 / REPLAY_HZ, 5);
+    } finally {
+      p.dispose();
+    }
+  });
+});
+
+describe('repeticiones: las garras', () => {
+  it('la Garrita de Psycho se ve cerrada al reproducir y la Crítica tomada no deja otra en la base', () => {
+    const spec = robotSpec('cad:psycho');
+    const g = new GameSession({ player: 0, preload: false, specs: [spec] });
+    g.startMatch();
+    const rec = new Recorder(g, ['P']);
+    g.tap = rec;
+    const r = g.player;
+    r.phys.teleport(0, 2.2, 0);
+    for (let i = 0; i < 2 * 120; i++) g.step();
+    const c = g.pieces.critical(r.alliance);
+    const seat = intakeOf(spec).critClaw!.seat;
+    const at = r.phys.localToWorld(seat.x, 0, 0);
+    g.pieces.place(c, at.x, r.phys.position().y + seat.y, at.z, 0);
+    r.mech.toggleCritClaw([]);
+    expect(r.mech.critical).toBe(c);
+    for (let i = 0; i < 2 * 120; i++) g.step();
+    const p = new ReplayPlayer(rec.build(g));
+    try {
+      p.seek(p.duration);
+      const m = p.session.robots[0].mech;
+      expect(m.critical).not.toBeNull();
+      expect(m.critClawClosed).toBe(true);
+      expect(m.critDeg).toBeCloseTo(intakeOf(spec).critClaw!.closeDeg, 3);
+      expect(p.session.pieces.list.filter((x) => x.kind === 'critical' && x.owner === r.alliance && x.state.at === 'field')).toHaveLength(0);
+      p.seek(0);
+      expect(p.session.robots[0].mech.critDeg).toBe(0);
     } finally {
       p.dispose();
     }
