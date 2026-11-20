@@ -18,6 +18,8 @@ export interface ReplaysActions {
 
 export class ReplaysScreen {
   private error = '';
+  /** Filtro: solo las repeticiones con estrella (★). Se conserva al volver a dibujar la pantalla. */
+  private starredOnly = false;
 
   constructor(
     private root: HTMLElement,
@@ -25,7 +27,8 @@ export class ReplaysScreen {
   ) {}
 
   async show(): Promise<void> {
-    const list = await listReplays();
+    const all = await listReplays();
+    const list = this.starredOnly ? all.filter((s) => s.starred) : all;
     const card = (s: SavedReplay): string => {
       const h = s.header;
       const me = h.robots.find((r) => r.index === h.player);
@@ -50,7 +53,8 @@ export class ReplaysScreen {
       <h1>${t('rp_list')}</h1>
       <p class="sub">${t('rp_listNote', { n: KEEP })}</p>
       ${this.error ? `<div class="msg">${esc(this.error)}</div>` : ''}
-      <div class="rp-list">${list.length ? list.map(card).join('') : `<div class="msg">${t('rp_none')}</div>`}</div>
+      ${all.length ? `<div class="seg rp-filter"><button data-filter="all" class="${this.starredOnly ? '' : 'on'}">${t('rp_f_all')}</button><button data-filter="starred" class="${this.starredOnly ? 'on' : ''}">${t('rp_f_starred')}</button></div>` : ''}
+      <div class="rp-list">${list.length ? list.map(card).join('') : `<div class="msg">${t(all.length ? 'rp_noStarred' : 'rp_none')}</div>`}</div>
       <div class="actionbar">${backBtn('data-act="back"')}<div class="grow"></div>
         <label class="btn">${ic.download}<span>${t('rp_open')}</span><input type="file" accept=".lbreplay,application/octet-stream" hidden></label></div>
       </div>`;
@@ -85,6 +89,10 @@ export class ReplaysScreen {
     });
     on('[data-star]', async (el) => {
       await setStarred(el.closest<HTMLElement>('[data-id]')!.dataset.id!, !el.classList.contains('on'));
+      void this.show();
+    });
+    on('[data-filter]', (el) => {
+      this.starredOnly = el.dataset.filter === 'starred';
       void this.show();
     });
     on('[data-act="back"]', () => this.act.back());

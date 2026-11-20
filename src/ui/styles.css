@@ -534,6 +534,7 @@ canvas.heat { display: block; width: 100%; height: auto; margin: 10px 0 8px; bor
 .red-t { color: var(--red-ink); }
 .blue-t { color: var(--blue-ink); }
 .rp-list { display: flex; flex-direction: column; gap: 10px; }
+.rp-filter { margin: 0 0 12px; }
 .rp-card { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 16px; padding: 12px 16px; border: 1px solid var(--line); background: linear-gradient(160deg, var(--surface-2), var(--surface) 70%); }
 .rp-score { display: flex; align-items: center; gap: 6px; font: 700 calc(26px * var(--ts)) var(--display); }
 .rp-score b { min-width: 1.6em; padding: 2px 6px; text-align: center; border-radius: var(--radius-sm); opacity: 0.75; }
