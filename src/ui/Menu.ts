@@ -160,7 +160,7 @@ function adoptRobot(s: Settings, id: RobotId): void {
   s.maxSpeed = Math.min(SETTINGS_RANGE.maxSpeed.max, Math.round(spec.maxSpeed * 4) / 4);
 }
 
-export type GoId = 'strategies' | 'autoDesigner' | 'achievements' | 'replays' | 'matchHistory' | 'settings' | 'controls' | 'rules' | 'tournament';
+export type GoId = 'strategies' | 'autoDesigner' | 'achievements' | 'replays' | 'director' | 'matchHistory' | 'settings' | 'controls' | 'rules' | 'tournament';
 export type HubId = 'workshop' | 'replays' | 'progress';
 interface HubItem { go: GoId; icon: string; label: Key; desc: Key; hero?: boolean }
 /** Destinos del menú en grupos (Taller y Mi progreso); lo de competir vive en el menú Jugar (`PLAY_LINKS`). */
@@ -171,6 +171,7 @@ const HUBS: { id: HubId; icon: string; title: Key; desc: Key; items: HubItem[]; 
   ] },
   { id: 'replays', icon: ic.film, title: 'replays', desc: 'replaysDesc', tabOnly: true, items: [
     { go: 'replays', icon: ic.film, label: 'replays', desc: 'replaysDesc', hero: true },
+    { go: 'director', icon: ic.film, label: 'dirOpen', desc: 'dirHubDesc' },
   ] },
   { id: 'progress', icon: ic.film, title: 'hub_progress', desc: 'hub_progress_d', items: [
     { go: 'matchHistory', icon: ic.clipboard, label: 'mhTitle', desc: 'mhDesc' },
@@ -196,6 +197,9 @@ const stationLabel = (i: number): string => `${t(i < 2 ? 'red' : 'blue')} ${(i %
 export class Menu {
   /** Abre la pantalla de Repeticiones y el editor de robot (los conecta App). */
   onReplays: () => void = () => undefined;
+  /** Modo Director desde Replays: abre el estudio con los clips del último match (0 = botón apagado). */
+  onDirector: () => void = () => undefined;
+  directorClips: () => number = () => 0;
   /** Texto del perfil de rendimiento para Ajustes (lo da App; null = sin datos). */
   perfInfo: (() => string | null) | null = null;
   readonly root: HTMLElement;
@@ -504,6 +508,7 @@ export class Menu {
       case 'autoDesigner': return this.onAutoDesigner();
       case 'achievements': return this.onAchievements();
       case 'replays': return this.onReplays();
+      case 'director': return this.onDirector();
       case 'matchHistory': return this.matchHistoryPanel();
       case 'settings': return this.settingsPanel();
       case 'controls': return this.controlsPanel(() => this.main());
@@ -524,7 +529,7 @@ export class Menu {
       <div class="panel narrow">
         <div class="form hubform">
           <h3>${t(h.title)}</h3>
-          ${h.items.map((it) => `<label>${it.icon.replace('class="ic"', 'class="mi"')}<b>${t(it.label)}</b></label><div class="hub-ctl"><small>${t(it.desc)}</small><button class="btn ${it.hero ? 'primary' : ''}" data-go="${it.go}">${t('mo_hubOpen')}</button></div>`).join('')}
+          ${h.items.map((it) => `<label>${it.icon.replace('class="ic"', 'class="mi"')}<b>${t(it.label)}</b></label><div class="hub-ctl"><small>${t(it.desc)}${it.go === 'director' ? ` · ${t('dirClipsCount', { n: this.directorClips() })}` : ''}</small><button class="btn ${it.hero ? 'primary' : ''}" data-go="${it.go}"${it.go === 'director' && !this.directorClips() ? ` disabled title="${t('dirNoClipsHub')}"` : ''}>${t('mo_hubOpen')}</button></div>`).join('')}
         </div>
       </div>
       <div class="actionbar">${backBtn('data-act="back"')}<div class="grow"></div></div>`,

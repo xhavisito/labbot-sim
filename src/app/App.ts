@@ -238,6 +238,8 @@ export class App {
       stats: (r) => this.showStats(r, () => this.openReplays(), () => this.watchReplay(r, () => this.openReplays())),
     });
     this.menu.onReplays = () => this.openReplays();
+    this.menu.directorClips = () => this.director.clips.length;
+    this.menu.onDirector = () => this.openDirector(() => { this.toMenu(); this.menu.hub('replays'); });
     this.menu.perfInfo = () => this.perfText();
     this.tourney = new TournamentScreen(this.menu.root, this.scoutData, this.settings, {
       back: () => this.toMenu(),
