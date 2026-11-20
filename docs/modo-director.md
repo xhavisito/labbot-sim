@@ -29,6 +29,13 @@ Se abre desde la **Pausa** o los **Resultados** → *Modo Director* (apagado si 
   navegador lo soporta; resolución Pantalla/1080p/1440p/4K (con el aspecto de la ventana). El video lleva
   solo el canvas 3D.
 
+## Repeticiones con ★
+En *Repeticiones*, las que tienen ★ muestran **Editar en Director**: abre todo el match guardado como un solo clip
+(`clipFromReplay` en `director/clip.ts`) con las mismas herramientas: recortar, cámaras, cámara lenta y exportar.
+Una repetición guardada ya trae poses de robots y piezas a 15 Hz y sus eventos, así que no se inventa nada; el foco es tu
+robot (o el primero si fue solo IA) y la marca amarilla cae en la primera Muestra anotada. Al salir vuelves a *Repeticiones*.
+Los cuadros son a 15 Hz (los clips en vivo, a 30 Hz), así que la cámara lenta se ve un poco menos fluida.
+
 ## Pruebas
 `npm test` (tests/director.test.ts) y, en navegador real, `npm run build && npm run director-check`
 (en la nube: `CHROMIUM_PATH=/opt/pw-browsers/chromium`).

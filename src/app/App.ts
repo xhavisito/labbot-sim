@@ -51,6 +51,7 @@ import type { Replay } from '../replay/format';
 import { Recorder } from '../replay/Recorder';
 import { Director, tee } from '../director/Director';
 import { Studio } from '../director/Studio';
+import { clipFromReplay, type Clip } from '../director/clip';
 import { StudioPanel } from '../ui/StudioPanel';
 import { ReplayPlayer } from '../replay/ReplayPlayer';
 import { storeReplay } from '../replay/store';
@@ -235,6 +236,7 @@ export class App {
     this.replays = new ReplaysScreen(this.menu.root, {
       back: () => this.toMenu(),
       watch: (r) => this.watchReplay(r, () => this.openReplays()),
+      director: (r) => this.openDirector(() => this.openReplays(), clipFromReplay(r)),
       stats: (r) => this.showStats(r, () => this.openReplays(), () => this.watchReplay(r, () => this.openReplays())),
     });
     this.menu.onReplays = () => this.openReplays();
@@ -914,9 +916,9 @@ export class App {
   }
 
   /** Modo Director: abre el Reveal Studio sobre los clips guardados. `back` = adónde volver al salir. */
-  openDirector(back: () => void): void {
+  openDirector(back: () => void, only?: Clip): void {
     this.director.flush();
-    const clip = this.director.clips[this.director.clips.length - 1];
+    const clip = only ?? this.director.clips[this.director.clips.length - 1];
     if (!clip) return;
     this.watchReplay(clip.replay, back);
     const player = this.replay;
@@ -931,7 +933,7 @@ export class App {
     this.studioPanel = new StudioPanel(
       document.getElementById('ui')!,
       studio,
-      () => this.director.clips,
+      () => (only ? [only] : this.director.clips),
       () => this.input.bindings.keys.highlight[0] ?? 'KeyH',
       () => this.exitReplay(),
       () => undefined,
