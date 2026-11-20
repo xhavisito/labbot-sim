@@ -1,0 +1,14 @@
+[
+  { "match": "^MAXPlanetary", "color": [0.14, 0.14, 0.15], "maxTris": 500 },
+  { "match": "^Transmici", "color": [0.1, 0.1, 0.11], "maxTris": 600 },
+  { "match": "^versa 90", "color": [0.2, 0.21, 0.23], "maxTris": 500 },
+  { "match": "^REV-21-2120", "color": [0.12, 0.12, 0.13], "maxTris": 500 },
+  { "match": "^WCP-0783", "color": [0.86, 0.66, 0.18], "maxTris": 1500 },
+  { "match": "^WCP-0172", "color": [0.86, 0.66, 0.18], "maxTris": 1500 },
+  { "match": "HiGrip", "color": [0.08, 0.08, 0.09], "maxTris": 2000 },
+  { "match": "HTDpulley", "color": [0.13, 0.17, 0.55], "maxTris": 1500 },
+  { "match": "^am-4786", "color": [0.1, 0.1, 0.11] },
+  { "match": "^battery$", "color": [0.1, 0.1, 0.12] },
+  { "match": "^radio$", "color": [0.12, 0.12, 0.14] },
+  { "match": "Hex Hub", "maxTris": 2000 }
+]

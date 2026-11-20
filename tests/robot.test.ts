@@ -1,6 +1,10 @@
 import { beforeAll, describe, expect, it } from 'vitest';
+import { camPose } from './camPose';
 import * as F from '../src/config/field';
-import { DEFAULT_ROBOT, validateRobot } from '../src/config/robot';
+import { armAngle, armTip, DEFAULT_ROBOT, validateRobot } from '../src/config/robot';
+
+/** Distancia del centro del robot a la rendija con el brazo en N4 (como la IA, `critDistance`). */
+const critReach = () => armTip(DEFAULT_ROBOT.arm, armAngle(DEFAULT_ROBOT.arm, DEFAULT_ROBOT.elevatorHeights[4])).x - 0.05;
 import { GameSession } from '../src/game/GameSession';
 import { emptyInput, type PlayerInput } from '../src/input/InputManager';
 import { initRapier } from '../src/physics/PhysicsWorld';
@@ -14,7 +18,7 @@ const session = (preload = false) => new GameSession({ player: 0, preload });
 /** Corre `s` segundos con la entrada dada (las acciones de un disparo se aplican una vez). */
 function run(g: GameSession, s: number, inp: Partial<PlayerInput> = {}): void {
   g.setInput({ ...emptyInput(), ...inp });
-  const hold = { ...emptyInput(), forward: inp.forward ?? 0, turn: inp.turn ?? 0, slow: inp.slow ?? false };
+  const hold = { ...emptyInput(), forward: inp.forward ?? 0, turn: inp.turn ?? 0, intake: inp.intake ?? false, slow: inp.slow ?? false };
   for (let i = 0; i < s * 120; i++) {
     if (i === 1) g.setInput(hold);
     g.step();
@@ -30,7 +34,6 @@ describe('robot (§7.2)', () => {
   it('el robot por defecto cumple los límites del manual', () => {
     expect(validateRobot(DEFAULT_ROBOT)).toEqual([]);
     expect(validateRobot({ ...DEFAULT_ROBOT, length: 0.7 })).toContain('chasis mayor a 65 × 65 cm (§7.2)');
-    expect(validateRobot({ ...DEFAULT_ROBOT, reach: 0.45 })).toContain('depósito sale más de 40 cm (§7.2)');
   });
 
   it('arranca dentro de su Zona de Inicio con la precarga (§4.1)', () => {
@@ -68,11 +71,11 @@ describe('robot (§7.2)', () => {
     expect(p.wheelsOnCarpet).toBe(0);
   });
 
-  it('la intake toma Muestras del piso y respeta la capacidad', () => {
+  it('la garra toma Muestras del piso y las cuenta como del robot', () => {
     const g = session();
     const spot = F.labSpots()[0]; // (0.46, −2.4)
     put(g, spot.x + 1.0, spot.z, Math.PI);
-    run(g, 1.5, { toggleIntake: true, forward: 0.3 });
+    run(g, 3.0, { intake: true, forward: 0.2 });
     expect(g.player.mech.stored.length).toBeGreaterThanOrEqual(1);
     expect(g.pieces.list.filter((p) => p.state.at === 'robot' && p.state.robot === 0)).toHaveLength(g.player.mech.stored.length);
   });
@@ -82,29 +85,29 @@ describe('robot (§7.2)', () => {
     const w = F.camaraWells()[3];
     const x = (w.x0 + w.x1) / 2;
     // Robot de frente a la pared de la Cámara (viendo hacia +Z)
-    put(g, x, F.CAMARA_Z_RED[0] - DEFAULT_ROBOT.length / 2 - 0.02, -Math.PI / 2);
+    put(g, ...camPose('red', x, F.CAMARA_Z_RED[0] - DEFAULT_ROBOT.length / 2 - 0.02));
     run(g, 1.0, { elevator: 3 });
     const piece = g.player.mech.stored[0];
     run(g, 2.0, { releaseSample: true });
     const t = piece.body.translation();
     expect(piece.state.at).toBe('field');
-    expect(F.inRect(w, t.x, t.z)).toBe(true);
+    expect(F.inRect(F.rectForCamara('red', w), t.x, t.z)).toBe(true);
     expect(t.y).toBeLessThan(w.rim);
   });
 
   it('toma su Muestra Crítica de la rendija de la Campana y la deja en la Repisa', () => {
     const g = session();
     const c = F.CRITICAL_HOLDER_RED;
-    // De frente a la Campana (viendo hacia −Z), con el elevador a la altura de la rendija
-    put(g, c.x, -F.HALF_W + DEFAULT_ROBOT.length / 2 + 0.05, Math.PI / 2);
-    run(g, 1.0, { elevator: 4 });
-    run(g, 0.2, { grabCritical: true });
+    // De frente a la Campana (viendo hacia −Z), a la distancia de la punta del brazo a la altura de la rendija
+    put(g, c.x, c.z + critReach(), Math.PI / 2);
+    run(g, 1.5, { elevator: 4 });
+    run(g, 0.2, { intake: true });
     expect(g.player.mech.critical?.owner).toBe('red');
     // En la plataforma superior, de frente a la Repisa
     g.player.phys.teleport(F.REPISA_DEPTH / 2 + DEFAULT_ROBOT.length / 2 + 0.03, 0, Math.PI, F.PLATFORM_HEIGHT + 0.01);
     run(g, 1.0);
     const crit = g.player.mech.critical!;
-    run(g, 2.0, { releaseCritical: true });
+    run(g, 2.0, { releaseSample: true });
     const t = crit.body.translation();
     expect(Math.abs(t.x)).toBeLessThan(F.REPISA_DEPTH / 2);
     expect(t.y).toBeCloseTo(F.REPISA_TOP + F.CRITICAL_SIZE / 2, 1);
