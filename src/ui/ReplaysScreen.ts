@@ -14,6 +14,8 @@ export interface ReplaysActions {
   back: () => void;
   watch: (r: Replay) => void;
   stats: (r: Replay) => void;
+  /** Abre la repetición en el estudio del Director (solo las de ★). */
+  director: (r: Replay) => void;
 }
 
 export class ReplaysScreen {
@@ -42,6 +44,7 @@ export class ReplaysScreen {
         <div class="rp-btns">
           <button class="chipbtn ${s.starred ? 'on' : ''}" data-star title="${t('rp_star')}">★</button>
           <button class="btn primary" data-watch>${ic.play}<span>${t('rp_watch')}</span></button>
+          ${s.starred ? `<button class="btn" data-director title="${t('dirOpenHint')}">${ic.film}<span>${t('rp_director')}</span></button>` : ''}
           <button class="btn" data-stats>${ic.chart}<span>${t('st_title')}</span></button>
           <button class="btn" data-dl title="${t('rp_download')}">${ic.download}</button>
           <button class="x" data-del title="${t('rp_delete')}" aria-label="${t('rp_delete')}">${ic.x}</button>
@@ -74,6 +77,10 @@ export class ReplaysScreen {
     on('[data-watch]', async (el) => {
       const r = await get(el);
       if (r) this.act.watch(r);
+    });
+    on('[data-director]', async (el) => {
+      const r = await get(el);
+      if (r) this.act.director(r);
     });
     on('[data-stats]', async (el) => {
       const r = await get(el);
