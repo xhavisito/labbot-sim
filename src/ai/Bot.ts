@@ -191,6 +191,12 @@ export class Bot {
   private giveUp: { mode: Mode; t: number } | null = null;
   /** Segundos que sigue rodeando por la rejilla (`planPath`) tras toparse, y el punto al que va. */
   private planT = 0;
+  /** Niveles de la Cámara que dejó de intentar (se atascó al arrimarse o están tapados) y hasta cuándo (s de vida del Bot, `age`). */
+  private badLevels = new Map<Level, number>();
+  private lastLevel: Level = 3;
+  private age = 0;
+  private failsAt = new Map<Level, number>();
+  private dockFails = 0;
   /** Vigilante de avance: ventana de 5 s con la posición de inicio, lo recorrido y cuántas ventanas seguidas sin avanzar. */
   private wd = { t: 0, x: 0, z: 0, len: 0, lx: 0, lz: 0, bad: 0 };
   private planCd = 0;
@@ -277,6 +283,7 @@ export class Bot {
   /** `timeLeft`: segundos para el final del match (para calcular el AUTO y el ENDGAME). */
   step(dt: number, phase: Phase, timeLeft = Infinity): BotOutput {
     this.clock = timeLeft;
+    this.age += dt;
     this.phase = phase;
     this.applyPlan(phase, timeLeft);
     const out = this.decide(dt, phase, timeLeft);
@@ -635,6 +642,7 @@ export class Bot {
       return;
     }
     w.bad++;
+    // Anotando y sin llegar: el nivel que intentaba está tapado, prueba otro
     this.planT = Math.max(this.planT, 6);
     if (w.bad >= 2) {
       w.bad = 0;
@@ -1300,20 +1308,63 @@ export class Bot {
   /** El nivel al que va ahora, o null si debe esperar su turno (su compañero usa el Nivel 3). */
   private chooseLevel(): Level | null {
     if (this.lockedLevel !== null) return this.lockedLevel;
+    // Se atoró al arrimarse a ese nivel (una pieza en el piso, el pozo lleno…): lo deja un rato y prueba otro
+    if (this.dockFails > 0) {
+      this.dockFails = 0;
+      // Una sola vez puede ser mala suerte; dos seguidas en el mismo nivel, está tapado
+      const n = (this.failsAt.get(this.lastLevel) ?? 0) + 1;
+      this.failsAt.set(this.lastLevel, n);
+      if (n >= 2) {
+        this.failsAt.delete(this.lastLevel);
+        this.badLevels.set(this.lastLevel, this.age + 12);
+      }
+    }
+    if (this.robot.mech.stored.length === 0) this.failsAt.clear();
     const pref = this.level;
-    const occupied = (l: Level): boolean => {
+    const bad = (l: Level): boolean => {
+      const until = this.badLevels.get(l);
+      return until !== undefined && this.age < until;
+    };
+    const taken = (l: Level): boolean => {
       const p = this.scoringPose(l);
       // Otro robot en ese frente (o uno con el que se trabó, cerca): a otro nivel o a esperar
       if (this.others.some((o) => o !== this.robot && Math.hypot(o.phys.position().x - p.x, o.phys.position().z - p.z) < (this.isWary(o) ? 1.3 : 0.8))) return true;
       return l === 3 && this.team.n3By !== null && this.team.n3By !== this.robot.index && this.teammateAtN3();
     };
-    if (!occupied(pref)) {
+    const occupied = (l: Level): boolean => bad(l) || this.levelBlocked(l) || taken(l);
+    // Los niveles que puede alcanzar, del preferido hacia abajo (N3 15 contra N2 6, §4.4)
+    const order = ([3, 2, 1] as Level[]).filter((l) => l <= pref);
+    const free = order.find((l) => !occupied(l));
+    if (free === pref) {
       this.n3Wait = 0;
-      return pref;
+      return this.lastLevel = pref;
     }
-    // Esperar un momento vale más (N3 15 contra N2 6, §4.4); si tarda, al siguiente nivel libre
-    if (this.n3Wait < 4 && this.profile.teamwork) return null;
-    return ([3, 2, 1] as Level[]).find((l) => l < pref && !occupied(l)) ?? null;
+    // Esperar un momento vale más; si tarda (o el preferido está tapado/lleno), al siguiente nivel libre
+    const hard = this.levelBlocked(pref) || bad(pref);
+    if (!hard && this.n3Wait < 4 && this.profile.teamwork) return null;
+    if (free !== undefined) return (this.lastLevel = free);
+    // Todos tapados: anota donde sea con tal de no dar vueltas (intenta el preferido y luego los de abajo)
+    const any = order.find((l) => !taken(l));
+    return any === undefined ? null : (this.lastLevel = any);
+  }
+
+  /**
+   * ¿Ese nivel no se puede usar ahora? Pozo lleno hasta la apertura (lo que caiga ya no cuenta, §4.4).
+   * Lo demás que lo tapa (una Muestra en el piso, un robot) se descubre al arrimarse: `dockFails`.
+   */
+  private levelBlocked(l: Level): boolean {
+    const w = F.camaraWells()[l];
+    const rect = F.rectForCamara(this.robot.alliance, w);
+    let inside = 0;
+    for (const p of this.pieces.list) {
+      if (p.kind !== 'sample' || p.state.at !== 'field') continue;
+      const t = p.body.translation();
+      if (F.inRect(rect, t.x, t.z) && t.y < w.rim + F.SAMPLE_SIZE) {
+        // Una Muestra ya a la altura de la apertura: el pozo está lleno
+        if (t.y + F.SAMPLE_SIZE / 2 > w.rim - 0.02) inside++;
+      }
+    }
+    return inside >= 3;
   }
 
   private teammateAtN3(): boolean {
@@ -1355,6 +1406,7 @@ export class Bot {
       this.dockT = 0;
       this.backOff = 0.5;
       this.backDir = -dir;
+      this.dockFails++;
       return 'travel';
     }
     if (Math.abs(err) > 0.07) {

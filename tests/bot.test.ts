@@ -1,6 +1,7 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 import { segmentHitsRect, type Bot } from '../src/ai/Bot';
 import { Team } from '../src/ai/Team';
+import * as F from '../src/config/field';
 import { ROBOT_PRESETS } from '../src/config/robot';
 import { COLLECT_HOME, LEAVE_ZONE, SCORE_PRELOAD } from '../src/auto/AutoRoutine';
 import { GameSession } from '../src/game/GameSession';
@@ -144,4 +145,45 @@ describe('IA: sin vueltas a lo tonto en TELEOP', () => {
     // Y el equipo sigue anotando con la Crítica y la Plataforma (§4.4)
     expect(g.match!.breakdown('red').critical).toBe(15);
   }, 240_000);
+});
+
+describe('IA: cambia de nivel cuando el preferido está tapado', () => {
+  type Probe = { chooseLevel(): number | null; scoringPose(l: number): { x: number; z: number }; level: number };
+  const setup = () => {
+    const g = new GameSession({ player: 3, preload: true, ai: true });
+    g.startMatch();
+    g.setInput(emptyInput());
+    for (let k = 0; k < 5; k++) g.step(); // para que el Bot conozca el reloj del match
+    const i = g.robots.findIndex((r, k) => k !== 3 && r.alliance === 'red');
+    const bot = g.bots[i] as unknown as Probe;
+    return { g, bot, robot: g.robots[i] };
+  };
+
+  it('con el Nivel 3 lleno (Muestras a la altura de la apertura) elige otro nivel en vez de esperar', () => {
+    const { g, bot, robot } = setup();
+    robot.phys.teleport(0.5, 1.5, 0);
+    expect(bot.chooseLevel()).toBe(bot.level);
+    const w = F.camaraWells()[3];
+    const rect = F.rectForCamara('red', w);
+    const free = g.pieces.list.filter((p) => p.kind === 'sample' && p.state.at === 'field').slice(0, 3);
+    free.forEach((p, k) => g.pieces.place(p, rect.x0 + 0.15 + k * 0.17, w.rim - 0.03, (rect.z0 + rect.z1) / 2));
+    const l = bot.chooseLevel();
+    expect(l).not.toBeNull();
+    expect(l).not.toBe(3);
+  });
+
+  it('si se atora al arrimarse a un nivel (una Muestra en el piso), lo deja un rato y usa otro', () => {
+    const { bot, robot } = setup();
+    robot.phys.teleport(0.5, 1.5, 0);
+    const first = bot.chooseLevel();
+    (bot as unknown as { lastLevel: number; dockFails: number }).lastLevel = first as number;
+    const probe = bot as unknown as { dockFails: number; robot: { mech: { stored: unknown[] } } };
+    probe.robot.mech.stored.push({}); // trae una Muestra: los fallos cuentan
+    probe.dockFails = 1;
+    expect(bot.chooseLevel()).toBe(first); // un fallo no basta
+    probe.dockFails = 1;
+    const next = bot.chooseLevel();
+    expect(next).not.toBeNull();
+    expect(next).not.toBe(first);
+  });
 });
