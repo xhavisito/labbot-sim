@@ -171,7 +171,9 @@ export class RobotView {
     const led = new THREE.MeshStandardMaterial({ color: 0x000000, emissive: color, emissiveIntensity: 2.6 });
     this.led = led;
     this.ledColor = new THREE.Color(color);
-    for (const z of [-1, 1]) add(new THREE.BoxGeometry(L * 0.8, 0.012, 0.01), led, 0, 0.065, z * (W / 2 - 0.115));
+    // Robot del CAD: la tira va pegada al muro exterior del chasis (en el dibujo genérico queda dentro del canal y flotaba)
+    if (s.model?.url.includes('psycho')) for (const z of [-1, 1]) add(new THREE.BoxGeometry(L * 0.8, 0.012, 0.006), led, 0, 0.03, z * (W / 2 + 0.003)).castShadow = false;
+    else for (const z of [-1, 1]) add(new THREE.BoxGeometry(L * 0.8, 0.012, 0.01), led, 0, 0.065, z * (W / 2 - 0.115));
     const num = textTexture(`${robot.alliance === 'red' ? 'R' : 'B'}${robot.station + 1}`, { w: 128, h: 64, bg: ROBOT_STYLE.plate[robot.alliance] });
     if (num) {
       const numMat = new THREE.MeshStandardMaterial({ map: num, roughness: 0.5 });
