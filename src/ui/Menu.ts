@@ -316,7 +316,7 @@ export class Menu {
     return `<span class="mo-slide"><input type="range" min="${min}" max="${max}" step="${step}" value="${v}" data-stub="1">${show ? `<output>${v}</output>` : ''}</span>`;
   }
 
-  private moMode: 'match' | 'practice' = 'match';
+  private moMode: 'match' | 'practice' = 'practice';
   private moActive: 1 | 2 = 1;
 
   /**
