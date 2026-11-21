@@ -20,6 +20,8 @@ export interface AnalyzeOptions {
   floor?: number;
   /** Las piezas cuyo centro queda a esta altura (m sobre el piso) o más se cuentan como brazo (CAD sin nombres "Brazo-…"). Pide `up` explícito. */
   armAbove?: number;
+  /** Centro del robot en el CAD [eje de frente, eje de lado] (m): cuando el "chasis" que se deduce incluye el brazo y corre el origen (RBRI Alonso). */
+  center?: [number, number];
   /** Se mezclan al final sobre la especificación (rutas con punto: "arm.pivotY"). */
   overrides?: Record<string, number>;
 }
@@ -172,6 +174,10 @@ export function analyzeStep(model: StepModel, opts: AnalyzeOptions = {}, file?: 
   origin[f] = cF;
   origin[l] = (chassis.min[l] + chassis.max[l]) / 2;
   origin[u] = floor;
+  if (opts.center) {
+    origin[f] = opts.center[0];
+    origin[l] = opts.center[1];
+  }
 
   const length = ext(chassis, f);
   const width = ext(chassis, l);

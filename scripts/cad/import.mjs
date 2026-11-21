@@ -5,6 +5,7 @@
 //           --name N --up x|y|z|auto --forward +x|-z|auto --mechanism generic|elevator|pivot
 //           --arm-max-h m (con --arm-parts: solo las piezas con el centro a m del piso o menos; elevador: el carro de abajo y no las piezas del mismo nombre arriba)
 //           --rules ruta.json (colores y tope de triángulos por nombre de pieza: [{match, color:[r,g,b], maxTris}]; el STEP no trae colores)
+//           --center cf,cl (centro del robot en el CAD, m, si el chasis deducido incluye el brazo)
 //           --no-model (sin GLB), --arm-parts REGEX (piezas que giran con el brazo), --skip REGEX (piezas que no van al GLB)
 //           --mass 38 --set arm.pivotY=0.45 (repetible) --dry (solo imprime)
 // Requiere Node ≥ 22.18 (lee los .ts directamente).
@@ -37,6 +38,7 @@ for (let i = 0; i < args.length; i++) {
   } else files.push(a);
 }
 if (opts['arm-above'] !== undefined) opts.armAbove = opts['arm-above'];
+if (opts.center !== undefined) opts.center = String(opts.center).split(',').map(Number); // --center cf,cl (m, ejes de frente y lado del CAD)
 if (!files.length) {
   const inbox = join(root, 'robots/inbox');
   if (existsSync(inbox)) for (const f of readdirSync(inbox)) if (/\.(step|stp)$/i.test(f)) files.push(join(inbox, f));

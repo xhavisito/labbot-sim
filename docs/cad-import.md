@@ -148,3 +148,11 @@ node scripts/cad/import.mjs "<STEP>" --name Psycho --up y --forward +x --mechani
 **Motor del elevador (18-nov):** las reglas aceptan `box` ([x0,y0,z0,x1,y1,z1] en m, sistema del robot): la regla solo aplica si el centro de la pieza cae ahí (sirve para piezas sin nombre del CAD). `hazmat-704.json` pinta así el motor de arriba de la torre (negro) y su engrane (dorado, SUPUESTO por la captura del CAD).
 
 **Hazmat 704, más colores (19-nov, solo visual):** según las capturas de Xhavi, engranes `16t/48t` de la transmisión y `WCP-0578` en crema, y el motor del intake (pieza sin nombre, por caja) en negro; los CIM, cajas, poleas, llantas y el motor del elevador ya iban en negro. SUPUESTO: el tono crema; el logo azul y la raya verde del Kraken no se dibujan.
+
+## Mentores 3478 (RBRI Alonso, 20-nov, brazo con pivote y garra de rodillos)
+Importado de `RBRI_Alonso.STEP` (SolidWorks 2026, 163 piezas, AP214) con
+`npm run robot:import -- <STEP> --name "Mentores 3478" --mechanism pivot --up z --forward +x --floor -0.115 --center 0,0 --mass 40 --skip '^(GamePiece|MC|Battery12V)$' --arm-parts '^Brazo$' --min-diag 0.015 --max-tris 500 --set arm.pivotX=-0.2075 --set arm.pivotY=0.335 --set arm.length=0.7003 --set length=0.58 --set width=0.58 --set baseHeight=0.38`
+y luego a mano en el JSON (huella, llantas, garra, alturas, supuestos; ver `supuestos`) y `node scripts/cad/hitboxes.mjs mentores-3478`.
+Opción nueva `--center cf,cl`: centro del robot en el CAD (eje de frente y de lado, m). Hace falta cuando el chasis que deduce el importador incluye el brazo (aquí todas las piezas se llaman `Lateral`, `Sup`, `LatB`…, sin "Chasis"/"Brazo") y correría el origen.
+**Del CAD:** chasis 0.58 × 0.58 m; 4 llantas de 6 in; eje del brazo a 0.335 m del piso y 0.2075 m detrás del centro; brazo de 0.70 m hasta la Muestra; garra de rodillos de 4 in. La pose del CAD es la de piso.
+**Xhavi (20-nov):** anota en los tres niveles y toma la Muestra Crítica. **SUPUESTOS:** capacidad 1, garra de compliants de 0.23 m, alturas N1–N3 del preset, y la pose de inicio a 50° (con el brazo de 0.70 m ninguna cabe del todo en el perímetro: el robot real pliega la muñeca, que el simulador no tiene; el menú lo marca con ⚠).
