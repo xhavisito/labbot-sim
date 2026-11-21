@@ -857,7 +857,8 @@ export class RobotView {
       const nowR = performance.now() / 1000;
       const dtR = Math.min(0.1, nowR - (this.rollerT || nowR));
       this.rollerT = nowR;
-      const spin = m.ejectT > 0 ? -1 : m.intakeOn ? 1 : 0;
+      // Pinza (Mentores, como Axiom: un toque cierra y otro abre): los rodillos del CAD giran mientras la garra está cerrada
+      const spin = m.ejectT > 0 ? -1 : m.intakeOn || (intakeOf(this.robot.spec).kind === 'pinza' && m.clawClosed) ? 1 : 0;
       if (spin) {
         const w = (intakeOf(this.robot.spec).rollerSpeed / ROLLER_R) * spin;
         // Flechas verticales: la del costado +z gira con +ω (vista desde arriba) para jalar hacia la placa

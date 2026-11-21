@@ -41,9 +41,14 @@
       0.615
     ],
     "intake": {
-      "kind": "compliant",
-      "gap": 0.23,
-      "fingerLength": 0.15
+      "kind": "pinza",
+      "gap": 0.29,
+      "fingerLength": 0.113,
+      "claw": {
+        "height": 0.056,
+        "thickness": 0.012,
+        "palm": 0.03
+      }
     },
     "capacity": 1,
     "hitboxes": [

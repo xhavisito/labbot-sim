@@ -12,28 +12,48 @@ beforeAll(async () => {
 
 const M = () => CAD_ROBOT_SPECS['mentores-3478'];
 
-function trial(dx: number, dz: number, level: 0 | 4 = 0) {
+const press = (g: GameSession) => {
+  g.setInput({ ...emptyInput(), elevator: 0, intake: true });
+  for (let i = 0; i < 3; i++) g.step();
+  g.setInput({ ...emptyInput(), elevator: 0 });
+  for (let i = 0; i < 2; i++) g.step();
+};
+
+/** Brazo al piso y la Muestra entre los dedos (como la prueba de Axiom): un toque cierra la pinza. */
+function trial(dx: number, dz: number) {
   const g = new GameSession({ player: 0, preload: false, specs: [M()] });
   for (const p of g.pieces.list) if (p.state.at === 'field' && p.kind === 'sample') g.pieces.stash(p, { at: 'hp', alliance: 'red' });
   g.player.phys.teleport(1.0, -1.2, 0);
   const p = g.pieces.list.find((x) => x.kind === 'sample')!;
   g.pieces.place(p, 1.0 + dx, SAMPLE_SIZE / 2 + 0.001, -1.2 + dz, 0);
-  let t = Infinity;
-  for (let i = 0; i < 8 * 120; i++) {
-    g.setInput({ ...emptyInput(), forward: g.player.phys.position().x < 1.0 + dx - 0.55 ? 0.5 : 0, intake: true, elevator: level });
-    g.step();
-    if (g.player.mech.inClaw) { t = i / 120; break; }
-  }
-  return { t, inClaw: g.player.mech.inClaw, x: g.player.phys.position().x };
+  g.setInput({ ...emptyInput(), elevator: 1 });
+  for (let i = 0; i < 120; i++) g.step();
+  g.setInput({ ...emptyInput(), elevator: 0 });
+  for (let i = 0; i < 240; i++) g.step();
+  press(g);
+  for (let i = 0; i < 3 * 120 && !g.player.mech.inClaw; i++) g.step();
+  return { g, inClaw: g.player.mech.inClaw, closed: g.player.mech.clawClosed };
 }
 
-describe('Mentores 3478: intake', () => {
-  it('con el brazo al piso come una Muestra de frente, con desvío y manejando hacia ella', () => {
-    for (const [dx, dz] of [[1.0, 0], [0.8, 0.05], [1.0, -0.06], [0.7, 0]] as const) {
+describe('Mentores 3478: garra de pinza como la de Axiom', () => {
+  it('usa la misma pinza que Axiom (interruptor, 0.29 m de apertura, dedos de 0.113 m)', () => {
+    expect(M().intake).toMatchObject({ kind: 'pinza', gap: 0.29, fingerLength: 0.113 });
+    expect(M().intake?.claw).toEqual(CAD_ROBOT_SPECS.axiom.intake?.claw);
+  });
+
+  it('un toque con la Muestra entre los dedos la toma y se queda cerrada sin mantener el botón', () => {
+    for (const [dx, dz] of [[0.44, 0], [0.4, 0.03], [0.48, -0.03]] as const) {
       const r = trial(dx, dz);
-      console.log('MENTORES-INTAKE', dx, dz, JSON.stringify(r));
       expect(r.inClaw).toBe(true);
+      expect(r.closed).toBe(true);
     }
+  });
+
+  it('otro toque abre la pinza y la suelta', () => {
+    const { g } = trial(0.44, 0);
+    press(g);
+    expect(g.player.mech.clawClosed).toBe(false);
+    expect(g.player.mech.inClaw).toBe(false);
   });
 });
 
