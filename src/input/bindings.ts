@@ -93,6 +93,40 @@ export const DEFAULT_BINDINGS: Bindings = {
 
 export const DEADZONE_RANGE = { min: 0.05, max: 0.5, step: 0.05 } as const;
 
+/**
+ * Botones por defecto de un robot concreto, encima de `DEFAULT_BINDINGS` (solo para ese robot; los
+ * demás no cambian). Mentores 3478 (pedido de Xhavi): LB = Brazo a la Repisa (donde va la Muestra
+ * Crítica); RB = Brazo al piso (comer la Muestra de laboratorio); LT = garra (comer); RT = soltar la
+ * pieza (escupir); A/B/Y = N1/N2/N3; la cruceta sube y baja el brazo.
+ */
+export const ROBOT_PAD_DEFAULTS: Record<string, Partial<Record<Action, number[]>>> = {
+  'cad:mentores-3478': {
+    intake: [PAD.LT],
+    releaseSample: [PAD.RT],
+    elevator0: [PAD.RB],
+    elevator1: [PAD.A],
+    elevator2: [PAD.B],
+    elevator3: [PAD.Y],
+    elevator4: [PAD.LB],
+    elevatorUp: [PAD.UP],
+    elevatorDown: [PAD.DOWN],
+  },
+};
+
+/**
+ * Tabla de botones efectiva para un robot: lo que dice `ROBOT_PAD_DEFAULTS` para ese robot y, en las
+ * demás acciones, lo del usuario sin los botones que ahora pertenecen a una acción del robot.
+ */
+export function padFor(b: Bindings, robot = ''): Bindings['pad'] {
+  const over = ROBOT_PAD_DEFAULTS[robot];
+  if (!over) return b.pad;
+  const out = {} as Record<Action, number[]>;
+  for (const a of ACTIONS) out[a] = a in over ? [...(over[a] ?? [])] : [...b.pad[a]];
+  const taken = new Set(Object.values(over).flatMap((v) => v ?? []));
+  for (const a of ACTIONS) if (!(a in over)) out[a] = out[a].filter((i) => !taken.has(i));
+  return out;
+}
+
 /** Máximo de teclas o botones por acción. */
 export const MAX_PER_ACTION = 2;
 
