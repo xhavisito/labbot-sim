@@ -71,12 +71,13 @@ export async function stepToGlb(stepPath, o) {
   const { ex, ey, ez, origin } = o.frame;
   const minDiag = o.minDiag ?? 0.035;
   const maxTris = o.maxTrisPerPart ?? 2500;
-  const rules = (o.rules ?? []).map((r) => ({ re: new RegExp(r.match, 'i'), color: r.color, maxTris: r.maxTris, box: r.box }));
+  const rules = (o.rules ?? []).map((r) => ({ re: new RegExp(r.match, 'i'), color: r.color, maxTris: r.maxTris, box: r.box, diag: r.diag, unnamed: r.unnamed }));
   const mats = new Map();
-  const matOf = (c, name, mname = '', center = [0, 0, 0]) => {
+  const matOf = (c, name, mname = '', center = [0, 0, 0], diag = 0) => {
     // `rules`: color por nombre de pieza cuando el STEP no trae color (SolidWorks solo exporta el gris por defecto)
     // `box` [x0,y0,z0,x1,y1,z1] (m, en el sistema del robot): solo si el centro de la pieza cae ahí (piezas sin nombre del CAD, como el motor del elevador)
-    const inBox = (r) => !r.box || [0, 1, 2].every((a) => center[a] >= r.box[a] && center[a] <= r.box[a + 3]);
+    const inBox = (r) => (!r.box || [0, 1, 2].every((a) => center[a] >= r.box[a] && center[a] <= r.box[a + 3])) && (!r.diag || (diag >= r.diag[0] && diag < r.diag[1])) && (!r.unnamed || mname === '');
+    // `diag` [min,max) m: solo piezas de ese tamaño (motores vs. tornillos); `unnamed`: sólidos sin nombre propio dentro de la pieza
     const rule = rules.find((r) => r.color && (r.re.test(name) || r.re.test(mname)) && inBox(r));
     if (rule?.color) c = rule.color;
     // El gris azulado por defecto de SolidWorks (0.59, 0.64, 0.85) se vuelve gris claro neutro
@@ -130,7 +131,7 @@ export async function stepToGlb(stepPath, o) {
         cell *= 1.35;
       }
     }
-    parts.push({ name: names[i], arm: isArm, nrm: nrmA, pos: Float32Array.from(posA), idx, mat: matOf(m.color, names[i], meshNames[i], [0, 1, 2].map((a) => (mn[a] + mx[a]) / 2)), tris: idx.length / 3, mn, mx });
+    parts.push({ name: names[i], arm: isArm, nrm: nrmA, pos: Float32Array.from(posA), idx, mat: matOf(m.color, names[i], meshNames[i], [0, 1, 2].map((a) => (mn[a] + mx[a]) / 2), diag), tris: idx.length / 3, mn, mx });
   });
 
   // El brazo se guarda con el origen en el pivote
