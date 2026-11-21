@@ -16,7 +16,7 @@ export const TABLE_4_4 = {
   } as Record<Level, { auto: number; teleop: number; endgame: number }>,
   robotOnPlatform: 10, // 1 robot sobre la Plataforma al sonar la bocina
   allianceOnPlatform: 20, // 2 robots; "no son acumulables … 20 puntos totales (no 10 + 20)"
-  critical: { endgame: 15, rp: 1 },
+  critical: { endgame: 35, rp: 1 },
   dominance: { samples: 10, rp: 1 }, // "≥10 muestras anotadas en su Cámara al final del match"
   tie: 1,
   win: 2,

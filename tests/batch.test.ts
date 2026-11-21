@@ -19,9 +19,9 @@ describe('simulación por lotes (estrategias de la IA)', () => {
     expect(COMPARE_ALLIANCE_PLANS.map((p) => p.id)).toEqual(['pivcrit3+pivn3', 'p180crit3+p180n3', 'larmcrit3+larmn3', 'elevcrit3+elevn3', 'dualcrit3+dualn3']);
   });
 
-  it('el pivote con Crítica la deja en la Repisa (15 + 1 RP) y suben a la Plataforma (§4.4)', () => {
+  it('el pivote con Crítica la deja en la Repisa (35 + 1 RP) y suben a la Plataforma (§4.4)', () => {
     const r = runMatch(plan('pivcrit3+pivn3'), plan('pivn3+pivn3'), 1);
-    expect(r.red.critical).toBe(15);
+    expect(r.red.critical).toBe(35);
     expect(r.red.rpCritical).toBe(true);
     expect(r.red.platform).toBeGreaterThanOrEqual(10);
     // Junta también las Muestras del Human Player (más de las 8 de su mitad del Laboratorio y las precargas)

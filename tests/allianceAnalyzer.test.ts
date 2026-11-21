@@ -64,8 +64,8 @@ describe('alianzas de un evento', () => {
 
   it('puntos sin faltas, victoria y RP como §4.4 (línea, Crítica, Dominio ≥10)', () => {
     const [red, blue] = eventObservations(ev, GAME);
-    // Rojo: línea 5+5, 10 N3 en TELEOP = 150, Plataforma con dos = 20, Crítica 15
-    expect(red.points).toBe(10 + 150 + 20 + 15);
+    // Rojo: línea 5+5, 10 N3 en TELEOP = 150, Plataforma con dos = 20, Crítica 35
+    expect(red.points).toBe(10 + 150 + 20 + 35);
     expect(red.score).toBe(red.points + 4); // Foul de D: 4 para el contrario (§4.5)
     expect(red.win).toBe(1);
     expect(red.rp).toBe(2 + 1 + 1 + 1);
@@ -136,8 +136,8 @@ describe('combinaciones del historial', () => {
     const rows = kindCombos(obs, MECHANISM_KINDS);
     expect(rows[0].pair).toEqual(['pivot', 'pivot180']);
     expect(rows[0].matches).toBe(12);
-    // 10 de línea + 8 N3 (120) + Plataforma 20 + Crítica 15; la pareja igual: 10 + 90 + 20
-    expect(rows[0].points).toBe(165);
+    // 10 de línea + 8 N3 (120) + Plataforma 20 + Crítica 35; la pareja igual: 10 + 90 + 20
+    expect(rows[0].points).toBe(185);
     expect(rows.find((r) => r.pair.join() === 'pivot,pivot')!.points).toBe(120);
     expect(rows[0].lift).toBeGreaterThan(0);
     expect(rows.map((r) => r.pair.join('+')).sort()).toEqual(['pivot+pivot', 'pivot+pivot180', 'pivot180+pivot180']);
@@ -173,7 +173,7 @@ describe('consejo para un equipo', () => {
     expect(otherOf(a.partnerStyle!.pair, 'n3')).toBe('critical');
     expect(a.partners.map((p) => p.team).slice(0, 2).sort()).toEqual(['A', 'C']);
     expect(a.partners[0].together).toBe(3);
-    expect(a.partners[0].togetherPoints).toBe(165);
+    expect(a.partners[0].togetherPoints).toBe(185);
     expect(a.partners[2].team).toBe('D');
   });
 

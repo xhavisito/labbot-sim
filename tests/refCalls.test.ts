@@ -95,10 +95,10 @@ describe('avisos del árbitro: Plataforma y Muestra Crítica en el ENDGAME', () 
     expect(refText(off[0]).detail).toContain('ya no hay robots');
   });
 
-  it('Muestra Crítica en la Repisa: 15 pts y aviso al salir', () => {
+  it('Muestra Crítica en la Repisa: 35 pts y aviso al salir', () => {
     const w = new EndgameWatcher(GAME);
     const on = hold(w, 1, none, { red: false, blue: true });
-    expect(on[0]).toMatchObject({ kind: 'critical', alliance: 'blue', points: 15, sound: 'chime' });
+    expect(on[0]).toMatchObject({ kind: 'critical', alliance: 'blue', points: 35, sound: 'chime' });
     expect(refText(on[0]).detail).toContain('1 RP');
     const off = hold(w, 1);
     expect(off[0]).toMatchObject({ kind: 'criticalLost', alliance: 'blue', points: 0 });

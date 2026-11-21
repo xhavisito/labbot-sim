@@ -93,8 +93,8 @@ describe('jugadas clave de la repetición', () => {
     const tot = momentTotals(ms);
     // Rojo: línea 5 + N1 2 + Tech Foul azul 8 + 1 robot en Plataforma 10
     expect(tot.red).toBe(5 + 2 + 8 + 10);
-    // Azul: N3 en AUTO 18 + Foul rojo 4 + Crítica 15 + Alianza en Plataforma 20
-    expect(tot.blue).toBe(18 + 4 + 15 + 20);
+    // Azul: N3 en AUTO 18 + Foul rojo 4 + Crítica 35 + Alianza en Plataforma 20
+    expect(tot.blue).toBe(18 + 4 + 35 + 20);
   });
 
   it('filtros: Puntos no incluye faltas; Faltas solo faltas y tarjetas', () => {
