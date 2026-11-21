@@ -149,6 +149,7 @@
     "cadArmLength": 0.7003,
     "clawAlongArm": true,
     "cadRollers": true,
-    "cadRollersZ": true
+    "cadRollersZ": true,
+    "levelSample": true
   }
 }

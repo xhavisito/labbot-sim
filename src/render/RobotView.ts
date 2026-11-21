@@ -790,8 +790,10 @@ export class RobotView {
     // Garra del CAD a lo largo del brazo (Axiom): el sistema de la garra gira `angle − stow`, pero la pieza (como su colisionador) queda
     // alineada con el brazo: se compensa el `stow` para que el cubo no se vea torcido respecto a los dedos
     const tilt = this.robot.phys.centeredClaw && this.rigidClaw !== null ? -this.rigidClaw : 0;
-    this.clawSample.rotation.z = tilt;
-    this.clawSample2.rotation.z = tilt;
+    // Mentores 3478 (`levelSample`): la Muestra agarrada no gira con el brazo, queda horizontal (se anula el giro del brazo y de la garra)
+    const level = this.robot.spec.model?.levelSample === true && this.rigidClaw !== null ? -(m.angle + this.rigidClaw) : tilt;
+    this.clawSample.rotation.z = level;
+    this.clawSample2.rotation.z = level;
     if (!cseat) this.criticalMesh.rotation.z = tilt;
     // Axiom: la Crítica va donde la garra la tomó (m.critGrip, en el sistema del brazo): se pasa al sistema de la garra (girado `tilt`) y se suaviza
     if (!cseat && this.pocket && this.robot.phys.centeredClaw) {
