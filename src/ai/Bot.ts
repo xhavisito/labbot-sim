@@ -22,7 +22,7 @@
  */
 import * as F from '../config/field';
 import { GAME } from '../config/game';
-import { canHoldCritical, canTakeCriticalFromHolder, critSeat, posDir, posTip, type ElevatorPos } from '../config/robot';
+import { canHoldCritical, canTakeCriticalFromHolder, critSeat, posDir, posScoreTip, type ElevatorPos } from '../config/robot';
 import type { Phase } from '../core/clock';
 import { DAMAGE } from '../core/damage';
 import { rng } from '../core/rng';
@@ -276,8 +276,8 @@ export class Bot {
   private tipDistance(level: Level): number {
     // Lanzador (Phoenix): tira desde `range` m del centro del pozo (en vez de arrimarse a la pared)
     const shooter = this.robot.spec.intake?.shooter;
-    if (shooter) return shooter.range + (shooter.muzzle?.x ?? Math.abs(posTip(this.robot.spec, level).x));
-    return Math.abs(posTip(this.robot.spec, level).x);
+    if (shooter) return shooter.range + (shooter.muzzle?.x ?? Math.abs(posScoreTip(this.robot.spec, level).x));
+    return Math.abs(posScoreTip(this.robot.spec, level).x);
   }
 
   /** `timeLeft`: segundos para el final del match (para calcular el AUTO y el ENDGAME). */
@@ -518,7 +518,7 @@ export class Bot {
   private unhook(out: BotOutput): void {
     const m = this.robot.mech;
     const s = this.robot.spec;
-    if (posTip(s, out.elevator).y >= m.height - 0.05) return;
+    if (posScoreTip(s, out.elevator).y >= m.height - 0.05) return;
     const tipX = m.tipX();
     const tip = this.robot.phys.localToWorld(tipX, 0, 0);
     if (!CAMARAS.some((c) => F.inRect(c, tip.x, tip.z))) return;
@@ -1136,7 +1136,7 @@ export class Bot {
     const pos = r.phys.position();
     const s = r.spec;
     // Distancia del centro del robot a la que la toma, y si la garra está al frente o atrás
-    const grab = Math.abs(posTip(s, 0).x);
+    const grab = Math.abs(posScoreTip(s, 0).x);
     const pd = this.pickDir;
     const dist = Math.hypot(p.x - pos.x, p.z - pos.z);
     const piece = p.i !== undefined ? this.pieces.list[p.i] : undefined;
@@ -1443,7 +1443,7 @@ export class Bot {
 
   /** Distancia (centro del robot → pieza) a la que su garra alcanza la Crítica. */
   private critDistance(): number {
-    return Math.abs(posTip(this.robot.spec, 4).x) - 0.05;
+    return Math.abs(posScoreTip(this.robot.spec, 4).x) - 0.05;
   }
 
   /**
@@ -1458,7 +1458,7 @@ export class Bot {
     const r = this.robot;
     const s = r.spec;
     const hl = r.phys.halfL;
-    const tip = Math.abs(posTip(s, 4).x);
+    const tip = Math.abs(posScoreTip(s, 4).x);
     // La garra solo abre (sin empujón): lo que se desliza al tocar la Repisa (medido ≈ 2 cm)
     const drift = 0.02;
     return Math.max(F.REPISA_DEPTH / 2 + hl + 0.01, this.critLanding() + tip + drift);

@@ -824,12 +824,19 @@ export class App {
   private teamNumbers(): string[] {
     const nums: Record<string, string> = { axiom: '2785', phoenix: '2378', psycho: '2548', hazmat: '704', mentores: '3478' };
     const tour = this.choice.scout?.tour ? this.choice.scout.teams : null;
-    return this.session.robots.map((r, i) => {
-      if (tour?.[i]) return this.scoutData.teams.find((x) => x.id === tour[i])?.name ?? tour[i];
+    // Por estación (`r.index`): en práctica solo hay dos robots y su lugar en la lista no es su estación (el número salía en R1 siendo Blue 1)
+    const out: string[] = [];
+    for (const r of this.session.robots) {
+      const i = r.index;
+      if (tour?.[i]) {
+        out[i] = this.scoutData.teams.find((x) => x.id === tour[i])?.name ?? tour[i];
+        continue;
+      }
       const label = robotLabel(r.spec);
       const key = Object.keys(nums).find((k) => label.toLowerCase().includes(k));
-      return key ? nums[key] : label;
-    });
+      out[i] = key ? nums[key] : label;
+    }
+    return out;
   }
 
   private vsResults(): VsResults | undefined {
@@ -1391,7 +1398,6 @@ export class App {
       }
       this.touch.setIntake(this.session.player.mech.intakeOn);
       if (this.session.player2) this.touch2.setIntake(this.session.player2.mech.intakeOn);
-      for (const f of this.session.scoreFx) this.effects.burst(f.x, f.y, f.z, f.alliance);
       const m = this.session.match;
       // Probar el AUTO: al acabar el periodo (y su gracia de 3 s) termina, sin jugar el TELEOP
       if (m && !m.finished && this.choice.autoTest && m.t >= bounds(this.session.game).teleopStart) this.session.endNow();

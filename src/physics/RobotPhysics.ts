@@ -18,7 +18,7 @@
  * y no chocan con la alfombra: la garra pasa rozándola al recoger.
  * CCD en el cuerpo: a toda velocidad o girando no atraviesa las paredes de 8 mm de la Cámara.
  */
-import { WHEEL_DROP, armTip, clawOf, critSeat, intakeOf, posAngle, seatX, type ClawDims, type RobotSpec } from '../config/robot';
+import { WHEEL_DROP, armTip, clawOf, critSeat, heldOffsetOf, intakeOf, posAngle, rollerColsOf, seatX, wristFade, type ClawDims, type RobotSpec } from '../config/robot';
 import { CRITICAL_SIZE, SAMPLE_SIZE } from '../config/field';
 import { G, GROUPS, RAPIER, groups, type PhysicsWorld } from './PhysicsWorld';
 
@@ -59,6 +59,9 @@ export const floorPoseOf = (s: { elevatorHeights: readonly number[] }): number =
 
 type Pose = { t: { x: number; y: number; z: number }; r: { x: number; y: number; z: number; w: number } };
 const NO_ROT = { x: 0, y: 0, z: 0, w: 1 };
+/** Cilindro de Rapier (eje y) girado 90° para quedar con el eje en z; `ROLLER_CLEAR`: lo que se achica el radio para que la Muestra pase bajo las ruedas. */
+const ROLLER_ROT = { x: Math.SQRT1_2, y: 0, z: 0, w: Math.SQRT1_2 };
+const ROLLER_CLEAR = 0.004;
 /**
  * Garra-caja del CAD (Psycho): alto libre del hitbox entre la placa de abajo y la de arriba y grueso de
  * cada placa (m). El CAD mide 14.6 cm por dentro, pero la Muestra mide 15 cm (la espuma cede): el hitbox deja
@@ -124,7 +127,10 @@ export class RobotPhysics {
     critical: RAPIER.Collider;
     /** Muestra normal tomada por la Garrita (Psycho): va en el mismo lugar fijo del chasis que la Crítica. */
     critSample: RAPIER.Collider;
+    /** Rodillos de la garra del CAD (`cadRollerCols`): cilindros con el eje en z que cuelgan de la muñeca. */
+    rollers: RAPIER.Collider[];
   };
+  private rollerQuery: RAPIER.Shape[] = [];
   /**
    * Garra del CAD fija al brazo (como la dibuja `RobotView`): ángulo del brazo en el que la caja queda
    * nivelada (la pose de piso). En otro ángulo la caja gira con el brazo y su hitbox también
@@ -348,7 +354,12 @@ export class RobotPhysics {
       sample2: mech(RAPIER.ColliderDesc.cuboid(SAMPLE_SIZE / 2, SAMPLE_SIZE / 2, SAMPLE_SIZE / 2)),
       critical: mech(RAPIER.ColliderDesc.cuboid(CRITICAL_SIZE / 2, CRITICAL_SIZE / 2, CRITICAL_SIZE / 2)),
       critSample: mech(RAPIER.ColliderDesc.cuboid(SAMPLE_SIZE / 2, SAMPLE_SIZE / 2, SAMPLE_SIZE / 2)),
+      // Rodillos del CAD (Mentores 3478): cilindros con el eje a lo ancho (el de Rapier va a lo largo de y)
+      rollers: (spec.model?.cadRollerCols?.cyl ?? []).map(([, , r]) =>
+        mech(RAPIER.ColliderDesc.cylinder(spec.model!.cadRollerCols!.halfZ, Math.max(0.004, r - ROLLER_CLEAR)).setRotation(ROLLER_ROT)),
+      ),
     };
+    this.rollerQuery = (spec.model?.cadRollerCols?.cyl ?? []).map(([, , r]) => new RAPIER.Cylinder(spec.model!.cadRollerCols!.halfZ - QUERY_SHRINK, Math.max(0.004, r - ROLLER_CLEAR - QUERY_SHRINK)));
     this.setArmPose(spec.arm.stowAngle ?? 0, null);
   }
 
@@ -389,6 +400,9 @@ export class RobotPhysics {
       const d0 = clawDir(a0, arm);
       const rollers0 = intakeOf(this.spec).rollers === true;
       const lvl = this.spec.model?.levelSample === true; // la Muestra agarrada se queda horizontal
+      const hs0 = heldOffsetOf(this.spec, a, 0); // apoyada en el piso y con la muñeca (`heldX`, `cadWrist`)
+      const hs1 = heldOffsetOf(this.spec, a, 1);
+      const abs = (o: { x: number; y: number }): Pose => ({ t: { x: tip.x + o.x, y: tip.y + o.y, z: 0 }, r: NO_ROT });
       // Garra centrada en la punta (Axiom): dedos, placa y Muestra alrededor de la punta; si no, apoyados sobre ella
       const cy = this.centeredClaw ? 0 : fh / 2;
       const sy0 = this.centeredClaw ? 0 : S / 2;
@@ -399,8 +413,8 @@ export class RobotPhysics {
         palm: at(-d0 * (fl / 2 + this.claw.palmThickness / 2), cy),
         lid: at(0, BOX_INNER + BOX_PLATE / 2),
         base: at(0, -BOX_PLATE / 2),
-        sample: lvl ? { ...at(rollers0 ? seatX(this.spec, 0, d0, 0) : 0, sy0), r: NO_ROT } : at(rollers0 ? seatX(this.spec, 0, d0, 0) : 0, sy0),
-        sample2: lvl ? { ...at(rollers0 ? seatX(this.spec, 0, d0, 1) : 0, rollers0 ? S / 2 : S * 1.5), r: NO_ROT } : at(rollers0 ? seatX(this.spec, 0, d0, 1) : 0, rollers0 ? S / 2 : S * 1.5),
+        sample: hs0 ? abs(hs0) : lvl ? { ...at(rollers0 ? seatX(this.spec, 0, d0, 0) : 0, sy0), r: NO_ROT } : at(rollers0 ? seatX(this.spec, 0, d0, 0) : 0, sy0),
+        sample2: hs1 ? abs(hs1) : lvl ? { ...at(rollers0 ? seatX(this.spec, 0, d0, 1) : 0, rollers0 ? S / 2 : S * 1.5), r: NO_ROT } : at(rollers0 ? seatX(this.spec, 0, d0, 1) : 0, rollers0 ? S / 2 : S * 1.5),
         critical: this.critFixed ?? (this.centeredClaw ? at(this.critGrip.x, this.critGrip.y, this.critGrip.z) : at(0, CRITICAL_SIZE / 2)),
       };
     }
@@ -457,9 +471,10 @@ export class RobotPhysics {
     if (tilted !== this.armTilted) {
       this.armTilted = tilted;
       const g = tilted ? GROUPS.armTilted : GROUPS.arm;
-      for (const col of [c.beam, ...c.fingers, c.palm, ...c.plates, c.sample, c.sample2, c.critical, c.critSample]) col.setCollisionGroups(g);
+      for (const col of [c.beam, ...c.fingers, c.palm, ...c.plates, c.sample, c.sample2, c.critical, c.critSample, ...c.rollers]) col.setCollisionGroups(g);
     }
     const p = this.armPoses(a);
+    const tip0 = armTip(this.spec.arm, a);
     const put = (col: RAPIER.Collider, pose: Pose) => {
       col.setTranslationWrtParent(pose.t);
       col.setRotationWrtParent(pose.r);
@@ -475,6 +490,13 @@ export class RobotPhysics {
     c.plates[0].setEnabled(box);
     c.plates[1].setEnabled(box && !this.boxAtFloor(a));
     put(c.sample, p.sample);
+    // Pasada la vertical (N3, la muñeca va con el brazo) los rodillos no chocan: la Muestra sale por donde están (los rodillos la empujan) y
+    // ahí se calibró anotar
+    const rollersOn = wristFade(this.spec, a) < 0.5;
+    rollerColsOf(this.spec, a).forEach((o, i) => {
+      put(c.rollers[i], { t: { x: tip0.x + o.x, y: tip0.y + o.y, z: 0 }, r: ROLLER_ROT });
+      c.rollers[i].setEnabled(rollersOn);
+    });
     // Segunda Muestra (garra que lleva dos)
     put(c.sample2, p.sample2);
     c.sample2.setEnabled(held === 'sample' && count >= 2);
@@ -505,6 +527,8 @@ export class RobotPhysics {
       parts.push([q.plate, p.lid]);
       if (!this.boxAtFloor(a)) parts.push([q.plate, p.base]);
     }
+    const tip1 = armTip(this.spec.arm, a);
+    if (wristFade(this.spec, a) < 0.5) rollerColsOf(this.spec, a).forEach((o, i) => parts.push([this.rollerQuery[i], { t: { x: tip1.x + o.x, y: tip1.y + o.y, z: 0 }, r: ROLLER_ROT }]));
     if (held) parts.push([q[held], p[held]]);
     if (held === 'sample' && count >= 2) parts.push([q.sample, p.sample2]);
     for (const [shape, pose] of parts) {

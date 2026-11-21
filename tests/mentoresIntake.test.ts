@@ -2,6 +2,7 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 import { CAD_ROBOT_SPECS } from '../src/cad/cadRobots';
 import { SAMPLE_SIZE } from '../src/config/field';
+import { armTip, heldOffsetOf, posAngle, rollerColsOf, wristAngleOf } from '../src/config/robot';
 import { GameSession } from '../src/game/GameSession';
 import { emptyInput } from '../src/input/InputManager';
 import { initRapier } from '../src/physics/PhysicsWorld';
@@ -102,5 +103,54 @@ describe('Mentores 3478: brazo a N3', () => {
     }
     expect((m.angle * 180) / Math.PI).toBeCloseTo(100, 1);
     expect(m.height).toBeCloseTo(0.335 + 0.7003 * Math.sin((100 * Math.PI) / 180), 3); // 1.025 m
+  });
+});
+
+describe('Mentores 3478: muñeca, rodillos con colisión y Muestra apoyada', () => {
+  const spec = () => M();
+  const floorA = () => posAngle(spec(), 0);
+
+  it('en el piso la Muestra agarrada queda apoyada en la alfombra, entre las ruedas', () => {
+    const o = heldOffsetOf(spec(), floorA(), 0)!;
+    const tip = armTip(spec().arm, floorA());
+    expect(tip.y + o.y - SAMPLE_SIZE / 2).toBeCloseTo(0, 2); // su cara de abajo en el piso (antes flotaba 8 cm)
+    // la rueda de 4 in (arriba) apenas toca su cara de arriba y no la atraviesa
+    const wheel = rollerColsOf(spec(), floorA())[0];
+    expect(wheel.y - wheel.r).toBeGreaterThanOrEqual(o.y + SAMPLE_SIZE / 2 - 0.01);
+  });
+
+  it('la muñeca deja la placa a la altura del piso al subir y va con el brazo en N3', () => {
+    const s = spec();
+    const stow = s.model!.stowAngle!;
+    expect(wristAngleOf(s, floorA())).toBeCloseTo(0, 1);
+    const a2 = posAngle(s, 2);
+    expect(wristAngleOf(s, a2)).toBeCloseTo(-(a2 - stow), 6); // compensa todo el giro del brazo
+    expect(wristAngleOf(s, posAngle(s, 3))).toBeCloseTo(0, 6); // N3: la garra va con el brazo y anota como siempre
+  });
+
+  it('los rodillos son colisionadores que se mueven con la muñeca', () => {
+    const g = new GameSession({ player: 0, preload: false, specs: [M()] });
+    const cols = g.player.phys.armColliders.rollers;
+    expect(cols.length).toBe(2);
+    const z = cols[0].translationWrtParent().y;
+    g.player.phys.setArmPose(posAngle(spec(), 2), null);
+    expect(cols[0].translationWrtParent().y).not.toBeCloseTo(z, 2);
+    expect(cols[0].isEnabled()).toBe(true);
+    g.player.phys.setArmPose(posAngle(spec(), 3), null);
+    expect(cols[0].isEnabled()).toBe(false);
+  });
+
+  it('una Muestra suelta choca con la rueda de arriba en vez de atravesarla', () => {
+    const g = new GameSession({ player: 0, preload: false, specs: [M()] });
+    for (const p of g.pieces.list) if (p.state.at === 'field' && p.kind === 'sample') g.pieces.stash(p, { at: 'hp', alliance: 'red' });
+    g.player.phys.teleport(1.0, -1.2, 0);
+    const p = g.pieces.list.find((x) => x.kind === 'sample')!;
+    for (let i = 0; i < 1.5 * 120; i++) { g.setInput({ ...emptyInput(), elevator: 1 }); g.step(); }
+    for (let i = 0; i < 1.5 * 120; i++) { g.setInput({ ...emptyInput(), elevator: 0 }); g.step(); }
+    const tip = g.player.phys.localToWorld(armTip(spec().arm, g.player.mech.angle).x, 0, 0);
+    // arriba de la rueda de 4 in: cae encima de ella (queda más arriba que el cubo que está entre las ruedas)
+    g.pieces.place(p, tip.x + 0.033, 0.35, -1.2, 0);
+    for (let i = 0; i < 1 * 120; i++) { g.setInput({ ...emptyInput(), elevator: 0 }); g.step(); }
+    expect(p.body.translation().y).toBeGreaterThan(0.15);
   });
 });

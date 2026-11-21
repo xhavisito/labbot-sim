@@ -21,7 +21,7 @@ import {
 } from '../auto/designed';
 import * as F from '../config/field';
 import { GAME } from '../config/game';
-import { posTip, type ElevatorPos, type RobotSpec } from '../config/robot';
+import { posScoreTip, type ElevatorPos, type RobotSpec } from '../config/robot';
 import { allRobotIds, robotSpec, type RobotId } from '../config/robotIds';
 import { spotPose } from '../config/startSpot';
 import { backBtn, brandbar, ic } from './chrome';
@@ -382,7 +382,7 @@ export class AutoDesigner {
     const w = this.cur.waypoints[this.sel];
     if (!w?.score || this.readonly) return;
     this.snapshot();
-    const p = scorePoint(w.score, Math.abs(posTip(this.spec, w.score).x), this.halfL);
+    const p = scorePoint(w.score, Math.abs(posScoreTip(this.spec, w.score).x), this.halfL);
     w.x = p.x;
     w.z = p.z;
     w.heading = p.heading;
