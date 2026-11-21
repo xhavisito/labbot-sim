@@ -179,6 +179,8 @@ export interface CadModel {
    * se pintan de negro (como en el CAD) y giran con el intake, y el simulador no les dibuja unos rodillos genéricos encima (Xhavi, 18-nov).
    */
   cadRollers?: boolean;
+  /** Con `cadRollers`: los rodillos del CAD tienen el eje a lo ancho (z del brazo) en vez de vertical (Mentores 3478: ruedas negras de 4 in arriba y rodillos verdes de 1 in abajo). */
+  cadRollersZ?: boolean;
 }
 
 /**

@@ -31,7 +31,7 @@ import { camaraWells, inCamara, rectForCamara } from '../config/field';
 import { shotVelocity } from './shooter';
 import { CLAW_GAP, armTip, canHoldCritical, canTakeCriticalFromHolder, clawOf, critSeat, intakeOf, posAngle, posDir, seatX, type ElevatorPos, type GripMode } from '../config/robot';
 import { CRITICAL_SIZE, SAMPLE_SIZE } from '../config/field';
-import { FLOOR_POSE, clawDir } from '../physics/RobotPhysics';
+import { FLOOR_POSE, clawDir, floorPoseOf } from '../physics/RobotPhysics';
 import { GROUPS } from '../physics/PhysicsWorld';
 import type { Alliance } from '../core/types';
 import type { Piece, Pieces } from '../physics/Pieces';
@@ -427,7 +427,7 @@ export class Mechanisms {
 
   /** Garra: con el brazo abajo y vacía, agarra la Muestra que queda entre sus dedos. */
   private runClaw(events: MechEvent[], dt: number): void {
-    if (this.critical || (this.inClaw && !this.phys.spec.arm.holdsTwo) || this.height > FLOOR_POSE || this.cooldown > 0 || this.hopperTask()) {
+    if (this.critical || (this.inClaw && !this.phys.spec.arm.holdsTwo) || this.height > floorPoseOf(this.phys.spec) || this.cooldown > 0 || this.hopperTask()) {
       this.closing = null;
       return;
     }

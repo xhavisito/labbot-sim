@@ -94,7 +94,7 @@ export class RobotView {
   private hitDebug: HitboxDebug | null = null;
   private spin = [0, 0];
   /** Rodillos de la garra (robots del CAD): `row` = costado (+1 = +z, −1 = −z) de la flecha vertical; giran hacia adentro. */
-  private clawRollers: Array<{ mesh: THREE.Object3D; row: number }> = [];
+  private clawRollers: Array<{ mesh: THREE.Object3D; row: number; /** Eje z (Mentores): `sign` = sentido que jala hacia el brazo y `r` = radio (m). */ zAxis?: { sign: number; r: number } }> = [];
   private rollerT = 0;
   /** Rodillos del lanzador del CAD (Phoenix): `side` = signo del giro (+1 / −1) para que ambas filas empujen la Muestra por la rampa. */
   private shooterRollers: Array<{ mesh: THREE.Object3D; side: number; bottom: boolean; w: number }> = [];
@@ -366,7 +366,10 @@ export class RobotView {
     // Flechas (ejes) del CAD: negras en todos los robots
     // Antes de colgarla del robot: los centros se miden en el sistema del modelo (la sesión ya movió `this.group` a su lugar)
     this.buildShooterRollers(scene);
-    if (m.cadRollers && arm) this.buildCadRollers(arm);
+    if (m.cadRollers && arm) {
+      if (m.cadRollersZ) this.buildCadRollersZ(arm);
+      else this.buildCadRollers(arm);
+    }
     this.group.add(scene);
     this.group.traverse((o) => {
       if (o instanceof THREE.Mesh && /flecha/i.test(nodeName(o))) o.material = SHAFT_MAT; // incluye el brazo (`this.arm`)
@@ -412,6 +415,54 @@ export class RobotView {
         pivot.attach(h.mesh);
       }
       this.clawRollers.push({ mesh: pivot, row: Math.sign(w.c.z) || 1 });
+    }
+  }
+
+  /**
+   * Rodillos de la garra de Mentores 3478 (ejes a lo ancho del robot, z del brazo): cinco ruedas negras de 4 in (WCP-1304, con su
+   * cubo) arriba de la Muestra y cinco rodillos verdes de 1 in debajo, a lo largo de la boca. Cada eje es un grupo (en el CAD vienen
+   * piezas duplicadas en el mismo centro) que gira con el intake; la fila de arriba y la de abajo giran al revés para jalar la Muestra
+   * hacia el brazo (SUPUESTO: el CAD es una sola pose y no dice el sentido). Los verdes se pintan como en el CAD (Xhavi, 21-nov).
+   */
+  private buildCadRollersZ(arm: THREE.Object3D): void {
+    arm.updateWorldMatrix(true, true);
+    const inv = new THREE.Matrix4().copy(arm.matrixWorld).invert();
+    const axes = new Map<string, { c: THREE.Vector3; meshes: THREE.Mesh[]; kind: 'black' | 'green'; r: number }>();
+    const blackMat = new THREE.MeshStandardMaterial({ color: 0x0d0d0f, roughness: 0.7 });
+    const greenMat = new THREE.MeshStandardMaterial({ color: 0x29b83d, roughness: 0.55 });
+    arm.traverse((o) => {
+      if (!(o instanceof THREE.Mesh)) return;
+      o.geometry.computeBoundingBox();
+      const b = o.geometry.boundingBox!.clone().applyMatrix4(inv.clone().multiply(o.matrixWorld));
+      const sz = b.getSize(new THREE.Vector3());
+      const c = b.getCenter(new THREE.Vector3());
+      if (sz.z < 0.02 || sz.z > 0.03 || Math.abs(sz.x - sz.y) > 0.004 || Math.abs(c.z) > 0.12) return; // cilindros cortos con el eje en z
+      let kind: 'black' | 'green' | null = null;
+      let r = 0;
+      if (sz.x > 0.095 && sz.x < 0.107 && c.y > -0.2) { kind = 'black'; r = sz.x / 2; } // rueda de 4 in
+      else if (sz.x > 0.021 && sz.x < 0.027 && c.y > -0.2) kind = 'black'; // su cubo (mismo centro)
+      else if (sz.x > 0.017 && sz.x < 0.027 && c.y < -0.2) { kind = 'green'; r = sz.x / 2; } // rodillos de 1 in
+      if (!kind) return;
+      const key = `${kind}${Math.round(c.x * 1000)}_${Math.round(c.y * 1000)}_${Math.round(c.z * 1000)}`;
+      const a = axes.get(key) ?? { c: c.clone(), meshes: [] as THREE.Mesh[], kind, r: 0 };
+      a.meshes.push(o);
+      a.r = Math.max(a.r, r);
+      axes.set(key, a);
+    });
+    for (const a of axes.values()) {
+      const pivot = new THREE.Group();
+      pivot.position.copy(a.c);
+      arm.add(pivot);
+      for (const mesh of a.meshes) {
+        // el cilindro de 0.025 m de diámetro es el rodillo (verde); el de 0.02 m es el espaciador del eje (queda gris)
+        const bb = mesh.geometry.boundingBox!;
+        const d = bb.max.x - bb.min.x;
+        if (a.kind === 'green' && d > 0.0235) mesh.material = greenMat;
+        else if (a.kind === 'black') mesh.material = blackMat;
+        pivot.attach(mesh);
+      }
+      // Fila de arriba: la superficie de abajo avanza hacia el brazo (−x) con ω < 0; la de abajo al revés
+      this.clawRollers.push({ mesh: pivot, row: 1, zAxis: { sign: a.kind === 'black' ? -1 : 1, r: a.r || 0.0127 } });
     }
   }
 
@@ -814,7 +865,10 @@ export class RobotView {
       if (spin) {
         const w = (intakeOf(this.robot.spec).rollerSpeed / ROLLER_R) * spin;
         // Flechas verticales: la del costado +z gira con +ω (vista desde arriba) para jalar hacia la placa
-        for (const r of this.clawRollers) r.mesh.rotation.y += r.row * boxDir * w * dtR;
+        for (const r of this.clawRollers) {
+          if (r.zAxis) r.mesh.rotation.z += r.zAxis.sign * boxDir * (intakeOf(this.robot.spec).rollerSpeed / r.zAxis.r) * spin * dtR;
+          else r.mesh.rotation.y += r.row * boxDir * w * dtR;
+        }
       }
     }
     // Rodillos del lanzador: con el intake giran solo los de abajo; al tirar giran todos; frenan al terminar

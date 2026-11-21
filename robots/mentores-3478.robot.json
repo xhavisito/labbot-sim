@@ -145,6 +145,7 @@
     "staticWheels": true,
     "cadArmLength": 0.7003,
     "clawAlongArm": true,
-    "cadRollers": true
+    "cadRollers": true,
+    "cadRollersZ": true
   }
 }
