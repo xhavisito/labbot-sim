@@ -388,6 +388,7 @@ export class RobotPhysics {
       const at = (lx: number, ly: number, z = 0): Pose => ({ t: { x: tip.x + lx * c - ly * sn, y: tip.y + lx * sn + ly * c, z }, r });
       const d0 = clawDir(a0, arm);
       const rollers0 = intakeOf(this.spec).rollers === true;
+      const lvl = this.spec.model?.levelSample === true; // la Muestra agarrada se queda horizontal
       // Garra centrada en la punta (Axiom): dedos, placa y Muestra alrededor de la punta; si no, apoyados sobre ella
       const cy = this.centeredClaw ? 0 : fh / 2;
       const sy0 = this.centeredClaw ? 0 : S / 2;
@@ -398,8 +399,8 @@ export class RobotPhysics {
         palm: at(-d0 * (fl / 2 + this.claw.palmThickness / 2), cy),
         lid: at(0, BOX_INNER + BOX_PLATE / 2),
         base: at(0, -BOX_PLATE / 2),
-        sample: at(rollers0 ? seatX(this.spec, 0, d0, 0) : 0, sy0),
-        sample2: at(rollers0 ? seatX(this.spec, 0, d0, 1) : 0, rollers0 ? S / 2 : S * 1.5),
+        sample: lvl ? { ...at(rollers0 ? seatX(this.spec, 0, d0, 0) : 0, sy0), r: NO_ROT } : at(rollers0 ? seatX(this.spec, 0, d0, 0) : 0, sy0),
+        sample2: lvl ? { ...at(rollers0 ? seatX(this.spec, 0, d0, 1) : 0, rollers0 ? S / 2 : S * 1.5), r: NO_ROT } : at(rollers0 ? seatX(this.spec, 0, d0, 1) : 0, rollers0 ? S / 2 : S * 1.5),
         critical: this.critFixed ?? (this.centeredClaw ? at(this.critGrip.x, this.critGrip.y, this.critGrip.z) : at(0, CRITICAL_SIZE / 2)),
       };
     }

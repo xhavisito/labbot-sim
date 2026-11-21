@@ -181,6 +181,11 @@ export interface CadModel {
   cadRollers?: boolean;
   /** Con `cadRollers`: los rodillos del CAD tienen el eje a lo ancho (z del brazo) en vez de vertical (Mentores 3478: ruedas negras de 4 in arriba y rodillos verdes de 1 in abajo). */
   cadRollersZ?: boolean;
+  /**
+   * Con `clawAlongArm`: la Muestra agarrada se queda horizontal (como entró) aunque el brazo gire, en vez de girar con él (Mentores 3478,
+   * Xhavi 21-nov: "se quedan donde las agarras, en posición horizontal"). Solo cambia la Muestra; la garra y el brazo giran igual.
+   */
+  levelSample?: boolean;
 }
 
 /**
