@@ -50,6 +50,13 @@ export const TILT_FLOOR_ARM = 0.35;
 /** Altura (m) de la punta bajo la que la garra está en la pose de piso (recoger). */
 export const FLOOR_POSE = 0.06;
 
+/**
+ * Pose de piso de un robot: el CAD de Mentores 3478 tiene el centro de la Muestra (la punta del brazo) a 0.082 m del piso, más que
+ * los 0.06 m de `FLOOR_POSE`; con ese umbral nunca estaba "en el piso" y el intake no agarraba nada (Xhavi, 21-nov). Sube el
+ * umbral lo que haga falta para que la altura de piso del propio robot (`elevatorHeights[0]`) cuente, con 1 cm de margen.
+ */
+export const floorPoseOf = (s: { elevatorHeights: readonly number[] }): number => Math.max(FLOOR_POSE, s.elevatorHeights[0] + 0.01);
+
 type Pose = { t: { x: number; y: number; z: number }; r: { x: number; y: number; z: number; w: number } };
 const NO_ROT = { x: 0, y: 0, z: 0, w: 1 };
 /**
