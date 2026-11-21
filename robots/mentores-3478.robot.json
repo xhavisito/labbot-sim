@@ -154,6 +154,6 @@
     "wheelColor": 15921906,
     "heldX": -0.025,
     "cadRollerCols": { "halfZ": 0.115, "cyl": [[0.033, 0.116, 0.0507], [-0.113, -0.028, 0.0126]] },
-    "cadWrist": { "axis": [0.487, -0.11], "fromX": 0.45 }
+    "cadWrist": { "axis": [0.487, -0.11], "fromX": 0.45, "n3Angle": -0.66 }
   }
 }

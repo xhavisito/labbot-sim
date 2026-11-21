@@ -8,7 +8,7 @@ import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { CRITICAL_SIZE, SAMPLE_SIZE } from '../config/field';
-import { WHEEL_DROP, armTip, clawOf, critSeat, heldOffsetOf, intakeOf, wristAngleOf, posAngle, seatX, type CadModel, type ClawDims, type CritClaw } from '../config/robot';
+import { WHEEL_DROP, armTip, clawOf, critSeat, heldSeatOf, intakeOf, wristAngleOf, wristPoint, posAngle, seatX, type CadModel, type ClawDims, type CritClaw } from '../config/robot';
 import { PALETTES } from '../config/palette';
 import { clawDir } from '../physics/RobotPhysics';
 import type { Robot } from '../game/Robot';
@@ -878,10 +878,9 @@ export class RobotView {
     const seat = (k: number) => (rollers ? seatX(this.robot.spec, 0, boxDir, k) : 0);
     this.clawSample.visible = n >= 1;
     // Mentores 3478 (`heldX`): apoyada en el piso, donde la dejó el intake; al comerla se desliza desde donde estaba en la cancha
-    const ho = heldOffsetOf(this.robot.spec, m.angle, 0);
-    const hd = this.rigidClaw !== null ? m.angle + this.rigidClaw : 0; // giro del sistema de la garra
-    // Del sistema del robot (ejes fijos) al de la garra
-    const hs = ho ? { x: ho.x * Math.cos(hd) + ho.y * Math.sin(hd), y: -ho.x * Math.sin(hd) + ho.y * Math.cos(hd) } : null;
+    // Dibujo: la Muestra va con la placa (su lugar sobre el piso, llevado por la muñeca de N3); la física usa `heldOffsetOf`
+    const h0 = heldSeatOf(this.robot.spec, 1, 0);
+    const hs = h0 ? wristPoint(this.robot.spec, m.angle, h0.x, h0.y) : null;
     this.clawSample.position.set(hs?.x ?? this.pocket?.x ?? seat(0), hs?.y ?? this.pocket?.y ?? SAMPLE_SIZE * 0.475, 0);
     if (hs && claw) {
       const ef = m.eatFrom;

@@ -119,25 +119,34 @@ describe('Mentores 3478: muñeca, rodillos con colisión y Muestra apoyada', () 
     expect(wheel.y - wheel.r).toBeGreaterThanOrEqual(o.y + SAMPLE_SIZE / 2 - 0.01);
   });
 
-  it('la muñeca deja la placa a la altura del piso al subir y va con el brazo en N3', () => {
+  it('la muñeca solo se mueve en N3 (foto de SolidWorks); en el resto queda fija', () => {
     const s = spec();
-    const stow = s.model!.stowAngle!;
-    expect(wristAngleOf(s, floorA())).toBeCloseTo(0, 1);
-    const a2 = posAngle(s, 2);
-    expect(wristAngleOf(s, a2)).toBeCloseTo(-(a2 - stow), 6); // compensa todo el giro del brazo
-    expect(wristAngleOf(s, posAngle(s, 3))).toBeCloseTo(0, 6); // N3: la garra va con el brazo y anota como siempre
+    for (const lvl of [0, 1, 2, 4] as const) expect(wristAngleOf(s, posAngle(s, lvl))).toBeCloseTo(0, 9);
+    expect(wristAngleOf(s, posAngle(s, 3))).toBeCloseTo(s.model!.cadWrist!.n3Angle, 6);
+    // en medio del recorrido a N3 ya se está moviendo, sin pasarse
+    const mid = (1.2 + posAngle(s, 3)) / 2;
+    expect(Math.abs(wristAngleOf(s, mid))).toBeGreaterThan(0);
+    expect(Math.abs(wristAngleOf(s, mid))).toBeLessThan(Math.abs(s.model!.cadWrist!.n3Angle));
   });
 
-  it('los rodillos son colisionadores que se mueven con la muñeca', () => {
+  it('los rodillos son colisionadores fijos a la garra; en N3 (muñeca solo de dibujo) no chocan', () => {
+    const s = spec();
     const g = new GameSession({ player: 0, preload: false, specs: [M()] });
     const cols = g.player.phys.armColliders.rollers;
     expect(cols.length).toBe(2);
-    const z = cols[0].translationWrtParent()!.y;
-    g.player.phys.setArmPose(posAngle(spec(), 2), null);
-    expect(cols[0].translationWrtParent()!.y).not.toBeCloseTo(z, 2);
-    expect(cols[0].isEnabled()).toBe(true);
-    g.player.phys.setArmPose(posAngle(spec(), 3), null);
-    expect(cols[0].isEnabled()).toBe(false);
+    const rel = (a: number) => {
+      const o = rollerColsOf(s, a)[0];
+      const d = a - s.model!.stowAngle!;
+      return { x: o.x * Math.cos(d) + o.y * Math.sin(d), y: -o.x * Math.sin(d) + o.y * Math.cos(d) }; // en el sistema de la garra
+    };
+    for (const lvl of [1, 2] as const) {
+      expect(rel(posAngle(s, lvl)).x).toBeCloseTo(rel(posAngle(s, 0)).x, 6);
+      expect(rel(posAngle(s, lvl)).y).toBeCloseTo(rel(posAngle(s, 0)).y, 6);
+      g.player.phys.setArmPose(posAngle(s, lvl), null);
+      for (const c of cols) expect(c.isEnabled()).toBe(true);
+    }
+    g.player.phys.setArmPose(posAngle(s, 3), null);
+    for (const c of cols) expect(c.isEnabled()).toBe(false);
   });
 
   it('una Muestra suelta choca con la rueda de arriba en vez de atravesarla', () => {
