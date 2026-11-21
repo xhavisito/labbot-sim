@@ -192,15 +192,15 @@ export interface CadModel {
    * Xhavi 21-nov). SUPUESTO: sale de la posición de los rodillos del CAD (cilindros en x −0.113 de 1 in de radio → cara de atrás en −0.100).
    */
   heldX?: number;
-  /**
-   * Muñeca de la garra (Mentores 3478, Xhavi 21-nov: "no se mueve la muñeca"): el eje, en el sistema del nodo `brazo` del GLB, y la x desde la
-   * que las piezas del CAD cuelgan de ella. La placa con sus ruedas y motores gira alrededor del eje para quedar a la misma altura (la pose de
-   * piso del CAD, rumbo `stowAngle`) sea cual sea el ángulo del brazo; la Muestra agarrada se mueve con ella. SUPUESTO: el CAD es una sola
-   * pose y no trae el mecanismo de la muñeca; solo se dibuja (la punta de la física no cambia).
-   */
   /** Color de las ruedas del chasis del GLB (nodos `Wheel…` fuera del brazo), p. ej. 0xf2f2f2. Mentores 3478: son blancas, no negras (Xhavi, 21-nov). */
   wheelColor?: number;
-  cadWrist?: { axis: readonly [number, number]; fromX: number; n3Angle: number };
+  /**
+   * Muñeca de la garra (Mentores 3478): el eje, en el sistema del nodo `brazo` del GLB, y la x desde la que las piezas del CAD cuelgan de ella.
+   * `levels`: giro (rad, + = la punta de la placa sube) de la placa respecto al brazo en N1–N3, desde la pose del CAD, medido de las capturas de
+   * lado de SolidWorks de Xhavi (21-nov: "en todos los niveles gira su muñeca"). En el piso y en la Repisa queda en 0 (la pose del CAD) y entre
+   * posiciones se interpola con el ángulo del brazo (`wristAngleOf`). La Muestra agarrada y los rodillos (física y dibujo) van con la placa.
+   */
+  cadWrist?: { axis: readonly [number, number]; fromX: number; levels: Partial<Record<1 | 2 | 3, number>> };
   /**
    * Colisionadores de los rodillos de la garra (Mentores 3478, Xhavi 21-nov: "los rollers no tienen colisión"): cilindros con el eje en z, cada
    * uno `[x, y, radio]` en el sistema de la caja (pose de piso, origen en la punta), todos de media anchura `halfZ`. Cuelgan de la muñeca,
@@ -456,34 +456,45 @@ export function wristOf(s: RobotSpec): { x: number; y: number } | null {
 
 /**
  * Dónde queda (respecto a la punta, ejes del robot) la Muestra `k` agarrada con `heldX` cuando el brazo está en `a`: la pose de piso en el
- * sistema de la caja, que gira con el brazo `a − stowAngle`; con muñeca la caja gira al revés alrededor de ella y la Muestra la sigue.
+ * sistema de la caja, llevada por la muñeca (`wristPoint`) y girada con el brazo `a − stowAngle`.
  */
 export function heldOffsetOf(s: RobotSpec, a: number, k: number): { x: number; y: number } | null {
   const hs0 = heldSeatOf(s, 1, k);
   if (!hs0) return null;
   const d = a - (s.model?.stowAngle ?? 0);
-  // Al llegar a N3 la Muestra pasa de su lugar sobre el piso al de siempre (centro de la garra: x 0, y S/2), de donde se calibró anotar (alturas,
-  // distancias, IA). La muñeca de N3 es solo de dibujo: la física (colisionadores, salida, `posScoreTip`) no la sigue (SUPUESTO)
-  const f = wristFade(s, a);
-  const hs = { x: hs0.x * (1 - f), y: hs0.y + (SAMPLE_SIZE / 2 * (1 + 2 * k) - hs0.y) * f };
-  const p = hs;
+  // La Muestra va con la placa de la muñeca en todos los niveles (dibujo y física: colisionador, salida al soltar, `posScoreTip` para la IA)
+  const p = wristPoint(s, a, hs0.x, hs0.y);
   const c = Math.cos(d);
   const sn = Math.sin(d);
   return { x: p.x * c - p.y * sn, y: p.x * sn + p.y * c };
 }
 
 /**
- * Ángulo (rad) de la muñeca con el brazo en `a`: solo se mueve en N3 (Xhavi, 21-nov, con la foto de SolidWorks: en los demás niveles queda fija con
- * la pose del CAD). Entre el último nivel de piso (~69°) y N3 gira de 0 a `cadWrist.n3Angle`, el giro de la placa de la foto respecto a la pose
- * del CAD (SUPUESTO: medido a ojo de la foto, ~−38°, en el sentido de las manecillas del reloj).
+ * Ángulo (rad) de la muñeca con el brazo en `a`: el de `cadWrist.levels` en cada nivel (capturas de SolidWorks de Xhavi, 21-nov) y 0 (pose del
+ * CAD) en el piso y en la Repisa. Entre dos posiciones va con el ángulo del brazo (suavizado: llega quieta a cada una). SUPUESTO: el robot real
+ * mueve la muñeca con su propio motor; el simulador la ata al brazo para que en cada posición quede igual que en las capturas.
  */
 export function wristAngleOf(s: RobotSpec, a: number): number {
   const w = s.model?.cadWrist;
   if (!w) return 0;
-  return w.n3Angle * wristFade(s, a); // desde ~69° (pasada la vertical de N2) hasta N3 (100°)
+  const keys: Array<[number, number]> = [[posAngle(s, 0), 0], [posAngle(s, 4), 0]];
+  for (const lvl of [1, 2, 3] as const) {
+    const t = w.levels[lvl];
+    if (t !== undefined) keys.push([posAngle(s, lvl), t]);
+  }
+  keys.sort((p, q) => p[0] - q[0]);
+  if (a <= keys[0][0]) return keys[0][1];
+  for (let i = 1; i < keys.length; i++) {
+    const [a1, t1] = keys[i];
+    if (a > a1) continue;
+    const [a0, t0] = keys[i - 1];
+    const u = a1 - a0 < 1e-9 ? 1 : (a - a0) / (a1 - a0);
+    return t0 + (t1 - t0) * u * u * (3 - 2 * u);
+  }
+  return keys[keys.length - 1][1];
 }
 
-/** 0 hasta la vertical de N2 → 1 en N3: cuánto de la pose de N3 (muñeca) se aplica. */
+/** 0 hasta ~69° → 1 en N3: pasada la mitad, los rodillos dejan de chocar (la Muestra de N3 sale por donde están). */
 export function wristFade(s: RobotSpec, a: number): number {
   const a3 = s.arm.levelAngles?.[3];
   if (!s.model?.cadWrist || a3 === undefined) return 0;
@@ -504,8 +515,8 @@ export function wristPoint(s: RobotSpec, a: number, x: number, y: number): { x: 
 }
 
 /**
- * Centros (respecto a la punta, ejes del robot) de los cilindros `cadRollerCols` con el brazo en `a`: el de la pose de piso gira alrededor de
- * la muñeca `a − stowAngle` hacia atrás, así que el cilindro queda a la misma altura que la Muestra. Mismo cálculo que `heldOffsetOf`.
+ * Centros (respecto a la punta, ejes del robot) de los cilindros `cadRollerCols` con el brazo en `a`: el de la pose de piso llevado por la muñeca
+ * (`wristPoint`) y girado con el brazo `a − stowAngle`. Mismo cálculo que `heldOffsetOf`.
  */
 export function rollerColsOf(s: RobotSpec, a: number): Array<{ x: number; y: number; r: number }> {
   const rc = s.model?.cadRollerCols;
@@ -513,7 +524,8 @@ export function rollerColsOf(s: RobotSpec, a: number): Array<{ x: number; y: num
   const d = a - (s.model?.stowAngle ?? 0);
   const c = Math.cos(d);
   const sn = Math.sin(d);
-  return rc.cyl.map(([x, y, r]) => {
+  return rc.cyl.map(([x0, y0, r]) => {
+    const { x, y } = wristPoint(s, a, x0, y0);
     return { x: x * c - y * sn, y: x * sn + y * c, r };
   });
 }
