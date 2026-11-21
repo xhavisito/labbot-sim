@@ -35,11 +35,11 @@ describe('Mentores 3478: robot del CAD', () => {
     expect(s.hitboxes?.length).toBeGreaterThan(5);
   });
 
-  it('llega a los tres niveles; el brazo guardado al inicio y la garra en N3 se pasan de §7.2 (marcado con ⚠)', () => {
+  it('llega a los tres niveles; el brazo guardado al inicio y la garra en N3 con Muestra se pasan de §7.2 (marcado con ⚠)', () => {
     const s = M();
     for (const p of [1, 2, 3] as const) expect(posTip(s, p).y).toBeCloseTo(s.elevatorHeights[p], 2);
-    // N3 a 132.7° (pedido de Xhavi) voltea el brazo por arriba y la garra queda ~49 cm detrás del chasis: pasa los 40 cm de §7.2 (el menú lo marca con ⚠)
-    expect(CAD_ROBOT_PROBLEMS['mentores-3478']).toEqual(['la garra sale más de 40 cm (§7.2)', 'el brazo guardado no cabe en el perímetro al inicio (§4.1)']);
+    // N3 con el mismo ángulo que Axiom (100°, pedido de Xhavi) deja la punta a 1.025 m: con la Muestra pasa de 100 cm (§7.2); el menú lo marca con ⚠
+    expect(CAD_ROBOT_PROBLEMS['mentores-3478']).toEqual(['garra en N3 + Muestra pasa de 100 cm (§7.2)', 'el brazo guardado no cabe en el perímetro al inicio (§4.1)']);
   });
 
   it('lo que el CAD no dice está marcado como SUPUESTO y las respuestas de Xhavi quedan anotadas', () => {
