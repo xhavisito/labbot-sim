@@ -89,7 +89,8 @@ describe('Mentores 3478: intake de mantener (no interruptor) y Muestra horizonta
 });
 
 describe('Mentores 3478: brazo a N3', () => {
-  it('N3 (0.85 m) sube pasando la vertical, a 132.7° (Xhavi, 21-nov), con la punta a 0.85 m', () => {
+  it('N3 usa el mismo ángulo que el N3 de Axiom (100°, Xhavi 21-nov) y acepta la altura que resulta', () => {
+    expect(M().arm.levelAngles?.[3]).toBe(CAD_ROBOT_SPECS.axiom.arm.levelAngles?.[3]);
     const g = new GameSession({ player: 0, preload: true, specs: [M()] });
     const m = g.player.mech;
     g.player.phys.teleport(1.0, -1.2, 0); // piso plano
@@ -99,8 +100,7 @@ describe('Mentores 3478: brazo a N3', () => {
         g.step();
       }
     }
-    expect(m.angle).toBeCloseTo(Math.PI - Math.asin((0.85 - 0.335) / 0.7003), 2);
-    expect((m.angle * 180) / Math.PI).toBeGreaterThan(130);
-    expect(m.height).toBeCloseTo(0.85, 3);
+    expect((m.angle * 180) / Math.PI).toBeCloseTo(100, 1);
+    expect(m.height).toBeCloseTo(0.335 + 0.7003 * Math.sin((100 * Math.PI) / 180), 3); // 1.025 m
   });
 });
