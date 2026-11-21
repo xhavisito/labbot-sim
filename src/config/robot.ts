@@ -186,6 +186,27 @@ export interface CadModel {
    * Xhavi 21-nov: "se quedan donde las agarras, en posición horizontal"). Solo cambia la Muestra; la garra y el brazo giran igual.
    */
   levelSample?: boolean;
+  /**
+   * Con `levelSample`: x (m, en el sistema de la caja: el de la pose de piso, origen en la punta) del centro de la Muestra agarrada. Va apoyada
+   * en el piso (como la recogió) con su cara de atrás contra los cilindros de 1 in y las ruedas de 4 in encima, sin atravesarlas (Mentores 3478,
+   * Xhavi 21-nov). SUPUESTO: sale de la posición de los rodillos del CAD (cilindros en x −0.113 de 1 in de radio → cara de atrás en −0.100).
+   */
+  heldX?: number;
+  /**
+   * Muñeca de la garra (Mentores 3478, Xhavi 21-nov: "no se mueve la muñeca"): el eje, en el sistema del nodo `brazo` del GLB, y la x desde la
+   * que las piezas del CAD cuelgan de ella. La placa con sus ruedas y motores gira alrededor del eje para quedar a la misma altura (la pose de
+   * piso del CAD, rumbo `stowAngle`) sea cual sea el ángulo del brazo; la Muestra agarrada se mueve con ella. SUPUESTO: el CAD es una sola
+   * pose y no trae el mecanismo de la muñeca; solo se dibuja (la punta de la física no cambia).
+   */
+  /** Color de las ruedas del chasis del GLB (nodos `Wheel…` fuera del brazo), p. ej. 0xf2f2f2. Mentores 3478: son blancas, no negras (Xhavi, 21-nov). */
+  wheelColor?: number;
+  cadWrist?: { axis: readonly [number, number]; fromX: number };
+  /**
+   * Colisionadores de los rodillos de la garra (Mentores 3478, Xhavi 21-nov: "los rollers no tienen colisión"): cilindros con el eje en z, cada
+   * uno `[x, y, radio]` en el sistema de la caja (pose de piso, origen en la punta), todos de media anchura `halfZ`. Cuelgan de la muñeca,
+   * igual que las piezas del CAD. Medidos del GLB (ruedas de 4 in y cilindros de 1 in); el radio se achica 4 mm para que la Muestra entre.
+   */
+  cadRollerCols?: { halfZ: number; cyl: ReadonlyArray<readonly [number, number, number]> };
 }
 
 /**
@@ -413,6 +434,89 @@ export function seatX(s: { intake?: IntakeSpec }, tipX: number, dir: number, k: 
   return tipX - dir * (fl / 2 - SAMPLE_SIZE / 2) + dir * k * SAMPLE_SIZE;
 }
 
+/**
+ * Lugar (x, y en el sistema de la caja, origen en la punta) de la Muestra agarrada `k` con `heldX`: apoyada en el piso de la pose de piso
+ * (no flotando a la altura de la punta). `null` si el robot no lo declara (queda el de siempre, `seatX`).
+ */
+export function heldSeatOf(s: RobotSpec, dir: number, k: number): { x: number; y: number } | null {
+  const hx = s.model?.heldX;
+  if (hx === undefined || s.model?.levelSample !== true) return null;
+  return { x: hx + dir * k * SAMPLE_SIZE, y: SAMPLE_SIZE / 2 - armTip(s.arm, posAngle(s, 0)).y };
+}
+
+/** Eje de la muñeca (`cadWrist`) en el sistema de la caja (origen en la punta del brazo). */
+export function wristOf(s: RobotSpec): { x: number; y: number } | null {
+  const w = s.model?.cadWrist;
+  if (!w) return null;
+  // El nodo `brazo` del GLB está girado `−stowAngle` respecto al brazo: la punta (a `L` del hombro) queda en L·(cos, sin)(stowAngle) en sus ejes
+  const L = s.model?.cadArmLength ?? s.arm.length;
+  const st = s.model?.stowAngle ?? 0;
+  return { x: w.axis[0] - L * Math.cos(st), y: w.axis[1] - L * Math.sin(st) };
+}
+
+/**
+ * Dónde queda (respecto a la punta, ejes del robot) la Muestra `k` agarrada con `heldX` cuando el brazo está en `a`: la pose de piso en el
+ * sistema de la caja, que gira con el brazo `a − stowAngle`; con muñeca la caja gira al revés alrededor de ella y la Muestra la sigue.
+ */
+export function heldOffsetOf(s: RobotSpec, a: number, k: number): { x: number; y: number } | null {
+  const hs0 = heldSeatOf(s, 1, k);
+  if (!hs0) return null;
+  const d = a - (s.model?.stowAngle ?? 0);
+  // Al subir pasada la vertical (N3) la Muestra pasa de su lugar sobre el piso al de siempre (centro de la garra: x 0, y S/2), de donde se
+  // calibró lo de anotar (alturas, distancias, IA); la muñeca se suelta a la vez (`wristAngleOf`)
+  const f = wristFade(s, a);
+  const hs = { x: hs0.x * (1 - f), y: hs0.y + (SAMPLE_SIZE / 2 * (1 + 2 * k) - hs0.y) * f };
+  const p = wristPoint(s, a, hs.x, hs.y);
+  const c = Math.cos(d);
+  const sn = Math.sin(d);
+  return { x: p.x * c - p.y * sn, y: p.x * sn + p.y * c };
+}
+
+/**
+ * Ángulo (rad) que gira la muñeca con el brazo en `a`: deja la placa a la altura de la pose de piso del CAD (`−(a − stowAngle)`) mientras el brazo
+ * sube; pasada la vertical (`a − stowAngle` entre 1.2 y 2.0 rad) se va soltando hasta que la placa va con el brazo, como en N3 (100°), donde la
+ * garra anota hacia atrás igual que la de Axiom. SUPUESTO: el CAD es una sola pose y no dice cómo se mueve la muñeca.
+ */
+export function wristAngleOf(s: RobotSpec, a: number): number {
+  if (!s.model?.cadWrist) return 0;
+  return -(a - (s.model.stowAngle ?? 0)) * (1 - wristFade(s, a));
+}
+
+/** 0 con el brazo debajo de la vertical (la muñeca compensa todo) → 1 pasados ~115° (N3: la muñeca va con el brazo). */
+export function wristFade(s: RobotSpec, a: number): number {
+  const d = a - (s.model?.stowAngle ?? 0);
+  const t = Math.max(0, Math.min(1, (d - 1.2) / 0.8));
+  return t * t * (3 - 2 * t);
+}
+
+/** Punto (x, y) del sistema de la caja (pose de piso) llevado por la muñeca al ángulo del brazo `a`. */
+export function wristPoint(s: RobotSpec, a: number, x: number, y: number): { x: number; y: number } {
+  const w = wristOf(s);
+  if (!w) return { x, y };
+  const t = wristAngleOf(s, a);
+  const c = Math.cos(t);
+  const sn = Math.sin(t);
+  const dx = x - w.x;
+  const dy = y - w.y;
+  return { x: w.x + dx * c - dy * sn, y: w.y + dx * sn + dy * c };
+}
+
+/**
+ * Centros (respecto a la punta, ejes del robot) de los cilindros `cadRollerCols` con el brazo en `a`: el de la pose de piso gira alrededor de
+ * la muñeca `a − stowAngle` hacia atrás, así que el cilindro queda a la misma altura que la Muestra. Mismo cálculo que `heldOffsetOf`.
+ */
+export function rollerColsOf(s: RobotSpec, a: number): Array<{ x: number; y: number; r: number }> {
+  const rc = s.model?.cadRollerCols;
+  if (!rc) return [];
+  const d = a - (s.model?.stowAngle ?? 0);
+  const c = Math.cos(d);
+  const sn = Math.sin(d);
+  return rc.cyl.map(([x, y, r]) => {
+    const p = wristPoint(s, a, x, y);
+    return { x: p.x * c - p.y * sn, y: p.x * sn + p.y * c, r };
+  });
+}
+
 /** Agarre de la garra (`game/Mechanisms.ts`): con compliants (por defecto), preciso o fácil. */
 export type GripMode = 'compliant' | 'precise' | 'easy';
 export const GRIP_MODES: readonly GripMode[] = ['compliant', 'precise', 'easy'];
@@ -563,6 +667,16 @@ export const posTip = (s: RobotSpec, pos: ElevatorPos): { x: number; y: number }
   // La Crítica (posición 4) con garra fija: la "punta" es el asiento del cubo (x del centro, y de su cara de abajo)
   const seat = pos === 4 ? critSeat(s) : null;
   return seat ? { x: seat.x, y: seat.bottom } : armTip(s.arm, posAngle(s, pos));
+};
+
+/**
+ * Punta para ANOTAR en una posición: la de `posTip`, corrida a donde queda la Muestra agarrada cuando la muñeca gira la garra (`heldOffsetOf`;
+ * Mentores 3478). Lo usan la IA y el diseñador de AUTO para acercarse al HUB; en el piso (recoger) no cambia nada.
+ */
+export const posScoreTip = (s: RobotSpec, pos: ElevatorPos): { x: number; y: number } => {
+  const t = posTip(s, pos);
+  const o = pos === 0 ? null : heldOffsetOf(s, posAngle(s, pos), 0);
+  return o ? { x: t.x + o.x, y: t.y } : t;
 };
 
 /** Ángulo del brazo (rad, 0 = horizontal hacia adelante) para que la punta quede a la altura `h`. */

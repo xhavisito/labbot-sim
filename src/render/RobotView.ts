@@ -8,7 +8,7 @@ import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { CRITICAL_SIZE, SAMPLE_SIZE } from '../config/field';
-import { WHEEL_DROP, armTip, clawOf, critSeat, intakeOf, posAngle, seatX, type CadModel, type ClawDims, type CritClaw } from '../config/robot';
+import { WHEEL_DROP, armTip, clawOf, critSeat, heldOffsetOf, intakeOf, wristAngleOf, posAngle, seatX, type CadModel, type ClawDims, type CritClaw } from '../config/robot';
 import { PALETTES } from '../config/palette';
 import { clawDir } from '../physics/RobotPhysics';
 import type { Robot } from '../game/Robot';
@@ -30,6 +30,7 @@ const hubMat = new THREE.MeshStandardMaterial({ color: 0xe0a419, roughness: 0.35
 const sampleMat = sampleMaterial();
 /** Radio de las ruedas de los rodillos de la garra (dibujo). SUPUESTO: la foto no da medida; así aprietan ~1 cm. */
 const ROLLER_R = 0.041;
+const EAT_TIME = 0.25; // s que tarda la Muestra en deslizarse al lugar donde la lleva la garra (Mentores 3478)
 /**
  * Flechas de los rodillos de Psycho, de los valeros del CAD (`Garra-Inferior` y `Garra-Superior`, hoyos
  * de 28 mm): distancia a la boca (m), distancia al centro de la caja (m) y de dónde a dónde van (m, sobre
@@ -73,6 +74,11 @@ export class RobotView {
   private rampSamples: THREE.Mesh[] = [];
   /** Con el modelo del CAD la garra va rígida al brazo: su giro respecto al brazo (rad). */
   private rigidClaw: number | null = null;
+  private wrist: THREE.Group | null = null;
+  private eatSeen = 0;
+  private eatT = 99;
+  private eatClock = 0;
+  private eatStart = new THREE.Vector3();
   /** Dibujo genérico del robot: se oculta cuando el modelo del CAD termina de cargar. */
   private generic: THREE.Object3D[] = [];
   private numPlates: THREE.Mesh[] = [];
@@ -353,6 +359,13 @@ export class RobotView {
       o.receiveShadow = false;
       for (let p: THREE.Object3D | null = o; p; p = p.parent) if (tint?.test(p.name)) { o.material = tinted; break; }
     });
+    if (m.wheelColor !== undefined) {
+      const wm = new THREE.MeshStandardMaterial({ color: m.wheelColor, roughness: 0.6 });
+      scene.traverse((o) => {
+        if (!(o instanceof THREE.Mesh)) return;
+        for (let p: THREE.Object3D | null = o; p; p = p.parent) if (/^wheel/i.test(p.name)) { o.material = wm; break; }
+      });
+    }
     arm?.traverse((o) => {
       if (o instanceof THREE.Mesh) {
         o.castShadow = true;
@@ -370,6 +383,7 @@ export class RobotView {
       if (m.cadRollersZ) this.buildCadRollersZ(arm);
       else this.buildCadRollers(arm);
     }
+    if (arm && m.cadWrist && this.rigidClaw !== null) this.buildWrist(arm, m.cadWrist);
     this.group.add(scene);
     this.group.traverse((o) => {
       if (o instanceof THREE.Mesh && /flecha/i.test(nodeName(o))) o.material = SHAFT_MAT; // incluye el brazo (`this.arm`)
@@ -460,6 +474,50 @@ export class RobotView {
       // Fila de arriba: la superficie de abajo avanza hacia el brazo (−x) con ω < 0; la de abajo al revés
       this.clawRollers.push({ mesh: pivot, row: 1, zAxis: { sign: a.kind === 'black' ? -1 : 1, r: a.r || 0.0127 } });
     }
+  }
+
+  /**
+   * Muñeca (Mentores 3478): todo lo del CAD que está pasado el eje (placas, engrane, motores y rodillos, salvo el eje largo que cruza) cuelga de
+   * un grupo en el eje de la muñeca; `sync` lo gira para que la placa quede a la altura de la pose de piso del CAD sin importar el ángulo del brazo.
+   */
+  private buildWrist(arm: THREE.Object3D, cfg: { axis: readonly [number, number]; fromX: number }): void {
+    arm.updateWorldMatrix(true, true);
+    const inv = new THREE.Matrix4().copy(arm.matrixWorld).invert();
+    const wrist = new THREE.Group();
+    wrist.position.set(cfg.axis[0], cfg.axis[1], 0);
+    arm.add(wrist);
+    arm.updateWorldMatrix(true, true);
+    const pivots = new Set<THREE.Object3D>(this.clawRollers.map((r) => r.mesh));
+    const move: THREE.Object3D[] = [];
+    const box = new THREE.Box3();
+    const visit = (o: THREE.Object3D): void => {
+      for (const ch of [...o.children]) {
+        if (ch === wrist) continue;
+        if (pivots.has(ch) || ch instanceof THREE.Mesh) {
+          box.setFromObject(ch);
+          box.applyMatrix4(inv);
+          const c = box.getCenter(new THREE.Vector3());
+          const sz = box.getSize(new THREE.Vector3());
+          if (c.x >= cfg.fromX && sz.z < 0.3) move.push(ch);
+        } else visit(ch);
+      }
+    };
+    visit(arm);
+    for (const o of move) wrist.attach(o);
+    // Flechas (ejes) por donde pasan las ruedas negras y los espaciadores, para que no parezcan flotar (Xhavi, 21-nov). SUPUESTO: el CAD no las
+    // trae; 6.4 mm de radio (eje hexagonal de 1/2 in) a lo ancho de la garra
+    const rc = this.robot.spec.model?.cadRollerCols;
+    if (rc) {
+      const st = this.robot.spec.model?.stowAngle ?? 0;
+      const L = this.robot.spec.model?.cadArmLength ?? this.robot.spec.arm.length;
+      for (const [cx, cy] of rc.cyl) {
+        const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.0064, 0.0064, (rc.halfZ + 0.012) * 2, 12).rotateX(Math.PI / 2), SHAFT_MAT);
+        shaft.position.set(cx + L * Math.cos(st) - cfg.axis[0], cy + L * Math.sin(st) - cfg.axis[1], 0);
+        shaft.castShadow = true;
+        wrist.add(shaft);
+      }
+    }
+    this.wrist = wrist;
   }
 
   /**
@@ -794,6 +852,8 @@ export class RobotView {
     const level = this.robot.spec.model?.levelSample === true && this.rigidClaw !== null ? -(m.angle + this.rigidClaw) : tilt;
     this.clawSample.rotation.z = level;
     this.clawSample2.rotation.z = level;
+    // Muñeca: la placa queda a la altura de la pose de piso del CAD (rumbo `stowAngle`) aunque el brazo gire
+    if (this.wrist) this.wrist.rotation.z = wristAngleOf(this.robot.spec, m.angle);
     if (!cseat) this.criticalMesh.rotation.z = tilt;
     // Axiom: la Crítica va donde la garra la tomó (m.critGrip, en el sistema del brazo): se pasa al sistema de la garra (girado `tilt`) y se suaviza
     if (!cseat && this.pocket && this.robot.phys.centeredClaw) {
@@ -817,7 +877,31 @@ export class RobotView {
     const boxDir = this.rigidClaw !== null ? clawDir(posAngle(this.robot.spec, 0), sa) : clawDir(m.angle, sa);
     const seat = (k: number) => (rollers ? seatX(this.robot.spec, 0, boxDir, k) : 0);
     this.clawSample.visible = n >= 1;
-    this.clawSample.position.set(this.pocket?.x ?? seat(0), this.pocket?.y ?? SAMPLE_SIZE * 0.475, 0);
+    // Mentores 3478 (`heldX`): apoyada en el piso, donde la dejó el intake; al comerla se desliza desde donde estaba en la cancha
+    const ho = heldOffsetOf(this.robot.spec, m.angle, 0);
+    const hd = this.rigidClaw !== null ? m.angle + this.rigidClaw : 0; // giro del sistema de la garra
+    // Del sistema del robot (ejes fijos) al de la garra
+    const hs = ho ? { x: ho.x * Math.cos(hd) + ho.y * Math.sin(hd), y: -ho.x * Math.sin(hd) + ho.y * Math.cos(hd) } : null;
+    this.clawSample.position.set(hs?.x ?? this.pocket?.x ?? seat(0), hs?.y ?? this.pocket?.y ?? SAMPLE_SIZE * 0.475, 0);
+    if (hs && claw) {
+      const ef = m.eatFrom;
+      if (ef.seq !== this.eatSeen) {
+        this.eatSeen = ef.seq;
+        this.eatT = 0;
+        claw.updateWorldMatrix(true, false);
+        const l = claw.worldToLocal(new THREE.Vector3(ef.x, ef.y, ef.z));
+        this.eatStart.set(l.x, l.y, 0);
+      }
+      const nowE = performance.now() / 1000;
+      this.eatT += Math.min(0.1, nowE - (this.eatClock || nowE));
+      this.eatClock = nowE;
+      const k = Math.min(1, this.eatT / EAT_TIME);
+      if (k < 1 && n >= 1) {
+        const e = 1 - (1 - k) * (1 - k);
+        this.clawSample.position.x = this.eatStart.x + (hs.x - this.eatStart.x) * e;
+        this.clawSample.position.y = this.eatStart.y + (hs.y - this.eatStart.y) * e;
+      }
+    }
     this.clawSample2.visible = n >= 2 && !this.rampSamples.length;
     // Lanzador: las Muestras suben en fila por la rampa, del pie (donde entran) hacia la boca; cada una ocupa SAMPLE_SIZE
     const ramp = this.robot.spec.intake?.shooter?.muzzle;

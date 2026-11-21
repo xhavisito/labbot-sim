@@ -29,7 +29,7 @@
  */
 import { camaraWells, inCamara, rectForCamara } from '../config/field';
 import { shotVelocity } from './shooter';
-import { CLAW_GAP, armTip, canHoldCritical, canTakeCriticalFromHolder, clawOf, critSeat, intakeOf, posAngle, posDir, seatX, type ElevatorPos, type GripMode } from '../config/robot';
+import { CLAW_GAP, armTip, canHoldCritical, canTakeCriticalFromHolder, clawOf, critSeat, heldOffsetOf, intakeOf, posAngle, posDir, seatX, type ElevatorPos, type GripMode } from '../config/robot';
 import { CRITICAL_SIZE, SAMPLE_SIZE } from '../config/field';
 import { FLOOR_POSE, clawDir, floorPoseOf } from '../physics/RobotPhysics';
 import { GROUPS } from '../physics/PhysicsWorld';
@@ -514,10 +514,18 @@ export class Mechanisms {
         return;
       }
     }
+    this.noteEat(piece);
     this.pieces.stash(piece, { at: 'robot', robot: p.index });
     this.stored.push(piece);
     this.inClaw = true;
     events.push({ type: 'intake', robot: p.index, piece: piece.index });
+  }
+
+  /** Dónde estaba la Muestra (mundo) al comérsela: el dibujo la desliza de ahí a su lugar en la garra (`RobotView`). */
+  eatFrom = { x: 0, y: 0, z: 0, seq: 0 };
+  private noteEat(piece: Piece): void {
+    const t = piece.body.translation();
+    this.eatFrom = { x: t.x, y: t.y, z: t.z, seq: this.eatFrom.seq + 1 };
   }
 
   /**
@@ -846,6 +854,9 @@ export class Mechanisms {
       // Garra del CAD centrada en la punta (Axiom): la Muestra sale del centro de los dedos
       loc = { x: lx, y: p.centeredClaw ? this.height : this.height + size / 2 };
       vl = { x: push ? spit * dir : 0, y: 0 };
+      // Mentores 3478 (`heldX`): sale de donde la lleva (apoyada en el piso de la pose de piso, girada con el brazo), no de la punta
+      const hs = kind === 'sample' ? heldOffsetOf(spec, this.angle, slot) : null;
+      if (hs) loc = { x: armTip(spec.arm, this.angle).x + hs.x, y: armTip(spec.arm, this.angle).y + hs.y };
     }
     // Axiom: la Crítica sale de donde la lleva entre los dedos
     if (gripped) {
