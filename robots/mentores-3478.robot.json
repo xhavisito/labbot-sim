@@ -23,6 +23,8 @@
       "pickBack": false,
       "halfThickness": 0.05,
       "levelAngles": {
+        "1": 0.1047,
+        "2": 0.5655,
         "3": 1.7453
       }
     },
@@ -38,8 +40,8 @@
     },
     "elevatorHeights": [
       0.082,
-      0.26,
-      0.61,
+      0.4082,
+      0.7103,
       1.0247,
       0.615
     ],
@@ -134,7 +136,7 @@
     "Xhavi (20-nov): anota en los tres niveles (N1–N3) y puede tomar la Muestra Crítica",
     "SUPUESTO: la pose del CAD es la de piso (la Muestra está sobre el piso, centro a 0.082 m): el modelo se dibuja a -21.3° (la del CAD) y gira desde ahí; el STEP es una sola pose y no dice cuánto gira el brazo ni la muñeca (el CAD trae un segundo eje, 70T/12T, que el simulador no mueve)",
     "SUPUESTO: pose de inicio del brazo a 50°: con el brazo de 0.70 m ninguna pose cabe del todo en el perímetro de inicio (§4.1) y bajo 100 cm con una Muestra (el robot real pliega la muñeca, que el simulador no tiene): sale unos 2–3 cm del perímetro; el menú lo marca con ⚠",
-    "SUPUESTO: alturas de la Muestra N1–N3 y de la rendija iguales a las del preset de pivote (0.26 / 0.61 / 0.85 / 0.615 m); el CAD no las trae",
+    "Brazo y muñeca en N1–N3 medidos de las capturas de lado de SolidWorks de Xhavi (21-nov): brazo (eje del hombro → eje de la muñeca) a 14.6° / 41.0° / 109.5° sobre la horizontal (en el simulador, que mide hasta el centro de la Muestra, 6.0° / 32.4° / 101.0°; N3 se deja en 100°, el de Axiom que pidió Xhavi, a 1° de la captura) y la placa de la muñeca girada −27.0° / −19.0° / +45.8° respecto al brazo (desde la pose del CAD; así la placa queda con el mismo rumbo que en la captura). SUPUESTO: alturas de la rendija (Repisa, 0.615 m) como las del preset de pivote; el CAD no las trae",
     "SUPUESTO: la garra es de compliants (las ruedas de rodillos del CAD jalan y escupen la Muestra), 0.23 m de apertura (ancho de las 5 ruedas ≈ 0.23 m) y 0.15 m de fondo; capacidad 1; recoge y anota al frente (sin pickBack)",
     "SUPUESTO: las placas frontal y trasera del chasis toman el color de la alianza",
     "SUPUESTO: las llantas van estáticas dentro del modelo; masa 40 kg, velocidades de manejo, velocidad del brazo (4 rad/s) y tracción del preset (el STEP no los trae)",
@@ -154,6 +156,6 @@
     "wheelColor": 15921906,
     "heldX": -0.025,
     "cadRollerCols": { "halfZ": 0.115, "cyl": [[0.033, 0.116, 0.0507], [-0.113, -0.028, 0.0126]] },
-    "cadWrist": { "axis": [0.487, -0.11], "fromX": 0.45, "n3Angle": -0.66 }
+    "cadWrist": { "axis": [0.487, -0.11], "fromX": 0.45, "levels": { "1": -0.4712, "2": -0.3316, "3": 0.7993 } }
   }
 }

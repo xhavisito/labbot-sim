@@ -490,7 +490,7 @@ export class RobotPhysics {
     c.plates[0].setEnabled(box);
     c.plates[1].setEnabled(box && !this.boxAtFloor(a));
     put(c.sample, p.sample);
-    // En N3 los rodillos no chocan: la Muestra sale por donde están (los rodillos la empujan) y ahí se calibró anotar; la muñeca de N3 es solo dibujo
+    // Los rodillos van con la muñeca; en N3 no chocan: la Muestra sale por donde están (los rodillos la empujan)
     const rollersOn = wristFade(this.spec, a) < 0.5;
     rollerColsOf(this.spec, a).forEach((o, i) => {
       put(c.rollers[i], { t: { x: tip0.x + o.x, y: tip0.y + o.y, z: 0 }, r: ROLLER_ROT });

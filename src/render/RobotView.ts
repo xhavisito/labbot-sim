@@ -478,7 +478,7 @@ export class RobotView {
 
   /**
    * Muñeca (Mentores 3478): todo lo del CAD que está pasado el eje (placas, engrane, motores y rodillos, salvo el eje largo que cruza) cuelga de
-   * un grupo en el eje de la muñeca; `sync` lo gira para que la placa quede a la altura de la pose de piso del CAD sin importar el ángulo del brazo.
+   * un grupo en el eje de la muñeca; `sync` lo gira lo que diga `wristAngleOf` (el giro de cada nivel de las capturas de SolidWorks).
    */
   private buildWrist(arm: THREE.Object3D, cfg: { axis: readonly [number, number]; fromX: number }): void {
     arm.updateWorldMatrix(true, true);
@@ -852,7 +852,7 @@ export class RobotView {
     const level = this.robot.spec.model?.levelSample === true && this.rigidClaw !== null ? -(m.angle + this.rigidClaw) : tilt;
     this.clawSample.rotation.z = level;
     this.clawSample2.rotation.z = level;
-    // Muñeca: la placa queda a la altura de la pose de piso del CAD (rumbo `stowAngle`) aunque el brazo gire
+    // Muñeca: el giro de la placa en cada nivel (capturas de SolidWorks, `cadWrist.levels`)
     if (this.wrist) this.wrist.rotation.z = wristAngleOf(this.robot.spec, m.angle);
     if (!cseat) this.criticalMesh.rotation.z = tilt;
     // Axiom: la Crítica va donde la garra la tomó (m.critGrip, en el sistema del brazo): se pasa al sistema de la garra (girado `tilt`) y se suaviza
@@ -878,7 +878,7 @@ export class RobotView {
     const seat = (k: number) => (rollers ? seatX(this.robot.spec, 0, boxDir, k) : 0);
     this.clawSample.visible = n >= 1;
     // Mentores 3478 (`heldX`): apoyada en el piso, donde la dejó el intake; al comerla se desliza desde donde estaba en la cancha
-    // Dibujo: la Muestra va con la placa (su lugar sobre el piso, llevado por la muñeca de N3); la física usa `heldOffsetOf`
+    // La Muestra va con la placa (su lugar sobre el piso, llevado por la muñeca); la física usa el mismo punto (`heldOffsetOf`)
     const h0 = heldSeatOf(this.robot.spec, 1, 0);
     const hs = h0 ? wristPoint(this.robot.spec, m.angle, h0.x, h0.y) : null;
     this.clawSample.position.set(hs?.x ?? this.pocket?.x ?? seat(0), hs?.y ?? this.pocket?.y ?? SAMPLE_SIZE * 0.475, 0);

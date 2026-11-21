@@ -2,7 +2,7 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 import { CAD_ROBOT_SPECS } from '../src/cad/cadRobots';
 import { SAMPLE_SIZE } from '../src/config/field';
-import { armTip, heldOffsetOf, posAngle, rollerColsOf, wristAngleOf } from '../src/config/robot';
+import { armTip, heldOffsetOf, posAngle, rollerColsOf, wristAngleOf, wristOf } from '../src/config/robot';
 import { GameSession } from '../src/game/GameSession';
 import { emptyInput } from '../src/input/InputManager';
 import { initRapier } from '../src/physics/PhysicsWorld';
@@ -119,34 +119,59 @@ describe('Mentores 3478: muñeca, rodillos con colisión y Muestra apoyada', () 
     expect(wheel.y - wheel.r).toBeGreaterThanOrEqual(o.y + SAMPLE_SIZE / 2 - 0.01);
   });
 
-  it('la muñeca solo se mueve en N3 (foto de SolidWorks); en el resto queda fija', () => {
+  it('brazo y muñeca en N1–N3 como en las capturas de lado de SolidWorks (Xhavi, 21-nov)', () => {
     const s = spec();
-    for (const lvl of [0, 1, 2, 4] as const) expect(wristAngleOf(s, posAngle(s, lvl))).toBeCloseTo(0, 9);
-    expect(wristAngleOf(s, posAngle(s, 3))).toBeCloseTo(s.model!.cadWrist!.n3Angle, 6);
-    // en medio del recorrido a N3 ya se está moviendo, sin pasarse
-    const mid = (1.2 + posAngle(s, 3)) / 2;
-    expect(Math.abs(wristAngleOf(s, mid))).toBeGreaterThan(0);
-    expect(Math.abs(wristAngleOf(s, mid))).toBeLessThan(Math.abs(s.model!.cadWrist!.n3Angle));
+    const deg = (r: number) => (r * 180) / Math.PI;
+    // Medido de las capturas (hombro → eje de la muñeca, y rumbo de la placa: eje de la muñeca → rueda de 4 in), ejes del robot (x al frente)
+    const ref = { 1: { beam: 14.6, plate: -7.8 }, 2: { beam: 41.0, plate: 26.6 }, 3: { beam: 109.5, plate: 159.0 } } as const;
+    const w = s.model!.cadWrist!;
+    const st = s.model!.stowAngle!;
+    const L = s.model!.cadArmLength!;
+    const tip0 = { x: L * Math.cos(st), y: L * Math.sin(st) };
+    const beamOff = Math.atan2(w.axis[1], w.axis[0]) - st; // la viga (hombro → muñeca) va arriba de la línea hombro → Muestra
+    const wheel0 = s.model!.cadRollerCols!.cyl[0];
+    for (const lvl of [1, 2, 3] as const) {
+      const a = posAngle(s, lvl);
+      expect(deg(a + beamOff)).toBeCloseTo(ref[lvl].beam, -0.3); // ±1°
+      // rueda de 4 in respecto al eje de la muñeca, en la pose del CAD, girada con el brazo y la muñeca
+      const v = { x: wheel0[0] + tip0.x - w.axis[0], y: wheel0[1] + tip0.y - w.axis[1] };
+      const plate = deg(Math.atan2(v.y, v.x) + (a - st) + wristAngleOf(s, a));
+      expect(plate).toBeCloseTo(ref[lvl].plate, -0.3);
+    }
+    // En el piso y en la Repisa, la pose del CAD
+    for (const lvl of [0, 4] as const) expect(wristAngleOf(s, posAngle(s, lvl))).toBeCloseTo(0, 9);
+    // Entre N2 y N3 va de un giro al otro sin pasarse
+    const mid = (posAngle(s, 2) + posAngle(s, 3)) / 2;
+    expect(wristAngleOf(s, mid)).toBeGreaterThan(w.levels[2]!);
+    expect(wristAngleOf(s, mid)).toBeLessThan(w.levels[3]!);
   });
 
-  it('los rodillos son colisionadores fijos a la garra; en N3 (muñeca solo de dibujo) no chocan', () => {
+  it('los rodillos y la Muestra agarrada van con la muñeca; en N3 los rodillos no chocan', () => {
     const s = spec();
     const g = new GameSession({ player: 0, preload: false, specs: [M()] });
     const cols = g.player.phys.armColliders.rollers;
     expect(cols.length).toBe(2);
-    const rel = (a: number) => {
-      const o = rollerColsOf(s, a)[0];
+    for (const lvl of [1, 2, 3] as const) {
+      const a = posAngle(s, lvl);
+      const wr = wristOf(s)!;
       const d = a - s.model!.stowAngle!;
-      return { x: o.x * Math.cos(d) + o.y * Math.sin(d), y: -o.x * Math.sin(d) + o.y * Math.cos(d) }; // en el sistema de la garra
-    };
-    for (const lvl of [1, 2] as const) {
-      expect(rel(posAngle(s, lvl)).x).toBeCloseTo(rel(posAngle(s, 0)).x, 6);
-      expect(rel(posAngle(s, lvl)).y).toBeCloseTo(rel(posAngle(s, 0)).y, 6);
-      g.player.phys.setArmPose(posAngle(s, lvl), null);
-      for (const c of cols) expect(c.isEnabled()).toBe(true);
+      const wAbs = { x: wr.x * Math.cos(d) - wr.y * Math.sin(d), y: wr.x * Math.sin(d) + wr.y * Math.cos(d) }; // eje de la muñeca, desde la punta
+      // misma distancia al eje de la muñeca que en la pose de piso (giran alrededor de ella)
+      const dist = (o: { x: number; y: number }, w0: { x: number; y: number }) => Math.hypot(o.x - w0.x, o.y - w0.y);
+      const f = posAngle(s, 0);
+      const fd = f - s.model!.stowAngle!;
+      const wF = { x: wr.x * Math.cos(fd) - wr.y * Math.sin(fd), y: wr.x * Math.sin(fd) + wr.y * Math.cos(fd) };
+      expect(dist(rollerColsOf(s, a)[0], wAbs)).toBeCloseTo(dist(rollerColsOf(s, f)[0], wF), 6);
+      expect(dist(heldOffsetOf(s, a, 0)!, wAbs)).toBeCloseTo(dist(heldOffsetOf(s, f, 0)!, wF), 6);
+      g.player.phys.setArmPose(a, null);
+      for (const c of cols) expect(c.isEnabled()).toBe(lvl !== 3);
     }
-    g.player.phys.setArmPose(posAngle(s, 3), null);
-    for (const c of cols) expect(c.isEnabled()).toBe(false);
+    // N3: la Muestra queda atrás del robot, fuera del chasis (anota hacia atrás) y arriba de la pared de 80 cm del Nivel 3
+    const a3 = posAngle(s, 3);
+    const h3 = heldOffsetOf(s, a3, 0)!;
+    const t3 = armTip(s.arm, a3);
+    expect(t3.x + h3.x + SAMPLE_SIZE / 2).toBeLessThan(-s.length / 2);
+    expect(t3.y + h3.y - SAMPLE_SIZE / 2).toBeGreaterThan(0.8);
   });
 
   it('una Muestra suelta choca con la rueda de arriba en vez de atravesarla', () => {
