@@ -420,17 +420,16 @@ export class RobotView {
 
   /**
    * Rodillos de la garra de Mentores 3478 (ejes a lo ancho del robot, z del brazo): cinco ruedas negras de 4 in (WCP-1304, con su
-   * cubo) arriba de la Muestra y cinco rodillos verdes de 1 in debajo, a lo largo de la boca. Cada eje es un grupo (en el CAD vienen
+   * cubo) arriba de la Muestra y cinco cilindros de 1 in (`1in wheel` del CAD) debajo, a lo largo de la boca. Cada eje es un grupo (en el CAD vienen
    * piezas duplicadas en el mismo centro) que gira con el intake; la fila de arriba y la de abajo giran al revés para jalar la Muestra
-   * hacia el brazo (SUPUESTO: el CAD es una sola pose y no dice el sentido). Los verdes se pintan como en el CAD (Xhavi, 21-nov).
+   * hacia el brazo (SUPUESTO: el CAD es una sola pose y no dice el sentido).
    */
   private buildCadRollersZ(arm: THREE.Object3D): void {
     arm.updateWorldMatrix(true, true);
     const inv = new THREE.Matrix4().copy(arm.matrixWorld).invert();
     const axes = new Map<string, { c: THREE.Vector3; meshes: THREE.Mesh[]; kind: 'black' | 'green'; r: number }>();
     const blackMat = new THREE.MeshStandardMaterial({ color: 0x0d0d0f, roughness: 0.7 });
-    const greenMat = new THREE.MeshStandardMaterial({ color: 0x29b83d, roughness: 0.55 });
-    arm.traverse((o) => {
+        arm.traverse((o) => {
       if (!(o instanceof THREE.Mesh)) return;
       o.geometry.computeBoundingBox();
       const b = o.geometry.boundingBox!.clone().applyMatrix4(inv.clone().multiply(o.matrixWorld));
@@ -454,11 +453,8 @@ export class RobotView {
       pivot.position.copy(a.c);
       arm.add(pivot);
       for (const mesh of a.meshes) {
-        // el cilindro de 0.025 m de diámetro es el rodillo (verde); el de 0.02 m es el espaciador del eje (queda gris)
-        const bb = mesh.geometry.boundingBox!;
-        const d = bb.max.x - bb.min.x;
-        if (a.kind === 'green' && d > 0.0235) mesh.material = greenMat;
-        else if (a.kind === 'black') mesh.material = blackMat;
+        // Los cilindros de 1 in debajo de la garra conservan el color del GLB (gris): no son los rodillos verdes (Xhavi, 21-nov)
+        if (a.kind === 'black') mesh.material = blackMat;
         pivot.attach(mesh);
       }
       // Fila de arriba: la superficie de abajo avanza hacia el brazo (−x) con ω < 0; la de abajo al revés
