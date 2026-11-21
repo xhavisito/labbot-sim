@@ -66,7 +66,7 @@ describe('retos (lógica pura)', () => {
 
   it('puntos con los valores de TELEOP del manual (§4.4)', () => {
     expect(teleopPoints(GAME, { 1: 1, 2: 1, 3: 2 }, false, false)).toBe(2 + 6 + 30);
-    expect(teleopPoints(GAME, { 1: 0, 2: 0, 3: 1 }, true, true)).toBe(15 + 10 + 15);
+    expect(teleopPoints(GAME, { 1: 0, 2: 0, 3: 1 }, true, true)).toBe(15 + 10 + 35);
   });
 
   it('récord personal: guarda la mejor marca y cuenta las corridas', () => {

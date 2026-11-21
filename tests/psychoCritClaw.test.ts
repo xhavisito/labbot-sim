@@ -230,11 +230,11 @@ describe('Psycho con la IA: toma la Crítica y la deja en la Repisa', () => {
   const plan = (id: string, bot: RobotPlan['bot']): RobotPlan => ({ id, name: id, spec: spec(), auto: COLLECT_HOME, bot });
   const alliance = (a: RobotPlan, b: RobotPlan): AlliancePlan => ({ id: `${a.id}+${b.id}`, name: 'prueba', robots: [a, b] });
 
-  it('con la estrategia Crítica + N3 la deja en la Repisa (15 + 1 RP) sin faltas por tomarla antes de tiempo', () => {
+  it('con la estrategia Crítica + N3 la deja en la Repisa (35 + 1 RP) sin faltas por tomarla antes de tiempo', () => {
     const red = alliance(plan('psy-crit', { level: 3, endgame: 'critical' }), plan('psy-n3', { level: 3 }));
     const blue = alliance(plan('psy-n3b', { level: 3 }), plan('psy-n3c', { level: 3 }));
     const r = runMatch(red, blue, 1);
-    expect(r.red.critical).toBe(15);
+    expect(r.red.critical).toBe(35);
     expect(r.red.rpCritical).toBe(true);
     expect(r.red.fouls.CRITICAL_EARLY ?? 0).toBe(0);
     expect(r.red.samples).toBeGreaterThan(5);

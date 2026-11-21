@@ -143,7 +143,7 @@ describe('IA: sin vueltas a lo tonto en TELEOP', () => {
     }
     for (const l of longest) expect(l / 120).toBeLessThan(4);
     // Y el equipo sigue anotando con la Crítica y la Plataforma (§4.4)
-    expect(g.match!.breakdown('red').critical).toBe(15);
+    expect(g.match!.breakdown('red').critical).toBe(35);
   }, 240_000);
 });
 

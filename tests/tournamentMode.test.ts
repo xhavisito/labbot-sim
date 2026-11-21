@@ -101,11 +101,11 @@ describe('modo torneo: Qualifications', () => {
     ];
     const blue = [entry('C', { autoLine: true, fouls: 2, techFouls: 1, platform: true }), entry('D')];
     const r = resultFromEntries(red, blue, GAME);
-    // AUTO 5+5+18, TELEOP 60 + 4+6+30, ENDGAME 20 + 15
+    // AUTO 5+5+18, TELEOP 60 + 4+6+30, ENDGAME 20 + 35
     expect(r.red.auto).toBe(28);
-    expect(r.red.endgame).toBe(35);
-    expect(r.red.noFoul).toBe(28 + 100 + 35);
-    expect(r.red.score).toBe(163 + 2 * 4 + 8);
+    expect(r.red.endgame).toBe(55);
+    expect(r.red.noFoul).toBe(28 + 100 + 55);
+    expect(r.red.score).toBe(183 + 2 * 4 + 8);
     expect(r.red.samples).toBe(10);
     // victoria 2 + línea 1 + Crítica 1 + Dominio 1
     expect(r.red.rp).toBe(5);

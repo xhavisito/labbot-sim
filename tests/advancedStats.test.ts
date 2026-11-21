@@ -83,11 +83,11 @@ describe('matches para el OPR desde el Scouting', () => {
     const ms = oprMatchesFromEntries(es, GAME);
     expect(ms).toHaveLength(1);
     const red = ms[0].redScore;
-    // Línea 5+5, 2 N3 en TELEOP (2×15), Plataforma con 2 = 20 (no acumulable), Crítica 15, + Foul del rival 4
-    expect(red.noFoul).toBe(10 + 30 + 20 + 15);
-    expect(red.score).toBe(10 + 30 + 20 + 15 + GAME.fouls.foul);
+    // Línea 5+5, 2 N3 en TELEOP (2×15), Plataforma con 2 = 20 (no acumulable), Crítica 35, + Foul del rival 4
+    expect(red.noFoul).toBe(10 + 30 + 20 + 35);
+    expect(red.score).toBe(10 + 30 + 20 + 35 + GAME.fouls.foul);
     expect(red.teleop).toBe(30);
-    expect(red.endgame).toBe(35);
+    expect(red.endgame).toBe(55);
   });
 
   it('si un registro trae el marcador real, se usa ese', () => {

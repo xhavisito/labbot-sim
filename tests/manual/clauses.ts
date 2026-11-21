@@ -127,7 +127,7 @@ export const CLAUSES: Clause[] = [
       // Antes de la bocina no hay puntos de Plataforma ni de Crítica; al sonar, sí
       expect(m.breakdown('red').platform + m.breakdown('red').critical).toBe(0);
       m.finish({ red: 2, blue: 0 }, { red: true, blue: false });
-      expect(m.breakdown('red').platform + m.breakdown('red').critical).toBe(20 + 15);
+      expect(m.breakdown('red').platform + m.breakdown('red').critical).toBe(20 + 35);
     },
   },
   {
@@ -203,7 +203,7 @@ export const CLAUSES: Clause[] = [
   {
     id: 'critical',
     section: '§4.4, §4.3.1',
-    quote: ['Muestra 1 robot de la - - 15 1', 'Cada alianza deposita su propia Muestra Crítica.'],
+    quote: ['Muestra 1 robot de la - - 35 1', 'Cada alianza deposita su propia Muestra Crítica.'],
     covers: ['points.critical', 'rp.critical'],
     supuestos: ['D16', 'D29'],
     verify: () => {
@@ -212,7 +212,7 @@ export const CLAUSES: Clause[] = [
       const m = m0();
       until(m, 150);
       m.finish(none, { red: false, blue: true });
-      expect(m.breakdown('blue').critical).toBe(15);
+      expect(m.breakdown('blue').critical).toBe(35);
       expect(m.breakdown('red').critical).toBe(0);
       expect(m.rankingPoints('blue').critical).toBe(true);
     },

@@ -191,7 +191,7 @@ describe('estrategias por robot', () => {
     expect(g.bots.map((b) => (b as unknown as { opts: { ai: string } }).opts.ai)).toEqual(['hard', 'hard', 'easy', 'easy']);
     for (let i = 0; i < 151 * 120 && !g.match!.finished; i++) g.step();
     const m = g.match!;
-    expect(m.breakdown('red').critical).toBe(15);
+    expect(m.breakdown('red').critical).toBe(35);
     // La IA difícil le gana a la fácil
     expect(m.score('red')).toBeGreaterThan(m.score('blue'));
   }, 120_000);

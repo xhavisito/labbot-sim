@@ -76,7 +76,7 @@ describe('ciclos y estadísticas por Muestra (lógica pura)', () => {
     expect(s.attempts).toBe(1);
   });
 
-  it('la precarga empieza su ciclo al arrancar; la Crítica vale 15 (§4.4)', () => {
+  it('la precarga empieza su ciclo al arrancar; la Crítica vale 35 (§4.4)', () => {
     const c = new CycleStats(GAME);
     c.carrying(3, 0);
     c.release(3, 'n3', 5);

@@ -24,12 +24,12 @@ const entry = (team: string, o: Partial<ScoutEntry> = {}): ScoutEntry => ({
 });
 
 describe('puntos de un registro (§4.4–§4.6)', () => {
-  it('línea 5, N3 en AUTO 18 y en TELEOP 15, Plataforma 10 por robot, Crítica 15', () => {
+  it('línea 5, N3 en AUTO 18 y en TELEOP 15, Plataforma 10 por robot, Crítica 35', () => {
     const p = entryPoints(entry('A', { samplesAuto: [0, 0, 1], samplesTeleop: [1, 1, 2], platform: true, critical: true }), GAME);
     expect(p.auto).toBe(5 + 18);
     expect(p.teleop).toBe(2 + 6 + 30);
-    expect(p.endgame).toBe(25);
-    expect(p.total).toBe(23 + 38 + 25);
+    expect(p.endgame).toBe(45);
+    expect(p.total).toBe(23 + 38 + 45);
   });
 
   it('faltas: 4 por Foul y 8 por Tech Foul (puntos que regala)', () => {
@@ -83,8 +83,8 @@ describe('resumen y predicción de alianzas', () => {
     const t = sum.find((s) => s.team === 'torre')!;
     const p = sum.find((s) => s.team === 'pivote')!;
     const pr = predictAlliance(t, p, GAME);
-    // torre 5 + 90; pivote 5 + 6 + 30; Plataforma 20; Crítica 15
-    expect(pr.points).toBeCloseTo(95 + 41 + 20 + 15);
+    // torre 5 + 90; pivote 5 + 6 + 30; Plataforma 20; Crítica 35
+    expect(pr.points).toBeCloseTo(95 + 41 + 20 + 35);
     expect(pr.roles).toEqual(['n3', 'critical']);
     expect(pr.pCriticalRp).toBe(1);
     expect(pr.pAutoLineRp).toBe(1);
@@ -93,7 +93,7 @@ describe('resumen y predicción de alianzas', () => {
     expect(pr.pDominanceRp).toBeLessThan(0.5);
     expect(predictAlliance(t, t, GAME).pDominanceRp).toBeGreaterThan(0.5);
     const two = predictAlliance(p, p, GAME);
-    expect(two.points).toBeCloseTo(41 * 2 + 20 + 15);
+    expect(two.points).toBeCloseTo(41 * 2 + 20 + 35);
   });
 
   it('el mejor compañero de la torre es el pivote', () => {
