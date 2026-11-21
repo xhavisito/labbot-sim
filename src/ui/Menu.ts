@@ -48,7 +48,7 @@ export interface MenuHooks {
 }
 
 /** Logo de cada equipo en el selector de robots (public/logos). los que no tengan usan el boceto. */
-const ROBOT_LOGO: Record<string, string> = { 'cad:axiom': 'logos/axiom.png', 'cad:phoenix': 'logos/phoenix.png', 'cad:psycho': 'logos/psycho.png', 'cad:hazmat-704': 'logos/hazmat-704.png' };
+const ROBOT_LOGO: Record<string, string> = { 'cad:axiom': 'logos/axiom.png', 'cad:phoenix': 'logos/phoenix.png', 'cad:psycho': 'logos/psycho.png', 'cad:hazmat-704': 'logos/hazmat-704.png', 'cad:mentores-3478': 'logos/mentores-3478.png' };
 const robotIcon = (id: RobotId): string =>
   ROBOT_LOGO[id] ? `<img class="logo-img" src="${ROBOT_LOGO[id]}" alt="" width="64" height="64">` : '<span class="logo-img"></span>';
 

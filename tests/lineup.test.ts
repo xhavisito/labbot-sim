@@ -4,8 +4,8 @@ import { AI_TYPES, aiLineup } from '../src/ai/lineup';
 import { rng } from '../src/core/rng';
 
 describe('tipos de robot de la IA en cada match', () => {
-  it('la IA usa solo los robots CAD (Phoenix, Axiom, Psycho, Hazmat 704) y reparte tipos distintos entre sí', () => {
-    expect([...AI_TYPES].sort()).toEqual(['cad:axiom', 'cad:hazmat-704', 'cad:phoenix', 'cad:psycho']);
+  it('la IA usa solo los robots CAD (Phoenix, Axiom, Psycho, Hazmat 704, Mentores 3478) y reparte tipos distintos entre sí', () => {
+    expect([...AI_TYPES].sort()).toEqual(['cad:axiom', 'cad:hazmat-704', 'cad:mentores-3478', 'cad:phoenix', 'cad:psycho']);
     const rand = rng(7);
     for (let n = 0; n < 50; n++) {
       for (const player of [0, 1, 2, 3]) {

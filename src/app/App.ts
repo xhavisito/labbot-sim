@@ -820,7 +820,7 @@ export class App {
   /** Resultados de 2 jugadores: lo que hizo cada quien (de la repetición) y las revanchas. */
   /** Número de equipo de cada estación (el de su robot; en el torneo, el nombre del equipo). */
   private teamNumbers(): string[] {
-    const nums: Record<string, string> = { axiom: '2785', phoenix: '2378', psycho: '2548', hazmat: '704' };
+    const nums: Record<string, string> = { axiom: '2785', phoenix: '2378', psycho: '2548', hazmat: '704', mentores: '3478' };
     const tour = this.choice.scout?.tour ? this.choice.scout.teams : null;
     return this.session.robots.map((r, i) => {
       if (tour?.[i]) return this.scoutData.teams.find((x) => x.id === tour[i])?.name ?? tour[i];
