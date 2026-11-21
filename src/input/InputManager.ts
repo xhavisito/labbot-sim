@@ -4,7 +4,7 @@
  * un eje de giro (tanque, §7.2).
  */
 import type { ElevatorPos } from '../config/robot';
-import { ACTIONS, loadBindings, type Action, type Bindings } from './bindings';
+import { ACTIONS, loadBindings, padFor, type Action, type Bindings } from './bindings';
 import type { VersusDevice } from '../config/settings';
 
 export interface PlayerInput {
@@ -103,6 +103,8 @@ export class InputManager {
   readonly touch: TouchState = { forward: 0, turn: 0, pressed: new Set(), held: new Set() };
   /** Controles touch del jugador 2 (2 jugadores con `touch`: cada quien en su mitad de la pantalla). */
   readonly touch2: TouchState = { forward: 0, turn: 0, pressed: new Set(), held: new Set() };
+  /** Robot del jugador: sus botones por defecto (`ROBOT_PAD_DEFAULTS`) van encima de los del usuario. */
+  robot = '';
   /** Esperando una tecla o botón para reasignar (lo maneja el menú de Controles). */
   private capture: ((c: Captured) => void) | null = null;
 
@@ -218,14 +220,15 @@ export class InputManager {
     const pad = this.padDev(this.layout.p2);
     if (pad) {
       const b = this.bindings;
+      const P = padFor(b, this.robot);
       const fwd = -dz(pad.axes[1] ?? 0) * (b.invertForward ? -1 : 1);
       const turn = -dz(b.padDrive === 'split' && !b.fieldCentric ? (pad.axes[2] ?? 0) : (pad.axes[0] ?? 0));
       if (Math.abs(fwd) > Math.abs(inp.forward)) inp.forward = fwd;
       if (Math.abs(turn) > Math.abs(inp.turn)) inp.turn = turn;
       const now = pad.buttons.map((x) => x.pressed);
-      if (b.pad.slow.some((i) => now[i])) inp.slow = true;
-      if (b.pad.intake.some((i) => now[i])) inp.intake = true;
-      for (const a of ACTIONS) if (b.pad[a].some((i) => !!now[i] && !this.padPrev2[i])) acts.add(a);
+      if (P.slow.some((i) => now[i])) inp.slow = true;
+      if (P.intake.some((i) => now[i])) inp.intake = true;
+      for (const a of ACTIONS) if (P[a].some((i) => !!now[i] && !this.padPrev2[i])) acts.add(a);
       this.padPrev2 = now;
     }
     if (this.layout.p2 === 'touch') {
@@ -306,6 +309,7 @@ export class InputManager {
     const pad = this.padDev(this.versus ? this.layout.p1 : null);
     if (!pad) return;
     const b = this.bindings;
+      const P = padFor(b, this.robot);
     const ax = pad.axes;
     const zone = b.padDeadzone;
     const fwd = -dz(ax[1] ?? 0, zone) * (b.invertForward ? -1 : 1);
@@ -313,8 +317,8 @@ export class InputManager {
     if (Math.abs(fwd) > Math.abs(inp.forward)) inp.forward = fwd;
     if (Math.abs(turn) > Math.abs(inp.turn)) inp.turn = turn;
     const now = pad.buttons.map((x) => x.pressed);
-    const btn = (a: Action) => b.pad[a].some((i) => !!now[i] && !this.padPrev[i]);
-    const hold = (a: Action) => b.pad[a].some((i) => !!now[i]);
+    const btn = (a: Action) => P[a].some((i) => !!now[i] && !this.padPrev[i]);
+    const hold = (a: Action) => P[a].some((i) => !!now[i]);
     // Botones asignados a manejar (por ejemplo la cruceta) suman como las teclas
     const dpadF = (hold('forward') ? 1 : 0) - (hold('back') ? 1 : 0);
     const dpadT = (hold('left') ? 1 : 0) - (hold('right') ? 1 : 0);

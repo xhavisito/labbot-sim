@@ -316,6 +316,8 @@ export class App {
     if (c.mode === 'versus' && !c.ready) return this.openVersusSetup(c);
     this.choice = c;
     this.testRobot = c.autoTest ? (c.robot ?? null) : null;
+    // Botones por defecto del robot del jugador (`ROBOT_PAD_DEFAULTS`, p. ej. Mentores 3478)
+    this.input.robot = this.testRobot ?? this.settings.robotType;
     this.closeAutoPractice();
     this.closeTraining();
     this.closePractice1v1();

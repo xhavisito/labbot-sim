@@ -24,7 +24,7 @@ import type { DrillId } from '../core/training';
 import { ALLIANCES, type Alliance } from '../core/types';
 import { applyAccessibility } from './a11y';
 import { COLOR_MODES, nearestTextScale, TEXT_SCALES, type ColorMode } from '../config/palette';
-import { ACTIONS, assign, clampDeadzone, clearAction, DEADZONE_RANGE, cloneBindings, DEFAULT_BINDINGS, keyLabel, padLabel, saveBindings, type Action } from '../input/bindings';
+import { ACTIONS, assign, clampDeadzone, clearAction, DEADZONE_RANGE, cloneBindings, DEFAULT_BINDINGS, keyLabel, padFor, padLabel, saveBindings, type Action } from '../input/bindings';
 import type { InputManager } from '../input/InputManager';
 import { CAMERA_MODES, type CameraMode } from '../render/CameraRig';
 import { padHelp } from './controlsHelp';
@@ -1007,7 +1007,7 @@ export class Menu {
           <h3 class="ps-keys-title">${t('keysTitle')}</h3>
           <div class="ps-keys">${keyRows.map((a) => `<div>${t(`act_${a}` as Key)}<span class="k">${kbds(b.keys[a].map(keyLabel))}</span></div>`).join('')}</div>
           <h3 class="ps-keys-title">${t('padTitle')}</h3>
-          <div class="ps-pad">${padHelp(b)}<br>${t('padMenus')}</div>
+          <div class="ps-pad">${padHelp({ ...b, pad: padFor(b, this.input.robot) })}<br>${t('padMenus')}</div>
         </div>`}
       </div>`,
       'overlay',
