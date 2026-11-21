@@ -132,9 +132,9 @@ describe('Mentores 3478: muñeca, rodillos con colisión y Muestra apoyada', () 
     const g = new GameSession({ player: 0, preload: false, specs: [M()] });
     const cols = g.player.phys.armColliders.rollers;
     expect(cols.length).toBe(2);
-    const z = cols[0].translationWrtParent().y;
+    const z = cols[0].translationWrtParent()!.y;
     g.player.phys.setArmPose(posAngle(spec(), 2), null);
-    expect(cols[0].translationWrtParent().y).not.toBeCloseTo(z, 2);
+    expect(cols[0].translationWrtParent()!.y).not.toBeCloseTo(z, 2);
     expect(cols[0].isEnabled()).toBe(true);
     g.player.phys.setArmPose(posAngle(spec(), 3), null);
     expect(cols[0].isEnabled()).toBe(false);
