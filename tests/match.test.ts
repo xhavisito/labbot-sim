@@ -102,12 +102,12 @@ describe('puntuación (§4.4)', () => {
     expect(m.breakdown('blue').platform).toBe(20);
   });
 
-  it('Muestra Crítica: 15 puntos + 1 RP', () => {
+  it('Muestra Crítica: 35 puntos + 1 RP (§4.4)', () => {
     const m = new Match(GAME);
     m.start();
     until(m, 150);
     m.finish(none, { red: true, blue: false });
-    expect(m.breakdown('red').critical).toBe(15);
+    expect(m.breakdown('red').critical).toBe(35);
     expect(m.rankingPoints('red').critical).toBe(true);
     expect(m.rankingPoints('blue').critical).toBe(false);
   });
