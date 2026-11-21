@@ -90,7 +90,7 @@ describe('match completo en la física', () => {
     expect(g.match!.breakdown('blue').penalties).toBe(8);
   });
 
-  it('al sonar la bocina: robot rojo en la Plataforma (10) y Muestra Crítica roja en la Repisa (15 + 1 RP)', () => {
+  it('al sonar la bocina: robot rojo en la Plataforma (10) y Muestra Crítica roja en la Repisa (35 + 1 RP)', () => {
     const g = session();
     g.startMatch();
     skipTo(g, 140);
@@ -101,7 +101,7 @@ describe('match completo en la física', () => {
     const m = g.match!;
     expect(m.finished).toBe(true);
     expect(m.breakdown('red').platform).toBe(10);
-    expect(m.breakdown('red').critical).toBe(15);
+    expect(m.breakdown('red').critical).toBe(35);
     expect(m.rankingPoints('red').critical).toBe(true);
     expect(m.breakdown('blue').platform).toBe(0);
     // En el endgame subir a la Plataforma no es falta

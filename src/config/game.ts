@@ -25,7 +25,7 @@ export interface GameConfig {
     /** Robot en Plataforma 10; Alianza en Plataforma (2 robots) 20, no acumulable (§4.4, nota). */
     platformOne: number;
     platformTwo: number;
-    /** Muestra Crítica en la Repisa: 15 (§4.4). */
+    /** Muestra Crítica en la Repisa: 35 (§4.4, tabla "Scoring 4.4"). */
     critical: number;
   };
   fouls: {
@@ -72,7 +72,7 @@ export const GAME: GameConfig = {
     sampleTeleop: { 1: 2, 2: 6, 3: 15 },
     platformOne: 10,
     platformTwo: 20,
-    critical: 15,
+    critical: 35,
   },
   fouls: { foul: 4, tech: 8, yellowsForRed: 2 },
   rp: { win: 2, tie: 1, autoLine: 1, critical: 1, dominance: 1, dominanceSamples: 10 },
