@@ -144,6 +144,7 @@
     "tint": "^(Frontal|Trasera)$",
     "staticWheels": true,
     "cadArmLength": 0.7003,
-    "clawAlongArm": true
+    "clawAlongArm": true,
+    "cadRollers": true
   }
 }
