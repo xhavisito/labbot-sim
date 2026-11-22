@@ -8,7 +8,7 @@ import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { CRITICAL_SIZE, SAMPLE_SIZE } from '../config/field';
-import { CRIT_ROLLER_SHIFT, WHEEL_DROP, armTip, clawOf, critSeat, heldSeatOf, intakeOf, wristAngleOf, wristPoint, posAngle, seatX, type CadModel, type ClawDims, type CritClaw } from '../config/robot';
+import { WHEEL_DROP, critHeldOffsetOf, armTip, clawOf, critSeat, heldSeatOf, intakeOf, wristAngleOf, wristPoint, posAngle, seatX, type CadModel, type ClawDims, type CritClaw } from '../config/robot';
 import { PALETTES } from '../config/palette';
 import { clawDir } from '../physics/RobotPhysics';
 import type { Robot } from '../game/Robot';
@@ -866,11 +866,14 @@ export class RobotView {
       const st = Math.sin(tilt);
       this.criticalMesh.position.set(this.pocket.x + this.critGripView.x * ct - this.critGripView.y * st, this.pocket.y + this.critGripView.x * st + this.critGripView.y * ct, this.critGripView.z);
     }
-    // Mentores 3478: la Crítica va entre los rodillos, llevada por la muñeca como la Muestra (sin atravesarlos)
-    const hcs = heldSeatOf(this.robot.spec, 1, 0);
-    if (hcs && m.critical && !cseat) {
-      const wp = wristPoint(this.robot.spec, m.angle, hcs.x + CRIT_ROLLER_SHIFT.x, hcs.y + CRIT_ROLLER_SHIFT.y, m.wristFold);
-      this.criticalMesh.position.set(wp.x, wp.y, m.critGrip.z);
+    // Mentores 3478: la Crítica no cabe entre las placas; va horizontal y enfrente de la boca, donde la pone la física (`critHeldOffsetOf`,
+    // respecto a la punta en ejes del robot), pasada al sistema de la garra (girado `angle − stowAngle`)
+    const hco = critHeldOffsetOf(this.robot.spec, m.angle, m.wristFold);
+    if (hco && m.critical && !cseat) {
+      const d = m.angle - (this.robot.spec.model?.stowAngle ?? 0);
+      const c = Math.cos(d);
+      const sn = Math.sin(d);
+      this.criticalMesh.position.set(hco.x * c + hco.y * sn, -hco.x * sn + hco.y * c, m.critGrip.z);
       this.criticalMesh.rotation.z = level;
     }
     this.palm.position.x = -clawDir(m.angle, sa) * (this.claw.fingerLength / 2 + this.claw.palmThickness / 2);
