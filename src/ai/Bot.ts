@@ -1592,8 +1592,12 @@ export class Bot {
   private camaraWaitSpot(): { x: number; z: number } {
     const late = this.phase === 'ENDGAME';
     const spots = (late ? [{ x: 4.0, z: 1.0 }, { x: 4.05, z: 0.45 }] : [{ x: 3.4, z: 0.95 }, { x: 3.45, z: 0.3 }, { x: 4.0, z: 0.7 }]).map((q) => F.forCamara(this.robot.alliance, q));
-    const free = (q: { x: number; z: number }) => !this.others.some((o) => o !== this.robot && Math.hypot(o.phys.position().x - q.x, o.phys.position().z - q.z) < 0.8);
-    return spots.find(free) ?? spots[0];
+    const room = (q: { x: number; z: number }) => Math.min(...this.others.filter((o) => o !== this.robot).map((o) => Math.hypot(o.phys.position().x - q.x, o.phys.position().z - q.z)));
+    const free = spots.find((q) => room(q) >= 0.8);
+    if (free) return free;
+    // Todos ocupados (la persona parada entre dos): el más despejado. Antes iba al primero aunque la persona estuviera
+    // encima y se quedaba esperando junto a ella dentro de la zona de anotación (≈8 s por match)
+    return spots.reduce((a, b) => (room(b) > room(a) ? b : a));
   }
 
   private waitSpot(): { x: number; z: number } {
