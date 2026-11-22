@@ -226,6 +226,41 @@ describe('Mentores 3478: muñeca, rodillos con colisión y Muestra apoyada', () 
     expect(hits).toBe(0);
   });
 
+  it('empieza el match en la pose de la captura: brazo en la pose de piso del CAD y muñeca doblada sobre el chasis (Xhavi, 21-nov)', () => {
+    const s = spec();
+    const g = new GameSession({ player: 0, preload: true, specs: [M()] });
+    const m = g.player.mech;
+    const deg = (r: number) => (r * 180) / Math.PI;
+    expect(m.stowed).toBe(true);
+    expect(m.wristFold).toBe(1);
+    // Captura: viga (hombro → muñeca) a −12.75° y placa (muñeca → rueda de 4 in) a +152.0°, x al frente
+    const w = s.model!.cadWrist!;
+    const st = s.model!.stowAngle!;
+    const beamOff = Math.atan2(w.axis[1], w.axis[0]) - st;
+    expect(deg(m.angle + beamOff)).toBeCloseTo(-12.75, -0.3);
+    const L = s.model!.cadArmLength!;
+    const wheel0 = s.model!.cadRollerCols!.cyl[0];
+    const v = { x: wheel0[0] + L * Math.cos(st) - w.axis[0], y: wheel0[1] + L * Math.sin(st) - w.axis[1] };
+    expect(deg(Math.atan2(v.y, v.x) + (m.angle - st) + wristAngleOf(s, m.angle, m.wristFold))).toBeCloseTo(152.0, -0.3);
+    // La precarga va sobre el chasis, dentro del perímetro
+    const o = heldOffsetOf(s, m.angle, 0, m.wristFold)!;
+    const tip = armTip(s.arm, m.angle);
+    expect(tip.x + o.x + SAMPLE_SIZE / 2).toBeLessThan(s.length / 2);
+    expect(tip.y + o.y - SAMPLE_SIZE / 2).toBeGreaterThan(0.3);
+    // Sin mandos se queda así; al pedir un nivel se despliega (a la velocidad del brazo) y llega a la pose del nivel
+    for (let i = 0; i < 60; i++) { g.setInput(emptyInput()); g.step(); }
+    expect(m.wristFold).toBe(1);
+    for (let i = 0; i < 3 * 120; i++) { g.setInput({ ...emptyInput(), elevator: 2 }); g.step(); }
+    expect(m.wristFold).toBe(0);
+    expect(m.angle).toBeCloseTo(posAngle(s, 2), 3);
+    expect(m.inClaw).toBe(true);
+    // Cada match vuelve a empezar así
+    g.startMatch();
+    expect(m.stowed).toBe(true);
+    expect(m.wristFold).toBe(1);
+    expect(m.angle).toBeCloseTo(posAngle(s, 0), 6);
+  });
+
   it('una Muestra suelta choca con la rueda de arriba en vez de atravesarla', () => {
     const g = new GameSession({ player: 0, preload: false, specs: [M()] });
     for (const p of g.pieces.list) if (p.state.at === 'field' && p.kind === 'sample') g.pieces.stash(p, { at: 'hp', alliance: 'red' });

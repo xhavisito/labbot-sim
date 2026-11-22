@@ -33,6 +33,8 @@ export const PHASES = ['PRE', 'AUTO', 'PAUSE', 'TELEOP', 'ENDGAME', 'DONE'] as c
  */
 export const FLAG_INTAKE = 1;
 export const FLAG_CRITICAL = 2;
+/** Muñeca doblada de la pose de inicio (Mentores 3478, `Mechanisms.wristFold` > 0.5). Va en el bit 11 (el contador `stored` usa 2–10). */
+export const FLAG_FOLDED = 1 << 11;
 export const FLAG_CLAW = 1 << 12;
 export const FLAG_LATCHED = 1 << 13;
 export const FLAG_CRITCLAW = 1 << 14;
@@ -100,6 +102,8 @@ export interface RobotFrame {
   intake: boolean;
   critical: boolean;
   stored: number;
+  /** Muñeca doblada de la pose de inicio (repeticiones viejas: false). */
+  folded: boolean;
   /** Muestra en la garra (repeticiones viejas: no se grababa). */
   claw: boolean;
   /** Pinza cerrada con el interruptor (repeticiones viejas: false). */
@@ -138,7 +142,8 @@ export function robotFrame(r: Replay, f: number, i: number): RobotFrame {
     angle: d[o + 8] / 1e4,
     intake: (flags & FLAG_INTAKE) !== 0,
     critical: (flags & FLAG_CRITICAL) !== 0,
-    stored: (flags >> 2) & 0x3ff,
+    stored: (flags >> 2) & 0x1ff,
+    folded: (flags & FLAG_FOLDED) !== 0,
     claw: (flags & FLAG_CLAW) !== 0,
     latched: (flags & FLAG_LATCHED) !== 0,
     critClaw: (flags & FLAG_CRITCLAW) !== 0,

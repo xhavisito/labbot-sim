@@ -45,7 +45,7 @@ describe('Mentores 3478: robot del CAD', () => {
   it('lo que el CAD no dice está marcado como SUPUESTO y las respuestas de Xhavi quedan anotadas', () => {
     const t = (robotFile as { supuestos: string[] }).supuestos.join('\n');
     expect(t).toMatch(/SUPUESTO: alturas/);
-    expect(t).toMatch(/SUPUESTO: pose de inicio/);
+    expect(t).toMatch(/Pose de inicio \(captura de SolidWorks/);
     expect(t).toMatch(/masa 40 kg/);
     expect(t).toMatch(/tres niveles/);
     expect(M().intake?.noCritical).toBeFalsy(); // puede tomar la Crítica
