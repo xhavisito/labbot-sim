@@ -1,7 +1,8 @@
 /**
  * Dificultad de la IA. Las reglas no cambian (el árbitro cobra igual); cambia qué tan rápido y qué
  * tan bien juega cada robot de la computadora. Todos los números son SUPUESTOS de diseño del
- * simulador (el manual no habla de IA); se calibraron con `npm run batch -- --set ai --a <nivel> --b old`.
+ * simulador (el manual no habla de IA); se calibraron con la arena: `npm run arena -- --scenario lvl:expert:hard` (y
+ * `lvl:hard:normal`, `lvl:normal:easy`), una dificultad por alianza con los mismos robots.
  */
 import type { Level } from '../core/types';
 
@@ -68,10 +69,12 @@ export interface AiProfile {
 export const AI_PROFILES: Record<AiLevel, AiProfile> = {
   // Fácil: lento, anota en N2, no va por la Crítica ni se coordina; sube temprano a la Plataforma
   easy: { speed: 0.55, level: 2, critical: false, teamwork: false, reaction: 0.9, climbMargin: 14, batch: 2, sloppy: 0.06, steal: false, dockSpeed: 1, dockStage: 0.55, jitter: 0.4, aim: 0.12, pickPause: 0.5, contest: 0, clutch: 0, ramp: 0.4, turnRamp: 0.22, courtesy: 0.5 },
-  // Normal: N3 y la Crítica, con algo de duda y margen
-  normal: { speed: 0.8, level: 3, critical: true, teamwork: true, reaction: 0.35, climbMargin: 6, batch: 4, sloppy: 0.02, steal: false, dockSpeed: 1, dockStage: 0.55, jitter: 0.15, aim: 0.05, pickPause: 0.25, contest: 0.5, clutch: 0.5, ramp: 0.28, turnRamp: 0.15, courtesy: 0.6 },
-  // Difícil: todo lo que da el robot, y se arrima a la Cámara más rápido y desde más cerca
-  hard: { speed: 1, level: 3, critical: true, teamwork: true, reaction: 0.15, climbMargin: 2.5, batch: 10, sloppy: 0, steal: false, dockSpeed: 1.5, dockStage: 0.4, jitter: 0.1, aim: 0.015, pickPause: 0.1, contest: 1, clutch: 1, ramp: 0.18, turnRamp: 0.1, courtesy: 0.7 },
-  // Experto: como Difícil, más robar Muestras de la Campana rival y margen justo en la Plataforma
-  expert: { speed: 1, level: 3, critical: true, teamwork: true, reaction: 0.1, climbMargin: 1.8, batch: 10, sloppy: 0, steal: true, dockSpeed: 1.5, dockStage: 0.4, jitter: 0.05, aim: 0, pickPause: 0.05, contest: 1, clutch: 1, ramp: 0.14, turnRamp: 0.08, courtesy: 0.7 },
+  // Normal: N3 y la Crítica, a dos tercios de velocidad, dudando y arrimándose a la Cámara con cuidado (a 0.75 le
+  // ganaba a Difícil 46 % de los matches: el campo se queda sin Muestras y la velocidad de más casi no se notaba)
+  normal: { speed: 0.68, level: 3, critical: true, teamwork: true, reaction: 0.55, climbMargin: 8, batch: 2, sloppy: 0.03, steal: false, dockSpeed: 0.7, dockStage: 0.65, jitter: 0.25, aim: 0.07, pickPause: 0.45, contest: 0.3, clutch: 0.3, ramp: 0.32, turnRamp: 0.18, courtesy: 0.6 },
+  // Difícil: casi todo lo que da el robot y lee el partido, pero duda como una persona (≈0.2 s) y se arrima con margen
+  hard: { speed: 0.9, level: 3, critical: true, teamwork: true, reaction: 0.18, climbMargin: 3, batch: 10, sloppy: 0.01, steal: false, dockSpeed: 1.2, dockStage: 0.45, jitter: 0.1, aim: 0.02, pickPause: 0.15, contest: 1, clutch: 1, ramp: 0.2, turnRamp: 0.12, courtesy: 0.7 },
+  // Experto: un piloto de Einstein. Todo lo que da el robot, casi sin dudar, entra a la Cámara rápido y desde cerca,
+  // roba Muestras de la Campana rival y deja el margen justo para la Plataforma
+  expert: { speed: 1, level: 3, critical: true, teamwork: true, reaction: 0.06, climbMargin: 1.8, batch: 10, sloppy: 0, steal: true, dockSpeed: 1.5, dockStage: 0.4, jitter: 0.04, aim: 0, pickPause: 0.03, contest: 1, clutch: 1, ramp: 0.12, turnRamp: 0.07, courtesy: 0.7 },
 };

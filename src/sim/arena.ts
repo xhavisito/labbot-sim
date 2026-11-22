@@ -77,6 +77,7 @@ function lineup(rand: () => number): string[] {
  *   con estrategia, AUTO y personalidad secretas al azar (`ai/strategy.ts`).
  * - `mirror:<impl>`: los 4 iguales (por defecto); debe salir parejo.
  * - `vs:<a>:<b>`: rojo con la IA `a`, azul con la IA `b`, mismos ajustes y tipos cruzados.
+ * - `lvl:<a>:<b>`: la IA nueva en dificultad `a` contra la `b` (lados cruzados); `mirror:new:<nivel>`.
  */
 export function scenarioRobots(scenario: string, seed: number): { robots: ArenaRobot[]; swap: boolean } {
   const rand = rng(seed * 7 + 3);
@@ -98,7 +99,17 @@ export function scenarioRobots(scenario: string, seed: number): { robots: ArenaR
   }
   if (kind === 'mirror') {
     const impl = (parts[1] ?? 'new') as BotImpl;
-    return { robots: types.map((type) => ({ type, auto: 'collect', bot: { ai: 'hard' }, impl })), swap: false };
+    const lvl = (parts[2] ?? 'hard') as BotOptions['ai'];
+    return { robots: types.map((type) => ({ type, auto: 'collect', bot: { ai: lvl }, impl })), swap: false };
+  }
+  if (kind === 'lvl') {
+    // Una dificultad contra otra (la IA nueva en los 4): semillas pares `a` de rojo, impares de azul
+    const a = parts[1] as BotOptions['ai'];
+    const b = parts[2] as BotOptions['ai'];
+    const swap = seed % 2 === 1;
+    const t = lineup(rng(Math.floor(seed / 2) * 7 + 3));
+    const robots = [0, 1, 2, 3].map((i): ArenaRobot => ({ type: t[i], auto: 'collect', bot: { ai: (i < 2) !== swap ? a : b }, impl: 'new' }));
+    return { robots, swap };
   }
   if (kind === 'vs') {
     const a = parts[1] as BotImpl;
