@@ -151,6 +151,8 @@ export class RobotPhysics {
   private rollerQuery: RAPIER.Shape[] = [];
   /** Formas (un poco más chicas) de los cascos del brazo y de la muñeca, para `armHitsField`. */
   private hullQuery: RAPIER.Shape[] = [];
+  /** Cuánto está doblada la muñeca en la pose de inicio (`cadWrist.stow`, 1 = doblada); lo pone `Mechanisms` antes de `setArmPose`. */
+  wristFold = 0;
   /** Los rodillos chocan con las piezas (fuera de N3; en N3 solo con la cancha, para no estorbar a la Muestra que sale). */
   private rollersHitPieces = true;
   /**
@@ -433,8 +435,8 @@ export class RobotPhysics {
       const d0 = clawDir(a0, arm);
       const rollers0 = intakeOf(this.spec).rollers === true;
       const lvl = this.spec.model?.levelSample === true; // la Muestra agarrada se queda horizontal
-      const hs0 = heldOffsetOf(this.spec, a, 0); // apoyada en el piso y con la muñeca (`heldX`, `cadWrist`)
-      const hs1 = heldOffsetOf(this.spec, a, 1);
+      const hs0 = heldOffsetOf(this.spec, a, 0, this.wristFold); // apoyada en el piso y con la muñeca (`heldX`, `cadWrist`)
+      const hs1 = heldOffsetOf(this.spec, a, 1, this.wristFold);
       const abs = (o: { x: number; y: number }): Pose => ({ t: { x: tip.x + o.x, y: tip.y + o.y, z: 0 }, r: NO_ROT });
       // Garra centrada en la punta (Axiom): dedos, placa y Muestra alrededor de la punta; si no, apoyados sobre ella
       const cy = this.centeredClaw ? 0 : fh / 2;
@@ -532,7 +534,7 @@ export class RobotPhysics {
       const g = rollersOn ? (tilted ? GROUPS.armTilted : GROUPS.arm) : tilted ? GROUPS.armTiltedNoPiece : GROUPS.armNoPiece;
       for (const r of c.rollers) r.setCollisionGroups(g);
     }
-    rollerColsOf(this.spec, a).forEach((o, i) => put(c.rollers[i], { t: { x: tip0.x + o.x, y: tip0.y + o.y, z: 0 }, r: ROLLER_ROT }));
+    rollerColsOf(this.spec, a, this.wristFold).forEach((o, i) => put(c.rollers[i], { t: { x: tip0.x + o.x, y: tip0.y + o.y, z: 0 }, r: ROLLER_ROT }));
     this.hullPoses(a).forEach((pose, i) => put(c.hulls[i], pose));
     // Segunda Muestra (garra que lleva dos)
     put(c.sample2, p.sample2);
@@ -559,7 +561,7 @@ export class RobotPhysics {
       const c = Math.cos(d);
       const s = Math.sin(d);
       const t = { x: arm.pivotX + w.axis[0] * c - w.axis[1] * s, y: arm.pivotY + w.axis[0] * s + w.axis[1] * c, z: 0 };
-      const r = rot(d + wristAngleOf(this.spec, a));
+      const r = rot(d + wristAngleOf(this.spec, a, this.wristFold));
       for (let i = 1; i < this.armColliders.hulls.length; i++) out.push({ t, r });
     }
     return out.slice(0, this.armColliders.hulls.length);
@@ -584,7 +586,7 @@ export class RobotPhysics {
       if (!this.boxAtFloor(a)) parts.push([q.plate, p.base]);
     }
     const tip1 = armTip(this.spec.arm, a);
-    rollerColsOf(this.spec, a).forEach((o, i) => parts.push([this.rollerQuery[i], { t: { x: tip1.x + o.x, y: tip1.y + o.y, z: 0 }, r: ROLLER_ROT }]));
+    rollerColsOf(this.spec, a, this.wristFold).forEach((o, i) => parts.push([this.rollerQuery[i], { t: { x: tip1.x + o.x, y: tip1.y + o.y, z: 0 }, r: ROLLER_ROT }]));
     this.hullPoses(a).forEach((pose, i) => parts.push([this.hullQuery[i], pose]));
     if (held) parts.push([q[held], p[held]]);
     if (held === 'sample' && count >= 2) parts.push([q.sample, p.sample2]);

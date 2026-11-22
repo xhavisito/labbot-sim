@@ -19,7 +19,7 @@
       "pivotY": 0.335,
       "length": 0.7003,
       "speed": 4,
-      "stowAngle": 0.8727,
+      "stowAngle": -0.3696,
       "pickBack": false,
       "halfThickness": 0.05,
       "levelAngles": {
@@ -135,7 +135,7 @@
     "El CAD trae la Muestra y la Muestra Crítica de referencia ('GamePiece', 'MC') y la batería: no van al modelo",
     "Xhavi (20-nov): anota en los tres niveles (N1–N3) y puede tomar la Muestra Crítica",
     "SUPUESTO: la pose del CAD es la de piso (la Muestra está sobre el piso, centro a 0.082 m): el modelo se dibuja a -21.3° (la del CAD) y gira desde ahí; el STEP es una sola pose y no dice cuánto gira el brazo ni la muñeca (el CAD trae un segundo eje, 70T/12T, que el simulador no mueve)",
-    "SUPUESTO: pose de inicio del brazo a 50°: con el brazo de 0.70 m ninguna pose cabe del todo en el perímetro de inicio (§4.1) y bajo 100 cm con una Muestra (el robot real pliega la muñeca, que el simulador no tiene): sale unos 2–3 cm del perímetro; el menú lo marca con ⚠",
+    "Pose de inicio (captura de SolidWorks de Xhavi, 21-nov: \"en esta posición debe de empezar cada que empieza el match\"): el brazo en la pose de piso del CAD (−21.3°) y la muñeca doblada +159.9° hacia atrás, con la placa sobre el chasis (`cadWrist.stow`); se despliega al primer mando del brazo, a la velocidad del brazo. El engrane de la muñeca sale unos 3–4 cm del frente del chasis, como en la captura; el validador (que no conoce la muñeca) lo sigue marcando con ⚠",
     "Brazo y muñeca en N1–N3 medidos de las capturas de lado de SolidWorks de Xhavi (21-nov): brazo (eje del hombro → eje de la muñeca) a 14.6° / 41.0° / 109.5° sobre la horizontal (en el simulador, que mide hasta el centro de la Muestra, 6.0° / 32.4° / 101.0°; N3 se deja en 100°, el de Axiom que pidió Xhavi, a 1° de la captura) y la placa de la muñeca girada −27.0° / −19.0° / +45.8° respecto al brazo (desde la pose del CAD; así la placa queda con el mismo rumbo que en la captura). SUPUESTO: alturas de la rendija (Repisa, 0.615 m) como las del preset de pivote; el CAD no las trae",
     "SUPUESTO: la garra es de compliants (las ruedas de rodillos del CAD jalan y escupen la Muestra), 0.23 m de apertura (ancho de las 5 ruedas ≈ 0.23 m) y 0.15 m de fondo; capacidad 1; recoge y anota al frente (sin pickBack)",
     "SUPUESTO: las placas frontal y trasera del chasis toman el color de la alianza",
@@ -156,7 +156,7 @@
     "wheelColor": 15921906,
     "heldX": -0.025,
     "cadRollerCols": { "halfZ": 0.115, "cyl": [[0.033, 0.116, 0.0507], [-0.113, -0.028, 0.0126]] },
-    "cadWrist": { "axis": [0.487, -0.11], "fromX": 0.45, "levels": { "1": -0.4712, "2": -0.3316, "3": 0.7993 } },
+    "cadWrist": { "axis": [0.487, -0.11], "fromX": 0.45, "levels": { "1": -0.4712, "2": -0.3316, "3": 0.7993 }, "stow": 2.7908 },
     "cadArmHulls": { "arm": [-0.011,0.043,0.1,0.204,-0.005,-0.1,0.497,-0.071,-0.045,0.497,-0.071,0.045,0.492,-0.07,-0.05,0.492,-0.07,0.05,0.204,-0.005,0.1,-0.03,0.048,-0.1,-0.03,0.048,0.1,-0.048,-0.03,-0.1,-0.048,-0.03,0.1,0.474,-0.148,-0.05,0.474,-0.148,0.05,0.479,-0.149,-0.045,0.479,-0.149,0.045], "wrist": [[0.064,-0.034,0.187,0.085,-0.019,0.075,0.249,-0.025,0.089,0.249,-0.025,0.114,0.247,-0.013,0.089,0.247,-0.013,0.114,0.242,-0.002,0.089,0.242,-0.002,0.114,0.234,0.008,0.089,0.234,0.008,0.114,0.225,0.015,0.089,0.225,0.015,0.114,0.214,0.02,0.089,0.214,0.02,0.114,0.202,0.023,0.089,-0.001,0.04,0.155,-0.01,0.039,0.15,-0.01,0.039,0.155,-0.019,0.035,0.15,-0.019,0.035,0.155,-0.027,0.029,0.15,-0.027,0.029,0.155,-0.033,0.022,0.15,-0.033,0.022,0.155,-0.037,0.013,0.15,-0.037,0.013,0.155,-0.039,0.004,0.15,-0.039,0.004,0.155,-0.039,-0.006,0.15,-0.039,-0.006,0.155,0.042,-0.179,0.089,0.033,-0.186,0.155,0.044,-0.182,0.089,0.036,-0.189,0.155,0.047,-0.183,0.089,0.04,-0.192,0.155,0.05,-0.184,0.089,0.045,-0.195,0.155,0.053,-0.185,0.089,0.055,-0.196,0.155,0.056,-0.184,0.089,0.06,-0.195,0.155,0.059,-0.183,0.089,0.065,-0.192,0.155,0.238,-0.059,0.089,0.238,-0.059,0.114,0.245,-0.049,0.089,0.245,-0.049,0.114,0.248,-0.037,0.089,0.248,-0.037,0.114], [0.089,-0.03,-0.075,0.064,-0.034,-0.187,0.249,-0.025,-0.114,0.249,-0.025,-0.089,0.247,-0.013,-0.114,0.247,-0.013,-0.089,0.242,-0.002,-0.114,0.242,-0.002,-0.089,0.234,0.008,-0.114,0.234,0.008,-0.089,0.225,0.015,-0.114,0.225,0.015,-0.089,0.214,0.02,-0.114,0.214,0.02,-0.089,-0.001,0.04,-0.155,0.202,0.023,-0.089,-0.01,0.039,-0.155,-0.01,0.039,-0.15,-0.019,0.035,-0.155,-0.019,0.035,-0.15,-0.027,0.029,-0.155,-0.027,0.029,-0.15,-0.033,0.022,-0.155,-0.033,0.022,-0.15,-0.037,0.013,-0.155,-0.037,0.013,-0.15,-0.039,0.004,-0.155,-0.039,0.004,-0.15,-0.039,-0.006,-0.155,-0.039,-0.006,-0.15,0.033,-0.186,-0.155,0.042,-0.179,-0.089,0.036,-0.189,-0.155,0.044,-0.182,-0.089,0.04,-0.192,-0.155,0.047,-0.183,-0.089,0.045,-0.195,-0.155,0.05,-0.184,-0.089,0.055,-0.196,-0.155,0.053,-0.185,-0.089,0.06,-0.195,-0.155,0.056,-0.184,-0.089,0.065,-0.192,-0.155,0.059,-0.183,-0.089,0.238,-0.059,-0.114,0.238,-0.059,-0.089,0.245,-0.049,-0.114,0.245,-0.049,-0.089,0.248,-0.037,-0.114,0.248,-0.037,-0.089]] }
   }
 }

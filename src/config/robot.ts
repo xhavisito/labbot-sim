@@ -199,8 +199,10 @@ export interface CadModel {
    * `levels`: giro (rad, + = la punta de la placa sube) de la placa respecto al brazo en N1–N3, desde la pose del CAD, medido de las capturas de
    * lado de SolidWorks de Xhavi (21-nov: "en todos los niveles gira su muñeca"). En el piso y en la Repisa queda en 0 (la pose del CAD) y entre
    * posiciones se interpola con el ángulo del brazo (`wristAngleOf`). La Muestra agarrada y los rodillos (física y dibujo) van con la placa.
+   * `stow`: giro de la muñeca en la pose de inicio del match (doblada hacia atrás sobre el chasis, captura de Xhavi del 21-nov); se despliega
+   * al primer mando del brazo (`Mechanisms.wristFold`).
    */
-  cadWrist?: { axis: readonly [number, number]; fromX: number; levels: Partial<Record<1 | 2 | 3, number>> };
+  cadWrist?: { axis: readonly [number, number]; fromX: number; levels: Partial<Record<1 | 2 | 3, number>>; stow?: number };
   /**
    * Colisión del brazo y de la muñeca del CAD (Mentores 3478, Xhavi 21-nov: "agrégale colisión a todo el robot porque algunas cosas traspasan
    * las paredes de scoring"): cascos convexos (x, y, z planos, m) sacados del GLB con `scripts/cad/arm-hulls.mjs`. `arm` en el sistema del
@@ -465,12 +467,12 @@ export function wristOf(s: RobotSpec): { x: number; y: number } | null {
  * Dónde queda (respecto a la punta, ejes del robot) la Muestra `k` agarrada con `heldX` cuando el brazo está en `a`: la pose de piso en el
  * sistema de la caja, llevada por la muñeca (`wristPoint`) y girada con el brazo `a − stowAngle`.
  */
-export function heldOffsetOf(s: RobotSpec, a: number, k: number): { x: number; y: number } | null {
+export function heldOffsetOf(s: RobotSpec, a: number, k: number, fold = 0): { x: number; y: number } | null {
   const hs0 = heldSeatOf(s, 1, k);
   if (!hs0) return null;
   const d = a - (s.model?.stowAngle ?? 0);
   // La Muestra va con la placa de la muñeca en todos los niveles (dibujo y física: colisionador, salida al soltar, `posScoreTip` para la IA)
-  const p = wristPoint(s, a, hs0.x, hs0.y);
+  const p = wristPoint(s, a, hs0.x, hs0.y, fold);
   const c = Math.cos(d);
   const sn = Math.sin(d);
   return { x: p.x * c - p.y * sn, y: p.x * sn + p.y * c };
@@ -481,9 +483,17 @@ export function heldOffsetOf(s: RobotSpec, a: number, k: number): { x: number; y
  * CAD) en el piso y en la Repisa. Entre dos posiciones va con el ángulo del brazo (suavizado: llega quieta a cada una). SUPUESTO: el robot real
  * mueve la muñeca con su propio motor; el simulador la ata al brazo para que en cada posición quede igual que en las capturas.
  */
-export function wristAngleOf(s: RobotSpec, a: number): number {
+export function wristAngleOf(s: RobotSpec, a: number, fold = 0): number {
   const w = s.model?.cadWrist;
   if (!w) return 0;
+  const t = levelWristAngle(s, a);
+  // Pose de inicio (`cadWrist.stow`): `fold` 1 = doblada, 0 = la de los niveles
+  return w.stow === undefined || fold <= 0 ? t : t + (w.stow - t) * Math.min(1, fold);
+}
+
+/** Giro de la muñeca de los niveles (`cadWrist.levels`), sin la pose de inicio. */
+function levelWristAngle(s: RobotSpec, a: number): number {
+  const w = s.model!.cadWrist!;
   const keys: Array<[number, number]> = [[posAngle(s, 0), 0], [posAngle(s, 4), 0]];
   for (const lvl of [1, 2, 3] as const) {
     const t = w.levels[lvl];
@@ -510,10 +520,10 @@ export function wristFade(s: RobotSpec, a: number): number {
 }
 
 /** Punto (x, y) del sistema de la caja (pose de piso) llevado por la muñeca al ángulo del brazo `a`. */
-export function wristPoint(s: RobotSpec, a: number, x: number, y: number): { x: number; y: number } {
+export function wristPoint(s: RobotSpec, a: number, x: number, y: number, fold = 0): { x: number; y: number } {
   const w = wristOf(s);
   if (!w) return { x, y };
-  const t = wristAngleOf(s, a);
+  const t = wristAngleOf(s, a, fold);
   const c = Math.cos(t);
   const sn = Math.sin(t);
   const dx = x - w.x;
@@ -525,14 +535,14 @@ export function wristPoint(s: RobotSpec, a: number, x: number, y: number): { x: 
  * Centros (respecto a la punta, ejes del robot) de los cilindros `cadRollerCols` con el brazo en `a`: el de la pose de piso llevado por la muñeca
  * (`wristPoint`) y girado con el brazo `a − stowAngle`. Mismo cálculo que `heldOffsetOf`.
  */
-export function rollerColsOf(s: RobotSpec, a: number): Array<{ x: number; y: number; r: number }> {
+export function rollerColsOf(s: RobotSpec, a: number, fold = 0): Array<{ x: number; y: number; r: number }> {
   const rc = s.model?.cadRollerCols;
   if (!rc) return [];
   const d = a - (s.model?.stowAngle ?? 0);
   const c = Math.cos(d);
   const sn = Math.sin(d);
   return rc.cyl.map(([x0, y0, r]) => {
-    const { x, y } = wristPoint(s, a, x0, y0);
+    const { x, y } = wristPoint(s, a, x0, y0, fold);
     return { x: x * c - y * sn, y: x * sn + y * c, r };
   });
 }

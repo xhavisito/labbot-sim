@@ -853,7 +853,7 @@ export class RobotView {
     this.clawSample.rotation.z = level;
     this.clawSample2.rotation.z = level;
     // Muñeca: el giro de la placa en cada nivel (capturas de SolidWorks, `cadWrist.levels`)
-    if (this.wrist) this.wrist.rotation.z = wristAngleOf(this.robot.spec, m.angle);
+    if (this.wrist) this.wrist.rotation.z = wristAngleOf(this.robot.spec, m.angle, m.wristFold);
     if (!cseat) this.criticalMesh.rotation.z = tilt;
     // Axiom: la Crítica va donde la garra la tomó (m.critGrip, en el sistema del brazo): se pasa al sistema de la garra (girado `tilt`) y se suaviza
     if (!cseat && this.pocket && this.robot.phys.centeredClaw) {
@@ -880,7 +880,7 @@ export class RobotView {
     // Mentores 3478 (`heldX`): apoyada en el piso, donde la dejó el intake; al comerla se desliza desde donde estaba en la cancha
     // La Muestra va con la placa (su lugar sobre el piso, llevado por la muñeca); la física usa el mismo punto (`heldOffsetOf`)
     const h0 = heldSeatOf(this.robot.spec, 1, 0);
-    const hs = h0 ? wristPoint(this.robot.spec, m.angle, h0.x, h0.y) : null;
+    const hs = h0 ? wristPoint(this.robot.spec, m.angle, h0.x, h0.y, m.wristFold) : null;
     this.clawSample.position.set(hs?.x ?? this.pocket?.x ?? seat(0), hs?.y ?? this.pocket?.y ?? SAMPLE_SIZE * 0.475, 0);
     if (hs && claw) {
       const ef = m.eatFrom;

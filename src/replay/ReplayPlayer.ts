@@ -173,6 +173,7 @@ export class ReplayPlayer {
       // Por el camino corto: el ángulo se graba en (−π, π] y el del brazo que voltea cruza de π a −π
       m.angle = a.angle + Math.atan2(Math.sin(b.angle - a.angle), Math.cos(b.angle - a.angle)) * k;
       m.intakeOn = near.intake;
+      m.wristFold = (a.folded ? 1 : 0) + ((b.folded ? 1 : 0) - (a.folded ? 1 : 0)) * k;
       // Las vistas solo cuentan cuántas piezas lleva: se rellenan con una pieza cualquiera
       m.stored.length = 0;
       for (let j = 0; j < near.stored; j++) m.stored.push(spare);

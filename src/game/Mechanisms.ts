@@ -223,6 +223,11 @@ export class Mechanisms {
   angle = 0;
   /** Brazo en su posición de guardado del inicio. */
   stowed = false;
+  /**
+   * Muñeca doblada de la pose de inicio (`cadWrist.stow`, Mentores 3478): 1 al empezar el match, baja a 0 (a la velocidad del brazo) en
+   * cuanto el brazo sale de la pose guardada.
+   */
+  wristFold = 0;
   /** El brazo topó con una estructura de la cancha y se quedó ahí (hitbox literal, D34). */
   armBlocked = false;
   /** La garra lleva una Muestra (la última de `stored`); las demás van en el hopper. */
@@ -299,6 +304,8 @@ export class Mechanisms {
     const s = this.phys.spec;
     const goal = s.elevatorHeights[this.target];
     if (this.stowed && (this.target !== 0 || this.intakeOn)) this.stowed = false;
+    const ws = s.model?.cadWrist?.stow;
+    if (!this.stowed && this.wristFold > 0 && ws !== undefined) this.wristFold = Math.max(0, this.wristFold - (s.arm.speed * this.armScale * dt) / Math.max(0.1, Math.abs(ws)));
     if (!this.stowed) {
       const task = this.hopperTask();
       const g = task ? (s.arm.hopperAngle ?? Math.PI) : posAngle(s, this.target);
@@ -399,6 +406,7 @@ export class Mechanisms {
     const n = intakeOf(this.phys.spec).shooter ? Math.min(1, this.inClawCount) : this.inClawCount;
     // Garra fija de la Crítica (Psycho): el cubo va en el chasis aunque el brazo lleve Muestras
     const fixed = critSeat(this.phys.spec) !== null;
+    this.phys.wristFold = this.wristFold;
     this.phys.setArmPose(this.angle, this.critical && !fixed ? 'critical' : this.inClaw ? 'sample' : null, n, fixed && this.critical !== null, this.critSample !== null);
   }
 
@@ -416,6 +424,7 @@ export class Mechanisms {
   private resetArm(): void {
     const s = this.phys.spec;
     this.stowed = s.arm.stowAngle !== undefined;
+    this.wristFold = this.stowed && s.model?.cadWrist?.stow !== undefined ? 1 : 0;
     this.transferT = 0;
     this.armBlocked = false;
     // Pose plegada = pose de piso: mismo ángulo (módulo 2π) que `posAngle(s, 0)`; se usa esa rama para que el
@@ -855,7 +864,7 @@ export class Mechanisms {
       loc = { x: lx, y: p.centeredClaw ? this.height : this.height + size / 2 };
       vl = { x: push ? spit * dir : 0, y: 0 };
       // Mentores 3478 (`heldX`): sale de donde la lleva (apoyada en el piso de la pose de piso, girada con el brazo), no de la punta
-      const hs = kind === 'sample' ? heldOffsetOf(spec, this.angle, slot) : null;
+      const hs = kind === 'sample' ? heldOffsetOf(spec, this.angle, slot, this.wristFold) : null;
       if (hs) loc = { x: armTip(spec.arm, this.angle).x + hs.x, y: armTip(spec.arm, this.angle).y + hs.y };
     }
     // Axiom: la Crítica sale de donde la lleva entre los dedos
