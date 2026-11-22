@@ -2,7 +2,7 @@
 import * as THREE from 'three';
 import { criticalShelfBox } from '../config/fieldLayout';
 import * as F from '../config/field';
-import type { CriticalShelf } from '../game/CriticalShelf';
+import { shelfPose, type CriticalShelf } from '../game/CriticalShelf';
 
 export class ShelfView {
   readonly group = new THREE.Group();
@@ -23,11 +23,12 @@ export class ShelfView {
   }
 
   sync(alpha: number): void {
-    const b = criticalShelfBox();
     this.shelves.forEach((s, i) => {
       const x = s.prevX + (s.x - s.prevX) * alpha;
-      const p = F.forAlliance(s.alliance, { x, z: b.cz });
-      this.meshes[i].position.set(p.x, b.cy, p.z);
+      const q = shelfPose(x, s.prevTilt + (s.tilt - s.prevTilt) * alpha);
+      const p = F.forAlliance(s.alliance, { x: q.x, z: q.z });
+      this.meshes[i].position.set(p.x, q.y, p.z);
+      this.meshes[i].quaternion.set((s.alliance === 'red' ? 1 : -1) * q.qx, 0, 0, q.qw);
     });
   }
 }
