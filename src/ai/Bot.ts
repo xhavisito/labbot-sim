@@ -22,7 +22,7 @@
  */
 import * as F from '../config/field';
 import { GAME } from '../config/game';
-import { canHoldCritical, canTakeCriticalFromHolder, critSeat, intakeOf, posAngle, posDir, posScoreTip, type ElevatorPos } from '../config/robot';
+import { canHoldCritical, canTakeCriticalFromHolder, critHeldSeatOf, critSeat, intakeOf, posAngle, posDir, posScoreTip, type ElevatorPos } from '../config/robot';
 import type { Phase } from '../core/clock';
 import { DAMAGE } from '../core/damage';
 import { rng } from '../core/rng';
@@ -2083,7 +2083,8 @@ export class Bot {
     const hl = r.phys.halfL;
     // Dónde va de verdad la Crítica: la Garrita (Psycho) la sujeta donde la tomó, hasta 35 cm más allá de su
     // asiento; con la punta del brazo en la pose 4 la soltaba a 18 cm de la orilla lejana y a veces se caía
-    const tip = r.mech.critical && critSeat(s) ? Math.abs(r.phys.critGripLocal(posAngle(s, 4)).x) : Math.abs(posScoreTip(s, 4).x);
+    // Mentores 3478: la lleva afuera de la boca, enfrente de las ruedas (`critHeldSeatOf`), no donde iría la Muestra
+    const tip = r.mech.critical && (critSeat(s) || critHeldSeatOf(s)) ? Math.abs(r.phys.critGripLocal(posAngle(s, 4)).x) : Math.abs(posScoreTip(s, 4).x);
     // La garra solo abre (sin empujón): lo que se desliza al tocar la Repisa (medido ≈ 2 cm)
     const drift = 0.02;
     return Math.max(F.REPISA_DEPTH / 2 + hl + 0.01, this.critLanding() + tip + drift);

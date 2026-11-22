@@ -8,7 +8,7 @@ import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { CRITICAL_SIZE, SAMPLE_SIZE } from '../config/field';
-import { CRIT_ROLLER_SHIFT, WHEEL_DROP, armTip, clawOf, critSeat, heldSeatOf, intakeOf, wristAngleOf, wristPoint, posAngle, seatX, type CadModel, type ClawDims, type CritClaw } from '../config/robot';
+import { WHEEL_DROP, armTip, clawOf, critHeldSeatOf, critSeat, heldSeatOf, intakeOf, wristAngleOf, wristPoint, posAngle, seatX, type CadModel, type ClawDims, type CritClaw } from '../config/robot';
 import { PALETTES } from '../config/palette';
 import { clawDir } from '../physics/RobotPhysics';
 import type { Robot } from '../game/Robot';
@@ -30,6 +30,7 @@ const hubMat = new THREE.MeshStandardMaterial({ color: 0xe0a419, roughness: 0.35
 const sampleMat = sampleMaterial();
 /** Radio de las ruedas de los rodillos de la garra (dibujo). SUPUESTO: la foto no da medida; así aprietan ~1 cm. */
 const ROLLER_R = 0.041;
+const CRIT_GRAB_TIME = 0.3; // s que tarda la Crítica en llegar de la cancha a la garra al tomarla (Mentores 3478). SUPUESTO
 const EAT_TIME = 0.25; // s que tarda la Muestra en deslizarse al lugar donde la lleva la garra (Mentores 3478)
 /**
  * Flechas de los rodillos de Psycho, de los valeros del CAD (`Garra-Inferior` y `Garra-Superior`, hoyos
@@ -76,6 +77,12 @@ export class RobotView {
   private rigidClaw: number | null = null;
   private wrist: THREE.Group | null = null;
   private eatSeen = 0;
+  /** Toma de la Crítica desde afuera (Mentores 3478): de dónde viene y cuánto lleva deslizándose a la garra. */
+  private critSeen = 0;
+  private critT = 99;
+  private critClock = 0;
+  private critStart = new THREE.Vector3();
+  private critStartRot = 0;
   private eatT = 99;
   private eatClock = 0;
   private eatStart = new THREE.Vector3();
@@ -866,12 +873,40 @@ export class RobotView {
       const st = Math.sin(tilt);
       this.criticalMesh.position.set(this.pocket.x + this.critGripView.x * ct - this.critGripView.y * st, this.pocket.y + this.critGripView.x * st + this.critGripView.y * ct, this.critGripView.z);
     }
-    // Mentores 3478: la Crítica va entre los rodillos, llevada por la muñeca como la Muestra (sin atravesarlos)
-    const hcs = heldSeatOf(this.robot.spec, 1, 0);
-    if (hcs && m.critical && !cseat) {
-      const wp = wristPoint(this.robot.spec, m.angle, hcs.x + CRIT_ROLLER_SHIFT.x, hcs.y + CRIT_ROLLER_SHIFT.y, m.wristFold);
-      this.criticalMesh.position.set(wp.x, wp.y, m.critGrip.z);
-      this.criticalMesh.rotation.z = level;
+    // Mentores 3478: la Crítica va AFUERA de la boca, apretada contra el frente de las ruedas y fija a la placa de la muñeca (`critHeldSeatOf`):
+    // se mueve y gira con ella, igual que el colisionador (`heldCritOf`), así que no atraviesa rodillos, placas ni chasis. Al tomarla se desliza
+    // y gira desde donde estaba en la cancha hasta ahí (antes aparecía de golpe en la garra)
+    const ch = critHeldSeatOf(this.robot.spec);
+    if (ch && m.critical && !cseat) {
+      const wp = wristPoint(this.robot.spec, m.angle, ch.x, ch.y, m.wristFold);
+      const rot = wristAngleOf(this.robot.spec, m.angle, m.wristFold);
+      let x = wp.x;
+      let y = wp.y;
+      let z = 0;
+      let rz = rot;
+      const cf = m.critFrom;
+      if (cf && claw) {
+        if (cf.seq !== this.critSeen) {
+          this.critSeen = cf.seq;
+          this.critT = 0;
+          claw.updateWorldMatrix(true, false);
+          this.critStart.copy(claw.worldToLocal(new THREE.Vector3(cf.x, cf.y, cf.z)));
+          this.critStartRot = level;
+        }
+        const nowC = performance.now() / 1000;
+        this.critT += Math.min(0.1, nowC - (this.critClock || nowC));
+        this.critClock = nowC;
+        const k = Math.min(1, this.critT / CRIT_GRAB_TIME);
+        if (k < 1) {
+          const e = 1 - (1 - k) * (1 - k);
+          x = this.critStart.x + (x - this.critStart.x) * e;
+          y = this.critStart.y + (y - this.critStart.y) * e;
+          z = this.critStart.z * (1 - e);
+          rz = this.critStartRot + (rot - this.critStartRot) * e;
+        }
+      }
+      this.criticalMesh.position.set(x, y, z);
+      this.criticalMesh.rotation.set(0, 0, rz);
     }
     this.palm.position.x = -clawDir(m.angle, sa) * (this.claw.fingerLength / 2 + this.claw.palmThickness / 2);
     // Una o dos Muestras en la garra. Con rodillos van en fila sobre el eje de la boca (la primera en la

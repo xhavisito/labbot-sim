@@ -3,7 +3,7 @@
  * velocidad, masa ni mecanismos: esos números son SUPUESTOS configurables.
  */
 import type { Level } from '../core/types';
-import { SAMPLE_SIZE, mm } from './field';
+import { CRITICAL_SIZE, SAMPLE_SIZE, mm } from './field';
 
 /** Límites del manual. */
 export const ROBOT_LIMITS = {
@@ -470,25 +470,48 @@ export function wristOf(s: RobotSpec): { x: number; y: number } | null {
 }
 
 /**
- * Corrimiento (m, en el sistema de la placa) de la Crítica de 20 cm respecto al asiento de la Muestra de 15 cm entre los rodillos del CAD
- * (Mentores 3478). SUPUESTO calibrado: con la Crítica centrada como la Muestra, el rodillo grande la atravesaba 5–12 cm; con este corrimiento
- * (6.5 cm atrás; el centro 6.5 cm arriba del de la Muestra, o sea la base a 4 cm del piso, sostenida por los rodillos) los aprietan 3.6 cm como mucho (≈ 20 % de los 20 cm del cubo) en el piso, N1–N3 y la Repisa (`tests/squash.test.ts`).
+ * Cuánto aprietan las ruedas de 4 in a la Crítica (m): la espuma y el compliant ceden un poco al sostenerla (Mentores 3478, Xhavi 22-nov:
+ * "se aprietan, como en la vida real", pero la pieza nunca entra entre los rodillos). SUPUESTO: 3 mm (el manual no habla de mecanismos, §7.2).
  */
-export const CRIT_ROLLER_SHIFT = { x: -0.065, y: 0.065 } as const;
+export const CRIT_SQUEEZE = 0.003;
+
+/**
+ * Lugar de la Crítica agarrada por una garra de rodillos del CAD (`cadRollerCols`, Mentores 3478), en el sistema de la caja (pose de piso,
+ * origen en la punta): AFUERA de la boca, apoyada en el piso, con su cara de atrás contra el frente de las ruedas (el rodillo que más sale) y
+ * apretada `CRIT_SQUEEZE`. La garra no la mete: la Crítica (20 cm, §4.1.1) es más alta que la boca (las ruedas de 4 in quedan a 6.5 cm del
+ * piso de la caja); las placas de la muñeca (a ±15 cm) no le estorban (la pieza llega a ±10 cm).
+ * Xhavi, 22-nov: "tiene que quedarse por fuera y agarrar la critical piece y quedarse afuera". SUPUESTO de cómo la sostiene (el CAD no trae
+ * la Crítica en la garra). `null` si el robot no tiene rodillos del CAD o no lleva la Muestra apoyada (`heldSeatOf`).
+ */
+export function critHeldSeatOf(s: RobotSpec): { x: number; y: number } | null {
+  const rc = s.model?.cadRollerCols;
+  if (!rc || rc.cyl.length === 0 || !heldSeatOf(s, 1, 0)) return null;
+  const front = Math.max(...rc.cyl.map(([x, , r]) => x + r));
+  return { x: front - CRIT_SQUEEZE + CRITICAL_SIZE / 2, y: CRITICAL_SIZE / 2 - armTip(s.arm, posAngle(s, 0)).y };
+}
+
+/**
+ * La Crítica agarrada desde afuera (`critHeldSeatOf`) con el brazo en `a`: su centro respecto a la punta (ejes del robot) y su giro (rad, sobre
+ * z del robot). Va FIJA a la placa de la muñeca, como las ruedas que la aprietan: se lleva con la muñeca (`wristPoint`) y gira con el brazo y
+ * la muñeca, así que nunca se mueve respecto a las ruedas ni a las placas y no las atraviesa en ninguna posición (piso, N1–N3, Repisa).
+ */
+export function heldCritOf(s: RobotSpec, a: number, fold = 0): { x: number; y: number; rot: number } | null {
+  const c0 = critHeldSeatOf(s);
+  if (!c0) return null;
+  const d = a - (s.model?.stowAngle ?? 0);
+  const p = wristPoint(s, a, c0.x, c0.y, fold);
+  const c = Math.cos(d);
+  const sn = Math.sin(d);
+  return { x: p.x * c - p.y * sn, y: p.x * sn + p.y * c, rot: d + wristAngleOf(s, a, fold) };
+}
 
 /**
  * Dónde queda (respecto a la punta, ejes del robot) la Muestra `k` agarrada con `heldX` cuando el brazo está en `a`: la pose de piso en el
  * sistema de la caja, llevada por la muñeca (`wristPoint`) y girada con el brazo `a − stowAngle`.
  */
-export function heldOffsetOf(s: RobotSpec, a: number, k: number, fold = 0, critical = false): { x: number; y: number } | null {
+export function heldOffsetOf(s: RobotSpec, a: number, k: number, fold = 0): { x: number; y: number } | null {
   const hs0 = heldSeatOf(s, 1, k);
   if (!hs0) return null;
-  // La Crítica (20 cm) apoyada en el mismo piso y entre los mismos rodillos que la Muestra: va con la muñeca (nunca queda "fija" al brazo mientras
-  // los rodillos giran), centrada en el mismo punto; los rodillos la aprietan unos cm (espuma) en vez de atravesarla (Xhavi, 22-nov)
-  if (critical) {
-    hs0.x += CRIT_ROLLER_SHIFT.x;
-    hs0.y += CRIT_ROLLER_SHIFT.y;
-  }
   const d = a - (s.model?.stowAngle ?? 0);
   // La Muestra va con la placa de la muñeca en todos los niveles (dibujo y física: colisionador, salida al soltar, `posScoreTip` para la IA)
   const p = wristPoint(s, a, hs0.x, hs0.y, fold);

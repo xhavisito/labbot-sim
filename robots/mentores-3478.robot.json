@@ -143,6 +143,7 @@
     "SUPUESTO: las placas frontal y trasera del chasis toman el color de la alianza",
     "SUPUESTO: las llantas van estáticas dentro del modelo; masa 40 kg, velocidades de manejo, velocidad del brazo (4 rad/s) y tracción del preset (el STEP no los trae)",
     "SUPUESTO: la viga del brazo mide ±5 cm de alto en la colisión (la sección de las placas del CAD)",
+    "SUPUESTO (Xhavi, 22-nov: \"tiene que quedarse por fuera y agarrar la critical piece\"): la Muestra Crítica (20 cm, §4.1.1) no cabe en la boca de 15 cm; la garra la sostiene AFUERA, con su cara de atrás contra el frente de las ruedas de 4 in (apretadas 3 mm, `CRIT_SQUEEZE`), apoyada en el piso en la pose de piso y fija a la placa de la muñeca (gira con ella en N1–N3). Solo la toma con la muñeca desplegada",
     "HITBOX: un casco convexo por pieza del CAD (ver spec.hitboxes), de ≤26 puntos y grosor mínimo de 1 cm; sin llantas de tracción (cilindros de spec.wheel) ni piezas dentro del chasis bajo; densidad 0 (no mueven el centro de masa). Qué es \"físico\" es SUPUESTO"
   ],
   "model": {
