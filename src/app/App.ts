@@ -1059,6 +1059,9 @@ export class App {
       o.specs = specs;
     }
     this.session = new GameSession(o);
+    // Selección: Axiom llega con la garra en el piso (pose de piso de su CAD); la partida no cambia
+    const pl = this.session.player;
+    if (pl.spec.name === robotSpec('cad:axiom').name) pl.mech.lowerForSelection();
     this.renderer.scene.add(this.session.root);
     this.arrive = null;
     if (animate) this.startArrival();

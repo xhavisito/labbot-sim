@@ -434,6 +434,20 @@ export class Mechanisms {
     this.height = armTip(s.arm, this.angle).y;
   }
 
+  /**
+   * Vista de selección de robot: deja el brazo con la garra en la pose de piso (`posAngle(s, 0)`, la misma
+   * con la que agarra la Crítica del piso) en vez de plegado. Solo lo llama la pantalla de selección; la
+   * partida empieza con otra sesión y `resetArm` la plegada de nuevo.
+   */
+  lowerForSelection(): void {
+    const s = this.phys.spec;
+    this.stowed = false;
+    this.wristFold = 0;
+    this.angle = posAngle(s, 0);
+    this.height = armTip(s.arm, this.angle).y;
+    this.syncHitbox();
+  }
+
   /** Garra: con el brazo abajo y vacía, agarra la Muestra que queda entre sus dedos. */
   private runClaw(events: MechEvent[], dt: number): void {
     if (this.critical || (this.inClaw && !this.phys.spec.arm.holdsTwo) || this.height > floorPoseOf(this.phys.spec) || this.cooldown > 0 || this.hopperTask()) {
