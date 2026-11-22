@@ -47,6 +47,8 @@
     ],
     "intake": {
       "kind": "compliant",
+      "critFloorOnly": true,
+      "critDropKey": true,
       "gap": 0.23,
       "fingerLength": 0.15
     },
