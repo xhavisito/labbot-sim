@@ -6,13 +6,13 @@
  */
 import { beforeAll, describe, expect, it } from 'vitest';
 import * as F from '../src/config/field';
-import { ELEVATOR_ROBOT, PIVOT_ROBOT, armTip, rollerColsOf, type RobotSpec } from '../src/config/robot';
+import { CRIT_SQUEEZE, ELEVATOR_ROBOT, PIVOT_ROBOT, critHeldSeatOf, type RobotSpec } from '../src/config/robot';
 import { robotSpec } from '../src/config/robotIds';
 import { GameSession } from '../src/game/GameSession';
 import { emptyInput } from '../src/input/InputManager';
 import type { Piece } from '../src/physics/Pieces';
 import { MAX_SQUASH } from '../src/physics/Pieces';
-import { initRapier } from '../src/physics/PhysicsWorld';
+import { RAPIER, initRapier } from '../src/physics/PhysicsWorld';
 
 beforeAll(async () => {
   await initRapier();
@@ -142,11 +142,72 @@ describe('la garra y el brazo no se hunden en la Crítica', () => {
 });
 
 /**
- * Mentores 3478: la Crítica que lleva la garra no atraviesa los rodillos (Xhavi, 22-nov: "se aprietan, pero nunca atraviesan"). Va con la
- * muñeca, entre los mismos rodillos que la Muestra, y a lo más los aprieta 4 cm (20 % del cubo, espuma) en piso, niveles y Repisa.
+ * Mentores 3478: la Crítica que lleva la garra no atraviesa los rodillos ni las placas (Xhavi, 22-nov: "se aprietan, pero nunca atraviesan";
+ * "la garra se queda por fuera y agarra la Crítica desde afuera"). El cubo de 20 cm no cabe entre las placas de la muñeca (15 cm): va enfrente
+ * de la boca, fijo a la muñeca, y rodillos y placas lo aprietan `CRIT_SQUEEZE` en el piso, N1–N3 y la Repisa. Se mide en 3D con los
+ * colisionadores reales (antes la prueba solo veía los rodillos en x–y y no las placas, que quedaban 2.5 cm dentro del cubo por lado).
  */
-describe('Mentores 3478: la Crítica no atraviesa los rodillos', () => {
-  it('en todas las posiciones del brazo los rodillos la aprietan como mucho 4 cm (20 % del cubo)', () => {
+describe('Mentores 3478: la Crítica no atraviesa los rodillos ni la garra', () => {
+  /** Peor penetración (m) de la Crítica agarrada en cualquier otro colisionador del robot (rodillos, placas, brazo, chasis). */
+  const worstIn = (g: GameSession): { depth: number; who: number } => {
+    const body = g.player.phys.body;
+    const crit = (g.player.phys as unknown as { armColliders: { critical: RAPIER.Collider } }).armColliders.critical;
+    let depth = 0;
+    let who = -1;
+    for (let i = 0; i < body.numColliders(); i++) {
+      const col = body.collider(i);
+      if (col === crit || !col.isEnabled()) continue;
+      const ct = crit.contactCollider(col, 0);
+      if (ct && -ct.distance > depth) {
+        depth = -ct.distance;
+        who = i;
+      }
+    }
+    return { depth, who };
+  };
+
+  it('la toma del piso empujándola con la garra y en todas las posiciones la aprietan como mucho CRIT_SQUEEZE (+3 mm)', () => {
+    const spec = robotSpec('cad:mentores-3478');
+    const g = session(spec);
+    const r = g.player;
+    r.phys.teleport(0, 2.2, 0);
+    const m = r.mech;
+    m.target = 0;
+    run(g, 6);
+    // La Crítica en el piso 30 cm enfrente de la boca; el robot avanza con la garra prendida hasta tomarla
+    const c = g.pieces.critical(r.alliance);
+    const seat = critHeldSeatOf(spec)!;
+    const at = r.phys.localToWorld(m.tipX() + seat.x + 0.3, 0, 0);
+    g.pieces.place(c, at.x, F.CRITICAL_SIZE / 2, at.z, 0);
+    for (let i = 0; i < 3 * 120 && m.critical !== c; i++) {
+      g.setInput({ ...emptyInput(), intake: true, forward: 0.4 });
+      g.step();
+    }
+    expect(m.critical).toBe(c);
+    run(g, 0.5);
+    for (const pos of [0, 1, 2, 3, 4] as const) {
+      m.target = pos;
+      let worst = 0;
+      for (let i = 0; i < 3 * 120; i++) {
+        g.setInput(emptyInput());
+        g.step();
+        worst = Math.max(worst, worstIn(g).depth);
+      }
+      expect(worst, `posición ${pos}`).toBeLessThanOrEqual(CRIT_SQUEEZE + 0.003);
+      // Y sí la aprieta (la sujeta desde afuera, no flota enfrente)
+      expect(worstIn(g).depth, `posición ${pos}`).toBeGreaterThan(0.005);
+    }
+  });
+
+  it('el centro de la Crítica queda enfrente de la boca (fuera de las placas de la muñeca)', () => {
+    const spec = robotSpec('cad:mentores-3478');
+    const seat = critHeldSeatOf(spec)!;
+    const front = Math.max(...spec.model!.cadRollerCols!.cyl.map(([x, , rr]) => x + rr));
+    expect(seat.x - F.CRITICAL_SIZE / 2).toBeCloseTo(front - CRIT_SQUEEZE, 6);
+    expect(seat.x).toBeGreaterThan(front);
+  });
+
+  it('al soltarla sale de donde la llevaba (no salta a la punta)', () => {
     const spec = robotSpec('cad:mentores-3478');
     const g = session(spec);
     const r = g.player;
@@ -155,30 +216,17 @@ describe('Mentores 3478: la Crítica no atraviesa los rodillos', () => {
     m.target = 0;
     run(g, 6);
     const c = g.pieces.critical(r.alliance);
-    const at = r.phys.localToWorld(m.tipX() + 0.03, 0, 0);
-    g.pieces.place(c, at.x, F.CRITICAL_SIZE / 2, at.z, 0);
+    const at0 = r.phys.localToWorld(m.tipX() + 0.15, 0, 0);
+    g.pieces.place(c, at0.x, F.CRITICAL_SIZE / 2, at0.z, 0);
     g.setInput({ ...emptyInput(), intake: true });
     g.step();
     expect(m.critical).toBe(c);
-    let worst = 0;
-    for (const pos of [0, 1, 2, 3, 4] as const) {
-      m.target = pos;
-      for (let i = 0; i < 4 * 120; i++) {
-        g.setInput(emptyInput());
-        g.step();
-        if (i < 120) continue; // 1 s para que llegue (la muñeca se desdobla de la pose de inicio)
-        const tip = armTip(spec.arm, m.angle);
-        const cc = r.phys.critGripLocal(m.angle);
-        const h = F.CRITICAL_SIZE / 2;
-        for (const o of rollerColsOf(spec, m.angle, m.wristFold)) {
-          // distancia del centro del rodillo al cubo (en el plano x–y): negativa = adentro
-          const dx = Math.abs(tip.x + o.x - cc.x) - h;
-          const dy = Math.abs(tip.y + o.y - cc.y) - h;
-          const out = dx > 0 && dy > 0 ? Math.hypot(dx, dy) : Math.max(dx, dy);
-          worst = Math.max(worst, o.r - out);
-        }
-      }
-    }
-    expect(worst).toBeLessThanOrEqual(0.04);
+    m.target = 4;
+    run(g, 3);
+    const held = r.phys.critGripLocal(m.angle);
+    const want = r.phys.localToWorld(held.x, held.y, held.z);
+    m.release('critical', [], true);
+    const t = c.body.translation();
+    expect(Math.hypot(t.x - want.x, t.y - want.y, t.z - want.z)).toBeLessThan(0.01);
   });
 });
