@@ -8,7 +8,7 @@ import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { CRITICAL_SIZE, SAMPLE_SIZE } from '../config/field';
-import { WHEEL_DROP, armTip, clawOf, critSeat, heldSeatOf, intakeOf, wristAngleOf, wristPoint, posAngle, seatX, type CadModel, type ClawDims, type CritClaw } from '../config/robot';
+import { CRIT_ROLLER_SHIFT, WHEEL_DROP, armTip, clawOf, critSeat, heldSeatOf, intakeOf, wristAngleOf, wristPoint, posAngle, seatX, type CadModel, type ClawDims, type CritClaw } from '../config/robot';
 import { PALETTES } from '../config/palette';
 import { clawDir } from '../physics/RobotPhysics';
 import type { Robot } from '../game/Robot';
@@ -865,6 +865,13 @@ export class RobotView {
       const ct = Math.cos(tilt);
       const st = Math.sin(tilt);
       this.criticalMesh.position.set(this.pocket.x + this.critGripView.x * ct - this.critGripView.y * st, this.pocket.y + this.critGripView.x * st + this.critGripView.y * ct, this.critGripView.z);
+    }
+    // Mentores 3478: la Crítica va entre los rodillos, llevada por la muñeca como la Muestra (sin atravesarlos)
+    const hcs = heldSeatOf(this.robot.spec, 1, 0);
+    if (hcs && m.critical && !cseat) {
+      const wp = wristPoint(this.robot.spec, m.angle, hcs.x + CRIT_ROLLER_SHIFT.x, hcs.y + CRIT_ROLLER_SHIFT.y, m.wristFold);
+      this.criticalMesh.position.set(wp.x, wp.y, m.critGrip.z);
+      this.criticalMesh.rotation.z = level;
     }
     this.palm.position.x = -clawDir(m.angle, sa) * (this.claw.fingerLength / 2 + this.claw.palmThickness / 2);
     // Una o dos Muestras en la garra. Con rodillos van en fila sobre el eje de la boca (la primera en la

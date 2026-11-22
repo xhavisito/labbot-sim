@@ -6,7 +6,7 @@
  */
 import { beforeAll, describe, expect, it } from 'vitest';
 import * as F from '../src/config/field';
-import { ELEVATOR_ROBOT, PIVOT_ROBOT, type RobotSpec } from '../src/config/robot';
+import { ELEVATOR_ROBOT, PIVOT_ROBOT, armTip, rollerColsOf, type RobotSpec } from '../src/config/robot';
 import { robotSpec } from '../src/config/robotIds';
 import { GameSession } from '../src/game/GameSession';
 import { emptyInput } from '../src/input/InputManager';
@@ -139,4 +139,46 @@ describe('la garra y el brazo no se hunden en la Crítica', () => {
         expect(over).toBeLessThan(40);
       });
     }
+});
+
+/**
+ * Mentores 3478: la Crítica que lleva la garra no atraviesa los rodillos (Xhavi, 22-nov: "se aprietan, pero nunca atraviesan"). Va con la
+ * muñeca, entre los mismos rodillos que la Muestra, y a lo más los aprieta 4 cm (20 % del cubo, espuma) en piso, niveles y Repisa.
+ */
+describe('Mentores 3478: la Crítica no atraviesa los rodillos', () => {
+  it('en todas las posiciones del brazo los rodillos la aprietan como mucho 4 cm (20 % del cubo)', () => {
+    const spec = robotSpec('cad:mentores-3478');
+    const g = session(spec);
+    const r = g.player;
+    r.phys.teleport(0, 2.2, 0);
+    const m = r.mech;
+    m.target = 0;
+    run(g, 6);
+    const c = g.pieces.critical(r.alliance);
+    const at = r.phys.localToWorld(m.tipX() + 0.03, 0, 0);
+    g.pieces.place(c, at.x, F.CRITICAL_SIZE / 2, at.z, 0);
+    g.setInput({ ...emptyInput(), intake: true });
+    g.step();
+    expect(m.critical).toBe(c);
+    let worst = 0;
+    for (const pos of [0, 1, 2, 3, 4] as const) {
+      m.target = pos;
+      for (let i = 0; i < 4 * 120; i++) {
+        g.setInput(emptyInput());
+        g.step();
+        if (i < 120) continue; // 1 s para que llegue (la muñeca se desdobla de la pose de inicio)
+        const tip = armTip(spec.arm, m.angle);
+        const cc = r.phys.critGripLocal(m.angle);
+        const h = F.CRITICAL_SIZE / 2;
+        for (const o of rollerColsOf(spec, m.angle, m.wristFold)) {
+          // distancia del centro del rodillo al cubo (en el plano x–y): negativa = adentro
+          const dx = Math.abs(tip.x + o.x - cc.x) - h;
+          const dy = Math.abs(tip.y + o.y - cc.y) - h;
+          const out = dx > 0 && dy > 0 ? Math.hypot(dx, dy) : Math.max(dx, dy);
+          worst = Math.max(worst, o.r - out);
+        }
+      }
+    }
+    expect(worst).toBeLessThanOrEqual(0.04);
+  });
 });

@@ -470,12 +470,25 @@ export function wristOf(s: RobotSpec): { x: number; y: number } | null {
 }
 
 /**
+ * Corrimiento (m, en el sistema de la placa) de la Crítica de 20 cm respecto al asiento de la Muestra de 15 cm entre los rodillos del CAD
+ * (Mentores 3478). SUPUESTO calibrado: con la Crítica centrada como la Muestra, el rodillo grande la atravesaba 5–12 cm; con este corrimiento
+ * (6.5 cm atrás; el centro 6.5 cm arriba del de la Muestra, o sea la base a 4 cm del piso, sostenida por los rodillos) los aprietan 3.6 cm como mucho (≈ 20 % de los 20 cm del cubo) en el piso, N1–N3 y la Repisa (`tests/squash.test.ts`).
+ */
+export const CRIT_ROLLER_SHIFT = { x: -0.065, y: 0.065 } as const;
+
+/**
  * Dónde queda (respecto a la punta, ejes del robot) la Muestra `k` agarrada con `heldX` cuando el brazo está en `a`: la pose de piso en el
  * sistema de la caja, llevada por la muñeca (`wristPoint`) y girada con el brazo `a − stowAngle`.
  */
-export function heldOffsetOf(s: RobotSpec, a: number, k: number, fold = 0): { x: number; y: number } | null {
+export function heldOffsetOf(s: RobotSpec, a: number, k: number, fold = 0, critical = false): { x: number; y: number } | null {
   const hs0 = heldSeatOf(s, 1, k);
   if (!hs0) return null;
+  // La Crítica (20 cm) apoyada en el mismo piso y entre los mismos rodillos que la Muestra: va con la muñeca (nunca queda "fija" al brazo mientras
+  // los rodillos giran), centrada en el mismo punto; los rodillos la aprietan unos cm (espuma) en vez de atravesarla (Xhavi, 22-nov)
+  if (critical) {
+    hs0.x += CRIT_ROLLER_SHIFT.x;
+    hs0.y += CRIT_ROLLER_SHIFT.y;
+  }
   const d = a - (s.model?.stowAngle ?? 0);
   // La Muestra va con la placa de la muñeca en todos los niveles (dibujo y física: colisionador, salida al soltar, `posScoreTip` para la IA)
   const p = wristPoint(s, a, hs0.x, hs0.y, fold);
