@@ -416,6 +416,12 @@ export class Mechanisms {
   }
 
   /** Muestras en la garra (con `holdsTwo` todas las guardadas; si no, 0 o 1). */
+  /** ¿El brazo, como está ahora, toparía con la cancha si el robot avanzara `ahead` metros (negativo: atrás)? */
+  armHitsAhead(ahead: number): boolean {
+    const held = this.critical && !critSeat(this.phys.spec) ? 'critical' : this.inClaw ? 'sample' : null;
+    return this.phys.armHitsField(this.angle, held, this.inClawCount, ahead);
+  }
+
   get inClawCount(): number {
     if (!this.inClaw) return 0;
     return this.phys.spec.arm.holdsTwo ? this.stored.length : 1;

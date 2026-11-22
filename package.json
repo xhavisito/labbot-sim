@@ -20,6 +20,7 @@
     "ui-shots": "node scripts/ui-shots.mjs",
     "ui-hit": "node scripts/ui-hit.mjs",
     "batch": "node scripts/batch.mjs",
+    "arena": "node scripts/arena.mjs",
     "pad-nav": "node scripts/pad-nav.mjs",
     "robot:import": "node scripts/cad/import.mjs"
   },

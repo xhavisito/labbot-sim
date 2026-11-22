@@ -570,8 +570,9 @@ export class RobotPhysics {
   /**
    * ¿La viga, la garra o la pieza que lleva se meterían en una estructura de la cancha (madera o
    * pared) con el brazo en el ángulo `a`? Para detener el brazo donde topa (`Mechanisms.step`).
+   * `ahead`: con el robot `ahead` metros más adelante (negativo: atrás), para frenar antes de topar (la IA).
    */
-  armHitsField(a: number, held: 'sample' | 'critical' | null, count = 1): boolean {
+  armHitsField(a: number, held: 'sample' | 'critical' | null, count = 1, ahead = 0): boolean {
     const q = this.armQuery;
     const p = this.armPoses(a);
     const br = this.body.rotation();
@@ -591,7 +592,7 @@ export class RobotPhysics {
     if (held) parts.push([q[held], p[held]]);
     if (held === 'sample' && count >= 2) parts.push([q.sample, p.sample2]);
     for (const [shape, pose] of parts) {
-      const w = this.localToWorld(pose.t.x, pose.t.y, pose.t.z);
+      const w = this.localToWorld(pose.t.x + ahead, pose.t.y, pose.t.z);
       if (this.pw.world.intersectionWithShape(w, qmul(br, pose.r), shape, RAPIER.QueryFilterFlags.EXCLUDE_DYNAMIC, this.tilt() > TILT_FLOOR_ARM ? FIELD_FLOOR_QUERY : FIELD_QUERY)) return true;
     }
     return false;
