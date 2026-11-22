@@ -532,7 +532,12 @@ export class GameSession {
     }
     this.damage.beforeStep();
     // La repisa de la Crítica acompaña a la pieza que el HP desliza (SUPUESTO, ver CriticalShelf)
-    for (const a of ALLIANCES) this.shelves[a].shift(this.hps[a].takeSlid());
+    for (const a of ALLIANCES) {
+      this.shelves[a].shift(this.hps[a].takeSlid());
+      // El HP abate la repisa hacia atrás y la Crítica cae al piso (SUPUESTO, ver CriticalShelf)
+      if (this.hps[a].takeDrop()) this.shelves[a].fold();
+      this.shelves[a].step(dt);
+    }
     this.pw.step();
     this.time += dt;
     this.referee.drainCollisions();

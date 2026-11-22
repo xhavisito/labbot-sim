@@ -7,7 +7,7 @@
  * centro de la ranura y a ~1 m/s hacia la cancha.
  */
 import * as F from '../config/field';
-import { critSeat, type IntakeSpec } from '../config/robot';
+import { canTakeCriticalFromHolder, critSeat, type IntakeSpec } from '../config/robot';
 import type { Alliance } from '../core/types';
 import type { Pieces } from '../physics/Pieces';
 
@@ -24,6 +24,12 @@ export interface HpWatched {
 const CRIT_SLIDE_SPEED = 1.5;
 /** Distancia (m) de la garra de su robot a la Crítica a partir de la cual el HP se la acomoda. */
 const CRIT_SLIDE_REACH = 1.2;
+/**
+ * Distancia (m) a la que un robot de la alianza que solo toma la Crítica del piso (`critFloorOnly`)
+ * tiene que estar, mirando a la pared, para que el HP abata la repisa y se la deje caer. SUPUESTO (Xhavi, 21-nov: "la repisa se puede hacer para
+ * atrás y dejar caer la pieza al piso"): el manual (§3.2.4) no dice cómo se mueve la repisa.
+ */
+const CRIT_DROP_REACH = 1.2;
 
 /** Un rival más cerca que esto de la ranura puede robar lo que se meta (SUPUESTO: el manual no prohíbe tomar Muestras sueltas). */
 const THREAT_DIST = 1.8;
@@ -66,6 +72,9 @@ export class HumanPlayer {
   unstuck = 0;
   /** Muestras introducidas en el match. */
   introduced = 0;
+  /** Veces que dejó caer la Crítica al piso. */
+  criticalDrops = 0;
+  private dropPending = false;
 
   constructor(
     readonly alliance: Alliance,
@@ -80,6 +89,51 @@ export class HumanPlayer {
     this.stuck.clear();
     this.pushing.clear();
     this.fed.clear();
+    this.criticalDrops = 0;
+    this.dropPending = false;
+  }
+
+  /** ¿La Crítica sigue sobre la repisa (no cayó ni la tiene un robot)? */
+  private criticalOnShelf(): boolean {
+    const crit = this.pieces.critical(this.alliance);
+    if (crit.state.at !== 'field') return false;
+    const t = crit.body.translation();
+    const h = F.forAlliance(this.alliance, F.CRITICAL_HOLDER_RED);
+    return t.y >= F.CRITICAL_HOLDER_RED.y && Math.abs(t.z - h.z) <= 0.12;
+  }
+
+  /**
+   * El HP abate la repisa hacia atrás para dejar caer la Muestra Crítica al piso. false si no está sobre la repisa.
+   * Lo consume `takeDrop()` (la sesión mueve la repisa).
+   */
+  dropCritical(): boolean {
+    if (this.dropPending || !this.criticalOnShelf()) return false;
+    this.dropPending = true;
+    this.criticalDrops++;
+    return true;
+  }
+
+  /** ¿Pidió abatir la repisa desde la última vez? (se lee una sola vez). */
+  takeDrop(): boolean {
+    const v = this.dropPending;
+    this.dropPending = false;
+    return v;
+  }
+
+  /** Un robot de la alianza que solo toma la Crítica del piso llega de frente a la pared: el HP se la deja caer. */
+  private serveFloorRobot(): void {
+    const h = F.forAlliance(this.alliance, F.CRITICAL_HOLDER_RED);
+    const crit = this.pieces.critical(this.alliance);
+    const t = crit.body.translation();
+    for (const r of this.robots) {
+      if (r.alliance !== this.alliance || !r.spec || !r.phys.heading || critSeat(r.spec)) continue;
+      // Solo si el robot no puede tomarla de la repisa (`critFloorOnly`): los demás la toman de ahí y no deben perderla
+      if (canTakeCriticalFromHolder(r.spec)) continue;
+      const rp = r.phys.position();
+      const fz = -Math.sin(r.phys.heading());
+      if (fz * Math.sign(h.z - rp.z) < 0.7) continue;
+      if (Math.hypot(rp.x - t.x, rp.z - h.z) < CRIT_DROP_REACH && this.dropCritical()) return;
+    }
   }
 
   /** Distancia del robot más cercano de esa alianza a la ranura (∞ si no hay). */
@@ -220,7 +274,10 @@ export class HumanPlayer {
    */
   step(dt: number, endgame = false): boolean {
     if (!this.enabled) return false;
-    if (endgame && this.robots.length) this.centerCritical(dt);
+    if (endgame && this.robots.length) {
+      this.serveFloorRobot();
+      this.centerCritical(dt);
+    }
     this.unstick(dt);
     this.timer += dt;
     const stock = this.pieces.hpStock(this.alliance);
