@@ -49,7 +49,7 @@ for (const pos of [0, 1, 2, 4]) {
       const r = app.session.player; const p = r.phys.position(); const h = r.phys.heading();
       const f = { x: Math.cos(h), z: -Math.sin(h) }; const s = { x: Math.sin(h), z: Math.cos(h) };
       const c = app.cam; c.setMode('free');
-      const k = 1 - side;
+      const k = 1 - Math.abs(side);
       const tp = app.session.player.mech.target; const ty = app.session.player.mech.stowed ? 0.35 : [0.2, 0.45, 0.6, 0.95, 0.6][tp];
       c.orbit.target.set(p.x + f.x * 0.45, ty, p.z + f.z * 0.45);
       c.camera.position.set(p.x + f.x * (0.45 + k * 0.8) + s.x * side * 1.0, ty + 0.1, p.z + f.z * (0.35 + k * 0.8) + s.z * side * 1.0);

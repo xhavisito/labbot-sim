@@ -866,15 +866,15 @@ export class RobotView {
       const st = Math.sin(tilt);
       this.criticalMesh.position.set(this.pocket.x + this.critGripView.x * ct - this.critGripView.y * st, this.pocket.y + this.critGripView.x * st + this.critGripView.y * ct, this.critGripView.z);
     }
-    // Mentores 3478: la Crítica no cabe entre las placas; va horizontal y enfrente de la boca, donde la pone la física (`critHeldOffsetOf`,
-    // respecto a la punta en ejes del robot), pasada al sistema de la garra (girado `angle − stowAngle`)
+    // Mentores 3478: la Crítica va adentro de la garra, fija a la muñeca, donde la pone la física (`critHeldOffsetOf`, respecto a la punta en
+    // ejes del robot), pasada al sistema de la garra (girado `angle − stowAngle`)
     const hco = critHeldOffsetOf(this.robot.spec, m.angle, m.wristFold);
     if (hco && m.critical && !cseat) {
       const d = m.angle - (this.robot.spec.model?.stowAngle ?? 0);
       const c = Math.cos(d);
       const sn = Math.sin(d);
       this.criticalMesh.position.set(hco.x * c + hco.y * sn, -hco.x * sn + hco.y * c, m.critGrip.z);
-      this.criticalMesh.rotation.z = level;
+      this.criticalMesh.rotation.z = hco.tilt - d;
     }
     this.palm.position.x = -clawDir(m.angle, sa) * (this.claw.fingerLength / 2 + this.claw.palmThickness / 2);
     // Una o dos Muestras en la garra. Con rodillos van en fila sobre el eje de la boca (la primera en la

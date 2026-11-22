@@ -470,24 +470,24 @@ export function wristOf(s: RobotSpec): { x: number; y: number } | null {
 }
 
 /**
- * Cuánto aprietan la espuma de la Crítica los rodillos y las placas de la muñeca de Mentores 3478 al sujetarla (m). SUPUESTO (el manual no
- * habla de mecanismos, §7.2): 1.5 cm, lo que se hunde una rueda compliant de 4 in en un cubo de espuma sin deformarlo a la vista.
+ * Cuánto aprieta la rueda de 4 in de la garra de Mentores 3478 la espuma de la Crítica al sujetarla (m). SUPUESTO (el manual no habla de
+ * mecanismos, §7.2): 1.5 cm, lo que se hunde una rueda compliant en un cubo de espuma.
  */
 export const CRIT_SQUEEZE = 0.015;
 
 /**
- * Lugar (x, y en el sistema de la caja: el de la pose de piso, origen en la punta) del centro de la Crítica que lleva la garra de Mentores 3478.
- * El cubo mide 20 cm y entre las placas de la muñeca solo caben 15 cm (cascos del CAD en |z| ≥ 7.5 cm), así que NO entra a la garra: va
- * enfrente de la boca, apoyado en el piso de la pose de piso, con la cara de atrás contra lo más adelantado de los rodillos y de las placas
- * (la rueda de 4 in, x ≈ 8.4 cm) y apretado `CRIT_SQUEEZE` (Xhavi, 22-nov: "la garra se queda por fuera y agarra la Crítica desde afuera";
- * "se aprietan, pero nunca atraviesan"). `null` sin `heldX` ni `cadRollerCols`.
+ * Lugar (x, y en el sistema de la caja: el de la pose de piso, origen en la punta) del centro de la Crítica en la garra de Mentores 3478, como en
+ * el dibujo de Xhavi sobre el CAD (22-nov, vista de lado en N1): adentro de la garra, debajo de la rueda grande de 4 in (que la aprieta
+ * `CRIT_SQUEEZE` desde arriba) y con la cara de atrás contra el rodillo chico de 1 in; va fija a la placa de la muñeca. Las placas quedan a los
+ * lados (cara de adentro a 8.9 cm del centro: aprietan la espuma ~1 cm por lado). `null` sin `heldX` ni `cadRollerCols`.
  */
 export function critHeldSeatOf(s: RobotSpec): { x: number; y: number } | null {
-  const hs = heldSeatOf(s, 1, 0);
   const rc = s.model?.cadRollerCols;
-  if (!hs || !rc || rc.cyl.length === 0) return null;
-  const front = Math.max(...rc.cyl.map(([x, , r]) => x + r));
-  return { x: front - CRIT_SQUEEZE + CRITICAL_SIZE / 2, y: hs.y - SAMPLE_SIZE / 2 + CRITICAL_SIZE / 2 };
+  if (!heldSeatOf(s, 1, 0) || !rc || rc.cyl.length === 0) return null;
+  const h = CRITICAL_SIZE / 2;
+  const top = rc.cyl.reduce((p, q) => (q[1] > p[1] ? q : p)); // la rueda grande, arriba
+  const back = rc.cyl.reduce((p, q) => (q[0] < p[0] ? q : p)); // el rodillo chico, atrás
+  return { x: back[0] + back[2] + h, y: top[1] - top[2] + CRIT_SQUEEZE - h };
 }
 
 /** Giro (rad, respecto al robot) de la placa de la muñeca con el brazo en `a`: el del brazo `a − stowAngle` más el de la muñeca. */
@@ -500,7 +500,7 @@ export function wristTilt(s: RobotSpec, a: number, fold = 0): number {
  * sistema de la caja, llevada por la muñeca (`wristPoint`) y girada con el brazo `a − stowAngle`.
  */
 export function heldOffsetOf(s: RobotSpec, a: number, k: number, fold = 0, critical = false): { x: number; y: number } | null {
-  // La Crítica (20 cm) no cabe entre las placas: va enfrente de la boca, con la muñeca (`critHeldSeatOf`)
+  // La Crítica (20 cm): su lugar en la garra (`critHeldSeatOf`), llevado por la muñeca igual que la Muestra
   const hs0 = critical ? critHeldSeatOf(s) : heldSeatOf(s, 1, k);
   if (!hs0) return null;
   const d = a - (s.model?.stowAngle ?? 0);
@@ -580,8 +580,8 @@ export function rollerColsOf(s: RobotSpec, a: number, fold = 0): Array<{ x: numb
   });
 }
 
-/** Contornos (x, y) de los cascos del CAD (`cadArmHulls`) vistos de lado, cada uno en su propio sistema; se calculan una vez por robot. */
-const hullOutlines = new WeakMap<object, { arm: Array<[number, number]>; wrist: Array<Array<[number, number]>> }>();
+/** Contorno (x, y) del casco del brazo del CAD (`cadArmHulls.arm`) visto de lado, en su sistema; se calcula una vez por robot. */
+const hullOutlines = new WeakMap<object, Array<[number, number]>>();
 function outline(pts: readonly number[]): Array<[number, number]> {
   // Casco convexo 2D (cadena monótona) de los puntos proyectados en x–y
   const p: Array<[number, number]> = [];
@@ -628,68 +628,78 @@ function squarePolyDepth(cx: number, cy: number, h: number, poly: ReadonlyArray<
   return best;
 }
 
+/** Cuánto se mete en el cuadrado de centro (cx, cy), media arista `h` y giro `t` un círculo (rodillo) de centro (x, y) y radio `r` (m). */
+function squareCircleDepth(cx: number, cy: number, h: number, t: number, x: number, y: number, r: number): number {
+  const c = Math.cos(t);
+  const sn = Math.sin(t);
+  const lx = (x - cx) * c + (y - cy) * sn;
+  const ly = -(x - cx) * sn + (y - cy) * c;
+  const dx = Math.abs(lx) - h;
+  const dy = Math.abs(ly) - h;
+  const out = dx > 0 && dy > 0 ? Math.hypot(dx, dy) : Math.max(dx, dy);
+  return Math.max(0, r - out);
+}
+
 /**
- * Centro (respecto a la punta, ejes del robot) de la Crítica que lleva la garra de Mentores 3478 con el brazo en `a`. Va horizontal, como la
- * Muestra (`levelSample`, Xhavi 21-nov), y por fuera de la garra: se parte de su lugar en la pose de piso (`critHeldSeatOf`, llevado por la
- * muñeca) y se recorre a lo largo de la boca hasta que lo que más se mete en el cubo (rodillos de `cadRollerCols` y cascos del brazo y de la
- * muñeca, vistos de lado) lo aprieta justo `CRIT_SQUEEZE`. Así nunca los atraviesa, en ningún nivel. `null` sin `critHeldSeatOf`.
+ * Centro (respecto a la punta, ejes del robot) y giro (rad) de la Crítica que lleva la garra de Mentores 3478 con el brazo en `a`. Va en
+ * `critHeldSeatOf`, fija a la placa de la muñeca (gira con ella). Cerca del piso ese lugar quedaría bajo la alfombra: el cubo se queda apoyado
+ * en el piso y se recorre a lo largo de la boca, hacia afuera, hasta que los rodillos (`cadRollerCols`) y el brazo (`cadArmHulls.arm`) lo
+ * aprietan como mucho `CRIT_SQUEEZE`; al subir el brazo vuelve a su lugar adentro de la garra. Así nunca los atraviesa. `null` sin asiento.
  */
-export function critHeldOffsetOf(s: RobotSpec, a: number, fold = 0): { x: number; y: number } | null {
-  const c0 = heldOffsetOf(s, a, 0, fold, true);
+export function critHeldOffsetOf(s: RobotSpec, a: number, fold = 0): { x: number; y: number; tilt: number } | null {
+  const seat = critHeldSeatOf(s);
   const m = s.model;
-  if (!c0 || !m) return null;
+  if (!seat || !m) return null;
   const h = CRITICAL_SIZE / 2;
+  const tip = armTip(s.arm, a);
+  const d = a - (m.stowAngle ?? 0);
+  const p = wristPoint(s, a, seat.x, seat.y, fold);
+  const cd = Math.cos(d);
+  const sd = Math.sin(d);
+  let x = p.x * cd - p.y * sd;
+  let y = p.x * sd + p.y * cd;
+  const tilt = wristTilt(s, a, fold);
+  // Apoyado en el piso (y local del robot = 0) si no
+  const low = tip.y + y - h * (Math.abs(Math.cos(tilt)) + Math.abs(Math.sin(tilt)));
+  if (low < 0) y -= low;
   const rollers = rollerColsOf(s, a, fold);
-  // Cascos del CAD en la pose `a`, respecto a la punta (como `RobotPhysics.hullPoses`)
-  const polys: Array<Array<[number, number]>> = [];
+  let arm: Array<[number, number]> = [];
   if (m.cadArmHulls) {
     let o = hullOutlines.get(m);
     if (!o) {
-      o = { arm: outline(m.cadArmHulls.arm), wrist: m.cadArmHulls.wrist.map(outline) };
+      o = outline(m.cadArmHulls.arm);
       hullOutlines.set(m, o);
     }
-    const tip = armTip(s.arm, a);
-    const d = a - (m.stowAngle ?? 0);
-    const place = (pts: Array<[number, number]>, ox: number, oy: number, t: number) => {
-      const c = Math.cos(t);
-      const sn = Math.sin(t);
-      return pts.map(([x, y]): [number, number] => [ox + x * c - y * sn - tip.x, oy + x * sn + y * c - tip.y]);
-    };
-    polys.push(place(o.arm, s.arm.pivotX, s.arm.pivotY, d));
-    const w = m.cadWrist;
-    if (w) {
-      const c = Math.cos(d);
-      const sn = Math.sin(d);
-      const ox = s.arm.pivotX + w.axis[0] * c - w.axis[1] * sn;
-      const oy = s.arm.pivotY + w.axis[0] * sn + w.axis[1] * c;
-      for (const q of o.wrist) polys.push(place(q, ox, oy, d + wristAngleOf(s, a, fold)));
-    }
+    arm = o.map(([px, py]): [number, number] => [s.arm.pivotX + px * cd - py * sd - tip.x, s.arm.pivotY + px * sd + py * cd - tip.y]);
   }
-  const depth = (x: number, y: number): number => {
+  const depth = (cx: number, cy: number): number => {
     let worst = 0;
-    for (const r of rollers) {
-      // Distancia del eje del rodillo al cuadrado (negativa adentro)
-      const dx = Math.abs(r.x - x) - h;
-      const dy = Math.abs(r.y - y) - h;
-      const out = dx > 0 && dy > 0 ? Math.hypot(dx, dy) : Math.max(dx, dy);
-      worst = Math.max(worst, r.r - out);
+    for (const r of rollers) worst = Math.max(worst, squareCircleDepth(cx, cy, h, tilt, r.x, r.y, r.r));
+    if (arm.length) {
+      // El brazo en el sistema del cubo (girado −tilt), para medirlo contra el cuadrado sin girar
+      const c = Math.cos(-tilt);
+      const sn = Math.sin(-tilt);
+      const q = arm.map(([px, py]): [number, number] => [(px - cx) * c - (py - cy) * sn, (px - cx) * sn + (py - cy) * c]);
+      worst = Math.max(worst, squarePolyDepth(0, 0, h, q));
     }
-    for (const p of polys) worst = Math.max(worst, squarePolyDepth(x, y, h, p));
     return worst;
   };
-  // A lo largo de la boca (hacia afuera de la garra): lo más cerca que la aprieta `CRIT_SQUEEZE` (búsqueda binaria; adentro aprieta más)
-  const t = wristTilt(s, a, fold);
-  const ux = Math.cos(t);
-  const uy = Math.sin(t);
-  let lo = -0.15;
-  let hi = 0.3;
-  if (depth(c0.x + lo * ux, c0.y + lo * uy) <= CRIT_SQUEEZE) hi = lo;
-  for (let i = 0; i < 24 && hi - lo > 1e-4; i++) {
-    const mid = (lo + hi) / 2;
-    if (depth(c0.x + mid * ux, c0.y + mid * uy) > CRIT_SQUEEZE) lo = mid;
-    else hi = mid;
+  const lim = CRIT_SQUEEZE + 1e-4;
+  if (depth(x, y) > lim) {
+    // A lo largo de la boca (hacia afuera de la garra): lo más cerca que no aprieta más de `CRIT_SQUEEZE` (búsqueda binaria)
+    const ux = Math.cos(tilt);
+    const uy = Math.sin(tilt);
+    let lo = 0;
+    let hi = 0.3;
+    for (let i = 0; i < 24 && hi - lo > 1e-4; i++) {
+      const mid = (lo + hi) / 2;
+      if (depth(x + mid * ux, y + mid * uy) > lim) lo = mid;
+      else hi = mid;
+    }
+    x += hi * ux;
+    y += hi * uy;
   }
-  return { x: c0.x + hi * ux, y: c0.y + hi * uy };
+  return { x, y, tilt };
 }
 
 /** Agarre de la garra (`game/Mechanisms.ts`): con compliants (por defecto), preciso o fácil. */
