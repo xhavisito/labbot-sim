@@ -44,15 +44,23 @@ const PARK_Y = -50;
  */
 export const MAX_SQUASH = 0.03;
 /**
- * Extra que aguantan el brazo y la garra (m): su hitbox se mete a propósito hasta 20 cm en la pieza que van a tomar (dedos, placas
- * y rodillos la rodean; la garra baja sobre la Crítica en su Repisa; Psycho la lleva entre placas), y el agarre (`Mechanisms`) cuenta con
- * eso. Solo se exprime la que el brazo entierra casi completa (≥ 14 cm). Afinar el asiento de cada garra es otro trabajo.
+ * Extra que aguantaban el brazo y la garra (m). Antes valía 0.12: su hitbox se podía meter hasta ~15 cm en la pieza que iba a tomar
+ * (la viga, la palma y las placas la atravesaban: cubo de 20 cm hundido casi completo, 851 pasos seguidos en una prueba con Axiom).
+ * El agarre (`Mechanisms`) NO depende de eso: toma la pieza por posición (ventana de la garra), no por contacto, así que la garra y el
+ * brazo se exprimen igual que el chasis (`MAX_SQUASH`). Medido con Axiom, Psycho y Mentores 3478 (`tests/squash.test.ts`).
  */
-const ARM_SQUASH = 0.12;
+const ARM_SQUASH = 0;
+/**
+ * Lo que sí aguanta la pieza que lleva la garra (m) al tocar otra pieza de la cancha: la Muestra de la precarga llega a meterse ~4 cm en la
+ * Crítica de la rendija al bajar la garra sobre ella (`pivot.test`: suelta la precarga y toma la Crítica). Con 0 la sacaba de la rendija.
+ */
+const HELD_SQUASH = 0.08;
 /** Hasta cuánto se deja metida la pieza tras exprimirla (m): un poco menos que `MAX_SQUASH`, para que el robot que empuja no vibre. */
 const SQUASH_TO = 0.027;
 /** Lo máximo que se mueve la pieza por paso al exprimirla (m): la sale en varios pasos, sin brincos. */
 const SQUASH_STEP = 0.05;
+/** Lo máximo que se aparta la pieza por paso cuando la aprieta el brazo o la garra (m): el brazo la lleva más rápido que un chasis. */
+const ARM_STEP = 0.1;
 /** Cuánto sale de lado por paso la espuma apretada contra una pared (m): ≈1.8 m/s, sale del robot en ~0.2 s. */
 const SQUASH_SLIDE = 0.015;
 /** Lo máximo que se echa para atrás un robot que aprieta la pieza contra una pared (m por paso). */
@@ -133,6 +141,7 @@ export class Pieces {
       let ny = 0;
       let nz = 0;
       let robot: RAPIER.Collider | null = null;
+      let viaArm = false;
       // lo que la pieza se mete en la pared (o lo que sea fijo): normal que la empuja de vuelta
       const walls: Array<{ d: number; x: number; y: number; z: number }> = [];
       w.contactPairsWith(p.collider, (other) => {
@@ -146,9 +155,12 @@ export class Pieces {
           walls.push({ d, x: c.normal2.x, y: c.normal2.y, z: c.normal2.z });
           return;
         }
-        // el brazo y la garra se meten a propósito en la pieza que van a tomar: aguantan más antes de exprimirla
-        const e = d - ((other.collisionGroups() >>> 16) & G.ARM ? ARM_SQUASH : 0);
+        // el brazo y la garra cuentan igual que el chasis (`ARM_SQUASH`); la pieza se aparta más rápido de ellos (`ARM_STEP`)
+        const isArm = ((other.collisionGroups() >>> 16) & G.ARM) !== 0;
+        const held = (this.pw.tagOf(other.handle) as { held?: boolean } | undefined)?.held === true;
+        const e = d - (held ? HELD_SQUASH : isArm ? ARM_SQUASH : 0);
         if (e <= depth) return;
+        viaArm = isArm;
         depth = e;
         nx = c.normal2.x;
         ny = c.normal2.y;
@@ -159,7 +171,8 @@ export class Pieces {
       // lo que la pieza se metió en la pared de atrás también cuenta (apretada por el robot contra ella): todo suma a la compresión
       const nl0 = Math.hypot(nx, ny, nz) || 1;
       let inWall = 0;
-      for (const c of walls) if ((c.x * nx + c.y * ny + c.z * nz) / nl0 < -0.7) inWall = Math.max(inWall, c.d);
+      // (el brazo y la garra no suman la pared: la Crítica de la rendija ya queda unos mm en sus paredes y la garra la rodea, sin apretarla)
+      if (!viaArm) for (const c of walls) if ((c.x * nx + c.y * ny + c.z * nz) / nl0 < -0.7) inWall = Math.max(inWall, c.d);
       if (depth + inWall <= MAX_SQUASH) continue;
       const t = p.body.translation();
       const rb = (robot as RAPIER.Collider).parent();
@@ -185,9 +198,10 @@ export class Pieces {
       ny /= nl;
       nz /= nl;
       const over = depth + inWall - SQUASH_TO;
+      const stepMax = viaArm ? ARM_STEP : SQUASH_STEP;
       // 1) Hay lugar del lado contrario al robot: la pieza se aparta lo que sobra (sin pasarse del paso máximo)
-      if (isFree(nx, ny, nz, Math.min(over, SQUASH_STEP), SQUASH_FREE_MARGIN)) {
-        this.shift(p, nx, ny, nz, Math.min(over, SQUASH_STEP));
+      if (isFree(nx, ny, nz, Math.min(over, stepMax), SQUASH_FREE_MARGIN)) {
+        this.shift(p, nx, ny, nz, Math.min(over, stepMax));
         moved++;
         continue;
       }
@@ -229,7 +243,7 @@ export class Pieces {
       ] as const) {
         const l = Math.hypot(dx, dy, dz);
         if (l < 1e-6) continue;
-        const d = Math.min(over, SQUASH_STEP);
+        const d = Math.min(over, stepMax);
         // el robot que la aprieta no cuenta: moverla de lado sigue metida en él, pero se va saliendo
         if (!isFree(dx / l, dy / l, dz / l, d, SQUASH_SLIDE_MARGIN)) continue;
         this.shift(p, dx / l, dy / l, dz / l, d);

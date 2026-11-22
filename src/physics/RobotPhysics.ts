@@ -341,9 +341,9 @@ export class RobotPhysics {
           .setRestitutionCombineRule(RAPIER.CoefficientCombineRule.Min),
       );
     // Mecanismos: brazo, dedos y placa de la garra, pieza agarrada (sin masa; ver arriba)
-    const mech = (desc: RAPIER.ColliderDesc, group: number = GROUPS.arm): RAPIER.Collider => {
+    const mech = (desc: RAPIER.ColliderDesc, group: number = GROUPS.arm, held = false): RAPIER.Collider => {
       const c = w.createCollider(desc.setDensity(0).setFriction(0.4).setRestitution(0.05).setCollisionGroups(group).setActiveEvents(RAPIER.ActiveEvents.COLLISION_EVENTS), this.body);
-      pw.tag(c, { kind: 'robot', robot: index });
+      pw.tag(c, { kind: 'robot', robot: index, held });
       return c;
     };
     const claw = clawOf(spec);
@@ -374,10 +374,10 @@ export class RobotPhysics {
         mech(RAPIER.ColliderDesc.cuboid(claw.fingerLength / 2, BOX_PLATE / 2, claw.fingerZ + claw.fingerThickness / 2)),
         mech(RAPIER.ColliderDesc.cuboid(claw.fingerLength / 2, BOX_PLATE / 2, claw.fingerZ + claw.fingerThickness / 2)),
       ],
-      sample: mech(RAPIER.ColliderDesc.cuboid(SAMPLE_SIZE / 2, SAMPLE_SIZE / 2, SAMPLE_SIZE / 2)),
-      sample2: mech(RAPIER.ColliderDesc.cuboid(SAMPLE_SIZE / 2, SAMPLE_SIZE / 2, SAMPLE_SIZE / 2)),
-      critical: mech(RAPIER.ColliderDesc.cuboid(CRITICAL_SIZE / 2, CRITICAL_SIZE / 2, CRITICAL_SIZE / 2)),
-      critSample: mech(RAPIER.ColliderDesc.cuboid(SAMPLE_SIZE / 2, SAMPLE_SIZE / 2, SAMPLE_SIZE / 2)),
+      sample: mech(RAPIER.ColliderDesc.cuboid(SAMPLE_SIZE / 2, SAMPLE_SIZE / 2, SAMPLE_SIZE / 2), GROUPS.arm, true),
+      sample2: mech(RAPIER.ColliderDesc.cuboid(SAMPLE_SIZE / 2, SAMPLE_SIZE / 2, SAMPLE_SIZE / 2), GROUPS.arm, true),
+      critical: mech(RAPIER.ColliderDesc.cuboid(CRITICAL_SIZE / 2, CRITICAL_SIZE / 2, CRITICAL_SIZE / 2), GROUPS.arm, true),
+      critSample: mech(RAPIER.ColliderDesc.cuboid(SAMPLE_SIZE / 2, SAMPLE_SIZE / 2, SAMPLE_SIZE / 2), GROUPS.arm, true),
       // Rodillos del CAD (Mentores 3478): cilindros con el eje a lo ancho (el de Rapier va a lo largo de y)
       rollers: (spec.model?.cadRollerCols?.cyl ?? []).map(([, , r]) =>
         mech(RAPIER.ColliderDesc.cylinder(spec.model!.cadRollerCols!.halfZ, Math.max(0.004, r - ROLLER_CLEAR)).setRotation(ROLLER_ROT)),
