@@ -5,6 +5,7 @@
 //   npm run arena -- --scenario mirror:new --seeds 40      los 4 iguales: debe salir parejo
 //   npm run arena -- --scenario vs:new:old --seeds 40      IA nueva contra la anterior (lados cruzados)
 //   npm run arena -- --scenario vs:new:old:normal          … en otra dificultad
+//   npm run arena -- --scenario lvl:expert:hard            una dificultad contra otra (IA nueva; mirror:new:easy = los 4 en Fácil)
 //
 // Imprime victorias, puntos y faltas por alianza y por IA; guarda los matches en JSON (--out).
 import { fork } from 'node:child_process';
@@ -82,12 +83,21 @@ if (process.env.ARENA_WORKER) {
       console.log(`IA ${impl.padEnd(4)} gana ${f1(100 * avg(al.map((x) => x.win)))}%  pts ${f1(avg(al.map((x) => x.total)))}  propios ${f1(avg(al.map((x) => x.own)))}  muestras ${f1(avg(al.map((x) => x.samples)))}  faltas regaladas ${f1(avg(al.map((x) => x.penaltiesOut)))}  RP ${f1(avg(al.map((x) => x.rp)))}`);
     }
   }
+  // Por dificultad (en lvl:)
+  const lvlOf = (r) => r.label.split('/')[0];
+  if (scenario.startsWith('lvl:')) {
+    const [, a, b] = scenario.split(':');
+    for (const lvl of [a, b]) {
+      const al = results.map((m) => (lvlOf(m.red.robots[0]) === lvl ? m.red : m.blue));
+      console.log(`IA ${lvl.padEnd(6)} gana ${f1(100 * avg(al.map((x) => x.win)))}%  pts ${f1(avg(al.map((x) => x.total)))}  propios ${f1(avg(al.map((x) => x.own)))}  muestras ${f1(avg(al.map((x) => x.samples)))}  faltas regaladas ${f1(avg(al.map((x) => x.penaltiesOut)))}  RP ${f1(avg(al.map((x) => x.rp)))}`);
+    }
+  }
   // Por tipo de robot
   const byType = new Map();
   for (const m of results)
     for (const s of ['red', 'blue'])
       for (const r of m[s].robots) {
-        const k = `${r.impl}:${r.type}`;
+        const k = `${scenario.startsWith('lvl:') ? lvlOf(r) : r.impl}:${r.type}`;
         if (!byType.has(k)) byType.set(k, []);
         byType.get(k).push(r);
       }

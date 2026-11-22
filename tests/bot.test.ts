@@ -28,11 +28,13 @@ describe('segmentHitsRect (rodear la Plataforma)', () => {
 function aiMatch(player: number, autos = [SCORE_PRELOAD, SCORE_PRELOAD, SCORE_PRELOAD, SCORE_PRELOAD]) {
   const g = new GameSession({ player, preload: true, ai: true, autos });
   g.startMatch();
+  const atEndgame = { red: 0, blue: 0 };
   for (let i = 0; i < 151 * 120 && !g.match!.finished; i++) {
     g.setInput(emptyInput());
     g.step();
+    if (g.match!.phase === 'AUTO' || g.match!.phase === 'TELEOP') for (const a of ['red', 'blue'] as const) atEndgame[a] = g.match!.breakdown(a).samplesTeleop;
   }
-  return g;
+  return Object.assign(g, { atEndgame });
 }
 
 describe('IA en un match completo', () => {
@@ -48,7 +50,13 @@ describe('IA en un match completo', () => {
     }
     // Azul tiene 2 robots de IA: los dos suben (20, no acumulable §4.4); rojo solo el de IA
     expect(m.breakdown('blue').platform).toBeGreaterThanOrEqual(10); // (la Cámara está lejos de su rampa: no siempre suben los 2)
-    expect(m.breakdown('red').platform).toBe(10);
+    // Rojo solo tiene el de IA: sube si el estratega calcula que los 10 pts valen más que lo que anotaría en lo que tarda
+    // en subir (`Team.climbWorth`). Si no sube, es porque en el ENDGAME siguió anotando más que eso
+    const red = g.bots[0] as unknown as { climbChoice: boolean | null };
+    if (red.climbChoice === false) {
+      expect(m.breakdown('red').platform).toBe(0);
+      expect(m.breakdown('red').samplesTeleop - g.atEndgame.red).toBeGreaterThan(10);
+    } else expect(m.breakdown('red').platform).toBe(10);
     const field = m.fouls.filter((f) => f.rule === 'PLATFORM_EARLY' || f.rule === 'OUT_OF_BOUNDS' || f.rule === 'AUTO_CENTER');
     expect(field).toEqual([]);
     // El registro tiene los cambios de fase y termina con 'end'

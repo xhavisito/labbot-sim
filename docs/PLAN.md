@@ -162,6 +162,19 @@ tests/                    clock, scoring, fouls/cards, rp, match (casos borde), 
    Arena, 24 matches por escenario: IA nueva contra la anterior gana 75 % (241 contra 177 pts, 13.2 contra 9.0
    Muestras, 4.3 contra 2.5 RP); como se juega (tu alianza con piloto Experto contra rivales secretos) 50/50
    (antes 67/33); espejo 50/50 (antes 60/40). Pruebas en `tests/strategist.test.ts`.
+   *Ajuste (Xhavi, 22-nov: "robots de mi alianza me estorban en la feeder zone o el scoring zone… se ponen a dar
+   vueltas"; "¿te parece buena diferencia para ser experto?"):*
+   - La IA compañera le cede a la persona la Campana (no va por el Human Player si la persona está en ella o llega, y
+     si ya estaba se sale) y el nivel de la Cámara al que la persona va a anotar. Sin tarea, espera fuera del pasillo
+     Campana ↔ Cámara, de la zona de anotación y de la Plataforma (`camaraWaitSpot`, `idleSpot`).
+   - No da vueltas en su lugar: `park` se queda quieto en su lugar de espera (antes giraba hacia un punto que tenía
+     debajo); una Muestra dentro del canal del chasis (Psycho) se saca avanzando derecho; histéresis en la orilla del
+     margen de la Plataforma (`avoidPlatform`, `drive`: alternaba de frente y de reversa cada pocos pasos).
+   - Destrabes: sale de reversa derecho de la pared de la Cámara, cuenta como arrimado si ya está contra ella, deja el
+     Human Player si no llega nada, sale de una zona rival por el punto libre más cercano (`exitZone`, §4.6 OBSTRUCT).
+   - Un lanzador (Phoenix) tira ya parado: con la velocidad del chasis encima la Muestra pasaba de largo el pozo.
+   - Dificultades recalibradas con la arena (`lvl:<a>:<b>`, una dificultad por alianza, lados cruzados).
+   Pruebas en `tests/aiYield.test.ts`.
 
 Cada hito: `npm test`, `npm run build` y captura con Playwright; resumen corto al terminar.
 
