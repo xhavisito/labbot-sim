@@ -689,9 +689,15 @@ export class Mechanisms {
     const { lx, lz } = p.worldToLocalFlat(t.x, t.z);
     const carriage = p.position().y + this.height;
     const reach = 0.2;
+    // Mentores 3478: la garra la toma desde afuera (`critHeldSeatOf`), así que el alcance se mide desde el frente de las ruedas (donde queda
+    // su cara de atrás) y no desde la punta, y solo con la muñeca desplegada (doblada sobre el chasis, la pose de inicio, la boca no da al
+    // frente y la pieza quedaría sobre el chasis). SUPUESTO (§7.2 no habla de mecanismos)
+    const outside = critHeldSeatOf(p.spec);
+    if (outside && this.wristFold > 0.02) return false;
+    const reachX = this.tipX() + (outside ? outside.x - CRITICAL_SIZE / 2 : 0);
     // Axiom (`critFloorOnly`): solo del piso (centro del cubo a menos de 3 cm de su posición apoyado), no de la rendija ni de la Repisa (SUPUESTO)
     if (!canTakeCriticalFromHolder(this.phys.spec) && t.y > CRITICAL_SIZE / 2 + 0.03) return false;
-    const ok = Math.abs(lx - this.tipX()) < reach && Math.abs(lz) < 0.3 && t.y > carriage - 0.2 && t.y < carriage + 0.35;
+    const ok = Math.abs(lx - reachX) < reach && Math.abs(lz) < 0.3 && t.y > carriage - 0.2 && t.y < carriage + 0.35;
     if (!ok) return false;
     if (p.centeredClaw) {
       // Axiom: la garra la toma donde la tocó, sin recentrarla (Xhavi, 19-nov). Se mide en el sistema de la garra (el de los dedos, que gira
@@ -707,12 +713,16 @@ export class Mechanisms {
       this.critGrip = { x: clampTo(gx, -0.02, fl / 2 + 0.01), y: clampTo(gy, -0.08, 0.08), z: clampTo(lz, -0.04, 0.04) };
       p.setCritGrip(this.critGrip.x, this.critGrip.y, this.critGrip.z);
     }
+    this.critFrom = { x: t.x, y: t.y, z: t.z, seq: this.critFrom.seq + 1 };
     this.pieces.stash(c, { at: 'robot', robot: p.index });
     this.critical = c;
     events.push({ type: 'grabCritical', robot: p.index, piece: c.index });
     this.syncHitbox();
     return true;
   }
+
+  /** Dónde estaba la Crítica (mundo) al tomarla con el brazo: el dibujo la lleva de ahí a la garra en vez de aparecerla de golpe (`RobotView`). */
+  critFrom = { x: 0, y: 0, z: 0, seq: 0 };
 
   /**
    * Garra fija de la Crítica (`IntakeSpec.critClaw`, la "Garrita" de Psycho): toma la Crítica propia si su centro queda dentro de la

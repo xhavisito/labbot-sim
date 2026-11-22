@@ -30,6 +30,7 @@ const hubMat = new THREE.MeshStandardMaterial({ color: 0xe0a419, roughness: 0.35
 const sampleMat = sampleMaterial();
 /** Radio de las ruedas de los rodillos de la garra (dibujo). SUPUESTO: la foto no da medida; así aprietan ~1 cm. */
 const ROLLER_R = 0.041;
+const CRIT_GRAB_TIME = 0.3; // s que tarda la Crítica en llegar de la cancha a la garra al tomarla (Mentores 3478). SUPUESTO
 const EAT_TIME = 0.25; // s que tarda la Muestra en deslizarse al lugar donde la lleva la garra (Mentores 3478)
 /**
  * Flechas de los rodillos de Psycho, de los valeros del CAD (`Garra-Inferior` y `Garra-Superior`, hoyos
@@ -76,6 +77,11 @@ export class RobotView {
   private rigidClaw: number | null = null;
   private wrist: THREE.Group | null = null;
   private eatSeen = 0;
+  /** Toma de la Crítica desde afuera (Mentores 3478): de dónde viene y cuánto lleva deslizándose a la garra. */
+  private critSeen = 0;
+  private critT = 99;
+  private critClock = 0;
+  private critStart = new THREE.Vector3();
   private eatT = 99;
   private eatClock = 0;
   private eatStart = new THREE.Vector3();
@@ -873,7 +879,30 @@ export class RobotView {
       const d = m.angle - (this.robot.spec.model?.stowAngle ?? 0);
       const c = Math.cos(d);
       const sn = Math.sin(d);
-      this.criticalMesh.position.set(hco.x * c + hco.y * sn, -hco.x * sn + hco.y * c, m.critGrip.z);
+      let x = hco.x * c + hco.y * sn;
+      let y = -hco.x * sn + hco.y * c;
+      let z = m.critGrip.z;
+      // Al tomarla se desliza desde donde estaba en la cancha hasta la garra (antes aparecía de golpe, Xhavi 22-nov: "no está animado")
+      const cf = m.critFrom;
+      if (claw) {
+        if (cf.seq !== this.critSeen) {
+          this.critSeen = cf.seq;
+          this.critT = 0;
+          claw.updateWorldMatrix(true, false);
+          this.critStart.copy(claw.worldToLocal(new THREE.Vector3(cf.x, cf.y, cf.z)));
+        }
+        const nowC = performance.now() / 1000;
+        this.critT += Math.min(0.1, nowC - (this.critClock || nowC));
+        this.critClock = nowC;
+        const k = Math.min(1, this.critT / CRIT_GRAB_TIME);
+        if (k < 1) {
+          const e = 1 - (1 - k) * (1 - k);
+          x = this.critStart.x + (x - this.critStart.x) * e;
+          y = this.critStart.y + (y - this.critStart.y) * e;
+          z = this.critStart.z + (z - this.critStart.z) * e;
+        }
+      }
+      this.criticalMesh.position.set(x, y, z);
       this.criticalMesh.rotation.z = level;
     }
     this.palm.position.x = -clawDir(m.angle, sa) * (this.claw.fingerLength / 2 + this.claw.palmThickness / 2);
