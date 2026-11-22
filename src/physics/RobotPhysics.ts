@@ -437,7 +437,7 @@ export class RobotPhysics {
       const lvl = this.spec.model?.levelSample === true; // la Muestra agarrada se queda horizontal
       const hs0 = heldOffsetOf(this.spec, a, 0, this.wristFold); // apoyada en el piso y con la muñeca (`heldX`, `cadWrist`)
       const hs1 = heldOffsetOf(this.spec, a, 1, this.wristFold);
-      const hc = critHeldOffsetOf(this.spec, a, this.wristFold); // Mentores: la Crítica va horizontal, enfrente de la boca (por fuera de la garra)
+      const hc = critHeldOffsetOf(this.spec, a, this.wristFold); // Mentores: la Crítica va adentro de la garra, fija a la muñeca (`critHeldSeatOf`)
       const abs = (o: { x: number; y: number }): Pose => ({ t: { x: tip.x + o.x, y: tip.y + o.y, z: 0 }, r: NO_ROT });
       // Garra centrada en la punta (Axiom): dedos, placa y Muestra alrededor de la punta; si no, apoyados sobre ella
       const cy = this.centeredClaw ? 0 : fh / 2;
@@ -451,7 +451,7 @@ export class RobotPhysics {
         base: at(0, -BOX_PLATE / 2),
         sample: hs0 ? abs(hs0) : lvl ? { ...at(rollers0 ? seatX(this.spec, 0, d0, 0) : 0, sy0), r: NO_ROT } : at(rollers0 ? seatX(this.spec, 0, d0, 0) : 0, sy0),
         sample2: hs1 ? abs(hs1) : lvl ? { ...at(rollers0 ? seatX(this.spec, 0, d0, 1) : 0, rollers0 ? S / 2 : S * 1.5), r: NO_ROT } : at(rollers0 ? seatX(this.spec, 0, d0, 1) : 0, rollers0 ? S / 2 : S * 1.5),
-        critical: this.critFixed ?? (hc ? { t: { x: tip.x + hc.x, y: tip.y + hc.y, z: this.critGrip.z }, r: NO_ROT } : this.centeredClaw ? at(this.critGrip.x, this.critGrip.y, this.critGrip.z) : at(0, CRITICAL_SIZE / 2)),
+        critical: this.critFixed ?? (hc ? { t: { x: tip.x + hc.x, y: tip.y + hc.y, z: this.critGrip.z }, r: { x: 0, y: 0, z: Math.sin(hc.tilt / 2), w: Math.cos(hc.tilt / 2) } } : this.centeredClaw ? at(this.critGrip.x, this.critGrip.y, this.critGrip.z) : at(0, CRITICAL_SIZE / 2)),
       };
     }
     const rollers = intakeOf(this.spec).rollers === true && tip.y < FLOOR_POSE;

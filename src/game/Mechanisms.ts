@@ -29,7 +29,7 @@
  */
 import { camaraWells, inCamara, rectForCamara } from '../config/field';
 import { shotVelocity } from './shooter';
-import { CLAW_GAP, armTip, canHoldCritical, canTakeCriticalFromHolder, clawOf, critHeldSeatOf, critSeat, heldOffsetOf, intakeOf, posAngle, posDir, seatX, type ElevatorPos, type GripMode } from '../config/robot';
+import { CLAW_GAP, armTip, canHoldCritical, canTakeCriticalFromHolder, clawOf, critHeldOffsetOf, critHeldSeatOf, critSeat, heldOffsetOf, intakeOf, posAngle, posDir, seatX, type ElevatorPos, type GripMode } from '../config/robot';
 import { CRITICAL_SIZE, SAMPLE_SIZE } from '../config/field';
 import { FLOOR_POSE, clawDir, floorPoseOf } from '../physics/RobotPhysics';
 import { GROUPS } from '../physics/PhysicsWorld';
@@ -836,7 +836,7 @@ export class Mechanisms {
     const loaded = this.stored.length;
     const slot = Math.max(0, this.inClawCount - 1);
     const hold = this.critHold;
-    // Mentores 3478 (`critHeldOffsetOf`): la Crítica sale de donde la lleva, horizontal y enfrente de la boca
+    // Mentores 3478 (`critHeldOffsetOf`): la Crítica sale de donde la lleva en la garra, con su giro
     const heldCrit = kind === 'critical' && critHeldSeatOf(this.phys.spec) !== null;
     const gripped = kind === 'critical' && (this.phys.centeredClaw || heldCrit) ? this.phys.critGripLocal(this.angle) : null;
     if (kind === 'critical') {
@@ -938,7 +938,7 @@ export class Mechanisms {
       vy = sh.speed * Math.sin(sh.pitch);
     }
     // Con la caja del CAD, la Muestra sale con la inclinación de la caja (igual que la lleva)
-    const tilt = heldCrit ? 0 : rollers && p.rigidFloorAngle !== null ? this.angle - p.rigidFloorAngle : 0;
+    const tilt = heldCrit ? (critHeldOffsetOf(spec, this.angle, this.wristFold)?.tilt ?? 0) : rollers && p.rigidFloorAngle !== null ? this.angle - p.rigidFloorAngle : 0;
     this.pieces.place(piece, at.x, at.y, at.z, h, { x: vx, y: vy, z: vz }, tilt);
     if (shooter?.spin) {
       // Giro hacia atrás sobre el eje lateral: ω = avance × arriba (la Muestra gira "tiesa" sin él; al aire sigue girando)
