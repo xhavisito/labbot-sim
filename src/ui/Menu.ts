@@ -32,7 +32,8 @@ import { keyboardHelp } from './controlsHelp';
 import { backBtn, brandbar, ic, kbds, langChips, robotSilhouette, UI_ALLIANCES, UI_SLOTS } from './chrome';
 import { formatPlaytime } from '../core/playtime';
 import { loadPlaytime } from '../game/playtimeStore';
-import { legacyMark } from './MatchSetup';
+import { autoOptionsHtml, legacyMark } from './MatchSetup';
+import { AI_LEVELS, type AiLevel } from '../ai/difficulty';
 import { getLang, setLang, t, type Key } from './i18n';
 import type { ScoutPlay } from './scoutPlay';
 import { applyUpdate, isIos, isStandalone, promptInstall, pwa } from '../pwa/register';
@@ -365,6 +366,10 @@ export class Menu {
     const stubs = `
       ${this.moRow(t('mo_spawn'), `<button class="mo-btn" data-act="spawn">${t('mo_customize')}</button>`)}
       ${this.moRow(t('mo_rumble'), this.moSlider(0, 100, 1, 60, false), true)}`;
+    // AI de los otros 3 robots: una sola dificultad para toda la IA ("Mixta" si en Preparar match difieren)
+    const aiLevels = new Set(s.match.robots.filter((_, i) => i !== this.player).map((r) => r.ai));
+    const aiCur: string = aiLevels.size === 1 ? [...aiLevels][0] : 'mixed';
+    const aiMixed = aiCur === 'mixed' ? `<option value="mixed" selected disabled hidden>${t('ms_mixed')}</option>` : '';
     const alliance = (i: 1 | 2) => (i === 1 ? this.player < 2 : (this.player < 2) !== (v.team !== 'same'));
     const right = split
       ? `<aside class="mo-panel top"><h2>${t('mo_matchSettings')}</h2>
@@ -380,6 +385,8 @@ export class Menu {
           ${this.moRow(t('mo_mode'), this.moSelect('mode', [['match', t('match')], ['practice', t('practice')]], this.moMode))}
           ${this.moRow(t('mo_alliance'), this.moSelect('slot', slotOpts, String(this.player)))}
           ${this.moRow(t('mo_camera'), this.moSelect('cam', cams, curCam))}
+          ${this.moRow('AUTO', `<select data-mk="pauto">${autoOptionsHtml(s.playerAuto, true)}</select>`)}
+          ${this.moRow(t('ms_difficulty'), `<select data-mk="aidiff">${aiMixed}${AI_LEVELS.map((l) => `<option value="${l}" ${l === aiCur ? 'selected' : ''}>${t(`ai_${l}` as Key)}</option>`).join('')}</select>`)}
           ${stubs}
           <button class="mo-start" data-act="start">${t('mo_start')}</button></aside>`;
     this.open(
@@ -411,6 +418,8 @@ export class Menu {
           if (split) side.camera = el.value as typeof side.camera;
           else s.camera = el.value as Settings['camera'];
         } else if (k === 'dev') side.device = el.value as typeof side.device;
+        else if (k === 'pauto') s.playerAuto = el.value;
+        else if (k === 'aidiff') s.match.robots.forEach((r, i) => { if (i !== this.player) r.ai = el.value as AiLevel; });
         else if (k === 'mode') this.moMode = el.value as 'match' | 'practice';
         else if (k === 'slot') {
           this.player = Number(el.value);
