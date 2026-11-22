@@ -1,5 +1,6 @@
 /** El Human Player abate la repisa de la Crítica hacia atrás y la pieza cae al piso (SUPUESTO: el manual no lo dice, §3.2.4). */
 import { beforeAll, describe, expect, it } from 'vitest';
+import { DEFAULT_INTAKE } from '../src/config/robot';
 import { CRITICAL_HOLDER_RED, CRITICAL_SIZE, HALF_W } from '../src/config/field';
 import { GameSession } from '../src/game/GameSession';
 import { SHELF_FOLD_ANGLE, shelfPose } from '../src/game/CriticalShelf';
@@ -8,6 +9,12 @@ import { initRapier } from '../src/physics/PhysicsWorld';
 beforeAll(async () => {
   await initRapier();
 });
+
+/** Cambia el intake de un robot sin tocar la ficha compartida entre sesiones. */
+function setIntake(g: GameSession, i: number, patch: Record<string, unknown>) {
+  const r = g.robots[i] as unknown as { spec: { intake?: object } };
+  r.spec = { ...r.spec, intake: { ...DEFAULT_INTAKE, ...r.spec.intake, ...patch } };
+}
 
 function setup() {
   const g = new GameSession({ player: 0, preload: false, solo: true, hp: { enabled: true, interval: 3, smart: true } });
@@ -49,8 +56,7 @@ describe('Human Player deja caer la Crítica al piso', () => {
     const g = setup();
     run(g, 1);
     g.robots[0].phys.teleport(CRITICAL_HOLDER_RED.x, -HALF_W + 1, Math.PI / 2);
-    const sp = g.robots[0].spec;
-    sp.intake = { ...sp.intake!, critFloorOnly: true };
+    setIntake(g, 0, { critFloorOnly: true });
     // Antes del ENDGAME no hace nada
     g.hps.red.step(1 / 120, false);
     expect(g.hps.red.criticalDrops).toBe(0);
@@ -58,6 +64,54 @@ describe('Human Player deja caer la Crítica al piso', () => {
     expect(g.hps.red.criticalDrops).toBe(1);
     run(g, 3);
     expect(g.pieces.critical('red').body.translation().y).toBeLessThan(CRITICAL_SIZE / 2 + 0.03);
+  });
+
+  /** Los robots rojos (índices de `g.robots`) con la configuración de su intake. */
+  const redIdx = (g: GameSession) => g.robots.map((r, i) => (r.alliance === 'red' ? i : -1)).filter((i) => i >= 0);
+  const endgame = (g: GameSession, s: number) => {
+    for (let t = 0; t < s; t += 1 / 120) g.hps.red.step(1 / 120, true);
+  };
+
+  it('si nadie de la alianza tiene mecanismo para la Crítica, la tira al empezar el ENDGAME', () => {
+    const g = setup();
+    for (const i of redIdx(g)) setIntake(g, i, { noCritical: true });
+    run(g, 1);
+    endgame(g, 0.5);
+    expect(g.hps.red.criticalDrops).toBe(0);
+    endgame(g, 1);
+    expect(g.hps.red.criticalDrops).toBe(1);
+  });
+
+  it('con mecanismo que no la planea (lejos, sin papel) la tira pasados 12 s; si la planea, la deja', () => {
+    const g = setup();
+    run(g, 1);
+    g.hps.red.plansCritical = () => false;
+    endgame(g, 11);
+    expect(g.hps.red.criticalDrops).toBe(0);
+    endgame(g, 2);
+    expect(g.hps.red.criticalDrops).toBe(1);
+
+    const g2 = setup();
+    run(g2, 1);
+    g2.hps.red.plansCritical = (i) => i === redIdx(g2)[0];
+    for (let t = 0; t < 20; t += 1 / 120) g2.hps.red.step(1 / 120, true);
+    expect(g2.hps.red.criticalDrops).toBe(0);
+  });
+
+  it('un robot cerca de la repisa o con el brazo a su altura cuenta como que la planea', () => {
+    const g = setup();
+    run(g, 1);
+    g.robots[redIdx(g)[0]].phys.teleport(CRITICAL_HOLDER_RED.x, -HALF_W + 1.5, Math.PI / 2);
+    endgame(g, 15);
+    expect(g.hps.red.criticalDrops).toBe(0);
+  });
+
+  it('con garra fija para la Crítica (critSeat, Psycho) nunca la tira', () => {
+    const g = setup();
+    run(g, 1);
+    setIntake(g, redIdx(g)[0], { critClaw: { seat: { x: 0.4, y: 0.3 } } });
+    endgame(g, 30);
+    expect(g.hps.red.criticalDrops).toBe(0);
   });
 
   it('la pose abatida gira sobre la arista pegada a la pared (la orilla libre baja)', () => {

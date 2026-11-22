@@ -7,13 +7,14 @@
  * centro de la ranura y a ~1 m/s hacia la cancha.
  */
 import * as F from '../config/field';
-import { canTakeCriticalFromHolder, critSeat, type IntakeSpec } from '../config/robot';
+import { canHoldCritical, canTakeCriticalFromHolder, critSeat, type IntakeSpec } from '../config/robot';
 import type { Alliance } from '../core/types';
 import type { Pieces } from '../physics/Pieces';
 
 /** Lo mínimo que el Human Player ve de un robot en la cancha. */
 export interface HpWatched {
   alliance: Alliance;
+  index?: number;
   phys: { position(): { x: number; z: number }; localToWorld(lx: number, ly: number, lz: number): { x: number; z: number }; heading?(): number };
   /** Para saber si toma la Crítica con una garra fija (Psycho, `critSeat`). */
   spec?: { intake?: IntakeSpec };
@@ -24,12 +25,21 @@ export interface HpWatched {
 const CRIT_SLIDE_SPEED = 1.5;
 /** Distancia (m) de la garra de su robot a la Crítica a partir de la cual el HP se la acomoda. */
 const CRIT_SLIDE_REACH = 1.2;
-/**
- * Distancia (m) a la que un robot de la alianza que solo toma la Crítica del piso (`critFloorOnly`)
- * tiene que estar, mirando a la pared, para que el HP abata la repisa y se la deje caer. SUPUESTO (Xhavi, 21-nov: "la repisa se puede hacer para
- * atrás y dejar caer la pieza al piso"): el manual (§3.2.4) no dice cómo se mueve la repisa.
- */
+/** Distancia (m) a la que un robot que solo toma la Crítica del piso (`critFloorOnly`), de frente a la pared, recibe que se la tiren. */
 const CRIT_DROP_REACH = 1.2;
+/**
+ * Criterio del HP para la Crítica (SUPUESTO; Xhavi, 21-nov: "que quede al criterio del human player… si hay alguien con mecanismo
+ * que no la planea agarrar que la suelte; si hay uno con mecanismo específico y la quiere, no tirarla; si nadie tiene mecanismo,
+ * que la tire"; el manual, §3.2.4, no dice cómo se mueve la repisa). Con la repisa abatida hacia atrás la pieza cae al piso:
+ * 1. nadie de la alianza con mecanismo para la Crítica → la tira `CRIT_DROP_NOBODY` s después de empezar el ENDGAME;
+ * 2. un robot con garra fija para ella (`critSeat`) → nunca la tira (es su mecanismo específico);
+ * 3. con brazo/garra general: pasados `CRIT_DECIDE` s de ENDGAME, si ninguno la planea (IA con el papel de la Crítica, o un robot
+ *    cerca de la repisa), la tira.
+ */
+const CRIT_DROP_NOBODY = 1;
+const CRIT_DECIDE = 12;
+/** Cercanía (m) a la repisa con que se entiende que un robot va por la Crítica. */
+const CRIT_INTENT_DIST = 3;
 
 /** Un rival más cerca que esto de la ranura puede robar lo que se meta (SUPUESTO: el manual no prohíbe tomar Muestras sueltas). */
 const THREAT_DIST = 1.8;
@@ -75,6 +85,10 @@ export class HumanPlayer {
   /** Veces que dejó caer la Crítica al piso. */
   criticalDrops = 0;
   private dropPending = false;
+  /** Segundos de ENDGAME transcurridos con el HP decidiendo. */
+  private endgameT = 0;
+  /** ¿La IA de ese robot (índice) tiene el papel de ir por la Crítica? La pone la sesión. */
+  plansCritical?: (robotIndex: number) => boolean;
 
   constructor(
     readonly alliance: Alliance,
@@ -91,6 +105,7 @@ export class HumanPlayer {
     this.fed.clear();
     this.criticalDrops = 0;
     this.dropPending = false;
+    this.endgameT = 0;
   }
 
   /** ¿La Crítica sigue sobre la repisa (no cayó ni la tiene un robot)? */
@@ -120,20 +135,35 @@ export class HumanPlayer {
     return v;
   }
 
-  /** Un robot de la alianza que solo toma la Crítica del piso llega de frente a la pared: el HP se la deja caer. */
-  private serveFloorRobot(): void {
+  /** Decide si deja caer la Crítica (ver `CRIT_DECIDE`). */
+  private decideCritical(dt: number): void {
+    this.endgameT += dt;
     const h = F.forAlliance(this.alliance, F.CRITICAL_HOLDER_RED);
-    const crit = this.pieces.critical(this.alliance);
-    const t = crit.body.translation();
-    for (const r of this.robots) {
-      if (r.alliance !== this.alliance || !r.spec || !r.phys.heading || critSeat(r.spec)) continue;
-      // Solo si el robot no puede tomarla de la repisa (`critFloorOnly`): los demás la toman de ahí y no deben perderla
-      if (canTakeCriticalFromHolder(r.spec)) continue;
+    const t = this.pieces.critical(this.alliance).body.translation();
+    const capable = this.robots.filter((r) => r.alliance === this.alliance && r.spec && canHoldCritical(r.spec));
+    // 1. Nadie tiene mecanismo para ella
+    if (!capable.length) {
+      if (this.endgameT >= CRIT_DROP_NOBODY) this.dropCritical();
+      return;
+    }
+    // 2. Garra fija para la Crítica: es lo suyo, no la tira
+    if (capable.some((r) => critSeat(r.spec!))) return;
+    // Un robot que solo la toma del piso la quiere abajo: se la deja caer cuando llega de frente
+    for (const r of capable) {
+      if (canTakeCriticalFromHolder(r.spec!) || !r.phys.heading) continue;
       const rp = r.phys.position();
       const fz = -Math.sin(r.phys.heading());
-      if (fz * Math.sign(h.z - rp.z) < 0.7) continue;
-      if (Math.hypot(rp.x - t.x, rp.z - h.z) < CRIT_DROP_REACH && this.dropCritical()) return;
+      if (fz * Math.sign(h.z - rp.z) >= 0.7 && Math.hypot(rp.x - t.x, rp.z - h.z) < CRIT_DROP_REACH && this.dropCritical()) return;
     }
+    // 3. Con brazo: si alguno la planea, la deja; si nadie, la tira
+    if (this.endgameT < CRIT_DECIDE) return;
+    const wants = capable.some((r) => {
+      if (!canTakeCriticalFromHolder(r.spec!)) return true; // ya atendido arriba
+      if (r.index !== undefined && this.plansCritical?.(r.index)) return true;
+      const rp = r.phys.position();
+      return Math.hypot(rp.x - t.x, rp.z - h.z) < CRIT_INTENT_DIST;
+    });
+    if (!wants) this.dropCritical();
   }
 
   /** Distancia del robot más cercano de esa alianza a la ranura (∞ si no hay). */
@@ -272,10 +302,10 @@ export class HumanPlayer {
    * Avanza (solo se llama en TELEOP). `endgame`: los robots ya pueden tomar la Crítica (§4.3.1) y el HP
    * se la acomoda. Devuelve true si introdujo una Muestra.
    */
-  step(dt: number, endgame = false): boolean {
+  step(dt: number, endgame = false, decide = true): boolean {
     if (!this.enabled) return false;
     if (endgame && this.robots.length) {
-      this.serveFloorRobot();
+      if (decide) this.decideCritical(dt);
       this.centerCritical(dt);
     }
     this.unstick(dt);
