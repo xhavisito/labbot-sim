@@ -74,6 +74,7 @@ export class App {
       player,
       preload: true,
       ai: s.ai,
+      aiDifficulty: s.aiDifficulty,
       autos: [0, 1, 2, 3].map((i) => auto(i === player ? s.playerAuto : s.botAuto)),
       specs: [0, 1, 2, 3].map((i) => {
         if (i !== player) return ROBOT_PRESETS[s.botRobotType];

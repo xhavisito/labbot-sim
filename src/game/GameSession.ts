@@ -38,6 +38,8 @@ export interface SessionOptions {
   specs?: RobotSpec[];
   /** Rutina de AUTO de cada robot (por defecto, salir de la zona). */
   autos?: AutoRoutine[];
+  /** Dificultad de la IA (aún sin efecto: la IA rehecha la usará). */
+  aiDifficulty?: 'easy' | 'normal' | 'hard';
   game?: GameConfig;
   /** La IA maneja los robots que no son del jugador en el TELEOP. */
   ai?: boolean;

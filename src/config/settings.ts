@@ -5,9 +5,14 @@
  */
 import { DEFAULT_ROBOT, MECHANISM_KINDS, type MechanismKind } from './robot';
 
+export const AI_DIFFICULTIES = ['easy', 'normal', 'hard'] as const;
+export type AiDifficulty = (typeof AI_DIFFICULTIES)[number];
+
 export interface Settings {
   /** La IA maneja los otros 3 robots en el TELEOP. */
   ai: boolean;
+  /** Dificultad de la IA (interfaz lista: la IA rehecha le dará niveles; 'normal' = comportamiento actual). */
+  aiDifficulty: AiDifficulty;
   /** Rutina de AUTO de tu robot (id de `AUTO_ROUTINES`). */
   playerAuto: string;
   /** Rutina de AUTO de los otros robots. */
@@ -27,6 +32,7 @@ export interface Settings {
 
 export const DEFAULT_SETTINGS: Settings = {
   ai: true,
+  aiDifficulty: 'normal',
   playerAuto: 'leave',
   botAuto: 'preload',
   robotType: 'generic',
@@ -57,6 +63,7 @@ export function sanitizeSettings(raw: unknown, autoIds: readonly string[]): Sett
   const kind = (v: unknown, def: MechanismKind) => (MECHANISM_KINDS.find((k) => k === v) ?? def);
   return {
     ai: typeof o.ai === 'boolean' ? o.ai : d.ai,
+    aiDifficulty: AI_DIFFICULTIES.find((k) => k === o.aiDifficulty) ?? d.aiDifficulty,
     playerAuto: auto(o.playerAuto, d.playerAuto),
     botAuto: auto(o.botAuto, d.botAuto),
     robotType: kind(o.robotType, d.robotType),

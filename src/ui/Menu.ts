@@ -1,7 +1,7 @@
 /** Menú principal, ajustes, pausa y resultados (DOM). */
 import { AUTO_ROUTINES } from '../auto/AutoRoutine';
 import { MECHANISM_KINDS } from '../config/robot';
-import { DEFAULT_SETTINGS, SETTINGS_RANGE, type Settings } from '../config/settings';
+import { AI_DIFFICULTIES, DEFAULT_SETTINGS, SETTINGS_RANGE, type Settings } from '../config/settings';
 import { RULES } from '../core/fouls';
 import { ACTIONS, assign, clearAction, cloneBindings, DEFAULT_BINDINGS, keyLabel, padLabel, saveBindings, type Action } from '../input/bindings';
 import type { InputManager } from '../input/InputManager';
@@ -48,6 +48,7 @@ export class Menu {
       const a: Alliance = i < 2 ? 'red' : 'blue';
       return `<button class="slot ${a} ${i === this.player ? 'sel' : ''}" data-slot="${i}">${t(a)} ${(i % 2) + 1}</button>`;
     }).join('');
+    const autoOpts = (sel: string) => AUTO_ROUTINES.map((r) => `<option value="${r.id}" ${r.id === sel ? 'selected' : ''}>${t(`auto_${r.id}` as Key)}</option>`).join('');
     const types = MECHANISM_KINDS.map((k) => `<button class="slot ${k === this.settings.robotType ? 'sel' : ''}" data-type="${k}">${t(`type_${k}` as Key)}</button>`).join('');
     this.open(`
       <h1>${t('title')}</h1>
@@ -55,6 +56,9 @@ export class Menu {
       <div class="row"><span class="lbl">${t('yourRobot')}</span>${robots}</div>
       <div class="row"><span class="lbl">${t('robotType')}</span>${types}</div>
       <p class="help">${t(`type_${this.settings.robotType}_desc` as Key)}</p>
+      <div class="row"><span class="lbl">${t('setPlayerAuto')}</span><select data-main="playerAuto">${autoOpts(this.settings.playerAuto)}</select></div>
+      <div class="row"><span class="lbl">${t('setBotAuto')}</span><select data-main="botAuto">${autoOpts(this.settings.botAuto)}</select></div>
+      <div class="row"><span class="lbl">${t('setAiDifficulty')}</span><select data-main="aiDifficulty">${AI_DIFFICULTIES.map((k) => `<option value="${k}" ${k === this.settings.aiDifficulty ? 'selected' : ''}>${t(`diff_${k}` as Key)}</option>`).join('')}</select></div>
       <div class="row">
         <button class="primary" data-act="match">${t('match')}</button>
         <button data-act="practice">${t('practice')}</button>
@@ -72,6 +76,12 @@ export class Menu {
         this.settings.robotType = b.dataset.type as Settings['robotType'];
         this.onSettings(this.settings);
         this.main();
+      }),
+    );
+    this.root.querySelectorAll<HTMLSelectElement>('[data-main]').forEach((el) =>
+      el.addEventListener('change', () => {
+        (this.settings as unknown as Record<string, unknown>)[el.dataset.main!] = el.value;
+        this.onSettings(this.settings);
       }),
     );
     this.root.querySelector('[data-act="match"]')!.addEventListener('click', () => this.onStart({ mode: 'match', player: this.player }));
@@ -96,6 +106,7 @@ export class Menu {
       <h2>${t('settings')}</h2>
       <div class="form">
         <label><input type="checkbox" data-k="ai" ${s.ai ? 'checked' : ''}> ${t('setAi')}</label>
+        <label>${t('setAiDifficulty')} <select data-k="aiDifficulty">${AI_DIFFICULTIES.map((k) => `<option value="${k}" ${k === s.aiDifficulty ? 'selected' : ''}>${t(`diff_${k}` as Key)}</option>`).join('')}</select></label>
         <label>${t('setPlayerAuto')} <select data-k="playerAuto">${autoOpts(s.playerAuto)}</select></label>
         <label>${t('setBotAuto')} <select data-k="botAuto">${autoOpts(s.botAuto)}</select></label>
         <label>${t('setBotType')} <select data-k="botRobotType">${MECHANISM_KINDS.map((k) => `<option value="${k}" ${k === s.botRobotType ? 'selected' : ''}>${t(`type_${k}` as Key)}</option>`).join('')}</select></label>
