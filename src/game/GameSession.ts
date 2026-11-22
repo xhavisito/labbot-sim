@@ -194,6 +194,7 @@ export class GameSession {
       this.hps[a].interval = opts.hp?.interval ?? this.hps[a].interval;
       this.hps[a].smart = opts.hp?.smart ?? true;
       this.hps[a].robots = this.robots;
+      this.hps[a].plansCritical = (i) => (this.bots[i] as { plansCritical?: boolean } | null | undefined)?.plansCritical === true;
     }
     this.root.add(buildFieldView());
     if (opts.solo) {
@@ -527,8 +528,8 @@ export class GameSession {
     // Human Player: Muestras por la ranura durante todo el TeleOp (§3.2.4)
     if (m && isTeleop(phase)) for (const a of ALLIANCES) this.hps[a].step(dt, phase === 'ENDGAME');
     else if (!m && this.opts.solo) {
-      this.hps[this.player.alliance].step(dt, true);
-      if (this.bots.some(Boolean)) this.hps[opponent(this.player.alliance)].step(dt, true);
+      this.hps[this.player.alliance].step(dt, true, false);
+      if (this.bots.some(Boolean)) this.hps[opponent(this.player.alliance)].step(dt, true, false);
     }
     this.damage.beforeStep();
     // La repisa de la Crítica acompaña a la pieza que el HP desliza (SUPUESTO, ver CriticalShelf)
