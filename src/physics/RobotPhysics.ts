@@ -18,7 +18,7 @@
  * y no chocan con la alfombra: la garra pasa rozándola al recoger.
  * CCD en el cuerpo: a toda velocidad o girando no atraviesa las paredes de 8 mm de la Cámara.
  */
-import { WHEEL_DROP, armTip, clawOf, critSeat, heldOffsetOf, intakeOf, posAngle, rollerColsOf, seatX, wristFade, type ClawDims, type RobotSpec } from '../config/robot';
+import { WHEEL_DROP, armTip, clawOf, critSeat, heldOffsetOf, intakeOf, posAngle, rollerColsOf, seatX, wristAngleOf, wristFade, type ClawDims, type RobotSpec } from '../config/robot';
 import { CRITICAL_SIZE, SAMPLE_SIZE } from '../config/field';
 import { G, GROUPS, RAPIER, groups, type PhysicsWorld } from './PhysicsWorld';
 
@@ -43,6 +43,22 @@ const FIELD_FLOOR_QUERY = groups(G.ARM, G.FIELD | G.FLOOR);
  */
 const QUERY_SHRINK = 0.008;
 const shrunk = (hx: number, hy: number, hz: number) => new RAPIER.Cuboid(Math.max(0.004, hx - QUERY_SHRINK), Math.max(0.004, hy - QUERY_SHRINK), Math.max(0.004, hz - QUERY_SHRINK));
+/**
+ * Casco escalado hacia el promedio de sus puntos (queda adentro del original) para que su punta más lejana se acerque `QUERY_SHRINK`:
+ * para preguntar sin rozar. Escala uniforme: una placa delgada no se aplana.
+ */
+const shrinkHull = (pts: readonly number[]): Float32Array => {
+  const n = pts.length / 3;
+  const c = [0, 1, 2].map((k) => {
+    let s = 0;
+    for (let i = 0; i < n; i++) s += pts[i * 3 + k];
+    return s / n;
+  });
+  let far = 0;
+  for (let i = 0; i < n; i++) far = Math.max(far, Math.hypot(pts[i * 3] - c[0], pts[i * 3 + 1] - c[1], pts[i * 3 + 2] - c[2]));
+  const k = Math.max(0.5, 1 - QUERY_SHRINK / Math.max(far, 1e-6));
+  return Float32Array.from(pts, (v, i) => c[i % 3] + (v - c[i % 3]) * k);
+};
 
 /** Inclinación (rad, ~20°) desde la que el brazo y la garra chocan con la alfombra (robot volteado). */
 export const TILT_FLOOR_ARM = 0.35;
@@ -129,8 +145,14 @@ export class RobotPhysics {
     critSample: RAPIER.Collider;
     /** Rodillos de la garra del CAD (`cadRollerCols`): cilindros con el eje en z que cuelgan de la muñeca. */
     rollers: RAPIER.Collider[];
+    /** Cascos del CAD (`cadArmHulls`): el brazo y las placas de la muñeca (una por lado). */
+    hulls: RAPIER.Collider[];
   };
   private rollerQuery: RAPIER.Shape[] = [];
+  /** Formas (un poco más chicas) de los cascos del brazo y de la muñeca, para `armHitsField`. */
+  private hullQuery: RAPIER.Shape[] = [];
+  /** Los rodillos chocan con las piezas (fuera de N3; en N3 solo con la cancha, para no estorbar a la Muestra que sale). */
+  private rollersHitPieces = true;
   /**
    * Garra del CAD fija al brazo (como la dibuja `RobotView`): ángulo del brazo en el que la caja queda
    * nivelada (la pose de piso). En otro ángulo la caja gira con el brazo y su hitbox también
@@ -358,8 +380,19 @@ export class RobotPhysics {
       rollers: (spec.model?.cadRollerCols?.cyl ?? []).map(([, , r]) =>
         mech(RAPIER.ColliderDesc.cylinder(spec.model!.cadRollerCols!.halfZ, Math.max(0.004, r - ROLLER_CLEAR)).setRotation(ROLLER_ROT)),
       ),
+      hulls: [],
     };
     this.rollerQuery = (spec.model?.cadRollerCols?.cyl ?? []).map(([, , r]) => new RAPIER.Cylinder(spec.model!.cadRollerCols!.halfZ - QUERY_SHRINK, Math.max(0.004, r - ROLLER_CLEAR - QUERY_SHRINK)));
+    const hulls = spec.model?.cadArmHulls ? [spec.model.cadArmHulls.arm, ...spec.model.cadArmHulls.wrist] : [];
+    for (const h of hulls) {
+      const d = RAPIER.ColliderDesc.convexHull(new Float32Array(h));
+      if (!d) {
+        console.warn(`[hitbox] ${spec.name}: un casco del brazo no forma un casco`);
+        continue;
+      }
+      this.armColliders.hulls.push(mech(d));
+      this.hullQuery.push(new RAPIER.ConvexPolyhedron(shrinkHull(h)));
+    }
     this.setArmPose(spec.arm.stowAngle ?? 0, null);
   }
 
@@ -471,7 +504,8 @@ export class RobotPhysics {
     if (tilted !== this.armTilted) {
       this.armTilted = tilted;
       const g = tilted ? GROUPS.armTilted : GROUPS.arm;
-      for (const col of [c.beam, ...c.fingers, c.palm, ...c.plates, c.sample, c.sample2, c.critical, c.critSample, ...c.rollers]) col.setCollisionGroups(g);
+      for (const col of [c.beam, ...c.fingers, c.palm, ...c.plates, c.sample, c.sample2, c.critical, c.critSample, ...c.hulls]) col.setCollisionGroups(g);
+      this.rollersHitPieces = !this.rollersHitPieces; // fuerza a poner el grupo de los rodillos abajo
     }
     const p = this.armPoses(a);
     const tip0 = armTip(this.spec.arm, a);
@@ -490,12 +524,16 @@ export class RobotPhysics {
     c.plates[0].setEnabled(box);
     c.plates[1].setEnabled(box && !this.boxAtFloor(a));
     put(c.sample, p.sample);
-    // Los rodillos van con la muñeca; en N3 no chocan: la Muestra sale por donde están (los rodillos la empujan)
+    // Los rodillos van con la muñeca. En N3 la Muestra sale por donde están (los rodillos la empujan): ahí no chocan con las piezas, pero
+    // sí con la cancha (antes se apagaban y traspasaban las paredes de anotar, Xhavi 21-nov)
     const rollersOn = wristFade(this.spec, a) < 0.5;
-    rollerColsOf(this.spec, a).forEach((o, i) => {
-      put(c.rollers[i], { t: { x: tip0.x + o.x, y: tip0.y + o.y, z: 0 }, r: ROLLER_ROT });
-      c.rollers[i].setEnabled(rollersOn);
-    });
+    if (rollersOn !== this.rollersHitPieces) {
+      this.rollersHitPieces = rollersOn;
+      const g = rollersOn ? (tilted ? GROUPS.armTilted : GROUPS.arm) : tilted ? GROUPS.armTiltedNoPiece : GROUPS.armNoPiece;
+      for (const r of c.rollers) r.setCollisionGroups(g);
+    }
+    rollerColsOf(this.spec, a).forEach((o, i) => put(c.rollers[i], { t: { x: tip0.x + o.x, y: tip0.y + o.y, z: 0 }, r: ROLLER_ROT }));
+    this.hullPoses(a).forEach((pose, i) => put(c.hulls[i], pose));
     // Segunda Muestra (garra que lleva dos)
     put(c.sample2, p.sample2);
     c.sample2.setEnabled(held === 'sample' && count >= 2);
@@ -506,6 +544,25 @@ export class RobotPhysics {
     // Muestra normal en la Garrita: en el mismo asiento fijo (el cubo del asiento ya no es la Crítica, sino una Muestra de 15 cm)
     if (this.critFixed) put(c.critSample, this.critFixed);
     c.critSample.setEnabled(critSampleHeld && this.critFixed !== null);
+  }
+
+  /** Poses de los cascos del CAD (`cadArmHulls`) con el brazo en `a`: el del brazo gira en el hombro, los de la muñeca además con ella. */
+  private hullPoses(a: number): Pose[] {
+    const m = this.spec.model;
+    if (!m?.cadArmHulls || this.armColliders.hulls.length === 0) return [];
+    const arm = this.spec.arm;
+    const d = a - (m.stowAngle ?? 0);
+    const rot = (t: number) => ({ x: 0, y: 0, z: Math.sin(t / 2), w: Math.cos(t / 2) });
+    const out: Pose[] = [{ t: { x: arm.pivotX, y: arm.pivotY, z: 0 }, r: rot(d) }];
+    const w = m.cadWrist;
+    if (w) {
+      const c = Math.cos(d);
+      const s = Math.sin(d);
+      const t = { x: arm.pivotX + w.axis[0] * c - w.axis[1] * s, y: arm.pivotY + w.axis[0] * s + w.axis[1] * c, z: 0 };
+      const r = rot(d + wristAngleOf(this.spec, a));
+      for (let i = 1; i < this.armColliders.hulls.length; i++) out.push({ t, r });
+    }
+    return out.slice(0, this.armColliders.hulls.length);
   }
 
   /**
@@ -527,7 +584,8 @@ export class RobotPhysics {
       if (!this.boxAtFloor(a)) parts.push([q.plate, p.base]);
     }
     const tip1 = armTip(this.spec.arm, a);
-    if (wristFade(this.spec, a) < 0.5) rollerColsOf(this.spec, a).forEach((o, i) => parts.push([this.rollerQuery[i], { t: { x: tip1.x + o.x, y: tip1.y + o.y, z: 0 }, r: ROLLER_ROT }]));
+    rollerColsOf(this.spec, a).forEach((o, i) => parts.push([this.rollerQuery[i], { t: { x: tip1.x + o.x, y: tip1.y + o.y, z: 0 }, r: ROLLER_ROT }]));
+    this.hullPoses(a).forEach((pose, i) => parts.push([this.hullQuery[i], pose]));
     if (held) parts.push([q[held], p[held]]);
     if (held === 'sample' && count >= 2) parts.push([q.sample, p.sample2]);
     for (const [shape, pose] of parts) {

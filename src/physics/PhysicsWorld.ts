@@ -51,6 +51,9 @@ export const GROUPS = {
   arm: groups(G.ARM, G.FIELD | G.BOUNDARY | G.ROBOT | G.PIECE | G.ARM),
   /** El brazo de un robot volteado (inclinado): también choca con la alfombra (Xhavi, 16-nov), si no la atraviesa y se endereza solo. */
   armTilted: groups(G.ARM, G.FIELD | G.BOUNDARY | G.ROBOT | G.PIECE | G.ARM | G.FLOOR),
+  /** Partes del brazo que chocan con la cancha y los robots pero no con las piezas (rodillos de Mentores 3478 en N3: la Muestra sale por ahí). */
+  armNoPiece: groups(G.ARM, G.FIELD | G.BOUNDARY | G.ROBOT | G.ARM),
+  armTiltedNoPiece: groups(G.ARM, G.FIELD | G.BOUNDARY | G.ROBOT | G.ARM | G.FLOOR),
 };
 
 /** Lo que guardamos de cada colisionador para saber qué tocamos. */
