@@ -76,6 +76,8 @@
     },
     "intake": {
       "kind": "pinza",
+      "critFloorOnly": true,
+      "critDropKey": true,
       "gap": 0.29,
       "fingerLength": 0.113,
       "claw": {

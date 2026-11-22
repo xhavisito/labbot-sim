@@ -77,8 +77,10 @@ describe('Team: decide por lo que vale cada cosa en el match', () => {
   });
 
   it('la probabilidad inicial de la Crítica sale de cómo la agarra cada robot del CAD', () => {
-    expect(critPrior(CAD_ROBOT_SPECS.psycho)).toBeGreaterThan(critPrior(CAD_ROBOT_SPECS.axiom));
-    expect(critPrior(CAD_ROBOT_SPECS.axiom)).toBeGreaterThan(critPrior(CAD_ROBOT_SPECS['mentores-3478']));
+    expect(critPrior(CAD_ROBOT_SPECS.psycho)).toBeGreaterThan(0);
+    // Axiom y Mentores solo la toman del piso (`critFloorOnly`, Xhavi 21-nov): la IA no la busca en la repisa
+    expect(critPrior(CAD_ROBOT_SPECS.axiom)).toBe(0);
+    expect(critPrior(CAD_ROBOT_SPECS['mentores-3478'])).toBe(0);
   });
 });
 

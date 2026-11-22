@@ -1,4 +1,4 @@
-/** Axiom (Xhavi, 18-nov): toma la Muestra Crítica de la base (la rendija de la Campana, donde la ponen) y del piso. Reemplaza el «solo del piso» anterior (`IntakeSpec.critFloorOnly` ya no se usa en Axiom). */
+/** Axiom: toma la Muestra Crítica solo del piso, no de la repisa (Xhavi, 21-nov, `IntakeSpec.critFloorOnly`; el 19-nov la tomaba de las dos) y su botón de la Repisa la deja caer (`critDropKey`). */
 import { beforeAll, describe, expect, it } from 'vitest';
 import { canHoldCritical, canTakeCriticalFromHolder, intakeOf } from '../src/config/robot';
 import { robotSpec } from '../src/config/robotIds';
@@ -26,11 +26,12 @@ function setup(y: number) {
 }
 
 describe('Axiom: la Crítica desde la base y desde el piso', () => {
-  it('su ficha ya no limita el agarre al piso', () => {
+  it('su ficha la limita al piso y pone el botón de dejarla caer', () => {
     const s = robotSpec('cad:axiom');
-    expect(intakeOf(s).critFloorOnly).toBeUndefined();
+    expect(intakeOf(s).critFloorOnly).toBe(true);
+    expect(intakeOf(s).critDropKey).toBe(true);
     expect(canHoldCritical(s)).toBe(true);
-    expect(canTakeCriticalFromHolder(s)).toBe(true);
+    expect(canTakeCriticalFromHolder(s)).toBe(false);
   });
 
   it('la toma si está en el piso', () => {
@@ -39,15 +40,15 @@ describe('Axiom: la Crítica desde la base y desde el piso', () => {
     expect(m.critical).toBe(c);
   });
 
-  it('la toma de la base (la rendija de la Campana) con la garra a su nivel', () => {
+  it('no la toma de la base (la rendija de la Campana) aunque la garra esté a su nivel', () => {
     const { g, r, m, c } = setup(CRITICAL_HOLDER_RED.y + CRITICAL_SIZE / 2);
     m.target = 4;
     for (let i = 0; i < 4 * 120 && !m.atTarget; i++) m.step(1 / 120, []);
     // El brazo se movió: se vuelve a poner el cubo entre los dedos
     const at = r.phys.localToWorld(m.tipX(), 0, 0);
     g.pieces.place(c, at.x, CRITICAL_HOLDER_RED.y + CRITICAL_SIZE / 2, at.z, 0);
-    expect(m.grabCritical([])).toBe(true);
-    expect(m.critical).toBe(c);
+    expect(m.grabCritical([])).toBe(false);
+    expect(m.critical).toBeNull();
   });
 
   it('no la toma si el cubo queda lejos de la garra', () => {

@@ -302,6 +302,12 @@ export interface IntakeSpec {
    */
   critFloorOnly?: boolean;
   /**
+   * El botón del nivel de la Repisa (4) deja de subir el brazo y pide al Human Player que deje caer la Crítica de la repisa al
+   * piso (Axiom y Mentores 3478, Xhavi, 21-nov: "para los equipos que pueden agarrar la cp del piso nada más… sustituye el botón de
+   * nivel de repisa a uno que sea específicamente de dejarla caer"). SUPUESTO: el manual (§3.2.4) no dice nada de mecanismos.
+   */
+  critDropKey?: boolean;
+  /**
    * Garra de la Crítica fija al chasis, aparte de la caja del brazo (Psycho, la "Garrita" del CAD del 16-nov: placa con dos
    * dedos de eje vertical al frente). La Crítica se toma de la rendija de la Campana con el robot de frente a ella, queda
    * en `seat` y se suelta ahí mismo (la deja caer sobre la Repisa subiendo a la Plataforma). Va sola: la caja del brazo

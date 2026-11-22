@@ -251,11 +251,6 @@ export class Bot {
     return Math.min(this.opts.level ?? this.profile.level, this.robot.spec.maxLevel ?? 3) as Level;
   }
 
-  /** ¿Tiene el papel de ir por la Crítica? (el HP no la tira si alguien la planea) */
-  get plansCritical(): boolean {
-    return this.critDuty;
-  }
-
   /** ¿Le toca la Muestra Crítica? */
   private get critDuty(): boolean {
     // Una garra que no abre 20 cm no toma la Crítica (§4.1.1); el constructor de robots lo permite
