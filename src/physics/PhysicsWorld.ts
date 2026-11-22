@@ -60,7 +60,8 @@ export const GROUPS = {
 export type ColliderTag =
   | { kind: 'floor' }
   | { kind: 'field'; part: FieldPart; alliance?: Alliance }
-  | { kind: 'robot'; robot: number }
+  /** `held`: el cubo de la pieza que lleva la garra (no la garra misma). */
+  | { kind: 'robot'; robot: number; held?: boolean }
   | { kind: 'piece'; index: number };
 
 export class PhysicsWorld {
