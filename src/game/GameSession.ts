@@ -551,6 +551,7 @@ export class GameSession {
       this.shelves[a].step(dt);
     }
     this.pw.step();
+    this.pieces.relieveSquash();
     this.time += dt;
     this.referee.drainCollisions();
     this.damageEvents.push(...this.damage.afterStep(dt, enabled, this.stepMechEvents));

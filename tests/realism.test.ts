@@ -209,8 +209,10 @@ describe('agarre con compliants (por defecto; Xhavi, 30-oct)', () => {
     r.phys.teleport(0, 2.0, 0);
     steps(g, 1.5, { intake: true, elevator });
     const p = g.pieces.list[0];
-    g.pieces.place(p, r.mech.tipX() + 0.5, F.SAMPLE_SIZE / 2, 2.0 + side, yaw);
-    for (let i = 0; i < 3 * 120 && !r.mech.inClaw; i++) steps(g, 1 / 120, { forward: spec.arm.pickBack ? -forward : forward, intake: true });
+    // 50 cm más allá de la punta de la garra (la del Pivote 180° está atrás del chasis: la Muestra no puede empezar adentro del
+    // robot; la espuma apretada se exprime, ver `MAX_SQUASH`) y el robot avanza hacia ella con su garra
+    g.pieces.place(p, r.mech.tipX() + (spec.arm.pickBack ? -0.5 : 0.5), F.SAMPLE_SIZE / 2, 2.0 + side, yaw);
+    for (let i = 0; i < 3 * 120 && !r.mech.inClaw; i++) steps(g, 1 / 120, { forward, intake: true });
     return r.mech.inClaw;
   };
 
