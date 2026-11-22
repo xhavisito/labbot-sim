@@ -202,6 +202,13 @@ export interface CadModel {
    */
   cadWrist?: { axis: readonly [number, number]; fromX: number; levels: Partial<Record<1 | 2 | 3, number>> };
   /**
+   * Colisión del brazo y de la muñeca del CAD (Mentores 3478, Xhavi 21-nov: "agrégale colisión a todo el robot porque algunas cosas traspasan
+   * las paredes de scoring"): cascos convexos (x, y, z planos, m) sacados del GLB con `scripts/cad/arm-hulls.mjs`. `arm` en el sistema del
+   * nodo `brazo` (origen en el eje del hombro, pose del CAD); `wrist` uno por lado (placa, espaciadores y motor) con el origen en el eje de la
+   * muñeca (`cadWrist.axis`), que gira con ella.
+   */
+  cadArmHulls?: { arm: readonly number[]; wrist: ReadonlyArray<readonly number[]> };
+  /**
    * Colisionadores de los rodillos de la garra (Mentores 3478, Xhavi 21-nov: "los rollers no tienen colisión"): cilindros con el eje en z, cada
    * uno `[x, y, radio]` en el sistema de la caja (pose de piso, origen en la punta), todos de media anchura `halfZ`. Cuelgan de la muñeca,
    * igual que las piezas del CAD. Medidos del GLB (ruedas de 4 in y cilindros de 1 in); el radio se achica 4 mm para que la Muestra entre.

@@ -1,11 +1,11 @@
 /** Mentores 3478: el intake (rodillos del CAD) come la Muestra del piso y los rodillos negros y verdes del CAD existen. */
 import { beforeAll, describe, expect, it } from 'vitest';
 import { CAD_ROBOT_SPECS } from '../src/cad/cadRobots';
-import { SAMPLE_SIZE } from '../src/config/field';
+import { CAMARA_Z_RED, SAMPLE_SIZE, camaraWells } from '../src/config/field';
 import { armTip, heldOffsetOf, posAngle, rollerColsOf, wristAngleOf, wristOf } from '../src/config/robot';
 import { GameSession } from '../src/game/GameSession';
 import { emptyInput } from '../src/input/InputManager';
-import { initRapier } from '../src/physics/PhysicsWorld';
+import { G, RAPIER, groups, initRapier } from '../src/physics/PhysicsWorld';
 
 beforeAll(async () => {
   await initRapier();
@@ -146,7 +146,7 @@ describe('Mentores 3478: muñeca, rodillos con colisión y Muestra apoyada', () 
     expect(wristAngleOf(s, mid)).toBeLessThan(w.levels[3]!);
   });
 
-  it('los rodillos y la Muestra agarrada van con la muñeca; en N3 los rodillos no chocan', () => {
+  it('los rodillos y la Muestra agarrada van con la muñeca; en N3 los rodillos no chocan con las piezas', () => {
     const s = spec();
     const g = new GameSession({ player: 0, preload: false, specs: [M()] });
     const cols = g.player.phys.armColliders.rollers;
@@ -164,7 +164,10 @@ describe('Mentores 3478: muñeca, rodillos con colisión y Muestra apoyada', () 
       expect(dist(rollerColsOf(s, a)[0], wAbs)).toBeCloseTo(dist(rollerColsOf(s, f)[0], wF), 6);
       expect(dist(heldOffsetOf(s, a, 0)!, wAbs)).toBeCloseTo(dist(heldOffsetOf(s, f, 0)!, wF), 6);
       g.player.phys.setArmPose(a, null);
-      for (const c of cols) expect(c.isEnabled()).toBe(lvl !== 3);
+      for (const c of cols) {
+        expect(c.isEnabled()).toBe(true); // siempre chocan con la cancha (no traspasan las paredes de anotar)
+        expect(((c.collisionGroups() & 0xffff) & G.PIECE) !== 0).toBe(lvl !== 3); // en N3 la Muestra sale por donde están
+      }
     }
     // N3: la Muestra queda atrás del robot, fuera del chasis (anota hacia atrás) y arriba de la pared de 80 cm del Nivel 3
     const a3 = posAngle(s, 3);
@@ -172,6 +175,55 @@ describe('Mentores 3478: muñeca, rodillos con colisión y Muestra apoyada', () 
     const t3 = armTip(s.arm, a3);
     expect(t3.x + h3.x + SAMPLE_SIZE / 2).toBeLessThan(-s.length / 2);
     expect(t3.y + h3.y - SAMPLE_SIZE / 2).toBeGreaterThan(0.8);
+  });
+
+  it('el brazo y las placas de la muñeca del CAD tienen colisión y no traspasan la Cámara (Xhavi, 21-nov)', () => {
+    const s = spec();
+    const H = s.model!.cadArmHulls!;
+    expect(H.wrist.length).toBe(2);
+    // Cascos un poco más chicos (1 cm en la punta más lejana): solo cuenta meterse de verdad, no rozar
+    const shape = (pts: readonly number[]) => {
+      const n = pts.length / 3;
+      const c = [0, 1, 2].map((k) => pts.filter((_, i) => i % 3 === k).reduce((a, b) => a + b, 0) / n);
+      let far = 0;
+      for (let i = 0; i < n; i++) far = Math.max(far, Math.hypot(pts[i * 3] - c[0], pts[i * 3 + 1] - c[1], pts[i * 3 + 2] - c[2]));
+      return new RAPIER.ConvexPolyhedron(Float32Array.from(pts, (v, i) => c[i % 3] + (v - c[i % 3]) * (1 - 0.01 / far)));
+    };
+    const shapes = [H.arm, ...H.wrist].map(shape);
+    const rot = (t: number) => ({ x: 0, y: 0, z: Math.sin(t / 2), w: Math.cos(t / 2) });
+    const qm = (a: { x: number; y: number; z: number; w: number }, b: { x: number; y: number; z: number; w: number }) => ({
+      w: a.w * b.w - a.x * b.x - a.y * b.y - a.z * b.z,
+      x: a.w * b.x + a.x * b.w + a.y * b.z - a.z * b.y,
+      y: a.w * b.y - a.x * b.z + a.y * b.w + a.z * b.x,
+      z: a.w * b.z + a.x * b.y - a.y * b.x + a.z * b.w,
+    });
+    const w = camaraWells();
+    let hits = 0;
+    // De espaldas a la Cámara, manejando hacia ella y cambiando de nivel (antes el brazo y la placa se metían en la pared al subir a N3)
+    for (const lvl of [1, 2] as const) {
+      const g = new GameSession({ player: 0, preload: true, solo: true, specs: [M()], hp: { enabled: false, interval: 3 } });
+      const p = g.player.phys;
+      p.teleport((w[lvl].x0 + w[lvl].x1) / 2, CAMARA_Z_RED[0] - 1.0, Math.PI / 2);
+      for (let i = 0; i < 6 * 120; i++) {
+        const go = i < 240 ? 0 : 1;
+        g.setInput({ ...emptyInput(), elevator: (i < 240 ? lvl : Math.floor(i / 120) % 4) as 0 | 1 | 2 | 3, forward: -go * (i % 240 < 160 ? 0.7 : -0.3), turn: go * Math.sin(i / 50) * 0.4 });
+        g.step();
+        const a = g.player.mech.angle;
+        const d = a - s.model!.stowAngle!;
+        const ax = s.model!.cadWrist!.axis;
+        const wt = { x: s.arm.pivotX + ax[0] * Math.cos(d) - ax[1] * Math.sin(d), y: s.arm.pivotY + ax[0] * Math.sin(d) + ax[1] * Math.cos(d) };
+        const poses = [
+          { t: { x: s.arm.pivotX, y: s.arm.pivotY }, r: rot(d) },
+          { t: wt, r: rot(d + wristAngleOf(s, a)) },
+          { t: wt, r: rot(d + wristAngleOf(s, a)) },
+        ];
+        const br = p.body.rotation();
+        poses.forEach((ps, k) => {
+          if (g.pw.world.intersectionWithShape(p.localToWorld(ps.t.x, ps.t.y, 0), qm(br, ps.r), shapes[k], RAPIER.QueryFilterFlags.EXCLUDE_DYNAMIC, groups(G.ARM, G.FIELD))) hits++;
+        });
+      }
+    }
+    expect(hits).toBe(0);
   });
 
   it('una Muestra suelta choca con la rueda de arriba en vez de atravesarla', () => {
