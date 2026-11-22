@@ -10,7 +10,7 @@ import * as THREE from 'three';
 import { Bot, type AutoPlan, type BotOptions, type BotOutput } from '../ai/Bot';
 import type { AiLevel } from '../ai/difficulty';
 import type { AiPersona } from '../ai/persona';
-import { Team } from '../ai/Team';
+import { Team, type Playbook } from '../ai/Team';
 import { AutoExecutor } from '../auto/AutoExecutor';
 import { AUTO_REF_SPEED, AutoRunner, LEAVE_ZONE, type AutoOutput, type AutoRoutine } from '../auto/AutoRoutine';
 import * as F from '../config/field';
@@ -112,6 +112,8 @@ export interface SessionOptions {
   damage?: DamageSettings;
   /** Semilla del azar de la física (agarre y fallas); por defecto 1 (reproducible: pruebas y lotes). */
   seed?: number;
+  /** Plan del match de la IA de cada alianza (`ai/Team.ts` PLAYBOOKS); sin él, cada estratega elige al azar con la semilla. */
+  playbooks?: Partial<Record<Alliance, Playbook>>;
   /** Otra IA para algunos robots (comparar versiones en `sim/batch.ts`); null = la de siempre. */
   makeBot?: (r: Robot, opts: Partial<BotOptions> & { auto: AutoPlan; teleop: boolean }, all: Robot[], pieces: Pieces) => BotDriver | null;
 }
@@ -347,7 +349,12 @@ export class GameSession {
     }
     this.autoPath?.dispose();
     this.autoPath = null;
-    const teams = { red: new Team('red', this.hps.red), blue: new Team('blue', this.hps.blue) };
+    const seed = this.opts.seed ?? 0;
+    const teams = { red: new Team('red', this.hps.red, seed), blue: new Team('blue', this.hps.blue, seed) };
+    for (const a of ALLIANCES) {
+      teams[a].allies = this.robots.filter((r) => r.alliance === a);
+      teams[a].choosePlaybook(this.opts.playbooks?.[a]);
+    }
     const need = this.game.rp.dominanceSamples;
     for (const a of ALLIANCES) teams[a].situation = () => {
       const m = this.match;
@@ -496,6 +503,7 @@ export class GameSession {
         if (o.release) r.mech.release('sample', this.stepMechEvents);
         if (o.grabCritical) r.mech.grabCritical(this.stepMechEvents);
         if (o.releaseCritical) r.mech.release('critical', this.stepMechEvents);
+        if (o.clawToggle) r.mech.toggleClaw(this.stepMechEvents);
       } else if (runner) {
         const o = runner.step(dt, r);
         forward = Math.max(-1, Math.min(1, o.raw ? o.forward : (o.forward * AUTO_REF_SPEED) / r.spec.maxSpeed));

@@ -1,6 +1,6 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 import { planAutoRoutine, planBotOptions, planDriver } from '../src/ai/plan';
-import { SECRET_STRATEGIES, weighted } from '../src/ai/strategy';
+import { SECRET_AUTOS, SECRET_PERSONAS, SECRET_STRATEGIES, weighted } from '../src/ai/strategy';
 import { LEAVE_ZONE } from '../src/auto/AutoRoutine';
 import { activeStep, newPlan, nextStep, planIssues, sanitizePlan, sanitizePlans, TELEOP_FROM, type StrategyPlan } from '../src/core/plan';
 import { GameSession } from '../src/game/GameSession';
@@ -104,7 +104,15 @@ describe('estrategias de alianza (core/plan)', () => {
     let k = 0;
     const rand = () => seq[k++];
     expect(weighted(SECRET_STRATEGIES, rand)).toBe('auto');
-    expect(weighted(SECRET_STRATEGIES, rand)).toBe('noEndgame');
+    expect(weighted(SECRET_STRATEGIES, rand)).toBe('critical');
+  });
+
+  it('el rival secreto siempre juega en serio: anota en AUTO, no se estaciona ni deja el ENDGAME', () => {
+    // Con estrategias a medias (estacionarse, sin ENDGAME, solo HP) la alianza del jugador ganaba 67 % (medido en la arena)
+    expect(SECRET_STRATEGIES.map(([s]) => s)).not.toContain('park');
+    expect(SECRET_STRATEGIES.map(([s]) => s)).not.toContain('noEndgame');
+    expect(SECRET_AUTOS.map(([a]) => a)).not.toContain('leave');
+    expect(SECRET_PERSONAS.map(([p]) => p)).not.toContain('defensive');
   });
 });
 

@@ -21,6 +21,8 @@ npm run batch        # matches de solo IA entre estrategias de alianza (sin nave
                      #   --plans pivcrit3+pivn3  --vs pivn3+p180n3  --seeds 3  --workers 4  --out batch.json
                      #   --set mech: los cinco tipos con sus papeles; --set compare: los cinco con la misma estrategia
                      #   --set ai --a hard --b normal: una dificultad contra otra, alianzas de los dos tipos
+npm run arena        # matches de solo IA con los robots del CAD, como se juega: --scenario shipped:new | mirror:new | vs:new:old
+                     #   (vs: IA nueva contra la anterior congelada en src/sim/oldai/, lados cruzados) --seeds 24 --out arena.json
 npm run shots        # capturas con Playwright en shots/ (requiere build; en la nube: CHROMIUM_PATH=/opt/pw-browsers/chromium; --mobile = celular)
 ```
 

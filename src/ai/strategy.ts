@@ -6,6 +6,7 @@
  * §4.3.1). Las reglas no cambian: el árbitro cobra igual.
  */
 import type { BotOptions } from './Bot';
+import type { AiPersona } from './persona';
 
 export type StrategyId = 'auto' | 'n3' | 'n2' | 'n1' | 'critical' | 'hp' | 'lab' | 'noEndgame' | 'park';
 
@@ -36,23 +37,28 @@ export const isStrategy = (v: unknown): v is StrategyId => STRATEGIES.includes(v
 
 /**
  * Estrategias que puede llevar en secreto un robot rival (2 contra 2: no eliges ni ves la del
- * contrario, Xhavi 30-oct). Peso = qué tan seguido sale; 'park' (no anota) no se usa para rivales.
+ * contrario, Xhavi 30-oct). Peso = qué tan seguido sale. Solo formas de jugar fuertes: antes salían al azar
+ * "solo N2", "sin ENDGAME", "solo del HP", "solo del Laboratorio" y un AUTO que no anota, y con eso la alianza de
+ * la persona ganaba 67 % de los matches contra 46 % con rivales completos (arena, 22-nov). La variedad de los
+ * rivales ahora la da el plan del estratega de su alianza (`ai/Team.ts` PLAYBOOKS) y su personalidad.
  */
 export const SECRET_STRATEGIES: ReadonlyArray<readonly [StrategyId, number]> = [
-  ['auto', 4],
-  ['n3', 2],
-  ['critical', 1.5],
-  ['hp', 1],
-  ['lab', 1],
-  ['n2', 1],
-  ['noEndgame', 0.5],
+  ['auto', 6],
+  ['n3', 1],
+  ['critical', 1],
 ];
 
-/** AUTO de un rival (rutinas de `auto/AutoRoutine.ts`) con su peso. */
+/** AUTO de un rival (rutinas de `auto/AutoRoutine.ts`) con su peso: siempre anota (§4.4: AUTO vale más). */
 export const SECRET_AUTOS: ReadonlyArray<readonly [string, number]> = [
-  ['preload', 3],
   ['collect', 3],
-  ['leave', 1],
+  ['preload', 2],
+];
+
+/** Personalidades de un rival secreto: estilos distintos sin jugar a medias ("defensive" va más lento, no sale en secreto). */
+export const SECRET_PERSONAS: ReadonlyArray<readonly [AiPersona, number]> = [
+  ['balanced', 2],
+  ['aggressive', 1],
+  ['fast', 1],
 ];
 
 /** Elige al azar con pesos. */

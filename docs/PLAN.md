@@ -140,6 +140,28 @@ tests/                    clock, scoring, fouls/cards, rp, match (casos borde), 
      (el manual nuevo ya no limita la línea en AUTO, §4.2). La Plataforma cuenta como choque (PLATFORM_EARLY, §4.6).
    - Incluidas: "Anotar Nivel 3" (salida 1 y salida 2: la Zona de Inicio de cada robot de la alianza).
      "Se adapta a su lado" refleja en z si el robot sale de la otra zona.
+12. **IA nueva, competitiva** (Xhavi, 22-nov: "la IA está súper tonta… siempre gana la alianza en la que estés,
+   siempre se repite el mismo patrón"). Diagnóstico con la arena (`npm run arena`, `sim/arena.ts`: matches de
+   solo IA con los robots del CAD y la configuración del menú; la IA anterior queda congelada en `sim/oldai/`):
+   con la IA de antes la alianza del jugador ganaba 67 % (rivales con estrategias secretas a medias: solo N2, sin
+   ENDGAME, AUTO que no anota) y en espejo salía 60/40; los robots se atoraban empujando Muestras junto a la
+   Plataforma, se trababan entre compañeros, Psycho tiraba la Crítica de la Repisa y Axiom se encaramaba en la Cámara.
+   *Hecho:*
+   - `ai/Team.ts` como drive coach: reparte por valor esperado con lo que rinde cada robot en el match
+     (`Bot.pointsPerSecond`): la Crítica la lleva quien más gana con ella (35 + el RP contra lo que dejaría de
+     anotar, §4.4; si falla no se le vuelve a asignar), cada robot sube a la Plataforma si los 10 pts valen más que
+     lo que anotaría en ese tiempo, la Campana la atiende el que más guarda, y cede la Campana, la Crítica y el N3
+     al robot de la persona. Plan del match al azar con pesos (`PLAYBOOKS`: balanced, labFirst, feeder, n3Rush)
+     para que no se repita el patrón. Valores sin regla (valor de un RP, tiempos) marcados SUPUESTO.
+   - `ai/Bot.ts`: aprende en el match qué nivel le entra (`levelOdds`), aparta las Muestras que no pudo tomar con
+     espera creciente (`shun`), se arrima a las que están junto a la Plataforma sin pisarla (§4.6), desempata
+     esperas entre compañeros, frena antes de que el brazo tope con la Cámara (`Mechanisms.armHitsAhead`), suelta
+     la Crítica donde la tiene la Garrita y no cede en la Plataforma con la Crítica en el ENDGAME.
+   - Rivales secretos (`ai/strategy.ts`): solo estrategias completas y AUTOs que anotan; la variedad la dan el
+     plan del estratega y la personalidad (`SECRET_PERSONAS`).
+   Arena, 24 matches por escenario: IA nueva contra la anterior gana 75 % (241 contra 177 pts, 13.2 contra 9.0
+   Muestras, 4.3 contra 2.5 RP); como se juega (tu alianza con piloto Experto contra rivales secretos) 50/50
+   (antes 67/33); espejo 50/50 (antes 60/40). Pruebas en `tests/strategist.test.ts`.
 
 Cada hito: `npm test`, `npm run build` y captura con Playwright; resumen corto al terminar.
 

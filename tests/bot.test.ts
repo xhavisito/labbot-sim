@@ -66,9 +66,14 @@ describe('IA en un match completo', () => {
   }, 120_000);
 });
 
-/** Bot mínimo para probar el reparto de papeles del Team (solo lo que lee `plan`). */
-const stubBot = (index: number, kind: keyof typeof ROBOT_PRESETS): Bot =>
-  ({ robot: { index, spec: ROBOT_PRESETS[kind] }, opts: { role: 'score' }, profile: { critical: true, teamwork: true } }) as unknown as Bot;
+/** Bot mínimo para probar el reparto de papeles del Team (solo lo que lee `plan`; `pps` = puntos por segundo de este match). */
+const stubBot = (index: number, kind: keyof typeof ROBOT_PRESETS, pps = 0): Bot =>
+  ({
+    robot: { index, spec: ROBOT_PRESETS[kind], mech: { critical: null, capacity: 1 } },
+    opts: { role: 'score' },
+    profile: { critical: true, teamwork: true },
+    pointsPerSecond: () => pps,
+  }) as unknown as Bot;
 
 describe('Team: quién lleva la Muestra Crítica', () => {
   it('con pivote y elevador, la lleva el pivote (el elevador fallaba más al soltarla)', () => {
@@ -87,7 +92,7 @@ describe('Team: quién lleva la Muestra Crítica', () => {
 describe('IA en alianza y manejo humano', () => {
   it('Team.lane reparte franjas opuestas a dos robots que juntan, y ninguna a uno solo', () => {
     const mk = (index: number, teamwork = true) =>
-      ({ robot: { index, spec: ROBOT_PRESETS.pivot }, opts: { role: 'score', teleop: true }, profile: { critical: true, teamwork } }) as unknown as Bot;
+      ({ robot: { index, spec: ROBOT_PRESETS.pivot, mech: { critical: null, capacity: 1 } }, opts: { role: 'score', teleop: true }, profile: { critical: true, teamwork }, pointsPerSecond: () => 0 }) as unknown as Bot;
     const t = new Team('red');
     const a = mk(0);
     const b = mk(1);
