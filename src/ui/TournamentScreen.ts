@@ -102,7 +102,7 @@ export const WATCH_CAMERA: Record<WatchMode, CameraMode> = { broadcast: 'top', s
 const LOGOS: Record<string, string> = { 'cad:axiom': 'logos/axiom.png', 'cad:phoenix': 'logos/phoenix.png', 'cad:psycho': 'logos/psycho.png', 'cad:hazmat-704': 'logos/hazmat-704.png', 'cad:mentores-3478': 'logos/mentores-3478.png' };
 
 export class TournamentScreen {
-  private cfg = { player: '', perTeam: 5, format: 'manual' as PlayoffFormat, others: 'ask' as 'ask' | 'skip' };
+  private cfg = { player: '', perTeam: 5, format: 'doubleElim' as PlayoffFormat, others: 'ask' as 'ask' | 'skip' };
   private tab: Tab = 'overall';
   /** "Omitir hasta mi match": simula los demás sin preguntar hasta que le toque al jugador. */
   private skipToMine = false;
@@ -351,10 +351,22 @@ export class TournamentScreen {
       <div class="scroll">${table}</div></div>`;
   }
 
-  /** Doble eliminación (rebuilt-sim): llave superior arriba, inferior abajo y la final a la derecha. */
+  /**
+   * Doble eliminación con el flujo del "Playoff Bracket" de The Blue Alliance: llave superior arriba,
+   * inferior abajo, líneas de ganador → siguiente match y la final (2 de 3) a la derecha. Cada tarjeta dice
+   * a dónde va el ganador y el perdedor (la inferior elimina al perdedor).
+   */
   private bracketHtml(tt: Tournament): string {
     const st = bracketState(tt);
     const srcLabel = (src: BracketSrc) => ('seed' in src ? `A${src.seed}` : 'w' in src ? t('br_winnerOf', { n: src.w }) : t('br_loserOf', { n: src.l }));
+    const CW = 214, CH = 78, GAP = 46, ROW = 96;
+    // Posición (columna, fila) de cada match en el dibujo; la final va en la columna siguiente.
+    const POS: Record<number, [number, number]> = { 1: [0, 0], 2: [0, 1], 4: [1, 0.5], 3: [0, 2.7], 5: [1, 2.7] };
+    const px = (n: number) => POS[n][0] * (CW + GAP);
+    const py = (n: number) => POS[n][1] * ROW;
+    const finalsCol = 2;
+    const fy = (py(st.format.finals.red) + py(st.format.finals.blue)) / 2;
+    const dest = (src: 'w' | 'l', n: number) => st.format.slots.find((s) => [s.red, s.blue].some((x) => (x as Record<string, number>)[src] === n))?.n;
     const card = (n: number) => {
       const slot = st.format.slots.find((x) => x.n === n)!;
       const sd = st.sides.get(n)!;
@@ -366,18 +378,29 @@ export class TournamentScreen {
       const blueA = last ? allianceIndexOf(tt, last.blue) : sd.blue;
       const won = (a: number | undefined) => (out && a !== undefined ? out.w === a : null);
       const next = !out && last && !last.result;
-      return `<div class="br-match ${next ? 'next' : ''}"><div class="br-id">M${n}${ms.length > 1 ? ` · ${t('br_replay')}` : ''}</div>
+      const wTo = dest('w', n) ?? (st.format.finals.red === n || st.format.finals.blue === n ? 0 : undefined);
+      const lTo = dest('l', n);
+      const flow = `${t('br_win')}→${wTo === 0 ? t('br_final') : wTo ? `M${wTo}` : ''} · ${t('br_lose')}→${lTo ? `M${lTo}` : t('br_out')}`;
+      return `<div class="br-match ${next ? 'next' : ''} ${slot.lower ? 'lowr' : ''}" style="left:${px(n)}px;top:${py(n)}px;width:${CW}px;min-height:${CH}px"><div class="br-id">M${n}${ms.length > 1 ? ` · ${t('br_replay')}` : ''}<span class="br-flow">${flow}</span></div>
         <div class="br-side blue">${this.brLine(tt, blueA, srcLabel(slot.blue), sc('blue'), won(blueA))}</div><div class="br-side red">${this.brLine(tt, redA, srcLabel(slot.red), sc('red'), won(redA))}</div></div>`;
     };
-    const cols = (lower: boolean) =>
-      [...new Set(st.format.slots.filter((s) => s.lower === lower).map((s) => s.round))]
-        .sort((a, b) => a - b)
-        .map((r) => `<div class="br-col"><div class="br-round">${t('br_round', { n: r })}</div><div class="br-col-body">${st.format.slots.filter((s) => s.lower === lower && s.round === r).map((s) => card(s.n)).join('')}</div></div>`)
-        .join('');
+    const mid = (n: number) => py(n) + CH / 2;
+    const link = (from: number, toX: number, toY: number) => {
+      const x1 = px(from) + CW, y1 = mid(from), xm = x1 + GAP / 2;
+      return `<path d="M${x1} ${y1}H${xm}V${toY}H${toX}"/>`;
+    };
+    let lines = '';
+    for (const s of st.format.slots) for (const src of [s.red, s.blue]) if ('w' in src) lines += link(src.w, px(s.n), mid(s.n));
+    const fx = finalsCol * (CW + GAP);
+    lines += link(st.format.finals.red, fx, fy + CH / 2) + link(st.format.finals.blue, fx, fy + CH / 2);
+    const W = fx + CW + 4;
+    const H = Math.max(...Object.keys(POS).map((n) => py(+n))) + CH + 4;
+    const fin = `<div class="tba-final" style="left:${fx}px;top:${fy}px;width:${CW}px">${this.finalCard(tt, { red: t('br_winnerOf', { n: st.format.finals.red }), blue: t('br_winnerOf', { n: st.format.finals.blue }) })}</div>`;
+    const lab = (x: number, y: number, k: 'br_upper' | 'br_lower') => `<div class="br-label tba-lab" style="left:${x}px;top:${y}px">${t(k)}</div>`;
     return `<div class="panel wide"><h3>PlayOffs</h3><p class="sub">${t('br_double')}</p>
-      <div class="bracket"><div class="br-trees"><div class="br-label">${t('br_upper')}</div><div class="br-tree">${cols(false)}</div>
-      <div class="br-label">${t('br_lower')}</div><div class="br-tree">${cols(true)}</div></div>
-      <div class="br-finals">${this.finalCard(tt, { red: t('br_winnerOf', { n: st.format.finals.red }), blue: t('br_winnerOf', { n: st.format.finals.blue }) })}</div></div></div>`;
+      <div class="bracket tba"><div class="tba-canvas" style="width:${W}px;height:${H + 18}px"><div class="tba-inner" style="top:18px;height:${H}px">
+      <svg class="tba-lines" width="${W}" height="${H}">${lines}</svg>${[1, 2, 4, 3, 5].map(card).join('')}${fin}</div>
+      ${lab(0, 0, 'br_upper' as const)}${lab(0, 18 + py(3) - 20, 'br_lower' as const)}</div></div></div>`;
   }
 
   view(tt: Tournament): void {

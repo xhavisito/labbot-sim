@@ -943,6 +943,15 @@ textarea.tin { resize: vertical; min-height: 56px; }
 .br-label { display: flex; align-items: center; gap: 10px; font: 600 calc(11px * var(--ts)) var(--font); letter-spacing: 0; color: var(--muted); margin-top: 4px; }
 .br-label::before { content: ''; width: 18px; height: 3px; background: var(--accent); }
 .br-tree { display: flex; gap: 10px; }
+.bracket.tba { display: block; overflow-x: auto; }
+.tba-canvas { position: relative; }
+.tba-inner { position: absolute; left: 0; right: 0; }
+.tba-lines { position: absolute; left: 0; top: 0; overflow: visible; }
+.tba-lines path { fill: none; stroke: var(--line-2); stroke-width: 1.5; }
+.tba .br-match, .tba-final { position: absolute; box-sizing: border-box; }
+.tba-final .br-match { position: static; }
+.tba-lab { position: absolute; margin: 0; }
+.br-flow { float: right; font-weight: 400; color: var(--faint); }
 .rr-grid { display: grid; grid-template-columns: repeat(3, minmax(150px, 1fr)); gap: 8px; }
 .br-col { display: flex; flex-direction: column; gap: 4px; min-width: 140px; }
 .br-col-body { flex: 1; display: flex; flex-direction: column; justify-content: space-around; gap: 8px; }
