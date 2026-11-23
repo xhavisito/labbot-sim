@@ -7,7 +7,7 @@ import { LEAVE_ZONE, type AutoRoutine } from '../auto/AutoRoutine';
 import { aiLineup } from '../ai/lineup';
 import { planAutoRoutine, planBotOptions } from '../ai/plan';
 import type { AiPersona } from '../ai/persona';
-import { SECRET_AUTOS, SECRET_PERSONAS, SECRET_STRATEGIES, STRATEGY_OPTIONS, weighted, type StrategyId } from '../ai/strategy';
+import { effectiveSecret, SECRET_AUTOS, SECRET_PERSONAS, SECRET_STRATEGIES, STRATEGY_OPTIONS, weighted, type StrategyId } from '../ai/strategy';
 import { FOV } from '../config/cameras';
 import { activeColorMode } from '../config/palette';
 import { applyAccessibility } from '../ui/a11y';
@@ -579,7 +579,8 @@ export class App {
     const random = aiLineup(player, this.settings.robotType);
     // 2 contra 2: no eliges ni ves lo de los rivales (Xhavi, 30-oct). Su tipo, estrategia y AUTO los
     // elige la IA en secreto en cada match; de ellos solo se elige la dificultad
-    const rival = (i: number) => m.secret && player >= 0 && (i < 2) !== (player < 2);
+    const secretMode = effectiveSecret(m.secret, tour);
+    const rival = (i: number) => secretMode && player >= 0 && (i < 2) !== (player < 2);
     this.secret = [0, 1, 2, 3].map((i) => (rival(i) ? { strategy: weighted(SECRET_STRATEGIES), auto: weighted(SECRET_AUTOS), persona: weighted(SECRET_PERSONAS) } : null));
     const strategy = (i: number) => this.secret[i]?.strategy ?? m.robots[i].strategy;
     // Tu compañero sigue la estrategia de alianza que elegiste para él (si la IA está prendida)
