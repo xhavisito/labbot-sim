@@ -15,6 +15,9 @@ import { computeOpr, oprMatchesFromTournament } from '../core/opr';
 import { predictAlliance, type TeamSummary } from '../core/scouting';
 import {
   advancePlayoffs,
+  allianceStates,
+  dealRobots,
+  ensureTeamRobots,
   aiAccepts,
   aiPick,
   allianceCountFor,
@@ -27,7 +30,6 @@ import {
   finalsWins,
   finishSelection,
   mustAccept,
-  placements,
   playoffWinner,
   rankings,
   respondInvite,
@@ -53,9 +55,15 @@ import type { ScoutPlay } from './scoutPlay';
 
 const KEY = 'labbot.tournament.v1';
 
+/** Robots de los equipos del torneo: los CAD (los mismos que usa la IA en un match normal). */
+const tourRobots = (): string[] => allRobotIds().filter(isCadId);
+
 export function loadTournament(): Tournament | null {
   try {
-    return sanitizeTournament(JSON.parse(localStorage.getItem(KEY) ?? 'null'));
+    const tt = sanitizeTournament(JSON.parse(localStorage.getItem(KEY) ?? 'null'));
+    // Torneos guardados con robots de LabBot ya quitados: cada equipo recibe uno CAD
+    if (tt && ensureTeamRobots(tt, tourRobots(), (id) => robotSpec(id as RobotId).mechanism)) saveTournament(tt);
+    return tt;
   } catch {
     return null;
   }
@@ -179,10 +187,12 @@ export class TournamentScreen {
       const rand = rng(seed);
       // Equipo del jugador: al azar entre los de la lista
       this.cfg.player = teams[Math.floor(rand() * teams.length)]?.id ?? '';
-      const entries: TeamEntry[] = teams.map((x) => {
+      // Cada equipo lleva un robot CAD: el tuyo es el elegido aquí; los demás, repartidos al azar
+      const robots = dealRobots(teams.length, teams.findIndex((x) => x.id === this.cfg.player), this.settings.robotType, tourRobots(), rand);
+      const entries: TeamEntry[] = teams.map((x, i) => {
         const me = x.id === this.cfg.player;
         // Fuerza de la IA (SUPUESTO) para la simulación estadística; tu equipo juega con tu robot
-        return { id: x.id, name: x.name, robot: me ? spec.mechanism : x.robot, ...(me ? { specId: this.settings.robotType } : {}), strength: me ? 0.6 : Math.round((0.35 + 0.5 * rand()) * 100) / 100, isPlayer: me };
+        return { id: x.id, name: x.name, robot: me ? spec.mechanism : robotSpec(robots[i] as RobotId).mechanism, specId: robots[i], strength: me ? 0.6 : Math.round((0.35 + 0.5 * rand()) * 100) / 100, isPlayer: me };
       });
       const tt = createTournament(entries, this.cfg.perTeam, this.cfg.format, seed);
       tt.others = this.cfg.others;
@@ -251,13 +261,26 @@ export class TournamentScreen {
   /** Match para el simulador: los 4 equipos con su tipo de robot; `player` = -1 para verlo. */
   private playOf(tt: Tournament, m: TMatch, watch: boolean): ScoutPlay {
     const ids = [...m.red, ...m.blue];
-    return { match: m.id, teams: ids.map((i) => tt.teams[i].id), kinds: ids.map((i) => tt.teams[i].robot), player: watch ? -1 : ids.findIndex((i) => tt.teams[i].isPlayer), tour: true };
+    return { match: m.id, teams: ids.map((i) => tt.teams[i].id), robots: ids.map((i) => this.robotOf(tt, i)), player: watch ? -1 : ids.findIndex((i) => tt.teams[i].isPlayer), tour: true, tourSeed: tt.seed };
+  }
+
+  /** Robot del equipo (`ensureTeamRobots` ya le dio uno CAD a cada equipo). */
+  private robotOf(tt: Tournament, i: number): string {
+    return tt.teams[i].specId ?? tourRobots()[i % Math.max(1, tourRobots().length)] ?? tt.teams[i].robot;
+  }
+
+  /** Nombre del robot del equipo, para las tablas. */
+  private robotName(tt: Tournament, i: number): string {
+    const sp = robotSpec(this.robotOf(tt, i) as RobotId);
+    return esc(sp.label ?? t(`type_${sp.mechanism}` as Key));
   }
 
   /** Guarda el resultado del match jugado (o visto) en el simulador. Devuelve el aviso para resultados. */
   record(m: Match, p: ScoutPlay): string {
     const tt = this.current ?? loadTournament();
-    const tm = tt && [...tt.quals, ...tt.playoffs].find((x) => x.id === p.match && !x.result);
+    // Solo en el torneo de ese match (no en uno nuevo con el mismo id) y con los mismos equipos
+    const same = (x: TMatch) => [...x.red, ...x.blue].every((i, k) => tt!.teams[i]?.id === p.teams[k]);
+    const tm = tt && (p.tourSeed === undefined || p.tourSeed === tt.seed) ? [...tt.quals, ...tt.playoffs].find((x) => x.id === p.match && !x.result && same(x)) : undefined;
     if (!tt || !tm) return '';
     tm.result = resultFromMatch(m, tt, tm);
     if (tm.kind !== 'qual') advancePlayoffs(tt);
@@ -289,9 +312,10 @@ export class TournamentScreen {
   /** Línea de una alianza en una tarjeta de PlayOffs. */
   private brLine(tt: Tournament, a: number | undefined, tbd: string, score: string, won: boolean | null): string {
     const myA = tt.alliances!.findIndex((al) => al.some((i) => tt.teams[i].isPlayer));
+    const out = a !== undefined && allianceStates(tt)[a]?.status === 'out';
     return a === undefined
       ? `<div class="br-team tbd"><span>${tbd}</span></div>`
-      : `<div class="br-team ${won === true ? 'win' : won === false ? 'lose' : ''} ${a === myA ? 'me' : ''}"><b>A${a + 1}</b><span class="br-cap">${this.name(tt, tt.alliances![a][0])}</span><span class="br-score">${score}</span></div>`;
+      : `<div class="br-team ${won === true ? 'win' : won === false ? 'lose' : ''} ${a === myA ? 'me' : ''} ${out ? 'out' : ''}"><b>A${a + 1}</b><span class="br-cap">${this.name(tt, tt.alliances![a][0])}</span><span class="br-score">${score}</span></div>`;
   }
 
   /** Final a 2 de 3 (§8.2.2), en los dos formatos. */
@@ -318,9 +342,9 @@ export class TournamentScreen {
       })
       .join('');
     const st = standings(tt);
-    const done = seriesState(tt).every((s) => s.winner !== undefined);
+    const states = allianceStates(tt);
     const table = `<table class="stable"><tr><th>#</th><th>${t('tr_alliance')}</th><th class="num">${t('tr_seriesWL')}</th><th class="num">${t('tr_matchesWL')}</th><th class="num">${t('sc_points')}</th></tr>
-      ${st.map((r, i) => `<tr class="${done && i >= 2 ? 'out' : ''}"><td class="mono">${i + 1}</td><td><b>A${r.alliance + 1}</b> ${this.side(tt, tt.alliances![r.alliance])}</td><td class="num">${r.seriesWon}–${r.seriesLost}</td><td class="num">${r.matchWins}–${r.matchLosses}</td><td class="num">${r.points}</td></tr>`).join('')}</table>`;
+      ${st.map((r, i) => `<tr class="${states[r.alliance]?.status === 'out' ? 'out' : ''}"><td class="mono">${i + 1}</td><td><b>A${r.alliance + 1}</b> ${this.side(tt, tt.alliances![r.alliance])}</td><td class="num">${r.seriesWon}–${r.seriesLost}</td><td class="num">${r.matchWins}–${r.matchLosses}</td><td class="num">${r.points}</td></tr>`).join('')}</table>`;
     return `<div class="panel wide"><h3>PlayOffs</h3><p class="sub">${t('tr_rrNote')}</p>
       <div class="bracket"><div class="br-trees"><div class="br-label">${t('tr_roundRobin')}</div><div class="rr-grid">${cards}</div></div>
       <div class="br-finals">${this.finalCard(tt, { red: t('tr_first'), blue: t('tr_second') })}</div></div>
@@ -367,15 +391,19 @@ export class TournamentScreen {
     const played = tt.quals.filter((m) => m.result).length;
     const sel = tt.selection;
     const alliancesNow = tt.alliances ?? sel?.alliances ?? null;
-    const places = placements(tt);
+    // Estado de cada alianza: una sola fuente (`allianceStates`) para la lista, el bracket y la tabla
+    const states = allianceStates(tt);
     const me = tt.teams.findIndex((x) => x.isPlayer);
     const placeTag = (i: number) => {
-      const p = tt.alliances ? places.get(i) : undefined;
-      if (p === undefined) return '';
-      return `<span class="br-place ${p === 1 ? 'gold' : p === 2 ? 'silver' : ''}">${p === 1 ? ic.trophy : ''}${t('tr_placeN', { n: p })}</span>`;
+      const st = states[i];
+      if (!st) return '';
+      const p = st.place;
+      if (st.status === 'alive' || st.status === 'final') return `<span class="br-place ${st.status === 'final' ? 'live' : ''}">${t(st.status === 'final' ? 'tr_st_final' : 'tr_st_alive')}</span>`;
+      if (st.status === 'out') return `<span class="br-place out">${t('tr_st_out', { n: p ?? 0 })}</span>`;
+      return `<span class="br-place ${p === 1 ? 'gold' : 'silver'}">${p === 1 ? ic.trophy : ''}${t('tr_placeN', { n: p ?? 0 })}</span>`;
     };
     const allianceList = alliancesNow
-      ? alliancesNow.map((a, i) => `<div class="arow"><b>A${i + 1}</b>${this.side(tt, a)}${placeTag(i)}</div>`).join('')
+      ? alliancesNow.map((a, i) => `<div class="arow ${states[i]?.status === 'out' ? 'out' : ''}"><b>A${i + 1}</b>${this.side(tt, a)}${placeTag(i)}</div>`).join('')
       : `<div class="msg">${t('tr_afterQuals')}</div>`;
     const selLog = sel?.log.length
       ? `<div class="sel-log">${sel.log.map((l) => `<div>A${l.alliance + 1} → ${this.name(tt, l.team)} ${l.accepted ? `<span class="ok">✓ ${t('tr_accepted')}</span>` : `<span class="no">✗ ${t('tr_declined')}</span>`}</div>`).join('')}</div>`
@@ -388,7 +416,7 @@ export class TournamentScreen {
         : '';
     const inPlayoffs = tt.alliances?.some((a) => a.includes(me));
     const myA = tt.alliances?.findIndex((a) => a.includes(me)) ?? -1;
-    const myPlace = myA >= 0 ? places.get(myA) : undefined;
+    const myPlace = myA >= 0 ? states[myA]?.place : undefined;
     const f1 = (v: number) => v.toFixed(1);
     const vs = (m: TMatch) => `<span class="sw blue"></span>${this.side(tt, m.blue)} <span class="dim">vs</span> <span class="sw red"></span>${this.side(tt, m.red)}`;
     // ---- Panel de lo que sigue
@@ -413,7 +441,7 @@ export class TournamentScreen {
             const capOf = sel!.alliances.findIndex((al) => al[0] === i);
             const capTag = capOf >= 0 ? ` <span class="br-place gold">${t('tr_captainOf', { a: `A${capOf + 1}` })}</span>` : '';
             const pred = mine && s ? predictAlliance(mine, s, GAME) : null;
-            return `<tr><td class="mono">${r + 1}</td><td>${this.name(tt, i)} <span class="dim">${t(`type_${tt.teams[i].robot}` as Key)}</span>${capTag}</td><td class="num">${rk[r].rs.toFixed(2)}</td>
+            return `<tr><td class="mono">${r + 1}</td><td>${this.name(tt, i)} <span class="dim">${this.robotName(tt, i)}</span>${capTag}</td><td class="num">${rk[r].rs.toFixed(2)}</td>
               <td class="num">${s ? f1(s.samples) : '–'}</td><td class="num">${s ? f1(s.auto) : '–'}</td><td class="num">${s ? f1(s.endgame) : '–'}</td><td class="num strong">${pred ? Math.round(pred.points - pred.foulPts) : '–'}</td>
               <td><button class="chipbtn" data-invite="${i}">${t('tr_invite')}</button></td></tr>`;
           })
@@ -429,7 +457,7 @@ export class TournamentScreen {
     else if (myPlace !== undefined && myPlace > 1) action = `<div class="msg warn">${myPlace === 2 ? t('tr_finalist') : t('tr_eliminated', { n: myPlace })}</div>`;
     // ---- Ranking: general o por categoría
     const tabs = `<div class="seg" data-tabs>${(['overall', 'opr', ...CATS] as Tab[]).map((c) => `<button class="${c === this.tab ? 'on' : ''}" data-v="${c}">${t(`tr_cat_${c}` as Key)}</button>`).join('')}</div>`;
-    const teamCell = (i: number) => `${this.name(tt, i)} <span class="dim">${t(`type_${tt.teams[i].robot}` as Key)}</span>`;
+    const teamCell = (i: number) => `${this.name(tt, i)} <span class="dim">${this.robotName(tt, i)}</span>`;
     const table =
       this.tab === 'overall'
         ? `<table class="stable rank"><tr><th>#</th><th>${t('sc_team')}</th><th class="num">RS</th><th class="num">${t('tr_avgPts')}</th><th class="num">AUTO</th><th class="num">END</th><th class="num">M</th></tr>

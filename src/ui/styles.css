@@ -968,6 +968,10 @@ textarea.tin { resize: vertical; min-height: 56px; }
 .br-fgame .sw { margin: 0; width: 8px; height: 8px; }
 .br-place { margin-left: auto; display: inline-flex; align-items: center; gap: 4px; font: 600 calc(10.5px * var(--ts)) var(--font); letter-spacing: 0; padding: 2px 6px; border-radius: var(--radius-sm); background: var(--surface-3); color: var(--muted); }
 .br-place .ic { width: 12px; height: 12px; }
+.br-place.live { background: color-mix(in srgb, var(--accent) 22%, transparent); color: var(--text); }
+.br-place.out { background: transparent; border: 1px dashed var(--muted); }
+.br-team.out { opacity: 0.45; text-decoration: line-through; text-decoration-color: var(--muted); }
+.arow.out > b, .arow.out > .team { opacity: 0.5; }
 .br-place.gold { background: rgba(233, 35, 157, 0.18); color: var(--accent); }
 .br-place.silver { background: rgba(220, 230, 245, 0.12); color: #dfe6f0; }
 @media (max-width: 860px) {

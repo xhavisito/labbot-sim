@@ -15,7 +15,7 @@ import { allAutoRoutines, autoRoutineIds } from '../auto/recorded';
 import { CENTER_SPOT, clampSpot, spawnCheck, spotPose } from '../config/startSpot';
 import { emptyInput, type PlayerInput } from '../input/InputManager';
 import { FieldAudio } from '../audio/FieldAudio';
-import { ROBOT_PRESETS, type MechanismKind, type RobotSpec } from '../config/robot';
+import { type RobotSpec } from '../config/robot';
 import { robotStats } from '../replay/stats';
 import { robotSpec, type RobotId } from '../config/robotIds';
 import { preloadRobotModels } from '../render/RobotView';
@@ -548,7 +548,7 @@ export class App {
       this.toMenu();
       this.tourney.open();
     };
-    const spec = sc && !sc.tour ? ROBOT_PRESETS[sc.kinds[c.player]] : this.playerSpec();
+    const spec = sc && !sc.tour ? robotSpec(sc.robots[c.player] as RobotId) : this.playerSpec();
     new MatchSetup(this.menu.root, this.settings, {
       back,
       save: () => saveSettings(this.settings),
@@ -561,7 +561,7 @@ export class App {
       player: c.player,
       playerSpec: spec,
       playerName: robotLabel(spec),
-      kinds: sc?.kinds,
+      kinds: sc?.robots.map((k) => robotLabel(robotSpec(k as RobotId))),
       teams: sc?.teams.map((id) => this.scoutData.teams.find((x) => x.id === id)?.name ?? id),
       canMove: !sc,
     });
@@ -572,7 +572,7 @@ export class App {
    * Inicio y tu AUTO; tipo, estrategia, dificultad y AUTO de cada robot de la IA; Human Player.
    * `kinds` fija los tipos (Scouting y torneo); sin él, los de "Al azar" salen de `aiLineup`.
    */
-  private sessionOptions(player: number, kinds?: readonly MechanismKind[], tour = false): SessionOptions {
+  private sessionOptions(player: number, kinds?: readonly string[], tour = false): SessionOptions {
     const s = this.settings;
     const m = s.match;
     const routine = (id: string) => allAutoRoutines().find((r) => r.id === id) ?? LEAVE_ZONE;
@@ -602,7 +602,7 @@ export class App {
     };
     const autos = [0, 1, 2, 3].map((i) => (i === player ? routine(s.playerAuto) : botAuto(i)));
     // Tu robot es el del menú (con tu velocidad y capacidad), salvo en el Scouting: el de tu equipo
-    const specs = types.map((k, i) => (i === player && (!kinds || tour) ? this.playerSpec() : kinds ? ROBOT_PRESETS[k as MechanismKind] : robotSpec(k as RobotId)));
+    const specs = types.map((k, i) => (i === player && (!kinds || tour) ? this.playerSpec() : robotSpec(k as RobotId)));
     // Una rutina dibujada arranca donde se dibujó si el robot está en esa Zona de Inicio (§4.1)
     const pathStart = (i: number) => {
       const p = autos[i].path;
@@ -625,7 +625,7 @@ export class App {
 
   /** Match del calendario del Scouting o del torneo: cada robot es el tipo de su equipo; la IA maneja los otros 3. */
   private scoutOptions(p: ScoutPlay): SessionOptions {
-    return { ...this.sessionOptions(p.player, p.kinds, p.tour), ai: true };
+    return { ...this.sessionOptions(p.player, p.robots, p.tour), ai: true };
   }
 
   /** Tu robot según los ajustes (tipo, velocidad y capacidad). */
