@@ -25,9 +25,11 @@ export function drawHeatmap(cv: HTMLCanvasElement, replay: Replay, stats: RobotS
   if (!g) return;
   const k = fieldBase(g, cv.width, cv.height);
   // Calor: una capa por robot, del color de su alianza; la intensidad es la raíz del tiempo en la celda
-  for (const s of stats) {
-    if (only !== null && s.index !== only) continue;
-    const rb = replay.header.robots[s.index];
+  // `only` y las posiciones de `stats` son lugares de la lista de robots de la repetición, no `RobotStats.index`
+  // (el número de robot de la sesión: en una práctica con un solo robot no coincide con el lugar).
+  for (const [pos, s] of stats.entries()) {
+    if (only !== null && pos !== only) continue;
+    const rb = replay.header.robots[pos];
     const [r, gg, b] = activePalette().heat[rb.alliance];
     for (let row = 0; row < HEAT_ROWS; row++)
       for (let c = 0; c < HEAT_COLS; c++) {
@@ -44,8 +46,9 @@ export function drawHeatmap(cv: HTMLCanvasElement, replay: Replay, stats: RobotS
 export function drawScoreSpots(cv: HTMLCanvasElement, replay: Replay, stats: RobotStats[], only: number | null): void {
   drawShotMap(cv, {
     dots: stats
-      .filter((s) => only === null || s.index === only)
-      .map((s) => ({ rgb: activePalette().heat[replay.header.robots[s.index].alliance], shots: s.scoreSpots.map((p) => ({ x: p.x, z: p.z, cat: levelCat(p.level), ok: true, t: p.t })) })),
+      .map((s, pos) => ({ s, pos }))
+      .filter(({ pos }) => only === null || pos === only)
+      .map(({ s, pos }) => ({ rgb: activePalette().heat[replay.header.robots[pos].alliance], shots: s.scoreSpots.map((p) => ({ x: p.x, z: p.z, cat: levelCat(p.level), ok: true, t: p.t })) })),
   });
 }
 
