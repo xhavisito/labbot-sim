@@ -35,6 +35,7 @@ import { loadWeekly, saveWeekly } from '../game/weeklyStore';
 import { loadScenarios, loadTraining, saveScenarios } from '../game/trainingStore';
 import { addPlaytime } from '../core/playtime';
 import { loadPlaytime, savePlaytime } from '../game/playtimeStore';
+import { floorPoseOf } from '../physics/RobotPhysics';
 import { GameSession, type SessionOptions } from '../game/GameSession';
 import { loadScout } from '../game/scoutStore';
 import { playerRobotFor } from '../core/tourRobot';
@@ -718,6 +719,12 @@ export class App {
     if (++this.fpsTick % 15 !== 0) return;
     const s = this.perf.summary();
     this.fpsEl.textContent = `${s.fps.toFixed(0)} FPS · 1% ${s.low1.toFixed(0)} · sim ${s.simMs.toFixed(1)} · dibujo ${s.renderMs.toFixed(1)} ms · ${this.renderer.quality} ${Math.round(this.renderer.dynScale * 100)}%`;
+    // Diagnóstico de la garra (para reportar "no agarra"): altura vs. la que pide el piso, brazo trabado, rodillos tocando, falla, inclinación
+    if (this.state === 'playing' && this.session?.player) {
+      const r = this.session.player;
+      const m = r.mech;
+      this.fpsEl.textContent += `\ngarra h ${(m.height * 100).toFixed(1)} cm / piso ≤ ${(floorPoseOf(r.spec) * 100).toFixed(1)} · trabado ${m.armBlocked ? 'sí' : 'no'} · rodillos ${m.rollerContacts} · falla ${m.jammed ? 'sí' : 'no'} · muñeca ${m.wristFold.toFixed(2)} · incl. ${((r.phys.tilt() * 180) / Math.PI).toFixed(0)}°`;
+    }
   }
 
   /** Reacomoda la cancha en práctica (Backspace o el botón del HUD). */
