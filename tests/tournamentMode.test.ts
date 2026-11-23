@@ -6,6 +6,8 @@ import { rng } from '../src/core/rng';
 import type { ScoutEntry } from '../src/core/scouting';
 import {
   advancePlayoffs,
+  allianceStates,
+  finalists,
   aiAccepts,
   aiPick,
   allianceIndexOf,
@@ -232,6 +234,49 @@ describe('modo torneo: PlayOffs', () => {
     expect(t.champion).not.toBeNull();
     expect(new Set(t.playoffs.filter((x) => x.kind === 'playoff').map((m) => m.slot)).size).toBe(5);
     expect([...placements(t).values()].sort()).toEqual([1, 2, 3, 4]);
+  });
+
+  // Flujo del Playoff Bracket de The Blue Alliance (4 alianzas): M1 1v4, M2 2v3, M3 P1 v P2 (inferior),
+  // M4 G1 v G2 (superior), M5 P4 v G3 (inferior), final G4 v G5. SUPUESTO: el manual (§8.2.2) define todos contra todos.
+  const res = (score: number) => ({ score, noFoul: score, auto: 0, endgame: 0, samples: 0, rp: 0 });
+  /** Juega el siguiente match de un slot y gana la alianza `win` (índice). */
+  const playSlot = (t: Tournament, slot: number, win: number) => {
+    const m = t.playoffs.find((x) => x.slot === slot && !x.result)!;
+    const redWins = allianceIndexOf(t, m.red) === win;
+    m.result = { red: res(redWins ? 100 : 50), blue: res(redWins ? 50 : 100) };
+    advancePlayoffs(t);
+  };
+  const sidesOf = (t: Tournament, slot: number) => {
+    const m = t.playoffs.find((x) => x.slot === slot)!;
+    return [allianceIndexOf(t, m.red) + 1, allianceIndexOf(t, m.blue) + 1];
+  };
+
+  it('bracket TBA: la alianza que gana todo va M1 → M4 → final', () => {
+    const t = withQuals(3, 'doubleElim');
+    runSelection(t, 3);
+    playSlot(t, 1, 0); // A1 gana M1
+    playSlot(t, 2, 1); // A2 gana M2
+    expect(sidesOf(t, 3)).toEqual([4, 3]); // perdedores M1 y M2 bajan a M3 (inferior)
+    expect(sidesOf(t, 4)).toEqual([1, 2]); // ganadores M1 y M2 juegan M4 (superior)
+    playSlot(t, 4, 0); // A1 gana M4
+    expect(finalists(t).red).toBe(0);
+    expect(allianceStates(t)[0].status).toBe('final');
+  });
+
+  it('bracket TBA: desde la repesca (llave inferior) se llega a la final y quien pierde ahí queda eliminado', () => {
+    const t = withQuals(3, 'doubleElim');
+    runSelection(t, 3);
+    playSlot(t, 1, 0);
+    playSlot(t, 2, 1);
+    playSlot(t, 3, 2); // A3 gana M3 (inferior); A4 queda eliminada
+    expect(allianceStates(t)[3].status).toBe('out');
+    playSlot(t, 4, 0); // A1 gana M4; A2 baja a M5
+    expect(sidesOf(t, 5)).toEqual([2, 3]); // perdedor de M4 vs ganador de M3
+    playSlot(t, 5, 2); // A3 gana M5: A2 eliminada
+    expect(allianceStates(t)[1].status).toBe('out');
+    expect(finalists(t)).toEqual({ red: 0, blue: 2 }); // finalistas reales, no etiquetas genéricas
+    const f = t.playoffs.find((m) => m.kind === 'final')!;
+    expect(new Set([allianceIndexOf(t, f.red), allianceIndexOf(t, f.blue)])).toEqual(new Set([0, 2]));
   });
 
   it('un empate total se repite; un empate en puntos se desempata con los puntos sin faltas', () => {
