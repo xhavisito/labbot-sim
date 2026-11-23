@@ -689,6 +689,9 @@ export class Mechanisms {
     const { lx, lz } = p.worldToLocalFlat(t.x, t.z);
     const carriage = p.position().y + this.height;
     const reach = 0.2;
+    // Mentores 3478: con la muñeca doblada sobre el chasis (la pose de inicio) la boca no da al frente y la pieza quedaría encima del chasis:
+    // la toma hasta que la muñeca se despliega. SUPUESTO (§7.2 no habla de mecanismos)
+    if (critHeldSeatOf(p.spec) && this.wristFold > 0.02) return false;
     // Axiom (`critFloorOnly`): solo del piso (centro del cubo a menos de 3 cm de su posición apoyado), no de la rendija ni de la Repisa (SUPUESTO)
     if (!canTakeCriticalFromHolder(this.phys.spec) && t.y > CRITICAL_SIZE / 2 + 0.03) return false;
     const ok = Math.abs(lx - this.tipX()) < reach && Math.abs(lz) < 0.3 && t.y > carriage - 0.2 && t.y < carriage + 0.35;
@@ -707,12 +710,16 @@ export class Mechanisms {
       this.critGrip = { x: clampTo(gx, -0.02, fl / 2 + 0.01), y: clampTo(gy, -0.08, 0.08), z: clampTo(lz, -0.04, 0.04) };
       p.setCritGrip(this.critGrip.x, this.critGrip.y, this.critGrip.z);
     }
+    this.critFrom = { x: t.x, y: t.y, z: t.z, seq: this.critFrom.seq + 1 };
     this.pieces.stash(c, { at: 'robot', robot: p.index });
     this.critical = c;
     events.push({ type: 'grabCritical', robot: p.index, piece: c.index });
     this.syncHitbox();
     return true;
   }
+
+  /** Dónde estaba la Crítica (mundo) al tomarla con el brazo: el dibujo la lleva de ahí a la garra en vez de aparecerla de golpe (`RobotView`). */
+  critFrom = { x: 0, y: 0, z: 0, seq: 0 };
 
   /**
    * Garra fija de la Crítica (`IntakeSpec.critClaw`, la "Garrita" de Psycho): toma la Crítica propia si su centro queda dentro de la

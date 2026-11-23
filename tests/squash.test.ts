@@ -237,6 +237,7 @@ describe('Mentores 3478: la Crítica no atraviesa los rodillos ni la garra', () 
     r.phys.teleport(0, 2.2, 0);
     const m = r.mech;
     m.target = 0;
+    m.stowed = false; // la muñeca se despliega (doblada no la toma: `Mechanisms.grabCritical`)
     run(g, 6);
     const c = g.pieces.critical(r.alliance);
     const at0 = r.phys.localToWorld(m.tipX() + 0.15, 0, 0);
