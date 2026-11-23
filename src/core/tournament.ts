@@ -221,7 +221,11 @@ export interface TeamEntry {
   id: string;
   name: string;
   robot: MechanismKind;
-  /** Robot elegido en el menú (solo el equipo del jugador). */
+  /**
+   * Robot CAD del equipo (`cad:<nombre>`, los mismos de la IA en un match normal): el del jugador es
+   * el que eligió en el lobby; los demás se reparten con `dealRobots`. Un torneo guardado antes de
+   * esto (robots de LabBot ya quitados) recibe los suyos al abrirse (`ensureTeamRobots`).
+   */
   specId?: string;
   /** 0–1: calidad del equipo para la simulación estadística (SUPUESTO). */
   strength: number;
@@ -304,6 +308,54 @@ export function createTournament(teams: TeamEntry[], perTeam: number, format: Pl
     seed,
   ).map((q): TMatch => ({ id: q.id, kind: 'qual', red: q.red.map(Number), blue: q.blue.map(Number) }));
   return { version: 1, teams, quals, alliances: null, playoffs: [], champion: null, seed, playoffFormat: format, others: 'ask' };
+}
+
+/**
+ * Robot de cada equipo: el jugador lleva el suyo y los demás salen barajados de `pool` (los CAD de la
+ * IA), sin repetir el del jugador ni entre ellos mientras alcance (como `ai/lineup.ts`). SUPUESTO: el
+ * manual no dice qué robot lleva cada equipo de la computadora.
+ */
+export function dealRobots(n: number, player: number, playerRobot: string, pool: readonly string[], rand: () => number): string[] {
+  const all = pool.length ? [...pool] : [playerRobot];
+  const others = all.filter((k) => k !== playerRobot);
+  const deck = others.length ? others : all;
+  const out: string[] = [];
+  let bag: string[] = [];
+  for (let i = 0; i < n; i++) {
+    if (i === player) {
+      out.push(playerRobot);
+      continue;
+    }
+    if (!bag.length) {
+      bag = [...deck];
+      for (let k = bag.length - 1; k > 0; k--) {
+        const j = Math.floor(rand() * (k + 1));
+        [bag[k], bag[j]] = [bag[j], bag[k]];
+      }
+    }
+    out.push(bag.pop()!);
+  }
+  return out;
+}
+
+/**
+ * Da robot de `pool` a los equipos que no tienen uno válido (torneos guardados con los robots de
+ * LabBot que ya se quitaron del juego: seguían apareciendo en los matches del torneo) y ajusta su
+ * tipo de mecanismo (`robot`, el perfil de la simulación). Devuelve si cambió algo.
+ */
+export function ensureTeamRobots(t: Tournament, pool: readonly string[], mechanismOf: (id: string) => MechanismKind): boolean {
+  if (!pool.length) return false;
+  const valid = (id: string | undefined): id is string => !!id && pool.includes(id);
+  if (t.teams.every((x) => valid(x.specId))) return false;
+  const me = t.teams.findIndex((x) => x.isPlayer);
+  const mine = t.teams[me]?.specId;
+  const dealt = dealRobots(t.teams.length, me, valid(mine) ? mine : pool[0], pool, rng(t.seed ^ 0x2c1b3c6d));
+  t.teams.forEach((x, i) => {
+    if (valid(x.specId)) return;
+    x.specId = dealt[i];
+    x.robot = mechanismOf(dealt[i]);
+  });
+  return true;
 }
 
 // ------------------------------------------------------------------ resultados
@@ -786,19 +838,22 @@ export function finalsWins(t: Tournament): Map<number, number> {
 export function advancePlayoffs(t: Tournament): void {
   if (!t.alliances || t.champion !== null) return;
   const al = t.alliances;
+  // Fuente de verdad: una alianza eliminada nunca vuelve a programarse
+  const states = allianceStates(t);
+  const canPlay = (...as: number[]) => as.every((a) => isAlive(states[a]));
   const pendingIn = (slot: number) => t.playoffs.some((m) => m.kind === 'playoff' && m.slot === slot && !m.result);
   const count = (slot: number) => t.playoffs.filter((m) => m.kind === 'playoff' && m.slot === slot).length;
   if (t.playoffFormat === 'doubleElim') {
     const st = bracketState(t);
     for (const slot of st.format.slots) {
       const s = st.sides.get(slot.n)!;
-      if (s.red === undefined || s.blue === undefined || st.outcomes.has(slot.n) || pendingIn(slot.n)) continue;
+      if (s.red === undefined || s.blue === undefined || st.outcomes.has(slot.n) || pendingIn(slot.n) || !canPlay(s.red, s.blue)) continue;
       const k = count(slot.n);
       t.playoffs.push({ id: k ? `M${slot.n}-R${k}` : `M${slot.n}`, kind: 'playoff', slot: slot.n, red: al[s.red], blue: al[s.blue] });
     }
   } else
     for (const s of seriesState(t)) {
-      if (s.winner !== undefined || pendingIn(s.n)) continue;
+      if (s.winner !== undefined || pendingIn(s.n) || !canPlay(s.a, s.b)) continue;
       t.playoffs.push({ id: `P${s.n}-${count(s.n) + 1}`, kind: 'playoff', slot: s.n, red: al[s.a], blue: al[s.b] });
     }
   const { red, blue } = finalists(t);
@@ -837,13 +892,84 @@ export function placements(t: Tournament): Map<number, number> {
   return out;
 }
 
+/**
+ * Estado de una alianza en los PlayOffs. Es la ÚNICA fuente de verdad de quién sigue en juego: la usan
+ * `advancePlayoffs` (nunca programa a una eliminada) y todas las vistas del torneo.
+ * - 'alive': sigue en juego (todos contra todos sin terminar, o en el bracket con menos de 2 derrotas).
+ * - 'final': juega la final (§8.2.2) y aún no hay campeón.
+ * - 'out': eliminada (§8.2.2: el último del todos contra todos; con 4 alianzas, también el 3.º,
+ *   SUPUESTO; doble eliminación: perder en la llave inferior), con su lugar.
+ * - 'champion' / 'runnerUp': 1.º y 2.º lugar.
+ */
+export type AllianceStatus = 'alive' | 'final' | 'out' | 'champion' | 'runnerUp';
+
+export interface AllianceState {
+  alliance: number;
+  status: AllianceStatus;
+  /** Lugar final (1–4), cuando ya se sabe. */
+  place?: number;
+}
+
+export function allianceStates(t: Tournament): AllianceState[] {
+  if (!t.alliances) return [];
+  const places = placements(t);
+  const { red, blue } = finalists(t);
+  return t.alliances.map((_, alliance) => {
+    const place = places.get(alliance);
+    const status: AllianceStatus = place === 1 ? 'champion' : place === 2 ? 'runnerUp' : place !== undefined ? 'out' : alliance === red || alliance === blue ? 'final' : 'alive';
+    return place === undefined ? { alliance, status } : { alliance, status, place };
+  });
+}
+
+/** ¿La alianza puede jugar otro match? (en juego o en la final). */
+export const isAlive = (s: AllianceState | undefined): boolean => s?.status === 'alive' || s?.status === 'final';
+
+/** Índices de las alianzas que siguen en juego. */
+export function aliveAlliances(t: Tournament): number[] {
+  return allianceStates(t)
+    .filter(isAlive)
+    .map((s) => s.alliance);
+}
+
 /** Torneo guardado válido (o null): versión y forma básica; si no, se empieza otro. */
 export function sanitizeTournament(raw: unknown): Tournament | null {
   const o = raw as Tournament | null;
   if (!o || typeof o !== 'object' || o.version !== 1 || !Array.isArray(o.teams) || !Array.isArray(o.quals) || !Array.isArray(o.playoffs)) return null;
   const n = o.teams.length;
-  const ok = (m: TMatch) => Array.isArray(m.red) && Array.isArray(m.blue) && [...m.red, ...m.blue].every((i) => Number.isInteger(i) && i >= 0 && i < n);
+  const idx = (i: unknown) => Number.isInteger(i) && (i as number) >= 0 && (i as number) < n;
+  const ok = (m: TMatch) => !!m && typeof m.id === 'string' && Array.isArray(m.red) && Array.isArray(m.blue) && [...m.red, ...m.blue].every(idx);
   if (n < 4 || !o.quals.every(ok) || !o.playoffs.every(ok)) return null;
-  o.playoffFormat = o.playoffFormat === 'doubleElim' ? 'doubleElim' : 'manual';
+  // Ids únicos: `record` busca el match por id (dos iguales = un resultado en el match equivocado)
+  const ids = [...o.quals, ...o.playoffs].map((m) => m.id);
+  if (new Set(ids).size !== ids.length) return null;
+  if (o.alliances !== null) {
+    // Alianzas completas y sin equipos repetidos; cada match de PlayOffs es entre dos de ellas
+    if (!Array.isArray(o.alliances) || o.alliances.length < 2) return null;
+    const flat = o.alliances.flat();
+    if (!o.alliances.every((a) => Array.isArray(a) && a.length === ALLIANCE_SIZE && a.every(idx)) || new Set(flat).size !== flat.length) return null;
+    const same = (side: number[], a: number[] | undefined) => !!a && side.length === a.length && side.every((x, k) => x === a[k]);
+    const isAlliance = (side: number[]) => o.alliances!.some((a) => same(side, a));
+    if (!o.playoffs.every((m) => isAlliance(m.red) && isAlliance(m.blue) && m.red[0] !== m.blue[0])) return null;
+  } else if (o.playoffs.length) return null;
+  o.playoffFormat = o.playoffFormat === 'doubleElim' && (o.alliances === null || o.alliances.length === 4) ? 'doubleElim' : 'manual';
+  // Tipo de mecanismo de cada equipo (perfil de la simulación): uno quitado cae al pivote
+  for (const x of o.teams) {
+    if (!x || typeof x !== 'object' || typeof x.id !== 'string') return null;
+    if (!(x.robot in PROFILES)) x.robot = 'pivot';
+  }
+  // Selección a medias con equipos inválidos o repetidos: se vuelve a empezar desde el ranking
+  const sel = o.selection;
+  if (sel && !o.alliances) {
+    const flat = Array.isArray(sel.alliances) ? sel.alliances.flat() : [];
+    if (!Array.isArray(sel.alliances) || !flat.every(idx) || new Set(flat).size !== flat.length || !Array.isArray(sel.declined) || !Array.isArray(sel.log) || !Array.isArray(sel.ranking)) o.selection = null;
+  }
+  if (o.champion !== null && !(Number.isInteger(o.champion) && o.alliances && o.champion >= 0 && o.champion < o.alliances.length)) o.champion = null;
+  // Un match de PlayOffs programado con una alianza que ya quedó eliminada (guardado por una versión
+  // anterior) se quita: si no, volvería a aparecer como "lo que sigue"
+  if (o.alliances) {
+    o.playoffs = o.playoffs.filter((m) => m.result);
+    o.champion = null;
+    advancePlayoffs(o);
+  }
   return o;
 }

@@ -19,7 +19,7 @@ import { routeRoutine, savedRoutes } from '../auto/recorded';
 import { loadPaths, pathRoutine } from '../game/autoPathStore';
 import { loadPlans } from '../game/planStore';
 import * as F from '../config/field';
-import { type MechanismKind, type RobotSpec } from '../config/robot';
+import { type RobotSpec } from '../config/robot';
 import type { MatchRobot, Settings } from '../config/settings';
 import { CENTER_SPOT, clampSpot, spotValid, type StartSpot } from '../config/startSpot';
 import { backBtn, brandbar, ic, UI_ALLIANCES, UI_SLOTS } from './chrome';
@@ -34,8 +34,8 @@ export interface SetupInput {
   /** Tu robot (tipo del menú o del equipo en el Scouting). */
   playerSpec: RobotSpec;
   playerName: string;
-  /** Tipos fijos de los 4 robots (Scouting y torneo: los de sus equipos); sin ellos, se eligen aquí. */
-  kinds?: readonly MechanismKind[];
+  /** Nombres de los 4 robots fijos (torneo: los de sus equipos); sin ellos, se eligen aquí. */
+  kinds?: readonly string[];
   /** Nombres de los equipos (Scouting y torneo). */
   teams?: readonly string[];
   /** Se puede cambiar de estación (match rápido; en el Scouting la fija el calendario). */
@@ -97,7 +97,7 @@ export class MatchSetup {
     const opt = optionTag;
     const autoOpts = autoOptionsHtml;
     const kindCell = (i: number, r: MatchRobot) => {
-      if (inp.kinds) return `<span class="ms-fixed">${t(`type_${inp.kinds[i]}` as Key)}</span>`;
+      if (inp.kinds) return `<span class="ms-fixed">${esc(inp.kinds[i])}</span>`;
       return `<select data-kind="${i}">${opt('random', t('ms_random'), r.kind)}</select>`;
     };
     // Dificultad: un solo control con la actual; al tocarlo se despliega la lista (antes eran 3 botones que no cabían)
@@ -132,7 +132,7 @@ export class MatchSetup {
       // Rival: solo su dificultad (el tipo se ve si lo fija su equipo en el Scouting o el torneo)
       if (m.secret && (i < 2) !== (player < 2))
         return `<div class="ms-row rival">${head}
-        <div class="ms-f"><span>${t('ms_type')}</span>${inp.kinds ? `<span class="ms-fixed">${t(`type_${inp.kinds[i]}` as Key)}</span>` : lock}</div>
+        <div class="ms-f"><span>${t('ms_type')}</span>${inp.kinds ? `<span class="ms-fixed">${esc(inp.kinds[i])}</span>` : lock}</div>
         <div class="ms-f"><span>${t('ms_strategy')}</span>${lock}</div>
         <div class="ms-f"><span>${t('ms_difficulty')}</span>${aiSel(i, r.ai)}</div>
         <div class="ms-f"><span>${t('ms_persona')}</span>${lock}</div>
