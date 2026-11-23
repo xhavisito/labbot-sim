@@ -702,6 +702,40 @@ export function critHeldOffsetOf(s: RobotSpec, a: number, fold = 0): { x: number
   return { x, y, tilt };
 }
 
+/**
+ * Ángulo del brazo de Mentores 3478 en la posición de piso mientras lleva la Crítica: la garra no puede bajar hasta la alfombra con el cubo de
+ * 20 cm adentro, así que se queda apoyada sobre él, con el cubo en su lugar de la garra (`critHeldSeatOf`) tocando el piso (Xhavi, 22-nov:
+ * "mejora cómo se ve en nivel piso"). SUPUESTO: el robot real tampoco puede bajar más; el manual no habla de mecanismos (§7.2).
+ * `null` si el robot no tiene ese asiento.
+ */
+export function critFloorAngle(s: RobotSpec): number | null {
+  const seat = critHeldSeatOf(s);
+  if (!seat) return null;
+  const h = CRITICAL_SIZE / 2;
+  // Lo más bajo del cubo (y local del robot, 0 = piso) en su lugar de la garra con el brazo en `a`
+  const low = (a: number): number => {
+    const d = a - (s.model?.stowAngle ?? 0);
+    const p = wristPoint(s, a, seat.x, seat.y);
+    const t = wristTilt(s, a);
+    return armTip(s.arm, a).y + p.x * Math.sin(d) + p.y * Math.cos(d) - h * (Math.abs(Math.cos(t)) + Math.abs(Math.sin(t)));
+  };
+  let lo = posAngle(s, 0);
+  let hi = posAngle(s, 1);
+  if (low(lo) >= 0) return lo;
+  if (low(hi) < 0) return hi;
+  for (let i = 0; i < 30 && hi - lo > 1e-5; i++) {
+    const mid = (lo + hi) / 2;
+    if (low(mid) < 0) lo = mid;
+    else hi = mid;
+  }
+  return hi;
+}
+
+/** Ángulo del brazo al que va en la posición `pos`: el de `posAngle`, salvo en el piso con la Crítica en la garra (`critFloorAngle`). */
+export function armGoalAngle(s: RobotSpec, pos: ElevatorPos, holdingCritical: boolean): number {
+  return (pos === 0 && holdingCritical ? critFloorAngle(s) : null) ?? posAngle(s, pos);
+}
+
 /** Agarre de la garra (`game/Mechanisms.ts`): con compliants (por defecto), preciso o fácil. */
 export type GripMode = 'compliant' | 'precise' | 'easy';
 export const GRIP_MODES: readonly GripMode[] = ['compliant', 'precise', 'easy'];

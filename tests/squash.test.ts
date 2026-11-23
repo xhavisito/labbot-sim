@@ -6,7 +6,7 @@
  */
 import { beforeAll, describe, expect, it } from 'vitest';
 import * as F from '../src/config/field';
-import { CRIT_SQUEEZE, ELEVATOR_ROBOT, PIVOT_ROBOT, armTip, critHeldOffsetOf, critHeldSeatOf, posAngle, wristPoint, type RobotSpec } from '../src/config/robot';
+import { CRIT_SQUEEZE, ELEVATOR_ROBOT, PIVOT_ROBOT, armGoalAngle, armTip, critFloorAngle, critHeldOffsetOf, critHeldSeatOf, posAngle, wristPoint, type RobotSpec } from '../src/config/robot';
 import { robotSpec } from '../src/config/robotIds';
 import { GameSession } from '../src/game/GameSession';
 import { emptyInput } from '../src/input/InputManager';
@@ -252,5 +252,27 @@ describe('Mentores 3478: la Crítica no atraviesa los rodillos ni la garra', () 
     m.release('critical', [], true);
     const t = c.body.translation();
     expect(Math.hypot(t.x - want.x, t.y - want.y, t.z - want.z)).toBeLessThan(0.01);
+  });
+});
+
+/** Mentores 3478 en el piso con la Crítica: la garra se queda apoyada sobre el cubo, que va en su lugar de la garra tocando el piso (Xhavi, 22-nov). */
+describe('Mentores 3478: la Crítica en el piso va adentro de la garra', () => {
+  it('el brazo para en `critFloorAngle` y el cubo queda en su asiento, apoyado en el piso', () => {
+    const spec = robotSpec('cad:mentores-3478');
+    const a = critFloorAngle(spec)!;
+    expect(a).toBeGreaterThan(posAngle(spec, 0));
+    expect(a).toBeLessThan(posAngle(spec, 1));
+    const o = critHeldOffsetOf(spec, a)!;
+    const seat = critHeldSeatOf(spec)!;
+    const d = a - spec.model!.stowAngle!;
+    const p = wristPoint(spec, a, seat.x, seat.y);
+    // En su lugar de la garra (sin recorrerse hacia afuera)…
+    expect(o.x).toBeCloseTo(p.x * Math.cos(d) - p.y * Math.sin(d), 4);
+    expect(o.y).toBeCloseTo(p.x * Math.sin(d) + p.y * Math.cos(d), 4);
+    // …y tocando el piso
+    const low = armTip(spec.arm, a).y + o.y - (F.CRITICAL_SIZE / 2) * (Math.abs(Math.cos(o.tilt)) + Math.abs(Math.sin(o.tilt)));
+    expect(Math.abs(low)).toBeLessThan(0.002);
+    expect(armGoalAngle(spec, 0, true)).toBe(a);
+    expect(armGoalAngle(spec, 0, false)).toBe(posAngle(spec, 0));
   });
 });
