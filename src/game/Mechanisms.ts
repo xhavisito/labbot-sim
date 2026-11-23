@@ -29,7 +29,7 @@
  */
 import { camaraWells, inCamara, rectForCamara } from '../config/field';
 import { shotVelocity } from './shooter';
-import { CLAW_GAP, armTip, canHoldCritical, canTakeCriticalFromHolder, clawOf, critHeldOffsetOf, critHeldSeatOf, critSeat, heldOffsetOf, intakeOf, posAngle, posDir, seatX, type ElevatorPos, type GripMode } from '../config/robot';
+import { CLAW_GAP, armGoalAngle, armTip, canHoldCritical, canTakeCriticalFromHolder, clawOf, critHeldOffsetOf, critHeldSeatOf, critSeat, heldOffsetOf, intakeOf, posAngle, posDir, seatX, type ElevatorPos, type GripMode } from '../config/robot';
 import { CRITICAL_SIZE, SAMPLE_SIZE } from '../config/field';
 import { FLOOR_POSE, clawDir, floorPoseOf } from '../physics/RobotPhysics';
 import { GROUPS } from '../physics/PhysicsWorld';
@@ -274,7 +274,7 @@ export class Mechanisms {
   /** ¿Puede soltar una Muestra ya? (brazo en su posición, comparado por ángulo: de camino al hopper pasa por las mismas alturas) */
   get atTarget(): boolean {
     const s = this.phys.spec;
-    return !this.stowed && this.hopperTask() === null && Math.abs(this.angle - posAngle(s, this.target)) < 0.01;
+    return !this.stowed && this.hopperTask() === null && Math.abs(this.angle - armGoalAngle(s, this.target, this.critical !== null)) < 0.01;
   }
 
   /** Muestras en el hopper (las guardadas que no van en la garra). */
@@ -308,7 +308,8 @@ export class Mechanisms {
     if (!this.stowed && this.wristFold > 0 && ws !== undefined) this.wristFold = Math.max(0, this.wristFold - (s.arm.speed * this.armScale * dt) / Math.max(0.1, Math.abs(ws)));
     if (!this.stowed) {
       const task = this.hopperTask();
-      const g = task ? (s.arm.hopperAngle ?? Math.PI) : posAngle(s, this.target);
+      // Mentores 3478: en el piso con la Crítica, la garra se queda apoyada sobre ella (`critFloorAngle`)
+      const g = task ? (s.arm.hopperAngle ?? Math.PI) : armGoalAngle(s, this.target, this.critical !== null);
       const d = g - this.angle;
       const stepA = s.arm.speed * this.armScale * dt;
       const next = Math.abs(d) <= stepA ? g : this.angle + Math.sign(d) * stepA;
@@ -321,7 +322,7 @@ export class Mechanisms {
       const prevAngle = this.angle;
       if (!this.armBlocked) this.angle = next;
       this.armW = (this.angle - prevAngle) / dt;
-      this.height = this.angle === g && !task ? goal : armTip(s.arm, this.angle).y;
+      this.height = this.angle === g && !task && g === posAngle(s, this.target) ? goal : armTip(s.arm, this.angle).y;
       // En la boca del hopper: pasa la Muestra después de `transferTime`
       if (task && this.angle === g) {
         this.transferT += dt;

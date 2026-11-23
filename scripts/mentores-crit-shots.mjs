@@ -20,8 +20,8 @@ await page.waitForTimeout(6000);
 // Brazo al piso, la Crítica enfrente y a comer
 const got = await page.evaluate(async () => {
   const g = app.session; const r = g.player; const m = r.mech;
-  // Sale con una Muestra precargada: la suelta y se aleja de ella
-  m.target = 0;
+  // Sale con una Muestra precargada: despliega la muñeca, la suelta y se aleja de ella
+  m.target = 0; m.stowed = false;
   await new Promise((res) => setTimeout(res, 2000));
   if (m.inClaw) m.release('sample', []);
   await new Promise((res) => setTimeout(res, 500));
