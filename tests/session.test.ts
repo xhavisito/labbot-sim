@@ -80,6 +80,32 @@ describe('match completo en la física', () => {
     expect(g.match!.score('blue')).toBe(0);
   });
 
+  it('pozo lleno (D17): las Muestras que ya no caben cuentan igual y se llevan aparte como "no cupieron"', () => {
+    const g = session();
+    g.startMatch();
+    skipTo(g, 30);
+    const well = F.camaraWells()[1];
+    const w = F.rectForCamara('red', well);
+    const drop = (n: number) => {
+      const p = g.pieces.hpStock('blue')[n];
+      g.pieces.place(p, (w.x0 + w.x1) / 2, well.rim + 0.2, (w.z0 + w.z1) / 2);
+      steps(g, 1.5);
+    };
+    // Con espacio: la primera cae al fondo y no es "no cupo"
+    drop(0);
+    expect(g.match!.samplesIn('red')).toBe(1);
+    expect(g.match!.overflowIn('red')).toBe(0);
+    // Siguen cayendo hasta llenar el pozo: ninguna se queda sin contar
+    for (let i = 1; i < 5; i++) drop(i);
+    const m = g.match!;
+    expect(m.samplesIn('red')).toBe(5);
+    expect(m.overflowIn('red')).toBeGreaterThan(0);
+    expect(m.overflowIn('red')).toBeLessThanOrEqual(4);
+    // Todas suman puntos (N1 en TELEOP = 2) y cuentan para el Dominio
+    expect(m.breakdown('red').samplesTeleop).toBe(5 * 2);
+    expect(m.overflowIn('blue')).toBe(0);
+  });
+
   it('el robot que sube a la Plataforma antes del endgame recibe Tech Foul (8 al contrario, §4.6)', () => {
     const g = session();
     g.startMatch();

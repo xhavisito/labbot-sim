@@ -22,6 +22,7 @@ export function buildSummary(m: Match): Summary {
   const rows: SummaryRow[] = [
     row(t('autoPoints'), (a) => b[a].auto),
     row(t('samplesTeleop'), (a) => b[a].samplesTeleop),
+    row(t('overflowSamples'), (a) => m.overflowIn(a)),
     row(t('platform'), (a) => b[a].platform),
     row(t('criticalSample'), (a) => b[a].critical),
     row(t('penalties'), (a) => b[a].penalties),

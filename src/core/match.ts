@@ -22,6 +22,8 @@ export interface SampleRecord {
   time: number;
   /** Robot que la soltó (para el scouting), si se sabe. */
   robot?: number;
+  /** Entró con el pozo ya lleno hasta la apertura ("no cupo"): cuenta igual (D17, SUPUESTO). */
+  overflow?: boolean;
 }
 
 export interface Breakdown {
@@ -142,13 +144,14 @@ export class Match {
   /**
    * Una Muestra entró al nivel `level` de la Cámara de `alliance`. Cuenta en todo momento del match
    * con el valor del periodo en que se deposita (§4.4; D4 resuelto). Fuera del match no cuenta
-   * (sin gracia, D12). Devuelve los puntos otorgados.
+   * (sin gracia, D12). Devuelve los puntos otorgados. `overflow`: entró con el pozo lleno (D17): suma
+   * puntos y cuenta para el Dominio igual que las demás; solo se lleva aparte para mostrarla.
    */
-  scoreSample(alliance: Alliance, level: Level, robot?: number): number {
+  scoreSample(alliance: Alliance, level: Level, robot?: number, overflow = false): number {
     if (!this.running || this.phase === 'DONE') return 0;
     const auto = this.phase === 'AUTO' || this.phase === 'PAUSE';
     const points = auto ? this.cfg.points.sampleAuto[level] : this.cfg.points.sampleTeleop[level];
-    this.state[alliance].samples.push({ level, period: auto ? 'AUTO' : 'TELEOP', time: this.t, ...(robot !== undefined ? { robot } : {}) });
+    this.state[alliance].samples.push({ level, period: auto ? 'AUTO' : 'TELEOP', time: this.t, ...(robot !== undefined ? { robot } : {}), ...(overflow ? { overflow } : {}) });
     this.pending.push({ type: 'sample', alliance, level, points });
     return points;
   }
@@ -240,6 +243,11 @@ export class Match {
   /** Muestras anotadas en la Cámara de la alianza (para Dominio de Cámara). */
   samplesIn(a: Alliance): number {
     return this.state[a].samples.length;
+  }
+
+  /** De las Muestras de `samplesIn`, cuántas "no cupieron" (entraron con el pozo lleno, D17). Ya están sumadas. */
+  overflowIn(a: Alliance): number {
+    return this.state[a].samples.filter((r) => r.overflow).length;
   }
 
   /** Ranking Points (§4.4). Con Red Card: 0 (D10). */

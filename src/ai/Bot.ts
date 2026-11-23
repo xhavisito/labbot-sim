@@ -1832,7 +1832,7 @@ export class Bot {
   }
 
   /**
-   * ¿Ese nivel no se puede usar ahora? Pozo lleno hasta la apertura (lo que caiga ya no cuenta, §4.4).
+   * ¿Ese nivel no se puede usar ahora? Pozo lleno hasta la apertura (lo que caiga encima cuenta como "no cupo", D17).
    * Lo demás que lo tapa (una Muestra en el piso, un robot) se descubre al arrimarse: `dockFails`.
    */
   private levelBlocked(l: Level): boolean {
