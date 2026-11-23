@@ -360,7 +360,7 @@ export class Hud {
         const n = m.samplesIn(a);
         v.meter.style.transform = `scaleX(${Math.min(1, n / need)})`;
         v.rp.classList.toggle('full', n >= need);
-        v.txt.innerHTML = `<span>${t('samplesShort')} ${n}</span><em>${t('dominance')} ≥${need}</em>`;
+        v.txt.innerHTML = `<span>${t('samplesShort')} ${n}${m.overflowIn(a) ? ` (${m.overflowIn(a)} ${t('overflowShort')})` : ''}</span><em>${t('dominance')} ≥${need}</em>`;
       }
       const sec = timerSeconds(m.t, s.game);
       this.timer.textContent = time;

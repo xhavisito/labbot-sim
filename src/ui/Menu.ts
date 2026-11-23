@@ -1116,6 +1116,7 @@ export class Menu {
               ${rsRow('autoLineRow', 'row', { red: b.red.autoLine, blue: b.blue.autoLine })}
               ${rsRow('teleop', 'head')}
               ${rsRow('samplesTeleop', 'row', cat('samplesTeleop'))}
+              ${rsRow('overflowSamples', 'row', { red: m.overflowIn('red'), blue: m.overflowIn('blue') })}
               ${rsRow('platform', 'row', cat('platform'))}
               ${rsRow('criticalSample', 'row', cat('critical'))}
               ${rsRow('penalties', 'head-row', cat('penalties'))}

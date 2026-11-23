@@ -32,6 +32,21 @@ describe('reloj (§2, §4.2, §4.3, §4.3.1)', () => {
   });
 });
 
+describe('Muestras que no cupieron (D17)', () => {
+  it('cuentan igual (puntos y Dominio) y se llevan aparte por alianza', () => {
+    const m = new Match(GAME);
+    m.start();
+    until(m, 20);
+    m.scoreSample('red', 1);
+    m.scoreSample('red', 1, 0, true);
+    m.scoreSample('red', 2, undefined, true);
+    expect(m.samplesIn('red')).toBe(3);
+    expect(m.overflowIn('red')).toBe(2);
+    expect(m.overflowIn('blue')).toBe(0);
+    expect(m.breakdown('red').samplesTeleop).toBe(2 + 2 + 6);
+  });
+});
+
 describe('puntuación (§4.4)', () => {
   it('Muestras: AUTO 5/10/18; TELEOP y ENDGAME 2/6/15', () => {
     const m = new Match(GAME);

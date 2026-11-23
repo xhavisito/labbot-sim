@@ -562,7 +562,7 @@ export class GameSession {
       const at = s.piece.body.translation();
       this.scoreFx.push({ x: at.x, y: at.y, z: at.z, alliance: s.alliance });
       // En práctica también se avisa (0 puntos): la práctica de AUTO y los retos llevan su cuenta
-      scored.push({ piece: s.piece.index, alliance: s.alliance, level: s.level, points: m ? m.scoreSample(s.alliance, s.level, s.piece.lastRobot) : 0 });
+      scored.push({ piece: s.piece.index, alliance: s.alliance, level: s.level, points: m ? m.scoreSample(s.alliance, s.level, s.piece.lastRobot, s.overflow) : 0 });
       // Robada: la metió el Human Player rival y la anotó esta alianza
       if (m && this.hps[opponent(s.alliance)].fed.has(s.piece.index)) this.stolen[s.alliance]++;
       if (!m) {

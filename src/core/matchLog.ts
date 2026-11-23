@@ -87,7 +87,7 @@ export function explainRp(m: Match, a: Alliance, events: readonly TimedEvent[] =
   const tenth = [...s.samples].sort((x, y) => x.time - y.time)[R.dominanceSamples - 1];
   out.push({
     key: 'dominance', earned: rp.dominance && !redCard ? R.dominance : 0, possible: R.dominance, section: '§4.4',
-    why: rp.dominance ? `${n} Muestras en la Cámara (mínimo ${R.dominanceSamples}).` : `${n} Muestras en la Cámara; faltaron ${R.dominanceSamples - n} para el mínimo de ${R.dominanceSamples}.`,
+    why: rp.dominance ? `${n} Muestras en la Cámara (mínimo ${R.dominanceSamples}).${m.overflowIn(a) ? ` Incluye ${m.overflowIn(a)} que no cupieron y contaron igual (D17).` : ''}` : `${n} Muestras en la Cámara; faltaron ${R.dominanceSamples - n} para el mínimo de ${R.dominanceSamples}.`,
     ...(rp.dominance && tenth ? { at: Math.round(tenth.time * 1000) / 1000 } : {}),
   });
   return out;

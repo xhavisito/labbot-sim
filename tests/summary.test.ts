@@ -10,6 +10,15 @@ describe('resumen del match', () => {
     expect(s.rows.some((r) => r.section)).toBe(true);
     expect(s.rows.filter((r) => r.bold)).toHaveLength(2);
   });
+  it('muestra las Muestras que no cupieron por alianza, igual que el marcador', () => {
+    const m = new Match(GAME);
+    m.start();
+    m.scoreSample('red', 1, 0, true);
+    m.scoreSample('red', 1, 0, true);
+    m.scoreSample('blue', 2);
+    const row = buildSummary(m).rows.find((r) => r.label === 'Muestras que no cupieron (ya contadas)');
+    expect(row).toMatchObject({ red: '2', blue: '0' });
+  });
   it('las faltas llevan su § del manual', () => {
     const m = new Match(GAME);
     m.foul('CONTACT', 'red', 0);
