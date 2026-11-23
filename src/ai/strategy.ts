@@ -68,3 +68,11 @@ export function weighted<T>(list: ReadonlyArray<readonly [T, number]>, rand: () 
   for (const [v, w] of list) if ((r -= w) < 0) return v;
   return list[list.length - 1][0];
 }
+
+/**
+ * Modo secreto efectivo: en el torneo siempre está activo (Xhavi, 23-nov) y no depende de lo que
+ * diga "Preparar match" ni de los ajustes guardados; fuera del torneo manda el ajuste.
+ */
+export function effectiveSecret(secret: boolean, tour: boolean): boolean {
+  return tour || secret;
+}
