@@ -37,6 +37,7 @@ import { addPlaytime } from '../core/playtime';
 import { loadPlaytime, savePlaytime } from '../game/playtimeStore';
 import { GameSession, type SessionOptions } from '../game/GameSession';
 import { loadScout } from '../game/scoutStore';
+import { playerRobotFor } from '../core/tourRobot';
 import { planById } from '../game/planStore';
 import type { StrategyPlan } from '../core/plan';
 import { InputManager } from '../input/InputManager';
@@ -315,9 +316,10 @@ export class App {
     if (c.mode === 'match' && !c.ready && c.player >= 0) return this.openSetup(c);
     if (c.mode === 'versus' && !c.ready) return this.openVersusSetup(c);
     this.choice = c;
+    this.tourRobot = c.scout?.tour ? (playerRobotFor(c.scout, c.player, this.settings.robotType) as RobotId) : null;
     this.testRobot = c.autoTest ? (c.robot ?? null) : null;
     // Botones por defecto del robot del jugador (`ROBOT_PAD_DEFAULTS`, p. ej. Mentores 3478)
-    this.input.robot = this.testRobot ?? this.settings.robotType;
+    this.input.robot = this.testRobot ?? this.tourRobot ?? this.settings.robotType;
     this.closeAutoPractice();
     this.closeTraining();
     this.closePractice1v1();
@@ -401,7 +403,7 @@ export class App {
         showGhost: () => this.settings.showGhost,
         shots: this.shotLog,
         perf: this.robotPerf,
-        robot: { id: this.settings.robotType, name: robotLabel(this.session.player.spec) },
+        robot: { id: this.tourRobot ?? this.settings.robotType, name: robotLabel(this.session.player.spec) },
         exit: () => this.toMenu(),
       });
     if (drill)
@@ -543,6 +545,7 @@ export class App {
 
   private openSetup(c: MenuChoice): void {
     const sc = c.scout;
+    this.tourRobot = sc?.tour ? (playerRobotFor(sc, c.player, this.settings.robotType) as RobotId) : null;
     const back = () => {
       if (!sc) return this.toMenu();
       this.toMenu();
@@ -576,7 +579,7 @@ export class App {
     const s = this.settings;
     const m = s.match;
     const routine = (id: string) => allAutoRoutines().find((r) => r.id === id) ?? LEAVE_ZONE;
-    const random = aiLineup(player, this.settings.robotType);
+    const random = aiLineup(player, this.tourRobot ?? this.settings.robotType);
     // 2 contra 2: no eliges ni ves lo de los rivales (Xhavi, 30-oct). Su tipo, estrategia y AUTO los
     // elige la IA en secreto en cada match; de ellos solo se elige la dificultad
     const secretMode = effectiveSecret(m.secret, tour);
@@ -632,11 +635,15 @@ export class App {
   /** Tu robot según los ajustes (tipo, velocidad y capacidad). */
   /** Robot de la prueba de AUTO en curso (si la hay). */
   private testRobot: RobotId | null = null;
+  /** Robot fijo del torneo en curso: Singleplayer no lo cambia (`core/tourRobot.ts`). */
+  private tourRobot: RobotId | null = null;
 
   private playerSpec(): RobotSpec {
     const s = this.settings;
     // "Probar" con el robot elegido en el diseñador (no cambia tus ajustes)
     if (this.testRobot) return { ...robotSpec(this.testRobot), maxSpeed: s.maxSpeed };
+    // Match de torneo: su robot fijo, con la velocidad propia de ese robot (SUPUESTO)
+    if (this.tourRobot) return robotSpec(this.tourRobot);
     return { ...robotSpec(s.robotType), maxSpeed: s.maxSpeed };
   }
 
@@ -763,7 +770,7 @@ export class App {
     const i = rp.header.robots.findIndex((r) => r.index === rp.header.player);
     const st = robotStats(rp)[i];
     if (!st) return;
-    addPerf(this.robotPerf, this.settings.robotType, {
+    addPerf(this.robotPerf, this.tourRobot ?? this.settings.robotType, {
       seconds: m.cfg.times.auto + m.cfg.times.teleop,
       points: st.samplePoints,
       cycles: st.cycles.length,
@@ -788,7 +795,7 @@ export class App {
     if (!m) return this.toMenu();
     this.state = 'results';
     this.clearBoard();
-    if (!this.choice.autoTest) addMatchHistory(matchHistoryEntry(m, this.choice.player, this.settings.robotType, '', this.choice.mode));
+    if (!this.choice.autoTest) addMatchHistory(matchHistoryEntry(m, this.choice.player, this.tourRobot ?? this.settings.robotType, '', this.choice.mode));
     const sc = this.choice.scout;
     this.menu.results(
       m,
@@ -1211,6 +1218,7 @@ export class App {
   }
 
   toMenu(): void {
+    this.tourRobot = null;
     this.menuView = 'orbit';
     this.spawnOn = false;
     this.arrive = null;
@@ -1234,6 +1242,7 @@ export class App {
 
   /** De vuelta a la pantalla del torneo (después de jugar uno de sus matches). */
   toTournament(): void {
+    this.tourRobot = null;
     this.toMenu();
     this.tourney.open();
   }
